@@ -46,7 +46,11 @@ class AIcPythonCodeGenerationBackend:
             imports = set()
             fields = []
             attributes = []
-            for prop in request.definition.properties:
+            mappings = []
+            ordered_properties = tuple(prop for prop in request.definition.properties if prop.required) + tuple(
+                prop for prop in request.definition.properties if not prop.required
+            )
+            for prop in ordered_properties:
                 ptype = _python_type(prop, request, self.names)
                 if prop.reference:
                     ref_type_kind = AInOutputNameKind.ENUM_TYPE if prop.reference.target_kind is AInDefinitionKind.ENUM else AInOutputNameKind.DATA_TYPE
@@ -59,11 +63,24 @@ class AIcPythonCodeGenerationBackend:
                 property_name = self.names.property_name(prop.source_name, request.naming_profile)
                 fields.append(f"    {property_name}: {ptype}" + ("" if prop.required else " = None"))
                 attributes.append(f"{property_name}: {self._doc(prop.description, f'Value of canonical property {prop.source_name}.')}")
+                mappings.append((property_name, prop.source_name))
             if not fields:
                 fields.append("    pass")
             reference_imports = "\n".join(sorted(imports))
             if reference_imports:
                 reference_imports += "\n"
+            mapping_methods = ["", "    @classmethod", "    def from_mapping(cls, value: Mapping[str, object]):"]
+            if mappings:
+                arguments = ", ".join(f"{property_name}=value.get({source_name!r})" for property_name, source_name in mappings)
+                mapping_methods.append(f"        return cls({arguments})")
+            else:
+                mapping_methods.append("        return cls()")
+            mapping_methods.extend(["", "    def to_mapping(self) -> Mapping[str, object]:"] )
+            if mappings:
+                entries = ", ".join(f"{source_name!r}: self.{property_name}" for property_name, source_name in mappings)
+                mapping_methods.append(f"        return {{{entries}}}")
+            else:
+                mapping_methods.append("        return {}")
             source = (
                 "from __future__ import annotations\n\n"
                 "from dataclasses import dataclass\n"
@@ -75,7 +92,7 @@ class AIcPythonCodeGenerationBackend:
                 f"    __canonical_source_id__ = {request.definition.identity!r}\n"
                 f"    __canonical_source_version__ = {request.definition.version!r}\n"
                 f"    __canonical_source_resource__ = {request.definition.source_resource!r}\n"
-                + "\n".join(fields) + "\n"
+                + "\n".join(fields + mapping_methods) + "\n"
             )
         return AIcdGeneratedSource(type_name, request.package_name.replace('.', '/') + f"/{file_stem}.py", source)
 

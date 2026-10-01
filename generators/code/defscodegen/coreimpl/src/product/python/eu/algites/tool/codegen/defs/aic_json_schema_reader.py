@@ -70,7 +70,10 @@ class AIcJsonSchemaReader:
                 reference=AIcdDefinitionReference(ref, parsed.version, parsed.logical_name, target_kind),
                 description=schema.get("description"),
             )
-        kind = _value_kind(raw_type)
+        if raw_type is None and isinstance(schema.get("enum"), list) and all(isinstance(value, str) for value in schema["enum"]):
+            kind = AInValueKind.STRING
+        else:
+            kind = _value_kind(raw_type)
         item_kind = _value_kind(schema.get("items", {}).get("type")) if kind is AInValueKind.ARRAY and isinstance(schema.get("items"), Mapping) else None
         return AIcdPropertyDefinition(str(name), kind, required, nullable, item_kind, description=schema.get("description"))
 

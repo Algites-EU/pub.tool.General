@@ -31,15 +31,24 @@ Dependencies:
       - GroupId: com.fasterxml.jackson.core
         ArtifactId: jackson-databind
         Usages: [product_implementation]
-        VersionRequirement: { Exact: "2.18.3" }
+        VersionRequirement:
+          Minimum: ">=2.0.0"
+          Maximum: "<3.0.0"
+          MaximumStrict: true
       - GroupId: com.fasterxml.jackson.dataformat
         ArtifactId: jackson-dataformat-yaml
         Usages: [product_implementation]
-        VersionRequirement: { Exact: "2.18.3" }
+        VersionRequirement:
+          Minimum: ">=2.0.0"
+          Maximum: "<3.0.0"
+          MaximumStrict: true
       - GroupId: org.testng
         ArtifactId: testng
         Usages: [develop_implementation]
-        VersionRequirement: { Exact: "7.10.2" }
+        VersionRequirement:
+          Minimum: ">=7.0.0"
+          Maximum: "<8.0.0"
+          MaximumStrict: true
   - DependencyKind: python
     Items:
       - ArtifactId: pyyaml

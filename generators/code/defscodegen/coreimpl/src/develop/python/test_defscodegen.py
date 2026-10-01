@@ -34,6 +34,8 @@ def test_json_enum_and_yamldefs_object_generation():
     assert "Example canonical object definition for a resource endpoint." in obj_src.source
     assert "id: Stable example resource-endpoint identifier." in obj_src.source
     assert "action: Action performed through the resource endpoint." in obj_src.source
+    assert "def from_mapping(cls, value: Mapping[str, object]):" in obj_src.source
+    assert "def to_mapping(self) -> Mapping[str, object]:" in obj_src.source
 
     java_profile = AIcAlgitesNamingProfiles.java_profile()
     java_src = service.generate(AIcdCodeGenerationRequest(obj_def, AInCodeGenerationTarget.JAVA, "example.generated", java_profile))
