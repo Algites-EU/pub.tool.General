@@ -1,0 +1,31 @@
+python.eu.algites.tool.codegen.defs.aic_definition_identity_resolver
+====================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_definition_identity_resolver
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_definition_identity_resolver.AIcDefinitionIdentityResolver
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcDefinitionIdentityResolver
+
+   Provides definition identity resolver functionality.
+
+
+   .. py:attribute:: converter
+
+
+   .. py:method:: from_file(request: eu.algites.tool.codegen.defs.aicd_definition_load_request.AIcdDefinitionLoadRequest, explicit_version: int | None)
+
+      Resolve canonical logical identity and version from a definition file.
+
+
+

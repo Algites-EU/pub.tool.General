@@ -1,0 +1,13 @@
+ManifestVersion: 1
+Artifact:
+  RepositoryId: pub.tool.General
+  LocalArtifactId: generators.code.defscodegen.cli
+  ArtifactCoordinateId: pub.tool.General_generators.code.defscodegen.cli
+  GroupId: eu.algites.tool.codegen
+  Version: 1.0-SNAPSHOT
+  SourcePath: generators/code/defscodegen/cli
+  StructureKind: artifact
+  Name: "Defs Codegen CLI"
+  Description: "Command-line adapter for reusable definition-driven Java/Python code generation."
+SourceMetadata:
+  DescriptorHierarchy:

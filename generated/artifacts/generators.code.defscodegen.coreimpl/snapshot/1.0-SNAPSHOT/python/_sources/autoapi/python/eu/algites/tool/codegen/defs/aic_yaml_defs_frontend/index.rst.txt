@@ -1,0 +1,31 @@
+python.eu.algites.tool.codegen.defs.aic_yaml_defs_frontend
+==========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_yaml_defs_frontend
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_yaml_defs_frontend.AIcYamlDefsFrontend
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcYamlDefsFrontend
+
+   Loads yaml defs definitions into the normalized canonical model.
+
+
+   .. py:attribute:: source_kind
+
+
+   .. py:method:: load(request)
+
+      Load one source definition into the normalized canonical-definition model.
+
+
+

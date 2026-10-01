@@ -1,0 +1,46 @@
+python.eu.algites.tool.codegen.defs.aicd_definition_load_request
+================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aicd_definition_load_request
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aicd_definition_load_request.AIcdDefinitionLoadRequest
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdDefinitionLoadRequest
+
+   Carries immutable definition load request data.
+
+   .. attribute:: path
+
+      Source definition path.
+
+   .. attribute:: source_kind
+
+      Definition source family.
+
+   .. attribute:: naming_profile
+
+      Naming/version profile.
+
+
+   .. py:attribute:: path
+      :type:  pathlib.Path
+
+
+   .. py:attribute:: source_kind
+      :type:  eu.algites.tool.codegen.defs.ain_definition_source_kind.AInDefinitionSourceKind
+
+
+   .. py:attribute:: naming_profile
+      :type:  eu.algites.lib.naming.convention.aicd_naming_profile.AIcdNamingProfile
+
+

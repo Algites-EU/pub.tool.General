@@ -1,0 +1,31 @@
+python.eu.algites.tool.codegen.defs.aic_json_schema_reader
+==========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_json_schema_reader
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_json_schema_reader.AIcJsonSchemaReader
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcJsonSchemaReader
+
+   Provides json schema reader functionality.
+
+
+   .. py:attribute:: identities
+
+
+   .. py:method:: read(root: Mapping[str, Any], request: eu.algites.tool.codegen.defs.aicd_definition_load_request.AIcdDefinitionLoadRequest, source_kind, id_extension, version_extension, name_extension)
+
+      Read a JSON-Schema-shaped definition into the normalized canonical model.
+
+
+

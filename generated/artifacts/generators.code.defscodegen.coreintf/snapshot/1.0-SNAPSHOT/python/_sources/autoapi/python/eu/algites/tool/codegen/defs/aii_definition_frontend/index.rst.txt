@@ -1,0 +1,38 @@
+python.eu.algites.tool.codegen.defs.aii_definition_frontend
+===========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aii_definition_frontend
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aii_definition_frontend.AIiDefinitionFrontend
+
+
+Module Contents
+---------------
+
+.. py:class:: AIiDefinitionFrontend
+
+   Bases: :py:obj:`Protocol`
+
+
+   Defines the contract for one canonical-definition source-format frontend.
+
+
+   .. py:property:: source_kind
+      :type: eu.algites.tool.codegen.defs.ain_definition_source_kind.AInDefinitionSourceKind
+
+
+      Return the definition source kind handled by this frontend.
+
+
+   .. py:method:: load(request: eu.algites.tool.codegen.defs.aicd_definition_load_request.AIcdDefinitionLoadRequest) -> eu.algites.tool.codegen.defs.aicd_canonical_definition.AIcdCanonicalDefinition
+
+      Load one source definition into the normalized canonical-definition model.
+
+
+

@@ -1,0 +1,88 @@
+python.eu.algites.tool.codegen.defs.aicd_property_definition
+============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aicd_property_definition
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aicd_property_definition.AIcdPropertyDefinition
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdPropertyDefinition
+
+   Carries immutable property definition data.
+
+   .. attribute:: source_name
+
+      Canonical property name.
+
+   .. attribute:: value_kind
+
+      Normalized property value kind.
+
+   .. attribute:: required
+
+      Whether the property is required.
+
+   .. attribute:: nullable
+
+      Whether null is accepted.
+
+   .. attribute:: item_value_kind
+
+      Normalized array item value kind.
+
+   .. attribute:: reference
+
+      Referenced canonical definition.
+
+   .. attribute:: description
+
+      Human-readable description.
+
+
+   .. py:attribute:: source_name
+      :type:  str
+
+
+   .. py:attribute:: value_kind
+      :type:  eu.algites.tool.codegen.defs.ain_value_kind.AInValueKind
+
+
+   .. py:attribute:: required
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: nullable
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: item_value_kind
+      :type:  eu.algites.tool.codegen.defs.ain_value_kind.AInValueKind | None
+      :value: None
+
+
+
+   .. py:attribute:: reference
+      :type:  eu.algites.tool.codegen.defs.aicd_definition_reference.AIcdDefinitionReference | None
+      :value: None
+
+
+
+   .. py:attribute:: description
+      :type:  str | None
+      :value: None
+
+
+

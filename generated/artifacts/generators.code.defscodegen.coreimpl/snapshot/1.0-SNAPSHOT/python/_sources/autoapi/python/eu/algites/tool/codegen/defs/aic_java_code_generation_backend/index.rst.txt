@@ -1,0 +1,34 @@
+python.eu.algites.tool.codegen.defs.aic_java_code_generation_backend
+====================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_java_code_generation_backend
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_java_code_generation_backend.AIcJavaCodeGenerationBackend
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcJavaCodeGenerationBackend
+
+   Generates Java records and enums from normalized canonical definitions.
+
+
+   .. py:attribute:: target
+
+
+   .. py:attribute:: names
+
+
+   .. py:method:: generate(request) -> eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource
+
+      Generate one Java source file from a canonical definition.
+
+
+

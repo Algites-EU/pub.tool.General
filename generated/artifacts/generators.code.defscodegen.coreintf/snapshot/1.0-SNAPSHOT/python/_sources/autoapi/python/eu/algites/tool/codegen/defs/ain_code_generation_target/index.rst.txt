@@ -1,0 +1,35 @@
+python.eu.algites.tool.codegen.defs.ain_code_generation_target
+==============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.ain_code_generation_target
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.ain_code_generation_target.AInCodeGenerationTarget
+
+
+Module Contents
+---------------
+
+.. py:class:: AInCodeGenerationTarget
+
+   Bases: :py:obj:`str`, :py:obj:`enum.Enum`
+
+
+   Defines the code generation target enumeration.
+
+
+   .. py:attribute:: JAVA
+      :value: 'java'
+
+
+
+   .. py:attribute:: PYTHON
+      :value: 'python'
+
+
+

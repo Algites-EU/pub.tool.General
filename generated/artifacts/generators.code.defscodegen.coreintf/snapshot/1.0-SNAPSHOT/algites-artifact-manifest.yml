@@ -1,0 +1,13 @@
+ManifestVersion: 1
+Artifact:
+  RepositoryId: pub.tool.General
+  LocalArtifactId: generators.code.defscodegen.coreintf
+  ArtifactCoordinateId: pub.tool.General_generators.code.defscodegen.coreintf
+  GroupId: eu.algites.tool.codegen
+  Version: 1.0-SNAPSHOT
+  SourcePath: generators/code/defscodegen/coreintf
+  StructureKind: artifact
+  Name: "Defs Codegen core interfaces"
+  Description: "Normalized canonical-definition model plus frontend/backend/codegen service contracts."
+SourceMetadata:
+  DescriptorHierarchy:

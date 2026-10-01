@@ -1,0 +1,13 @@
+ManifestVersion: 1
+Artifact:
+  RepositoryId: pub.tool.General
+  LocalArtifactId: generators.code.defscodegen.coreimpl
+  ArtifactCoordinateId: pub.tool.General_generators.code.defscodegen.coreimpl
+  GroupId: eu.algites.tool.codegen
+  Version: 1.0-SNAPSHOT
+  SourcePath: generators/code/defscodegen/coreimpl
+  StructureKind: artifact
+  Name: "Defs Codegen core implementation"
+  Description: "Default distinct yamldefs/jsondefs/xmldefs frontends and Java/Python source generators."
+SourceMetadata:
+  DescriptorHierarchy:

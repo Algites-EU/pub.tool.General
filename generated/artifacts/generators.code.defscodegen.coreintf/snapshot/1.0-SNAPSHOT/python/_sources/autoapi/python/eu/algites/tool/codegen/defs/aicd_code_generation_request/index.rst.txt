@@ -1,0 +1,54 @@
+python.eu.algites.tool.codegen.defs.aicd_code_generation_request
+================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aicd_code_generation_request
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aicd_code_generation_request.AIcdCodeGenerationRequest
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdCodeGenerationRequest
+
+   Carries immutable code generation request data.
+
+   .. attribute:: definition
+
+      Normalized canonical definition.
+
+   .. attribute:: target
+
+      Target programming technology.
+
+   .. attribute:: package_name
+
+      Target package/module namespace.
+
+   .. attribute:: naming_profile
+
+      Naming/version profile.
+
+
+   .. py:attribute:: definition
+      :type:  eu.algites.tool.codegen.defs.aicd_canonical_definition.AIcdCanonicalDefinition
+
+
+   .. py:attribute:: target
+      :type:  eu.algites.tool.codegen.defs.ain_code_generation_target.AInCodeGenerationTarget
+
+
+   .. py:attribute:: package_name
+      :type:  str
+
+
+   .. py:attribute:: naming_profile
+      :type:  eu.algites.lib.naming.convention.aicd_naming_profile.AIcdNamingProfile
+
+

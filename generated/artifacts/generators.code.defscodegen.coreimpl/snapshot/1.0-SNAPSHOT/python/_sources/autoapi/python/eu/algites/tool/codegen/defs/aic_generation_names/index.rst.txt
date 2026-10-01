@@ -1,0 +1,61 @@
+python.eu.algites.tool.codegen.defs.aic_generation_names
+========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_generation_names
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_generation_names.AIcGenerationNames
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcGenerationNames
+
+   Provides generation names functionality.
+
+
+   .. py:attribute:: converter
+
+
+   .. py:method:: render(logical_name, version, profile, kind)
+
+      Render normalized word tokens using a target naming convention.
+
+
+
+   .. py:method:: type_name(definition, profile, kind)
+
+      Render a generated program type name.
+
+
+
+   .. py:method:: file_stem(definition, profile, kind)
+
+      Render a generated source-file stem.
+
+
+
+   .. py:method:: property_name(source_name, profile)
+
+      Render a generated property name.
+
+
+
+   .. py:method:: enum_constant(source_name, profile)
+
+      Render a generated enum constant name.
+
+
+
+   .. py:method:: reference_type(ref, profile)
+
+      Render the generated type name of a referenced canonical definition.
+
+
+

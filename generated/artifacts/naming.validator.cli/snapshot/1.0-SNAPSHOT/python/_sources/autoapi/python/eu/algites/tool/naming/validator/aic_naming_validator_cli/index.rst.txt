@@ -1,0 +1,30 @@
+python.eu.algites.tool.naming.validator.aic_naming_validator_cli
+================================================================
+
+.. py:module:: python.eu.algites.tool.naming.validator.aic_naming_validator_cli
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.naming.validator.aic_naming_validator_cli.AIcNamingValidatorCli
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcNamingValidatorCli
+
+   Provides the command-line adapter for strict Algites naming validation.
+
+
+   .. py:method:: main(args: list[str] | None = None) -> int
+      :staticmethod:
+
+
+      Run the command-line entry point.
+
+
+

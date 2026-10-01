@@ -1,0 +1,30 @@
+python.eu.algites.tool.codegen.defs.aic_defs_codegen_cli
+========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_defs_codegen_cli
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_defs_codegen_cli.AIcDefsCodegenCli
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcDefsCodegenCli
+
+   Provides the command-line adapter for the default defs-codegen service.
+
+
+   .. py:method:: main(args: list[str] | None = None) -> int
+      :staticmethod:
+
+
+      Run the command-line entry point.
+
+
+

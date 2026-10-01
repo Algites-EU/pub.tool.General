@@ -1,0 +1,38 @@
+python.eu.algites.tool.codegen.defs.aii_code_generation_backend
+===============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aii_code_generation_backend
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aii_code_generation_backend.AIiCodeGenerationBackend
+
+
+Module Contents
+---------------
+
+.. py:class:: AIiCodeGenerationBackend
+
+   Bases: :py:obj:`Protocol`
+
+
+   Defines the contract for one generated-source target backend.
+
+
+   .. py:property:: target
+      :type: eu.algites.tool.codegen.defs.ain_code_generation_target.AInCodeGenerationTarget
+
+
+      Return the code-generation target handled by this backend.
+
+
+   .. py:method:: generate(request: eu.algites.tool.codegen.defs.aicd_code_generation_request.AIcdCodeGenerationRequest) -> eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource
+
+      Generate one source artifact from a normalized canonical definition.
+
+
+

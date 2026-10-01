@@ -1,0 +1,13 @@
+ManifestVersion: 1
+Artifact:
+  RepositoryId: pub.tool.General
+  LocalArtifactId: naming.validator.cli
+  ArtifactCoordinateId: pub.tool.General_naming.validator.cli
+  GroupId: eu.algites.tool.naming
+  Version: 1.0-SNAPSHOT
+  SourcePath: naming/validator/cli
+  StructureKind: artifact
+  Name: "Naming validator CLI"
+  Description: "Command-line adapter for the reusable naming validation engine."
+SourceMetadata:
+  DescriptorHierarchy:

@@ -1,0 +1,100 @@
+python.eu.algites.tool.codegen.defs.aicd_canonical_definition
+=============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aicd_canonical_definition
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aicd_canonical_definition.AIcdCanonicalDefinition
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdCanonicalDefinition
+
+   Carries immutable canonical definition data.
+
+   .. attribute:: identity
+
+      Canonical definition identity.
+
+   .. attribute:: version
+
+      Canonical definition version.
+
+   .. attribute:: logical_name
+
+      Logical name without its version suffix.
+
+   .. attribute:: kind
+
+      Normalized definition kind.
+
+   .. attribute:: source_kind
+
+      Definition source family.
+
+   .. attribute:: source_resource
+
+      Canonical source resource path.
+
+   .. attribute:: description
+
+      Human-readable description.
+
+   .. attribute:: properties
+
+      Normalized object properties.
+
+   .. attribute:: enum_values
+
+      Canonical enum wire values.
+
+
+   .. py:attribute:: identity
+      :type:  str
+
+
+   .. py:attribute:: version
+      :type:  int | None
+
+
+   .. py:attribute:: logical_name
+      :type:  str
+
+
+   .. py:attribute:: kind
+      :type:  eu.algites.tool.codegen.defs.ain_definition_kind.AInDefinitionKind
+
+
+   .. py:attribute:: source_kind
+      :type:  eu.algites.tool.codegen.defs.ain_definition_source_kind.AInDefinitionSourceKind
+
+
+   .. py:attribute:: source_resource
+      :type:  str
+
+
+   .. py:attribute:: description
+      :type:  str | None
+      :value: None
+
+
+
+   .. py:attribute:: properties
+      :type:  tuple[eu.algites.tool.codegen.defs.aicd_property_definition.AIcdPropertyDefinition, Ellipsis]
+      :value: ()
+
+
+
+   .. py:attribute:: enum_values
+      :type:  tuple[str, Ellipsis]
+      :value: ()
+
+
+

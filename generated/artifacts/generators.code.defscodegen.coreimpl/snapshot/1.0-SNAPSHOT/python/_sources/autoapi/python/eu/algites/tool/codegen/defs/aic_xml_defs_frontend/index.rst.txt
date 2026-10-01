@@ -1,0 +1,31 @@
+python.eu.algites.tool.codegen.defs.aic_xml_defs_frontend
+=========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_xml_defs_frontend
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_xml_defs_frontend.AIcXmlDefsFrontend
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcXmlDefsFrontend
+
+   Loads canonical definitions expressed as XML Schema definitions.
+
+
+   .. py:attribute:: source_kind
+
+
+   .. py:method:: load(request: eu.algites.tool.codegen.defs.aicd_definition_load_request.AIcdDefinitionLoadRequest) -> eu.algites.tool.codegen.defs.aicd_canonical_definition.AIcdCanonicalDefinition
+
+      Load one XSD resource into the format-neutral canonical-definition model.
+
+
+
