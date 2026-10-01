@@ -53,7 +53,7 @@ Module Contents
 
    .. attribute:: enum_values
 
-      Canonical enum wire values.
+      Canonical enum wire values together with their documentation.
 
 
    .. py:attribute:: identity
@@ -93,7 +93,7 @@ Module Contents
 
 
    .. py:attribute:: enum_values
-      :type:  tuple[str, Ellipsis]
+      :type:  tuple[eu.algites.tool.codegen.defs.aicd_enum_value_definition.AIcdEnumValueDefinition, Ellipsis]
       :value: ()
 
 
