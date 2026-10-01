@@ -7,6 +7,7 @@ from eu.algites.tool.codegen.defs.aic_definition_identity_resolver import AIcDef
 from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.aicd_definition_reference import AIcdDefinitionReference
+from eu.algites.tool.codegen.defs.aicd_enum_value_definition import AIcdEnumValueDefinition
 from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
@@ -32,7 +33,11 @@ class AIcXmlDefsFrontend:
         schema_description = self._documentation(root)
         simple = root.find(f"{self._xs}simpleType")
         if simple is not None:
-            values = tuple(node.attrib["value"] for node in simple.findall(f".//{self._xs}enumeration") if "value" in node.attrib)
+            values = tuple(
+                AIcdEnumValueDefinition(node.attrib["value"], self._documentation(node))
+                for node in simple.findall(f".//{self._xs}enumeration")
+                if "value" in node.attrib
+            )
             if values:
                 return AIcdCanonicalDefinition(
                     identity,

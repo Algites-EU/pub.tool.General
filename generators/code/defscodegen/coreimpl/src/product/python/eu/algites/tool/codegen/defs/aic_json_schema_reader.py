@@ -9,6 +9,7 @@ from eu.algites.lib.naming.conversion.aic_default_name_converter import AIcDefau
 from eu.algites.tool.codegen.defs.aic_definition_identity_resolver import AIcDefinitionIdentityResolver
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.aicd_definition_reference import AIcdDefinitionReference
+from eu.algites.tool.codegen.defs.aicd_enum_value_definition import AIcdEnumValueDefinition
 from eu.algites.lib.naming.convention.aicd_input_version_policy import AIcdInputVersionPolicy
 from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
@@ -31,8 +32,9 @@ class AIcJsonSchemaReader:
         identity = str(root.get(id_extension) or root.get("$id") or parsed.logical_name)
         version = explicit_version if explicit_version is not None else parsed.version
         description = root.get("description") if isinstance(root.get("description"), str) else None
-        if isinstance(root.get("enum"), list):
-            return AIcdCanonicalDefinition(identity, version, logical_name, AInDefinitionKind.ENUM, source_kind, str(request.path), description, (), tuple(str(v) for v in root["enum"]))
+        enum_values = self._enum_values(root)
+        if enum_values:
+            return AIcdCanonicalDefinition(identity, version, logical_name, AInDefinitionKind.ENUM, source_kind, str(request.path), description, (), enum_values)
         properties = root.get("properties")
         if root.get("type") == "object" or isinstance(properties, Mapping):
             required = set(root.get("required", ()))
@@ -73,6 +75,36 @@ class AIcJsonSchemaReader:
         return AIcdPropertyDefinition(str(name), kind, required, nullable, item_kind, description=schema.get("description"))
 
     @staticmethod
+    def _enum_values(root: Mapping[str, Any]) -> tuple[AIcdEnumValueDefinition, ...]:
+        """Normalize enum values and per-value descriptions from JSON-Schema-shaped input."""
+        descriptions: dict[str, str | None] = {}
+        one_of_values: list[AIcdEnumValueDefinition] = []
+        one_of = root.get("oneOf")
+        if isinstance(one_of, list):
+            for branch in one_of:
+                if not isinstance(branch, Mapping) or "const" not in branch or isinstance(branch.get("const"), (dict, list)):
+                    continue
+                value = AIcJsonSchemaReader._wire_value(branch.get("const"))
+                description = branch.get("description") if isinstance(branch.get("description"), str) else None
+                descriptions[value] = description
+                one_of_values.append(AIcdEnumValueDefinition(value, description))
+        enum_values = root.get("enum")
+        if isinstance(enum_values, list):
+            return tuple(AIcdEnumValueDefinition(AIcJsonSchemaReader._wire_value(value), descriptions.get(AIcJsonSchemaReader._wire_value(value))) for value in enum_values)
+        return tuple(one_of_values)
+
+    @staticmethod
+    def _wire_value(value: Any) -> str:
+        """Render one scalar JSON/YAML enum value in the canonical wire-value form."""
+        if value is True:
+            return "true"
+        if value is False:
+            return "false"
+        if value is None:
+            return "null"
+        return str(value)
+
+    @staticmethod
     def _detect_referenced_kind(path: Path) -> AInDefinitionKind | None:
         """Determine whether a referenced canonical definition is an enum or data object."""
         if not path.is_file():
@@ -86,7 +118,7 @@ class AIcJsonSchemaReader:
             return None
         if not isinstance(root, Mapping):
             return None
-        if isinstance(root.get("enum"), list):
+        if AIcJsonSchemaReader._enum_values(root):
             return AInDefinitionKind.ENUM
         if root.get("type") == "object" or isinstance(root.get("properties"), Mapping):
             return AInDefinitionKind.OBJECT

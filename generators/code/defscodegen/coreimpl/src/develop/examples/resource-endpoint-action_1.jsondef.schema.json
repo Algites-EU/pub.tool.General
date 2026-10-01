@@ -9,5 +9,10 @@
     "upload",
     "manage"
   ],
+  "oneOf": [
+    {"const": "download", "description": "Reads resources from the example endpoint."},
+    {"const": "upload", "description": "Publishes resources to the example endpoint."},
+    {"const": "manage", "description": "Performs management operations on the example endpoint."}
+  ],
   "description": "Example canonical enum definition for a resource-endpoint action."
 }

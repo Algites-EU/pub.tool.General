@@ -47,9 +47,12 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
      */
     private String enumSource(AIcdCodeGenerationRequest request, String typeName) {
         List<String> constants = request.definition().enumValues().stream()
-                .map(value -> "    " + names.enumConstant(value, request.namingProfile()) + " = " + pythonQuote(value)).toList();
+                .map(value -> "    " + names.enumConstant(value.value(), request.namingProfile()) + " = " + pythonQuote(value.value())).toList();
+        List<String> valueDocs = request.definition().enumValues().stream()
+                .map(value -> names.enumConstant(value.value(), request.namingProfile()) + ": " + pythonDocumentation(value.description(), "Canonical enum value " + value.value() + "."))
+                .toList();
         return "from enum import Enum\n\n\nclass " + typeName + "(str, Enum):\n" +
-                pythonDocstring(request.definition(), List.of()) +
+                pythonDocstring(request.definition(), List.of(), valueDocs) +
                 "    __canonical_source_id__ = " + pythonQuote(request.definition().identity()) + "\n" +
                 "    __canonical_source_version__ = " + request.definition().version() + "\n" +
                 "    __canonical_source_resource__ = " + pythonQuote(request.definition().sourceResource()) + "\n" +
@@ -90,7 +93,7 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
         return "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Any, Mapping\n" +
                 referenceImports + "\n" +
                 "@dataclass(frozen=True, slots=True)\nclass " + typeName + ":\n" +
-                pythonDocstring(request.definition(), attributeDocs) +
+                pythonDocstring(request.definition(), attributeDocs, List.of()) +
                 "    __canonical_source_id__ = " + pythonQuote(request.definition().identity()) + "\n" +
                 "    __canonical_source_version__ = " + request.definition().version() + "\n" +
                 "    __canonical_source_resource__ = " + pythonQuote(request.definition().sourceResource()) + "\n" +
@@ -102,9 +105,10 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
      *
      * @param definition canonical definition
      * @param attributeDocs optional attribute documentation entries
+     * @param valueDocs optional enum-value documentation entries
      * @return indented Python docstring
      */
-    private static String pythonDocstring(AIcdCanonicalDefinition definition, List<String> attributeDocs) {
+    private static String pythonDocstring(AIcdCanonicalDefinition definition, List<String> attributeDocs, List<String> valueDocs) {
         StringBuilder result = new StringBuilder();
         result.append("    \"\"\"").append(pythonDocumentation(definition.description(), "Generated representation of canonical definition " + definition.logicalName() + "."));
         result.append("\n\n    Generated from canonical definition ").append(definition.identity()).append('/').append(definition.version());
@@ -112,6 +116,11 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
         if (!attributeDocs.isEmpty()) {
             result.append("\n\n    Attributes:\n");
             for (String attributeDoc : attributeDocs) result.append("        ").append(attributeDoc).append('\n');
+            result.append("    ");
+        }
+        if (!valueDocs.isEmpty()) {
+            result.append("\n\n    Values:\n");
+            for (String valueDoc : valueDocs) result.append("        ").append(valueDoc).append('\n');
             result.append("    ");
         }
         result.append("\"\"\"\n");

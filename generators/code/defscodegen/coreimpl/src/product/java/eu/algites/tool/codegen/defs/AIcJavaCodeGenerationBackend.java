@@ -46,11 +46,11 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
      */
     private String enumSource(AIcdCodeGenerationRequest request, String typeName) {
         List<String> constants = request.definition().enumValues().stream()
-                .map(value -> names.enumConstant(value, request.namingProfile()) + "(" + quote(value) + ")")
+                .map(value -> enumConstantSource(value, request))
                 .toList();
         return "package " + request.packageName() + ";\n\n" +
                 typeJavadoc(request.definition(), List.of()) +
-                "public enum " + typeName + " {\n    " + String.join(",\n    ", constants) + ";\n\n" +
+                "public enum " + typeName + " {\n" + String.join(",\n", constants) + ";\n\n" +
                 "    public static final String CANONICAL_SOURCE_ID = " + quote(request.definition().identity()) + ";\n" +
                 "    public static final Integer CANONICAL_SOURCE_VERSION = " + request.definition().version() + ";\n" +
                 "    public static final String CANONICAL_SOURCE_RESOURCE = " + quote(request.definition().sourceResource()) + ";\n\n" +
@@ -63,6 +63,22 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
                 "     */\n" +
                 "    public String wireValue() {\n        return wireValue;\n    }\n" +
                 "}\n";
+    }
+
+    /**
+     * Generates one documented Java enum constant.
+     *
+     * @param value canonical enum value
+     * @param request generation request
+     * @return documented Java enum-constant source
+     */
+    private String enumConstantSource(AIcdEnumValueDefinition value, AIcdCodeGenerationRequest request) {
+        String constantName = names.enumConstant(value.value(), request.namingProfile());
+        String description = documentation(value.description(), "Canonical enum value " + value.value() + ".");
+        return "    /**\n" +
+                "     * " + description + "\n" +
+                "     */\n" +
+                "    " + constantName + "(" + quote(value.value()) + ")";
     }
 
     /**

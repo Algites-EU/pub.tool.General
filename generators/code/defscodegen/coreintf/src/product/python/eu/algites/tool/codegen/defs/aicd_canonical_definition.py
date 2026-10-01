@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from eu.algites.tool.codegen.defs.aicd_enum_value_definition import AIcdEnumValueDefinition
 from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
@@ -18,7 +19,7 @@ class AIcdCanonicalDefinition:
         source_resource: Canonical source resource path.
         description: Human-readable description.
         properties: Normalized object properties.
-        enum_values: Canonical enum wire values.
+        enum_values: Canonical enum wire values together with their documentation.
     """
     identity: str
     version: int | None
@@ -28,4 +29,4 @@ class AIcdCanonicalDefinition:
     source_resource: str
     description: str | None = None
     properties: tuple[AIcdPropertyDefinition, ...] = ()
-    enum_values: tuple[str, ...] = ()
+    enum_values: tuple[AIcdEnumValueDefinition, ...] = ()

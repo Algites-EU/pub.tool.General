@@ -56,9 +56,12 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             NodeList simpleTypes = schema.getElementsByTagNameNS(XS, "simpleType");
             if (simpleTypes.getLength() > 0) {
                 Element type = (Element) simpleTypes.item(0);
-                List<String> values = new ArrayList<>();
+                List<AIcdEnumValueDefinition> values = new ArrayList<>();
                 NodeList enums = type.getElementsByTagNameNS(XS, "enumeration");
-                for (int i = 0; i < enums.getLength(); i++) values.add(((Element) enums.item(i)).getAttribute("value"));
+                for (int i = 0; i < enums.getLength(); i++) {
+                    Element enumElement = (Element) enums.item(i);
+                    values.add(new AIcdEnumValueDefinition(enumElement.getAttribute("value"), documentation(enumElement)));
+                }
                 if (!values.isEmpty()) {
                     String logical = type.getAttribute("name");
                     if (logical == null || logical.isBlank()) logical = parsed.logicalName();

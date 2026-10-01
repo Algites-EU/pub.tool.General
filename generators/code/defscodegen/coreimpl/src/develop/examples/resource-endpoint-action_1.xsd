@@ -1,10 +1,22 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="example.resource-endpoint-action" version="1">
-  <xs:annotation><xs:documentation>Example canonical enum definition for resource endpoint actions.</xs:documentation></xs:annotation><xs:simpleType name="resource-endpoint-action">
-    <xs:annotation><xs:documentation>Defines one resource endpoint action value set.</xs:documentation></xs:annotation><xs:restriction base="xs:string">
-      <xs:enumeration value="download"/>
-      <xs:enumeration value="upload"/>
-      <xs:enumeration value="manage"/>
+  <xs:annotation>
+    <xs:documentation>Example canonical enum definition for resource endpoint actions.</xs:documentation>
+  </xs:annotation>
+  <xs:simpleType name="resource-endpoint-action">
+    <xs:annotation>
+      <xs:documentation>Defines one resource endpoint action value set.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="download">
+        <xs:annotation><xs:documentation>Reads resources from the example XML-defined endpoint.</xs:documentation></xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="upload">
+        <xs:annotation><xs:documentation>Publishes resources to the example XML-defined endpoint.</xs:documentation></xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="manage">
+        <xs:annotation><xs:documentation>Performs management operations on the example XML-defined endpoint.</xs:documentation></xs:annotation>
+      </xs:enumeration>
     </xs:restriction>
   </xs:simpleType>
 </xs:schema>

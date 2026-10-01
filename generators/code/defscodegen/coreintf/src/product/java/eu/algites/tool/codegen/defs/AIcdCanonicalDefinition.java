@@ -14,7 +14,7 @@ import java.util.Objects;
  * @param sourceResource source resource path used for provenance
  * @param description human-readable canonical definition description
  * @param properties normalized object properties
- * @param enumValues canonical enum wire values
+ * @param enumValues canonical enum wire values and their documentation
  */
 public record AIcdCanonicalDefinition(
         String identity,
@@ -25,7 +25,7 @@ public record AIcdCanonicalDefinition(
         String sourceResource,
         String description,
         List<AIcdPropertyDefinition> properties,
-        List<String> enumValues) {
+        List<AIcdEnumValueDefinition> enumValues) {
     /** Validates and normalizes the supplied data-object components. */
     public AIcdCanonicalDefinition {
         Objects.requireNonNull(identity, "identity");

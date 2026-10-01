@@ -34,11 +34,9 @@ final class AIcJsonSchemaReader {
         if (identity == null || identity.isBlank()) identity = parsed.logicalName();
         Integer version = explicitVersion != null ? explicitVersion : parsed.version();
         String description = text(root, "description");
-        JsonNode enumNode = root.get("enum");
-        if (enumNode != null && enumNode.isArray()) {
-            List<String> values = new ArrayList<>();
-            enumNode.forEach(value -> values.add(value.asText()));
-            return new AIcdCanonicalDefinition(identity, version, logicalName, AInDefinitionKind.ENUM, sourceKind, request.path().toString(), description, List.of(), values);
+        List<AIcdEnumValueDefinition> enumValues = enumValues(root);
+        if (!enumValues.isEmpty()) {
+            return new AIcdCanonicalDefinition(identity, version, logicalName, AInDefinitionKind.ENUM, sourceKind, request.path().toString(), description, List.of(), enumValues);
         }
         String type = text(root, "type");
         if ("object".equals(type) || root.has("properties")) {
@@ -92,13 +90,46 @@ final class AIcJsonSchemaReader {
             String fileName = path.getFileName().toString().toLowerCase();
             JsonNode root = (fileName.endsWith(".yaml") || fileName.endsWith(".yml"))
                     ? yamlMapper.readTree(path.toFile()) : jsonMapper.readTree(path.toFile());
-            JsonNode enumNode = root == null ? null : root.get("enum");
-            if (enumNode != null && enumNode.isArray()) return AInDefinitionKind.ENUM;
+            if (root != null && !enumValues(root).isEmpty()) return AInDefinitionKind.ENUM;
             if (root != null && ("object".equals(text(root, "type")) || root.has("properties"))) return AInDefinitionKind.OBJECT;
             return AInDefinitionKind.SCALAR;
         } catch (IOException ex) {
             return null;
         }
+    }
+
+    /**
+     * Normalizes enum values and optional per-value descriptions from JSON-Schema-shaped definitions.
+     *
+     * <p>Descriptions are read from {@code oneOf} branches containing {@code const} and
+     * {@code description}. A plain {@code enum} array remains supported; matching {@code oneOf}
+     * branches enrich those values without changing their wire representation.</p>
+     *
+     * @param root source definition root
+     * @return canonical enum values in declared order
+     */
+    private static List<AIcdEnumValueDefinition> enumValues(JsonNode root) {
+        if (root == null) return List.of();
+        java.util.Map<String, String> descriptions = new java.util.LinkedHashMap<>();
+        List<AIcdEnumValueDefinition> oneOfValues = new ArrayList<>();
+        JsonNode oneOf = root.get("oneOf");
+        if (oneOf != null && oneOf.isArray()) {
+            for (JsonNode branch : oneOf) {
+                JsonNode constant = branch.get("const");
+                if (constant == null || constant.isContainerNode() || constant.isNull()) continue;
+                String value = constant.asText();
+                String valueDescription = text(branch, "description");
+                descriptions.put(value, valueDescription);
+                oneOfValues.add(new AIcdEnumValueDefinition(value, valueDescription));
+            }
+        }
+        JsonNode enumNode = root.get("enum");
+        if (enumNode != null && enumNode.isArray()) {
+            List<AIcdEnumValueDefinition> result = new ArrayList<>();
+            enumNode.forEach(value -> result.add(new AIcdEnumValueDefinition(value.asText(), descriptions.get(value.asText()))));
+            return result;
+        }
+        return oneOfValues;
     }
 
     private static AInValueKind kind(String type) {

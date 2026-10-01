@@ -23,14 +23,14 @@ class AIcJavaCodeGenerationBackend:
         kind = AInOutputNameKind.ENUM_TYPE if is_enum else AInOutputNameKind.DATA_TYPE
         type_name = self.names.type_name(request.definition, request.naming_profile, kind)
         if is_enum:
-            body = ",\n    ".join(
-                f"{self.names.enum_constant(value, request.naming_profile)}({_java_quote(value)})"
+            body = ",\n".join(
+                self._enum_constant(value, request)
                 for value in request.definition.enum_values
             )
             source = (
                 f"package {request.package_name};\n\n"
                 f"{self._type_javadoc(request.definition)}"
-                f"public enum {type_name} {{\n    {body};\n\n"
+                f"public enum {type_name} {{\n{body};\n\n"
                 f"    public static final String CANONICAL_SOURCE_ID = {_java_quote(request.definition.identity)};\n"
                 f"    public static final Integer CANONICAL_SOURCE_VERSION = {_java_integer(request.definition.version)};\n"
                 f"    public static final String CANONICAL_SOURCE_RESOURCE = {_java_quote(request.definition.source_resource)};\n\n"
@@ -64,6 +64,17 @@ class AIcJavaCodeGenerationBackend:
                 "}\n"
             )
         return AIcdGeneratedSource(type_name, request.package_name.replace('.', '/') + f"/{type_name}.java", source)
+
+    def _enum_constant(self, value, request) -> str:
+        """Generate one documented Java enum constant."""
+        constant_name = self.names.enum_constant(value.value, request.naming_profile)
+        description = self._doc(value.description, f"Canonical enum value {value.value}.")
+        return (
+            "    /**\n"
+            f"     * {description}\n"
+            "     */\n"
+            f"    {constant_name}({_java_quote(value.value)})"
+        )
 
     @classmethod
     def _type_javadoc(cls, definition, parameter_docs=()) -> str:

@@ -18,10 +18,13 @@ def test_json_enum_and_yamldefs_object_generation():
     assert enum_def.kind is AInDefinitionKind.ENUM
     assert enum_def.logical_name == "resource-endpoint-action"
     assert enum_def.version == 1
+    assert enum_def.enum_values[0].value == "download"
+    assert enum_def.enum_values[0].description == "Reads resources from the example endpoint."
     enum_src = service.generate(AIcdCodeGenerationRequest(enum_def, AInCodeGenerationTarget.PYTHON, "example.generated", profile))
     assert enum_src.type_name == "AIngResourceEndpointAction_1"
     assert enum_src.relative_path.endswith("aing_resource_endpoint_action_1.py")
     assert "Example canonical enum definition for a resource-endpoint action." in enum_src.source
+    assert "DOWNLOAD: Reads resources from the example endpoint." in enum_src.source
 
     obj_def = service.load(AIcdDefinitionLoadRequest(examples / "resource-endpoint_1.yamldef.schema.json", AInDefinitionSourceKind.YAMLDEFS, profile))
     assert obj_def.properties[1].reference.target_kind is AInDefinitionKind.ENUM
@@ -38,5 +41,14 @@ def test_json_enum_and_yamldefs_object_generation():
     assert "@param id Stable example resource-endpoint identifier." in java_src.source
     assert "@param action Action performed through the resource endpoint." in java_src.source
 
+    yaml_enum_def = service.load(AIcdDefinitionLoadRequest(examples / "resource-endpoint-action_1.yamldef.schema.json", AInDefinitionSourceKind.YAMLDEFS, profile))
+    assert yaml_enum_def.enum_values[0].description == "Reads resources from the example YAML-defined endpoint."
+
     xsd_def = service.load(AIcdDefinitionLoadRequest(examples / "resource-endpoint-action_1.xsd", AInDefinitionSourceKind.XMLDEFS, profile))
     assert xsd_def.description == "Defines one resource endpoint action value set."
+    assert xsd_def.enum_values[0].value == "download"
+    assert xsd_def.enum_values[0].description == "Reads resources from the example XML-defined endpoint."
+
+    xsd_java_src = service.generate(AIcdCodeGenerationRequest(xsd_def, AInCodeGenerationTarget.JAVA, "example.generated", java_profile))
+    assert "Reads resources from the example XML-defined endpoint." in xsd_java_src.source
+    assert "DOWNLOAD(\"download\")" in xsd_java_src.source

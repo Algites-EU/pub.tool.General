@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-yamldefs-id": "example.resource-endpoint-action",
+  "x-yamldefs-version": 1,
+  "x-yamldefs-name": "resource-endpoint-action",
+  "type": "string",
+  "enum": [
+    "download",
+    "upload",
+    "manage"
+  ],
+  "oneOf": [
+    {"const": "download", "description": "Reads resources from the example YAML-defined endpoint."},
+    {"const": "upload", "description": "Publishes resources to the example YAML-defined endpoint."},
+    {"const": "manage", "description": "Performs management operations on the example YAML-defined endpoint."}
+  ],
+  "description": "Example YAML canonical enum definition for a resource-endpoint action."
+}

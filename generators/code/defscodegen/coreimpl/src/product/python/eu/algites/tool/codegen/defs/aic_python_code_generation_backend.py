@@ -26,13 +26,17 @@ class AIcPythonCodeGenerationBackend:
         file_stem = self.names.file_stem(request.definition, request.naming_profile, file_kind)
         if is_enum:
             fields = "\n".join(
-                f"    {self.names.enum_constant(value, request.naming_profile)} = {value!r}"
+                f"    {self.names.enum_constant(value.value, request.naming_profile)} = {value.value!r}"
+                for value in request.definition.enum_values
+            )
+            values = tuple(
+                f"{self.names.enum_constant(value.value, request.naming_profile)}: {self._doc(value.description, f'Canonical enum value {value.value}.')}"
                 for value in request.definition.enum_values
             )
             source = (
                 "from enum import Enum\n\n\n"
                 f"class {type_name}(str, Enum):\n"
-                f"{self._type_docstring(request.definition)}"
+                f"{self._type_docstring(request.definition, values=values)}"
                 f"    __canonical_source_id__ = {request.definition.identity!r}\n"
                 f"    __canonical_source_version__ = {request.definition.version!r}\n"
                 f"    __canonical_source_resource__ = {request.definition.source_resource!r}\n"
@@ -76,13 +80,16 @@ class AIcPythonCodeGenerationBackend:
         return AIcdGeneratedSource(type_name, request.package_name.replace('.', '/') + f"/{file_stem}.py", source)
 
     @classmethod
-    def _type_docstring(cls, definition, attributes=()) -> str:
+    def _type_docstring(cls, definition, attributes=(), values=()) -> str:
         """Build the docstring for one generated Python type."""
         description = cls._doc(definition.description, f"Generated representation of canonical definition {definition.logical_name}.")
         rows = [f'    """{description}', "", f"    Generated from canonical definition {definition.identity}/{definition.version}. Source: {definition.source_resource}. Do not edit manually."]
         if attributes:
             rows.extend(["", "    Attributes:"])
             rows.extend(f"        {entry}" for entry in attributes)
+        if values:
+            rows.extend(["", "    Values:"])
+            rows.extend(f"        {entry}" for entry in values)
         rows.append('    """')
         return "\n".join(rows) + "\n"
 
