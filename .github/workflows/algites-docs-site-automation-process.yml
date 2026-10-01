@@ -1,0 +1,44 @@
+name: App automation documentation site
+
+on:
+  workflow_dispatch:
+    inputs:
+      request:
+        description: "Opaque Algites documentation automation request JSON. The request contract is owned by pub.gov.Algites and may evolve without changing this bridge."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  verify-automation-actor:
+    name: Verify automation actor
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify GitHub App actor
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          locActor="${GITHUB_ACTOR}"
+          locActorLower="${locActor,,}"
+
+          case "${locActorLower}" in
+            algites.github.*\[bot\]|algites-github-*\[bot\])
+              echo "Accepted automation actor: ${locActor}"
+              ;;
+            *)
+              echo "This workflow is intended to be triggered only by Algites GitHub App automation."
+              echo "Rejected actor: ${locActor}"
+              exit 1
+              ;;
+          esac
+
+  publish-docs:
+    needs: verify-automation-actor
+    uses: Algites-EU/pub.gov.Algites/.github/workflows/algites-universal-docs-site.yml@main
+    with:
+      automation-request: ${{ inputs.request }}
