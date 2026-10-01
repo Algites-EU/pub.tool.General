@@ -11,3 +11,8 @@ docs-site/
 # Build outputs (u vás do run/)
 run/*
 **/run/*
+build/*
+
+# Build-integrated generated sources
+**/src/product/*.gen/
+**/src/develop/*.gen/

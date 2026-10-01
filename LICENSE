@@ -1,0 +1,19 @@
+Algites repository licensing summary
+===================================
+
+This file is generated from Algites licensing governance and the hierarchical license-usage.yml declarations in this repository.
+Do not edit it manually. Run './gradlew rebuildAlgitesLicensing' after changing licensing declarations or definitions.
+
+Repository root effective licensing
+-----------------------------------
+PRODUCT:
+  - Apache License 2.0 (Apache-2.0)
+DOCUMENTATION:
+  - Creative Commons Attribution 4.0 International (CC-BY-4.0)
+
+Full license texts
+------------------
+The LICENSES/ directory contains the canonical text of every license that is enabled anywhere in this repository.
+LICENSES/ is managed by the Algites licensing tasks and must not be edited manually.
+
+The machine-readable source of truth is the public/private governance licensing data together with repository-local licensing/license-definitions.yml and license-usage.yml files.
