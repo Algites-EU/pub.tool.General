@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-jsondefs-id": "example.resource-endpoint-action",
+  "x-jsondefs-version": 1,
+  "x-jsondefs-name": "resource-endpoint-action",
+  "type": "string",
+  "enum": [
+    "download",
+    "upload",
+    "manage"
+  ],
+  "description": "Example canonical enum definition for a resource-endpoint action."
+}

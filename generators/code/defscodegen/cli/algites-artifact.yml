@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+
+Artifact:
+  TechnologyKinds: [java, python]
+  Name: Defs Codegen CLI
+  Description: Command-line adapter for reusable definition-driven Java/Python code generation.
+
+Dependencies:
+  - DependencyKind: modustro
+    Items:
+      - GroupId: eu.algites.tool.codegen
+        ArtifactId: pub.tool.General_generators.code.defscodegen.coreintf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+      - GroupId: eu.algites.tool.codegen
+        ArtifactId: pub.tool.General_generators.code.defscodegen.coreimpl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.convention.coreimpl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }

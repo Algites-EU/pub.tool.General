@@ -21,7 +21,7 @@ pluginManagement {
         }
         maven {
             name = "algites-public-snapshots"
-            url = uri("https://dl.cloudsmith.io/public/algites/maven-snapshots-pub/")
+            url = uri("https://dl.cloudsmith.io/public/algites/java-snapshots-pub/maven/")
             mavenContent {
                 snapshotsOnly()
             }

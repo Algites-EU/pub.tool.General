@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact-set_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact-set_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact-set_1.yamldef.schema.json
+
+ArtifactSet:
+  Name: Definition code generation
+  Description: Java and Python program-source generation from canonical yamldefs, jsondefs, and xmldefs definitions.
+
+GroupId: eu.algites.tool.codegen

@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+
+Artifact:
+  TechnologyKinds: [java, python]
+  Name: Naming validator CLI
+  Description: Command-line adapter for the reusable naming validation engine.
+
+Dependencies:
+  - DependencyKind: modustro
+    Items:
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.validation.coreintf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.validation.coreimpl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }

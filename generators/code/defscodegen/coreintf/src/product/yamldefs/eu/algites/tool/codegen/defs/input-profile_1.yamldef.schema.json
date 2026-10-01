@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eu.algites.tool.codegen.defs.input-profile",
+  "x-yamldefs-id": "eu.algites.tool.codegen.defs.input-profile",
+  "x-yamldefs-version": 1,
+  "x-yamldefs-name": "input-profile",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "SourceKind": {
+      "type": "string",
+      "enum": [
+        "yamldefs",
+        "jsondefs",
+        "xmldefs"
+      ],
+      "description": "Selects the source-definition family handled by the frontend."
+    },
+    "NamingProfile": {
+      "type": "string",
+      "description": "Names the naming profile applied while interpreting and generating identifiers."
+    },
+    "RequireCanonicalIdentity": {
+      "type": "boolean",
+      "description": "Requires every loaded definition to expose a canonical identity."
+    },
+    "RequireDefinitionVersion": {
+      "type": "boolean",
+      "description": "Requires every loaded definition to expose a semantic version."
+    }
+  },
+  "required": [
+    "SourceKind"
+  ],
+  "description": "Defines how defs-codegen interprets one supported source-definition family."
+}

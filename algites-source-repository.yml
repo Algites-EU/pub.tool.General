@@ -1,10 +1,14 @@
-sourceRepository:
-  id: pub.tpl.Basic (to be changed)
-  name: Algites public (to be specified) repository
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-source-repository_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-source-repository_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-source-repository_1.yamldef.schema.json
 
-versionContext:
-  releaseLine: "1"
-  revision: 0
-  qualifierKind: SNAPSHOT
-  qualifierLabel: SNAPSHOT
-  
+SourceRepository:
+  Id: pub.tool.General
+  Name: Algites General Development Tools
+
+GroupId: eu.algites.tool
+
+Version:
+  ReleaseLineVersion: "1"
+  Revision: 0
+  QualifierKind: snapshot

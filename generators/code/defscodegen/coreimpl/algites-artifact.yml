@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+
+Artifact:
+  TechnologyKinds: [java, python]
+  Name: Defs Codegen core implementation
+  Description: Default distinct yamldefs/jsondefs/xmldefs frontends and Java/Python source generators.
+
+Dependencies:
+  - DependencyKind: modustro
+    Items:
+      - GroupId: eu.algites.tool.codegen
+        ArtifactId: pub.tool.General_generators.code.defscodegen.coreintf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.convention.coreintf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.conversion.coreintf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.conversion.coreimpl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+  - DependencyKind: java
+    Items:
+      - GroupId: com.fasterxml.jackson.core
+        ArtifactId: jackson-databind
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "2.18.3" }
+      - GroupId: com.fasterxml.jackson.dataformat
+        ArtifactId: jackson-dataformat-yaml
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "2.18.3" }
+      - GroupId: org.testng
+        ArtifactId: testng
+        Usages: [develop_implementation]
+        VersionRequirement: { Exact: "7.10.2" }
+  - DependencyKind: python
+    Items:
+      - ArtifactId: pyyaml
+        Usages: [product_implementation]
+        VersionRequirement:
+          Minimum: ">=6.0"
+          Maximum: "<7.0"

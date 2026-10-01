@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-yamldefs-id": "example.resource-endpoint",
+  "x-yamldefs-version": 1,
+  "x-yamldefs-name": "resource-endpoint",
+  "type": "object",
+  "properties": {
+    "Id": {
+      "type": "string",
+      "description": "Stable example resource-endpoint identifier."
+    },
+    "Action": {
+      "$ref": "resource-endpoint-action_1.jsondef.schema.json",
+      "description": "Action performed through the resource endpoint."
+    },
+    "Enabled": {
+      "type": "boolean",
+      "description": "Controls whether the example resource endpoint is enabled."
+    }
+  },
+  "required": [
+    "Id",
+    "Action"
+  ],
+  "description": "Example canonical object definition for a resource endpoint."
+}
