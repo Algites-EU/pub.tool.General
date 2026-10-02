@@ -1,0 +1,1 @@
+memberSearchIndex = [{"p":"eu.algites.tool.naming.validator","c":"AIcNamingValidatorCli","l":"main(String[])","u":"main(java.lang.String[])"}];updateSearchResults();
