@@ -1,0 +1,57 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-builtins:1"  targetNamespace="urn:parity:xmldefs:parity-builtins:1" version="1" elementFormDefault="qualified">
+<xs:annotation><xs:documentation>All XSD 1.0 built-in scalar families and list datatypes projected to the canonical model.</xs:documentation></xs:annotation>
+<xs:notation name="Demo" public="urn:parity:notation"/>
+<xs:simpleType name="NotationValue"><xs:restriction base="xs:NOTATION"><xs:enumeration value="tns:Demo"/></xs:restriction></xs:simpleType>
+<xs:element name="Value" type="tns:Contract"/>
+<xs:complexType name="Contract">
+<xs:annotation><xs:documentation>All XSD 1.0 built-in scalar families and list datatypes projected to the canonical model.</xs:documentation></xs:annotation>
+<xs:sequence>
+<xs:element name="string" minOccurs="1" type="xs:string"><xs:annotation><xs:documentation>Canonical projection of XSD string.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="normalizedString" minOccurs="1" type="xs:normalizedString"><xs:annotation><xs:documentation>Canonical projection of XSD normalizedString.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="token" minOccurs="1" type="xs:token"><xs:annotation><xs:documentation>Canonical projection of XSD token.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="language" minOccurs="1" type="xs:language"><xs:annotation><xs:documentation>Canonical projection of XSD language.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="Name" minOccurs="1" type="xs:Name"><xs:annotation><xs:documentation>Canonical projection of XSD Name.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="NCName" minOccurs="1" type="xs:NCName"><xs:annotation><xs:documentation>Canonical projection of XSD NCName.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="NMTOKEN" minOccurs="1" type="xs:NMTOKEN"><xs:annotation><xs:documentation>Canonical projection of XSD NMTOKEN.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="ID" minOccurs="1" type="xs:ID"><xs:annotation><xs:documentation>Canonical projection of XSD ID.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="IDREF" minOccurs="1" type="xs:IDREF"><xs:annotation><xs:documentation>Canonical projection of XSD IDREF.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="ENTITY" minOccurs="1" type="xs:ENTITY"><xs:annotation><xs:documentation>Canonical projection of XSD ENTITY.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="duration" minOccurs="1" type="xs:duration"><xs:annotation><xs:documentation>Canonical projection of XSD duration.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="dateTime" minOccurs="1" type="xs:dateTime"><xs:annotation><xs:documentation>Canonical projection of XSD dateTime.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="time" minOccurs="1" type="xs:time"><xs:annotation><xs:documentation>Canonical projection of XSD time.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="date" minOccurs="1" type="xs:date"><xs:annotation><xs:documentation>Canonical projection of XSD date.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="gYearMonth" minOccurs="1" type="xs:gYearMonth"><xs:annotation><xs:documentation>Canonical projection of XSD gYearMonth.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="gYear" minOccurs="1" type="xs:gYear"><xs:annotation><xs:documentation>Canonical projection of XSD gYear.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="gMonthDay" minOccurs="1" type="xs:gMonthDay"><xs:annotation><xs:documentation>Canonical projection of XSD gMonthDay.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="gDay" minOccurs="1" type="xs:gDay"><xs:annotation><xs:documentation>Canonical projection of XSD gDay.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="gMonth" minOccurs="1" type="xs:gMonth"><xs:annotation><xs:documentation>Canonical projection of XSD gMonth.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="hexBinary" minOccurs="1" type="xs:hexBinary"><xs:annotation><xs:documentation>Canonical projection of XSD hexBinary.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="base64Binary" minOccurs="1" type="xs:base64Binary"><xs:annotation><xs:documentation>Canonical projection of XSD base64Binary.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="anyURI" minOccurs="1" type="xs:anyURI"><xs:annotation><xs:documentation>Canonical projection of XSD anyURI.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="QName" minOccurs="1" type="xs:QName"><xs:annotation><xs:documentation>Canonical projection of XSD QName.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="NOTATION" minOccurs="1" type="tns:NotationValue"><xs:annotation><xs:documentation>Canonical projection of XSD NOTATION.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="integer" minOccurs="1" type="xs:integer"><xs:annotation><xs:documentation>Canonical projection of XSD integer.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="nonPositiveInteger" minOccurs="1" type="xs:nonPositiveInteger"><xs:annotation><xs:documentation>Canonical projection of XSD nonPositiveInteger.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="negativeInteger" minOccurs="1" type="xs:negativeInteger"><xs:annotation><xs:documentation>Canonical projection of XSD negativeInteger.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="long" minOccurs="1" type="xs:long"><xs:annotation><xs:documentation>Canonical projection of XSD long.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="int" minOccurs="1" type="xs:int"><xs:annotation><xs:documentation>Canonical projection of XSD int.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="short" minOccurs="1" type="xs:short"><xs:annotation><xs:documentation>Canonical projection of XSD short.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="byte" minOccurs="1" type="xs:byte"><xs:annotation><xs:documentation>Canonical projection of XSD byte.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="nonNegativeInteger" minOccurs="1" type="xs:nonNegativeInteger"><xs:annotation><xs:documentation>Canonical projection of XSD nonNegativeInteger.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="unsignedLong" minOccurs="1" type="xs:unsignedLong"><xs:annotation><xs:documentation>Canonical projection of XSD unsignedLong.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="unsignedInt" minOccurs="1" type="xs:unsignedInt"><xs:annotation><xs:documentation>Canonical projection of XSD unsignedInt.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="unsignedShort" minOccurs="1" type="xs:unsignedShort"><xs:annotation><xs:documentation>Canonical projection of XSD unsignedShort.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="unsignedByte" minOccurs="1" type="xs:unsignedByte"><xs:annotation><xs:documentation>Canonical projection of XSD unsignedByte.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="positiveInteger" minOccurs="1" type="xs:positiveInteger"><xs:annotation><xs:documentation>Canonical projection of XSD positiveInteger.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="decimal" minOccurs="1" type="xs:decimal"><xs:annotation><xs:documentation>Canonical projection of XSD decimal.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="float" minOccurs="1" type="xs:float"><xs:annotation><xs:documentation>Canonical projection of XSD float.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="double" minOccurs="1" type="xs:double"><xs:annotation><xs:documentation>Canonical projection of XSD double.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="boolean" minOccurs="1" type="xs:boolean"><xs:annotation><xs:documentation>Canonical projection of XSD boolean.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="NMTOKENS" minOccurs="1" type="xs:NMTOKENS"><xs:annotation><xs:documentation>Canonical projection of XSD NMTOKENS.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="IDREFS" minOccurs="1" type="xs:IDREFS"><xs:annotation><xs:documentation>Canonical projection of XSD IDREFS.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="ENTITIES" minOccurs="1" type="xs:ENTITIES"><xs:annotation><xs:documentation>Canonical projection of XSD ENTITIES.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="anySimpleType" minOccurs="1" type="xs:anySimpleType"><xs:annotation><xs:documentation>Canonical projection of XSD anySimpleType.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="anyType" minOccurs="1" type="xs:anyType"><xs:annotation><xs:documentation>Canonical projection of XSD anyType.</xs:documentation></xs:annotation></xs:element>
+</xs:sequence>
+</xs:complexType>
+</xs:schema>

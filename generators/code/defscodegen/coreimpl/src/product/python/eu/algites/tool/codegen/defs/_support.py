@@ -49,18 +49,12 @@ def _java_integer(value):
 
 
 def _java_type(prop, request, names):
-    """Map a normalized property to its Java source type."""
-    if prop.reference:
-        return names.reference_type(prop.reference, request.naming_profile)
-    if prop.value_kind is AInValueKind.ARRAY:
-        return f"java.util.List<{_java_scalar_type(prop.item_value_kind)}>"
-    return {
-        AInValueKind.STRING: "String",
-        AInValueKind.INTEGER: "Long",
-        AInValueKind.NUMBER: "Double",
-        AInValueKind.BOOLEAN: "Boolean",
-        AInValueKind.OBJECT: "java.util.Map<String, Object>",
-    }.get(prop.value_kind, "Object")
+    """Preserve exact scalar types and referenced collection item types."""
+    from eu.algites.tool.codegen.defs.aic_scalar_generation import scalar_type
+    array = prop.value_kind is AInValueKind.ARRAY
+    item = names.reference_type(prop.reference, request.naming_profile) if prop.reference else scalar_type(
+        prop.item_value_kind if array else prop.value_kind, prop.item_constraints if array else prop.constraints, True)
+    return f"java.util.List<{item}>" if array else item
 
 
 def _java_scalar_type(kind):

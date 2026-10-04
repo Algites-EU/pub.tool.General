@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from eu.algites.tool.codegen.defs.aicd_definition_reference import AIcdDefinitionReference
 from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
+from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
 
 @dataclass(frozen=True, slots=True)
 class AIcdPropertyDefinition:
@@ -24,3 +25,6 @@ class AIcdPropertyDefinition:
     item_value_kind: AInValueKind | None = None
     reference: AIcdDefinitionReference | None = None
     description: str | None = None
+
+    constraints: AIcdValueConstraints = AIcdValueConstraints()
+    item_constraints: AIcdValueConstraints = AIcdValueConstraints()

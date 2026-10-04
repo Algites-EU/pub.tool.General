@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:parity:yamldefs:parity-root:1",
+  "title": "parity-root",
+  "description": "Equivalent cross-format contract covering scalar values and nested structures.",
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Required text value."
+    },
+    "count": {
+      "type": "integer",
+      "description": "Required integer value."
+    },
+    "amount": {
+      "type": "number",
+      "description": "Required floating-point value."
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Required boolean value."
+    },
+    "optionalText": {
+      "type": "string",
+      "description": "Optional text value."
+    },
+    "nullableText": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Required nullable text value."
+    },
+    "optionalNullableText": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Optional nullable text value."
+    },
+    "child": {
+      "$ref": "parity-child_1.yamldef.schema.json",
+      "description": "Child object from a subschema."
+    },
+    "children": {
+      "type": "array",
+      "description": "Collection of child objects.",
+      "items": {
+        "$ref": "parity-child_1.yamldef.schema.json"
+      }
+    },
+    "status": {
+      "$ref": "parity-status_1.yamldef.schema.json",
+      "description": "State from an enum subschema."
+    },
+    "statuses": {
+      "type": "array",
+      "description": "Collection of enum values.",
+      "items": {
+        "$ref": "parity-status_1.yamldef.schema.json"
+      }
+    },
+    "texts": {
+      "type": "array",
+      "description": "Collection of strings.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "counts": {
+      "type": "array",
+      "description": "Collection of integers.",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "amounts": {
+      "type": "array",
+      "description": "Collection of numbers.",
+      "items": {
+        "type": "number"
+      }
+    },
+    "flags": {
+      "type": "array",
+      "description": "Collection of booleans.",
+      "items": {
+        "type": "boolean"
+      }
+    },
+    "freeObject": {
+      "type": "object",
+      "description": "Unconstrained object value."
+    },
+    "inlineObject": {
+      "type": "object",
+      "description": "Inline nested object; its fields must not leak into the parent.",
+      "properties": {
+        "inner": {
+          "type": "string",
+          "description": "An inner string."
+        }
+      },
+      "required": [
+        "inner"
+      ]
+    },
+    "anything": {
+      "description": "Unconstrained value."
+    },
+    "dateValue": {
+      "type": "string",
+      "description": "Calendar date with preserved timezone and year range.",
+      "x-modustro-datatype": "date"
+    },
+    "timeValue": {
+      "type": "string",
+      "description": "Time with preserved fractional precision.",
+      "x-modustro-datatype": "time"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "Timestamp with preserved timezone.",
+      "x-modustro-datatype": "dateTime"
+    },
+    "durationValue": {
+      "type": "string",
+      "description": "Calendar duration with months and exact seconds.",
+      "x-modustro-datatype": "duration"
+    },
+    "binaryHex": {
+      "type": "string",
+      "description": "Hexadecimal binary content.",
+      "contentEncoding": "base16"
+    },
+    "binaryBase64": {
+      "type": "string",
+      "description": "Base64 binary content.",
+      "contentEncoding": "base64"
+    },
+    "boundedText": {
+      "type": "string",
+      "description": "Text constrained by length and pattern.",
+      "minLength": 2,
+      "maxLength": 5,
+      "pattern": "[A-Z]+"
+    },
+    "boundedInteger": {
+      "type": "integer",
+      "description": "Integer constrained by exact boundaries.",
+      "minimum": -4,
+      "maximum": 8
+    },
+    "boundedDecimal": {
+      "type": "number",
+      "description": "Decimal constrained by an exclusive upper boundary.",
+      "minimum": 0,
+      "exclusiveMaximum": 2.5
+    },
+    "inlineState": {
+      "type": "string",
+      "description": "Inline scalar restriction remains a string.",
+      "enum": [
+        "first",
+        "second"
+      ]
+    }
+  },
+  "required": [
+    "text",
+    "count",
+    "amount",
+    "enabled",
+    "nullableText",
+    "child",
+    "children",
+    "status",
+    "statuses",
+    "texts",
+    "counts",
+    "amounts",
+    "flags",
+    "freeObject",
+    "inlineObject",
+    "anything",
+    "inlineState",
+    "dateValue",
+    "timeValue",
+    "timestamp",
+    "durationValue",
+    "binaryHex",
+    "binaryBase64",
+    "boundedText",
+    "boundedInteger",
+    "boundedDecimal"
+  ],
+  "additionalProperties": false
+}

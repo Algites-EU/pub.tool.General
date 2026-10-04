@@ -11,8 +11,8 @@ public final class AIcYamlDefsFrontend implements AIiDefinitionFrontend {
     /** Creates the default yamldefs frontend. */
     public AIcYamlDefsFrontend() {
     }
-    private final ObjectMapper jsonMapper = new ObjectMapper();
-    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+    private final ObjectMapper jsonMapper = new ObjectMapper().enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
+    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory()).enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
     private final AIcJsonSchemaReader reader = new AIcJsonSchemaReader();
 
     /**

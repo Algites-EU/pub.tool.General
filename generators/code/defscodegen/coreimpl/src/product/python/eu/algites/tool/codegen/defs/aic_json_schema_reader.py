@@ -1,4 +1,5 @@
 from __future__ import annotations
+from eu.algites.tool.codegen.defs._schema_loading import load_schema
 
 import json
 import yaml
@@ -18,6 +19,8 @@ from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
 from eu.algites.lib.naming.convention.ain_version_source import AInVersionSource
 from eu.algites.tool.codegen.defs._support import _strip_extensions
 from eu.algites.tool.codegen.defs._support import _value_kind
+from eu.algites.tool.codegen.defs.aic_scalar_constraints import from_json
+from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
 
 class AIcJsonSchemaReader:
     """Provides json schema reader functionality."""
@@ -42,7 +45,7 @@ class AIcJsonSchemaReader:
             required = set(root.get("required", ()))
             result = tuple(self._property(name, schema, name in required, request) for name, schema in (properties or {}).items())
             return AIcdCanonicalDefinition(identity, version, logical_name, AInDefinitionKind.OBJECT, source_kind, str(request.path), description, result, ())
-        return AIcdCanonicalDefinition(identity, version, logical_name, AInDefinitionKind.SCALAR, source_kind, str(request.path), description)
+        return AIcdCanonicalDefinition(identity, version, logical_name, AInDefinitionKind.SCALAR, source_kind, str(request.path), description, (self._property("value", root, True, request),))
 
     def _property(self, name, schema, required, request, visited=None):
         """Normalize one source property definition."""
@@ -60,7 +63,7 @@ class AIcJsonSchemaReader:
             fragment = unquote(urlsplit(ref).fragment)
             if fragment:
                 target_path = self._reference_path(resource, request)
-                document = yaml.safe_load(target_path.read_text(encoding="utf-8"))
+                document = load_schema(target_path)
                 if fragment.startswith("/"):
                     referenced = document
                     for token in fragment[1:].split("/"):
@@ -84,13 +87,13 @@ class AIcJsonSchemaReader:
                     AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), visited)
                 return AIcdPropertyDefinition(str(name), normalized.value_kind, required, nullable or normalized.nullable,
                     normalized.item_value_kind, normalized.reference,
-                    schema.get("description", normalized.description))
+                    schema.get("description", normalized.description), normalized.constraints, normalized.item_constraints)
+            target_path = self._reference_path(resource, request)
             parsed = AIcDefaultNameConverter().parse_versioned_name(
-                _strip_extensions(Path(resource).name),
+                _strip_extensions(target_path.name),
                 None,
                 AIcdInputVersionPolicy(AInVersionSource.FILE_NAME_SUFFIX, "_", True, False),
             )
-            target_path = self._reference_path(resource, request)
             target_kind = self._detect_referenced_kind(target_path)
             return AIcdPropertyDefinition(
                 str(name),
@@ -104,8 +107,10 @@ class AIcJsonSchemaReader:
             kind = AInValueKind.STRING
         else:
             kind = _value_kind(raw_type)
-        item_kind = _value_kind(schema.get("items", {}).get("type")) if kind is AInValueKind.ARRAY and isinstance(schema.get("items"), Mapping) else None
-        return AIcdPropertyDefinition(str(name), kind, required, nullable, item_kind, description=schema.get("description"))
+        item = self._property(name, schema['items'], True, request, set(visited or ())) if kind is AInValueKind.ARRAY and isinstance(schema.get('items'), Mapping) else None
+        return AIcdPropertyDefinition(str(name), kind, required, nullable,
+            item.value_kind if item else None, item.reference if item else None, schema.get('description'),
+            from_json(schema, kind), item.constraints if item else AIcdValueConstraints())
 
     @staticmethod
     def _reference_path(resource, request):
@@ -135,6 +140,20 @@ class AIcJsonSchemaReader:
                 if len(matches) > 1:
                     raise ValueError(f"Ambiguous local schema reference '{resource}'.")
                 break
+        for ancestor in request.path.resolve().parents:
+            definitions = ancestor.name in ('yamldefs', 'jsondefs')
+            repository = (ancestor / 'modustro-source-repository.yml').is_file()
+            if not definitions and not repository: continue
+            matches = []
+            for path in ancestor.rglob('*'):
+                if not path.is_file() or not (path.name.endswith('.schema.json') or path.suffix in ('.yaml','.yml')): continue
+                if repository and '/src/product/' not in path.as_posix(): continue
+                document = load_schema(path)
+                if isinstance(document, Mapping) and resource in (document.get('$id'),document.get('x-yamldefs-id'),document.get('x-jsondefs-id')):
+                    matches.append(path)
+            if len(matches) == 1: return matches[0]
+            if len(matches) > 1: raise ValueError(f"Ambiguous local schema identity '{resource}'.")
+            if repository: break
         raise ValueError(f"Schema reference '{resource}' has no local canonical definition for {request.path}")
 
     def _structural(self, node, request, visited):
@@ -151,7 +170,7 @@ class AIcJsonSchemaReader:
             if key in visited:
                 raise ValueError(f"Circular schema composition '{ref}' in {request.path}")
             visited.add(key)
-            document = yaml.safe_load(target.read_text(encoding="utf-8"))
+            document = load_schema(target)
             referenced = document
             if fragment.startswith("/"):
                 try:
@@ -234,9 +253,9 @@ class AIcJsonSchemaReader:
             return None
         try:
             if path.suffix.lower() in (".yaml", ".yml"):
-                root = yaml.safe_load(path.read_text(encoding="utf-8"))
+                root = load_schema(path)
             else:
-                root = json.loads(path.read_text(encoding="utf-8"))
+                root = load_schema(path)
         except (OSError, ValueError, yaml.YAMLError):
             return None
         if not isinstance(root, Mapping):

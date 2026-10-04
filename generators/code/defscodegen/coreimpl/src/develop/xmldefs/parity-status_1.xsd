@@ -1,0 +1,11 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-status:1"  targetNamespace="urn:parity:xmldefs:parity-status:1" version="1" elementFormDefault="qualified">
+<xs:annotation><xs:documentation>Documented workflow states shared by all representations.</xs:documentation></xs:annotation>
+<xs:element name="Value" type="tns:Contract"/>
+<xs:simpleType name="Contract">
+<xs:annotation><xs:documentation>Documented workflow states shared by all representations.</xs:documentation></xs:annotation>
+<xs:restriction base="xs:string">
+<xs:enumeration value="pending"><xs:annotation><xs:documentation>Work remains pending.</xs:documentation></xs:annotation></xs:enumeration>
+<xs:enumeration value="complete"><xs:annotation><xs:documentation>Work is complete.</xs:documentation></xs:annotation></xs:enumeration>
+</xs:restriction>
+</xs:simpleType>
+</xs:schema>

@@ -27,10 +27,10 @@ subprojects {
     }
     java { toolchain { languageVersion = JavaLanguageVersion.of(17) }; withSourcesJar() }
     sourceSets {
-        main { java.srcDirs = ['src/product/java'] }
+        main { java.srcDirs = ['src/product/java']; resources.srcDirs = ['src/product/resources'] }
         test {
             java.srcDirs = ['src/develop/java']
-            resources.srcDirs = ['src/develop/yamldefs', 'src/develop/jsondefs', 'src/develop/examples']
+            resources.srcDirs = ['src/develop/yamldefs', 'src/develop/jsondefs', 'src/develop/xmldefs', 'src/develop/examples']
         }
     }
     tasks.withType(Test).configureEach { useTestNG() }

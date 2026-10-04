@@ -46,65 +46,8 @@ class AIcPythonCodeGenerationBackend:
                 f"{fields}\n"
             )
         else:
-            imports = set()
-            fields = []
-            attributes = []
-            mappings = []
-            ordered_properties = tuple(prop for prop in request.definition.properties if prop.required) + tuple(
-                prop for prop in request.definition.properties if not prop.required
-            )
-            used_names = set()
-            for prop in ordered_properties:
-                ptype = _python_type(prop, request, self.names)
-                if prop.reference:
-                    ref_type_kind = AInOutputNameKind.ENUM_TYPE if prop.reference.target_kind is AInDefinitionKind.ENUM else AInOutputNameKind.DATA_TYPE
-                    ref_file_kind = AInOutputNameKind.ENUM_TYPE_FILE_STEM if prop.reference.target_kind is AInDefinitionKind.ENUM else AInOutputNameKind.DATA_TYPE_FILE_STEM
-                    ref_type = self.names.render(prop.reference.logical_name, prop.reference.version, request.naming_profile, ref_type_kind)
-                    ref_file = self.names.render(prop.reference.logical_name, prop.reference.version, request.naming_profile, ref_file_kind)
-                    imports.add(f"from .{ref_file} import {ref_type}")
-                if not prop.required and "None" not in ptype:
-                    ptype += " | None"
-                property_name = re.sub(r"[^a-zA-Z0-9_]", "_", self.names.property_name(prop.source_name, request.naming_profile))
-                if not property_name or property_name[0].isdigit():
-                    property_name = "_" + property_name
-                if keyword.iskeyword(property_name):
-                    property_name += "_"
-                if property_name in used_names:
-                    raise ValueError(f"Duplicate Python property name '{property_name}' in {request.definition.source_resource}")
-                used_names.add(property_name)
-                fields.append(f"    {property_name}: {ptype}" + ("" if prop.required else " = None"))
-                attributes.append(f"{property_name}: {self._doc(prop.description, f'Value of canonical property {prop.source_name}.')}")
-                mappings.append((property_name, prop.source_name))
-            if not fields:
-                fields.append("    pass")
-            reference_imports = "\n".join(sorted(imports))
-            if reference_imports:
-                reference_imports += "\n"
-            mapping_methods = ["", "    @classmethod", "    def from_mapping(cls, value: Mapping[str, object]):"]
-            if mappings:
-                arguments = ", ".join(f"{property_name}=value.get({source_name!r})" for property_name, source_name in mappings)
-                mapping_methods.append(f"        return cls({arguments})")
-            else:
-                mapping_methods.append("        return cls()")
-            mapping_methods.extend(["", "    def to_mapping(self) -> Mapping[str, object]:"] )
-            if mappings:
-                entries = ", ".join(f"{source_name!r}: self.{property_name}" for property_name, source_name in mappings)
-                mapping_methods.append(f"        return {{{entries}}}")
-            else:
-                mapping_methods.append("        return {}")
-            source = (
-                "from __future__ import annotations\n\n"
-                "from dataclasses import dataclass\n"
-                "from typing import Any, Mapping\n"
-                + reference_imports + "\n"
-                "@dataclass(frozen=True, slots=True)\n"
-                f"class {type_name}:\n"
-                f"{self._type_docstring(request.definition, attributes)}"
-                f"    __canonical_source_id__ = {request.definition.identity!r}\n"
-                f"    __canonical_source_version__ = {request.definition.version!r}\n"
-                f"    __canonical_source_resource__ = {request.definition.source_resource!r}\n"
-                + "\n".join(fields + mapping_methods) + "\n"
-            )
+            from eu.algites.tool.codegen.defs.aic_scalar_generation import python_data_source
+            source = python_data_source(request, self.names, type_name, self._type_docstring)
         return AIcdGeneratedSource(type_name, request.package_name.replace('.', '/') + f"/{file_stem}.py", source)
 
     @classmethod

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from eu.algites.tool.codegen.defs._schema_loading import load_schema
 
 import json
 import yaml
@@ -17,9 +18,9 @@ class AIcYamlDefsFrontend:
     def load(self, request):
         """Load one source definition into the normalized canonical-definition model."""
         if request.path.suffix.lower() == ".json":
-            root = json.loads(request.path.read_text(encoding="utf-8"))
+            root = load_schema(request.path)
         else:
-            root = yaml.safe_load(request.path.read_text(encoding="utf-8"))
+            root = load_schema(request.path)
         if not isinstance(root, Mapping):
             raise ValueError("yamldefs definition root must be a mapping")
         return self._reader.read(root, request, self.source_kind, "x-yamldefs-id", "x-yamldefs-version", "x-yamldefs-name")

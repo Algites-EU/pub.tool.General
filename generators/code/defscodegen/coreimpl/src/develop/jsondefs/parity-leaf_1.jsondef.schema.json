@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:parity:jsondefs:parity-leaf:1",
+  "title": "parity-leaf",
+  "description": "Deeply nested details shared by all representations.",
+  "type": "object",
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "Human-readable detail label."
+    },
+    "quantity": {
+      "type": "integer",
+      "description": "Number of detail items."
+    }
+  },
+  "required": [
+    "label",
+    "quantity"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,344 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:parity:yamldefs:parity-builtins:1",
+  "title": "parity-builtins",
+  "description": "All XSD 1.0 built-in scalar families and list datatypes projected to the canonical model.",
+  "type": "object",
+  "properties": {
+    "string": {
+      "description": "Canonical projection of XSD string.",
+      "x-modustro-datatype": "string",
+      "type": "string",
+      "x-test-xsd-type": "string"
+    },
+    "normalizedString": {
+      "description": "Canonical projection of XSD normalizedString.",
+      "x-modustro-datatype": "normalizedString",
+      "type": "string",
+      "x-test-xsd-type": "normalizedString"
+    },
+    "token": {
+      "description": "Canonical projection of XSD token.",
+      "x-modustro-datatype": "token",
+      "type": "string",
+      "x-test-xsd-type": "token"
+    },
+    "language": {
+      "description": "Canonical projection of XSD language.",
+      "x-modustro-datatype": "language",
+      "type": "string",
+      "x-test-xsd-type": "language"
+    },
+    "Name": {
+      "description": "Canonical projection of XSD Name.",
+      "x-modustro-datatype": "Name",
+      "type": "string",
+      "x-test-xsd-type": "Name"
+    },
+    "NCName": {
+      "description": "Canonical projection of XSD NCName.",
+      "x-modustro-datatype": "NCName",
+      "type": "string",
+      "x-test-xsd-type": "NCName"
+    },
+    "NMTOKEN": {
+      "description": "Canonical projection of XSD NMTOKEN.",
+      "x-modustro-datatype": "NMTOKEN",
+      "type": "string",
+      "x-test-xsd-type": "NMTOKEN"
+    },
+    "ID": {
+      "description": "Canonical projection of XSD ID.",
+      "x-modustro-datatype": "ID",
+      "type": "string",
+      "x-test-xsd-type": "ID"
+    },
+    "IDREF": {
+      "description": "Canonical projection of XSD IDREF.",
+      "x-modustro-datatype": "IDREF",
+      "type": "string",
+      "x-test-xsd-type": "IDREF"
+    },
+    "ENTITY": {
+      "description": "Canonical projection of XSD ENTITY.",
+      "x-modustro-datatype": "ENTITY",
+      "type": "string",
+      "x-test-xsd-type": "ENTITY"
+    },
+    "duration": {
+      "description": "Canonical projection of XSD duration.",
+      "x-modustro-datatype": "duration",
+      "type": "string",
+      "x-test-xsd-type": "duration"
+    },
+    "dateTime": {
+      "description": "Canonical projection of XSD dateTime.",
+      "x-modustro-datatype": "dateTime",
+      "type": "string",
+      "x-test-xsd-type": "dateTime"
+    },
+    "time": {
+      "description": "Canonical projection of XSD time.",
+      "x-modustro-datatype": "time",
+      "type": "string",
+      "x-test-xsd-type": "time"
+    },
+    "date": {
+      "description": "Canonical projection of XSD date.",
+      "x-modustro-datatype": "date",
+      "type": "string",
+      "x-test-xsd-type": "date"
+    },
+    "gYearMonth": {
+      "description": "Canonical projection of XSD gYearMonth.",
+      "x-modustro-datatype": "gYearMonth",
+      "type": "string",
+      "x-test-xsd-type": "gYearMonth"
+    },
+    "gYear": {
+      "description": "Canonical projection of XSD gYear.",
+      "x-modustro-datatype": "gYear",
+      "type": "string",
+      "x-test-xsd-type": "gYear"
+    },
+    "gMonthDay": {
+      "description": "Canonical projection of XSD gMonthDay.",
+      "x-modustro-datatype": "gMonthDay",
+      "type": "string",
+      "x-test-xsd-type": "gMonthDay"
+    },
+    "gDay": {
+      "description": "Canonical projection of XSD gDay.",
+      "x-modustro-datatype": "gDay",
+      "type": "string",
+      "x-test-xsd-type": "gDay"
+    },
+    "gMonth": {
+      "description": "Canonical projection of XSD gMonth.",
+      "x-modustro-datatype": "gMonth",
+      "type": "string",
+      "x-test-xsd-type": "gMonth"
+    },
+    "hexBinary": {
+      "description": "Canonical projection of XSD hexBinary.",
+      "x-modustro-datatype": "hexBinary",
+      "type": "string",
+      "x-test-xsd-type": "hexBinary"
+    },
+    "base64Binary": {
+      "description": "Canonical projection of XSD base64Binary.",
+      "x-modustro-datatype": "base64Binary",
+      "type": "string",
+      "x-test-xsd-type": "base64Binary"
+    },
+    "anyURI": {
+      "description": "Canonical projection of XSD anyURI.",
+      "x-modustro-datatype": "anyURI",
+      "type": "string",
+      "x-test-xsd-type": "anyURI"
+    },
+    "QName": {
+      "description": "Canonical projection of XSD QName.",
+      "x-modustro-datatype": "QName",
+      "type": "string",
+      "x-test-xsd-type": "QName"
+    },
+    "NOTATION": {
+      "description": "Canonical projection of XSD NOTATION.",
+      "x-modustro-datatype": "NOTATION",
+      "type": "string",
+      "x-test-xsd-type": "NOTATION",
+      "enum": [
+        "tns:Demo"
+      ]
+    },
+    "integer": {
+      "description": "Canonical projection of XSD integer.",
+      "x-modustro-datatype": "integer",
+      "type": "integer",
+      "x-test-xsd-type": "integer"
+    },
+    "nonPositiveInteger": {
+      "description": "Canonical projection of XSD nonPositiveInteger.",
+      "x-modustro-datatype": "nonPositiveInteger",
+      "type": "integer",
+      "x-test-xsd-type": "nonPositiveInteger"
+    },
+    "negativeInteger": {
+      "description": "Canonical projection of XSD negativeInteger.",
+      "x-modustro-datatype": "negativeInteger",
+      "type": "integer",
+      "x-test-xsd-type": "negativeInteger"
+    },
+    "long": {
+      "description": "Canonical projection of XSD long.",
+      "x-modustro-datatype": "long",
+      "type": "integer",
+      "x-test-xsd-type": "long"
+    },
+    "int": {
+      "description": "Canonical projection of XSD int.",
+      "x-modustro-datatype": "int",
+      "type": "integer",
+      "x-test-xsd-type": "int"
+    },
+    "short": {
+      "description": "Canonical projection of XSD short.",
+      "x-modustro-datatype": "short",
+      "type": "integer",
+      "x-test-xsd-type": "short"
+    },
+    "byte": {
+      "description": "Canonical projection of XSD byte.",
+      "x-modustro-datatype": "byte",
+      "type": "integer",
+      "x-test-xsd-type": "byte"
+    },
+    "nonNegativeInteger": {
+      "description": "Canonical projection of XSD nonNegativeInteger.",
+      "x-modustro-datatype": "nonNegativeInteger",
+      "type": "integer",
+      "x-test-xsd-type": "nonNegativeInteger"
+    },
+    "unsignedLong": {
+      "description": "Canonical projection of XSD unsignedLong.",
+      "x-modustro-datatype": "unsignedLong",
+      "type": "integer",
+      "x-test-xsd-type": "unsignedLong"
+    },
+    "unsignedInt": {
+      "description": "Canonical projection of XSD unsignedInt.",
+      "x-modustro-datatype": "unsignedInt",
+      "type": "integer",
+      "x-test-xsd-type": "unsignedInt"
+    },
+    "unsignedShort": {
+      "description": "Canonical projection of XSD unsignedShort.",
+      "x-modustro-datatype": "unsignedShort",
+      "type": "integer",
+      "x-test-xsd-type": "unsignedShort"
+    },
+    "unsignedByte": {
+      "description": "Canonical projection of XSD unsignedByte.",
+      "x-modustro-datatype": "unsignedByte",
+      "type": "integer",
+      "x-test-xsd-type": "unsignedByte"
+    },
+    "positiveInteger": {
+      "description": "Canonical projection of XSD positiveInteger.",
+      "x-modustro-datatype": "positiveInteger",
+      "type": "integer",
+      "x-test-xsd-type": "positiveInteger"
+    },
+    "decimal": {
+      "description": "Canonical projection of XSD decimal.",
+      "x-modustro-datatype": "decimal",
+      "type": "number",
+      "x-test-xsd-type": "decimal"
+    },
+    "float": {
+      "description": "Canonical projection of XSD float.",
+      "x-modustro-datatype": "float",
+      "type": "number",
+      "x-test-xsd-type": "float"
+    },
+    "double": {
+      "description": "Canonical projection of XSD double.",
+      "x-modustro-datatype": "double",
+      "type": "number",
+      "x-test-xsd-type": "double"
+    },
+    "boolean": {
+      "description": "Canonical projection of XSD boolean.",
+      "x-modustro-datatype": "boolean",
+      "type": "boolean",
+      "x-test-xsd-type": "boolean"
+    },
+    "NMTOKENS": {
+      "description": "Canonical projection of XSD NMTOKENS.",
+      "x-modustro-datatype": "NMTOKENS",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "x-test-xsd-type": "NMTOKENS"
+    },
+    "IDREFS": {
+      "description": "Canonical projection of XSD IDREFS.",
+      "x-modustro-datatype": "IDREFS",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "x-test-xsd-type": "IDREFS"
+    },
+    "ENTITIES": {
+      "description": "Canonical projection of XSD ENTITIES.",
+      "x-modustro-datatype": "ENTITIES",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "x-test-xsd-type": "ENTITIES"
+    },
+    "anySimpleType": {
+      "description": "Canonical projection of XSD anySimpleType.",
+      "x-modustro-datatype": "anySimpleType",
+      "x-test-xsd-type": "anySimpleType"
+    },
+    "anyType": {
+      "description": "Canonical projection of XSD anyType.",
+      "x-modustro-datatype": "anyType",
+      "x-test-xsd-type": "anyType"
+    }
+  },
+  "required": [
+    "string",
+    "normalizedString",
+    "token",
+    "language",
+    "Name",
+    "NCName",
+    "NMTOKEN",
+    "ID",
+    "IDREF",
+    "ENTITY",
+    "duration",
+    "dateTime",
+    "time",
+    "date",
+    "gYearMonth",
+    "gYear",
+    "gMonthDay",
+    "gDay",
+    "gMonth",
+    "hexBinary",
+    "base64Binary",
+    "anyURI",
+    "QName",
+    "NOTATION",
+    "integer",
+    "nonPositiveInteger",
+    "negativeInteger",
+    "long",
+    "int",
+    "short",
+    "byte",
+    "nonNegativeInteger",
+    "unsignedLong",
+    "unsignedInt",
+    "unsignedShort",
+    "unsignedByte",
+    "positiveInteger",
+    "decimal",
+    "float",
+    "double",
+    "boolean",
+    "NMTOKENS",
+    "IDREFS",
+    "ENTITIES",
+    "anySimpleType",
+    "anyType"
+  ],
+  "additionalProperties": false
+}

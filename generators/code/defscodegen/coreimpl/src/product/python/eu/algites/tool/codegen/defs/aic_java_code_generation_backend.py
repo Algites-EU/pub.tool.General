@@ -6,6 +6,7 @@ from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
 from eu.algites.tool.codegen.defs.aicd_generated_source import AIcdGeneratedSource
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
+from eu.algites.tool.codegen.defs.aic_scalar_generation import java_validation, java_identifier
 
 
 class AIcJavaCodeGenerationBackend:
@@ -48,7 +49,7 @@ class AIcJavaCodeGenerationBackend:
             field_rows = []
             parameter_docs = []
             for prop in request.definition.properties:
-                property_name = self.names.property_name(prop.source_name, request.naming_profile)
+                property_name = java_identifier(self.names.property_name(prop.source_name, request.naming_profile))
                 field_rows.append(f"{_java_type(prop, request, self.names)} {property_name}")
                 parameter_docs.append(
                     f" * @param {property_name} {self._doc(prop.description, f'Value of canonical property {prop.source_name}.')}"
@@ -61,7 +62,10 @@ class AIcJavaCodeGenerationBackend:
                 f"    public static final String CANONICAL_SOURCE_ID = {_java_quote(request.definition.identity)};\n"
                 f"    public static final Integer CANONICAL_SOURCE_VERSION = {_java_integer(request.definition.version)};\n"
                 f"    public static final String CANONICAL_SOURCE_RESOURCE = {_java_quote(request.definition.source_resource)};\n"
-                "}\n"
+                "    /** Validates the scalar constraints retained from the canonical schema. */\n"
+                f"    public {type_name} {{\n"
+                + ''.join(java_validation(prop, java_identifier(self.names.property_name(prop.source_name, request.naming_profile))) for prop in request.definition.properties)
+                + "    }\n}\n"
             )
         return AIcdGeneratedSource(type_name, request.package_name.replace('.', '/') + f"/{type_name}.java", source)
 

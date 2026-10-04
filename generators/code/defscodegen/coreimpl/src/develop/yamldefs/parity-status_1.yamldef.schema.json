@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:parity:yamldefs:parity-status:1",
+  "title": "parity-status",
+  "description": "Documented workflow states shared by all representations.",
+  "type": "string",
+  "enum": [
+    "pending",
+    "complete"
+  ],
+  "oneOf": [
+    {
+      "const": "pending",
+      "description": "Work remains pending."
+    },
+    {
+      "const": "complete",
+      "description": "Work is complete."
+    }
+  ]
+}

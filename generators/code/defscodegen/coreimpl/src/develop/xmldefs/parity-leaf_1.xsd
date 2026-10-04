@@ -1,0 +1,11 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-leaf:1"  targetNamespace="urn:parity:xmldefs:parity-leaf:1" version="1" elementFormDefault="qualified">
+<xs:annotation><xs:documentation>Deeply nested details shared by all representations.</xs:documentation></xs:annotation>
+<xs:element name="Value" type="tns:Contract"/>
+<xs:complexType name="Contract">
+<xs:annotation><xs:documentation>Deeply nested details shared by all representations.</xs:documentation></xs:annotation>
+<xs:sequence>
+<xs:element name="label" minOccurs="1" type="xs:string"><xs:annotation><xs:documentation>Human-readable detail label.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="quantity" minOccurs="1" type="xs:integer"><xs:annotation><xs:documentation>Number of detail items.</xs:documentation></xs:annotation></xs:element>
+</xs:sequence>
+</xs:complexType>
+</xs:schema>

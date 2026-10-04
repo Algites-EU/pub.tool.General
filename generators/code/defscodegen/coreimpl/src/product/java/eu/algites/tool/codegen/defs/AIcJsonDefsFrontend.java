@@ -10,7 +10,7 @@ public final class AIcJsonDefsFrontend implements AIiDefinitionFrontend {
     /** Creates the default jsondefs frontend. */
     public AIcJsonDefsFrontend() {
     }
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
     private final AIcJsonSchemaReader reader = new AIcJsonSchemaReader();
 
     /**

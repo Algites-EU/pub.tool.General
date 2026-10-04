@@ -36,3 +36,19 @@ naming/algites-artifact-set.yml
 naming/validator/algites-artifact-set.yml
 naming/validator/cli/algites-artifact.yml
 ```
+
+## Schema parity and precise scalar types (2026-10-04)
+
+The generator now retains exact integers/decimals, calendars, durations, binary
+content and basic scalar facets. The cross-format fixtures and coverage limits
+are documented in `generators/code/defscodegen/coreimpl/src/develop/SCHEMA-PARITY.md`.
+Generated Java numeric components now use BigInteger/BigDecimal where earlier
+outputs used Long/Double. Generated Python Decimal values require a compatible
+JSON serializer. No further pub.lib.General source changes are required.
+Publish the matching CoreIntf, CoreImpl and CLI generator modules together.
+
+The compiled generator bundle also contains rebuilt Python naming dependencies
+from pub.lib.General. Their source code is unchanged, but earlier multi-root
+wheel discovery omitted handwritten modules. Publish those dependency wheels
+before the matching generator Python wheels. The nine-wheel set passed all
+seventeen Python generator tests without source-tree imports.

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from eu.algites.tool.codegen.defs._schema_loading import load_schema
 
 import json
 from eu.algites.tool.codegen.defs.aic_json_schema_reader import AIcJsonSchemaReader
@@ -14,5 +15,5 @@ class AIcJsonDefsFrontend:
 
     def load(self, request):
         """Load one source definition into the normalized canonical-definition model."""
-        root = json.loads(request.path.read_text(encoding="utf-8"))
+        root = load_schema(request.path)
         return self._reader.read(root, request, self.source_kind, "x-jsondefs-id", "x-jsondefs-version", "x-jsondefs-name")

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:parity:jsondefs:parity-child:1",
+  "title": "parity-child",
+  "description": "Nested child with a reference to a further subschema.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable child name."
+    },
+    "detail": {
+      "$ref": "parity-leaf_1.jsondef.schema.json",
+      "description": "Details from the leaf subschema."
+    }
+  },
+  "required": [
+    "name",
+    "detail"
+  ],
+  "additionalProperties": false
+}

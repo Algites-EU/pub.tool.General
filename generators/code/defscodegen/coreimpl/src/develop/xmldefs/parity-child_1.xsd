@@ -1,0 +1,12 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-child:1" xmlns:s0="urn:parity:xmldefs:parity-leaf:1" targetNamespace="urn:parity:xmldefs:parity-child:1" version="1" elementFormDefault="qualified">
+<xs:annotation><xs:documentation>Nested child with a reference to a further subschema.</xs:documentation></xs:annotation>
+<xs:import namespace="urn:parity:xmldefs:parity-leaf:1" schemaLocation="parity-leaf_1.xsd"/>
+<xs:element name="Value" type="tns:Contract"/>
+<xs:complexType name="Contract">
+<xs:annotation><xs:documentation>Nested child with a reference to a further subschema.</xs:documentation></xs:annotation>
+<xs:sequence>
+<xs:element name="name" minOccurs="1" type="xs:string"><xs:annotation><xs:documentation>Human-readable child name.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="detail" minOccurs="1" type="s0:Contract"><xs:annotation><xs:documentation>Details from the leaf subschema.</xs:documentation></xs:annotation></xs:element>
+</xs:sequence>
+</xs:complexType>
+</xs:schema>

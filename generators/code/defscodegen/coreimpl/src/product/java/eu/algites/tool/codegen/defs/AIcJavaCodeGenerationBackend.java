@@ -92,8 +92,8 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
         List<String> components = new ArrayList<>();
         List<String> parameterDocs = new ArrayList<>();
         for (AIcdPropertyDefinition property : request.definition().properties()) {
-            String propertyName = names.propertyName(property.sourceName(), request.namingProfile());
-            components.add(javaType(property, request) + " " + propertyName);
+            String propertyName = javaIdentifier(names.propertyName(property.sourceName(), request.namingProfile()));
+            components.add(AIcScalarGeneration.javaType(property, request, names) + " " + propertyName);
             parameterDocs.add(" * @param " + propertyName + " " + documentation(property.description(), "Value of canonical property " + property.sourceName() + "."));
         }
         return "package " + request.packageName() + ";\n\n" +
@@ -102,6 +102,10 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
                 "    public static final String CANONICAL_SOURCE_ID = " + quote(request.definition().identity()) + ";\n" +
                 "    public static final Integer CANONICAL_SOURCE_VERSION = " + request.definition().version() + ";\n" +
                 "    public static final String CANONICAL_SOURCE_RESOURCE = " + quote(request.definition().sourceResource()) + ";\n" +
+                "    /** Validates the scalar constraints retained from the canonical schema. */\n" +
+                "    public " + typeName + " {\n" + request.definition().properties().stream()
+                    .map(property -> AIcScalarGeneration.javaValidation(property, javaIdentifier(names.propertyName(property.sourceName(), request.namingProfile()))))
+                    .collect(java.util.stream.Collectors.joining()) + "    }\n" +
                 "}\n";
     }
 
@@ -122,41 +126,17 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
         return result.toString();
     }
 
-    /**
-     * Maps one normalized property to its Java type.
-     *
-     * @param property normalized property
-     * @param request generation request
-     * @return Java source type
-     */
-    private String javaType(AIcdPropertyDefinition property, AIcdCodeGenerationRequest request) {
-        if (property.reference() != null) return names.referenceTypeName(property.reference().logicalName(), property.reference().version(), request.namingProfile(), property.reference().targetKind() == AInDefinitionKind.ENUM ? AInOutputNameKind.ENUM_TYPE : AInOutputNameKind.DATA_TYPE);
-        return switch (property.valueKind()) {
-            case STRING -> "String";
-            case INTEGER -> "Long";
-            case NUMBER -> "Double";
-            case BOOLEAN -> "Boolean";
-            case ARRAY -> "java.util.List<" + scalarJavaType(property.itemValueKind()) + ">";
-            case OBJECT -> "java.util.Map<String, Object>";
-            default -> "Object";
-        };
-    }
+    private static final java.util.Set<String> JAVA_RESERVED = java.util.Set.of(
+            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue",
+            "default", "do", "double", "else", "enum", "extends", "final", "finally", "float", "for", "goto", "if",
+            "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "package", "private",
+            "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this",
+            "throw", "throws", "transient", "try", "void", "volatile", "while", "true", "false", "null", "_", "record",
+            "yield", "var", "sealed", "permits", "non-sealed", "clone", "finalize", "getClass", "hashCode", "notify",
+            "notifyAll", "toString", "wait");
 
-    /**
-     * Maps an array item kind to a scalar Java type.
-     *
-     * @param kind normalized item kind
-     * @return Java scalar type
-     */
-    private static String scalarJavaType(AInValueKind kind) {
-        if (kind == null) return "Object";
-        return switch (kind) {
-            case STRING -> "String";
-            case INTEGER -> "Long";
-            case NUMBER -> "Double";
-            case BOOLEAN -> "Boolean";
-            default -> "Object";
-        };
+    private static String javaIdentifier(String name) {
+        return JAVA_RESERVED.contains(name) ? name + "_" : name;
     }
 
     /**

@@ -35,7 +35,7 @@ public final class AIcCanonicalDefinitionMerger {
                         aProperty.nullable(), aProperty.itemValueKind(), aProperty.reference(),
                         AIcDocumentation(aDefinitions.stream().flatMap(aDefinition -> aDefinition.properties().stream())
                                 .filter(aCandidate -> aCandidate.sourceName().equals(aProperty.sourceName()))
-                                .map(AIcdPropertyDefinition::description).toList()))).toList();
+                                .map(AIcdPropertyDefinition::description).toList()), aProperty.constraints(), aProperty.itemConstraints())).toList();
         List<AIcdEnumValueDefinition> locValues = locFirst.enumValues().stream().map(aValue ->
                 new AIcdEnumValueDefinition(aValue.value(), AIcDocumentation(aDefinitions.stream()
                         .flatMap(aDefinition -> aDefinition.enumValues().stream())
@@ -52,14 +52,14 @@ public final class AIcCanonicalDefinitionMerger {
     }
 
     private record AIcdPropertyShape(String name, AInValueKind kind, boolean required, boolean nullable,
-            AInValueKind itemKind, String referenceName, Integer referenceVersion, AInDefinitionKind referenceKind) { }
+            AInValueKind itemKind, String referenceName, Integer referenceVersion, AInDefinitionKind referenceKind, AIcdValueConstraints constraints, AIcdValueConstraints itemConstraints) { }
 
     private static List<AIcdPropertyShape> AIcPropertyShapes(AIcdCanonicalDefinition aDefinition) {
         return aDefinition.properties().stream().map(aProperty -> {
             AIcdDefinitionReference locReference = aProperty.reference();
             return new AIcdPropertyShape(aProperty.sourceName(), aProperty.valueKind(), aProperty.required(),
                     aProperty.nullable(), aProperty.itemValueKind(), locReference == null ? null : locReference.logicalName(),
-                    locReference == null ? null : locReference.version(), locReference == null ? null : locReference.targetKind());
+                    locReference == null ? null : locReference.version(), locReference == null ? null : locReference.targetKind(), aProperty.constraints(), aProperty.itemConstraints());
         }).sorted(java.util.Comparator.comparing(AIcdPropertyShape::name)).toList();
     }
 

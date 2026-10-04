@@ -23,8 +23,8 @@ import java.util.Set;
 /** Shared structural JSON-Schema mapping used by distinct jsondefs and yamldefs frontends. */
 final class AIcJsonSchemaReader {
     private final AIcDefinitionIdentityResolver identities = new AIcDefinitionIdentityResolver();
-    private final ObjectMapper jsonMapper = new ObjectMapper();
-    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+    private final ObjectMapper jsonMapper = new ObjectMapper().enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
+    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory()).enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
 
     AIcdCanonicalDefinition read(JsonNode root, AIcdDefinitionLoadRequest request, AInDefinitionSourceKind sourceKind, String idExtension, String versionExtension, String nameExtension) {
         Integer explicitVersion = integer(root, versionExtension);
@@ -57,7 +57,7 @@ final class AIcJsonSchemaReader {
             }
             return new AIcdCanonicalDefinition(identity, version, logicalName, AInDefinitionKind.OBJECT, sourceKind, request.path().toString(), description, properties, List.of());
         }
-        return new AIcdCanonicalDefinition(identity, version, logicalName, AInDefinitionKind.SCALAR, sourceKind, request.path().toString(), description, List.of(), List.of());
+        return new AIcdCanonicalDefinition(identity, version, logicalName, AInDefinitionKind.SCALAR, sourceKind, request.path().toString(), description, List.of(property("value", root, true, request)), List.of());
     }
 
     private AIcdPropertyDefinition property(String name, JsonNode node, boolean required, AIcdDefinitionLoadRequest request) {
@@ -100,23 +100,25 @@ final class AIcJsonSchemaReader {
                     new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited);
             return new AIcdPropertyDefinition(name, normalized.valueKind(), required, nullable || normalized.nullable(),
                     normalized.itemValueKind(), normalized.reference(),
-                    text(node, "description") == null ? normalized.description() : text(node, "description"));
+                    text(node, "description") == null ? normalized.description() : text(node, "description"), normalized.constraints(), normalized.itemConstraints());
         }
         if (ref != null) {
             String resource = ref.split("#", 2)[0];
-            String stem = AIcDefinitionIdentityResolver.stripDefinitionExtensions(resource.substring(resource.lastIndexOf('/') + 1));
+            Path referencedPath = referencePath(resource, request);
+            String stem = AIcDefinitionIdentityResolver.stripDefinitionExtensions(referencedPath.getFileName().toString());
             AIcdParsedVersionedName parsed = new AIcDefaultNameConverter().parseVersionedName(
                     stem, null, new AIcdInputVersionPolicy(AInVersionSource.FILE_NAME_SUFFIX, "_", true, false));
-            Path referencedPath = request.path().getParent() == null ? Path.of(resource) : request.path().getParent().resolve(resource).normalize();
             AInDefinitionKind targetKind = detectReferencedKind(referencedPath);
             return new AIcdPropertyDefinition(name, AInValueKind.REFERENCE, required, nullable, null,
                     new AIcdDefinitionReference(ref, parsed.version(), parsed.logicalName(), targetKind), text(node, "description"));
         }
         AInValueKind kind = type == null && !enumValues(node).isEmpty()
                 ? AInValueKind.STRING : kind(type);
-        AInValueKind itemKind = null;
-        if (kind == AInValueKind.ARRAY && node.get("items") != null) itemKind = kind(text(node.get("items"), "type"));
-        return new AIcdPropertyDefinition(name, kind, required, nullable, itemKind, null, text(node, "description"));
+        AIcdPropertyDefinition item = kind == AInValueKind.ARRAY && node.get("items") != null
+                ? property(name, node.get("items"), true, request, new HashSet<>(visited)) : null;
+        return new AIcdPropertyDefinition(name, kind, required, nullable,
+                item == null ? null : item.valueKind(), item == null ? null : item.reference(), text(node, "description"),
+                AIcScalarConstraints.json(node, kind), item == null ? AIcdValueConstraints.empty() : item.constraints());
     }
 
     /** Resolves canonical URLs from the checked-out definition roots without network downloads. */
@@ -146,6 +148,25 @@ final class AIcJsonSchemaReader {
                 } catch (IOException ex) { throw new IllegalArgumentException("Cannot discover local schema reference '" + resource + "'.", ex); }
                 break;
             }
+        }
+        for (Path ancestor = request.path().toAbsolutePath().getParent(); ancestor != null; ancestor = ancestor.getParent()) {
+            boolean definitions = ancestor.getFileName() != null && Set.of("yamldefs", "jsondefs").contains(ancestor.getFileName().toString());
+            boolean repository = Files.isRegularFile(ancestor.resolve("modustro-source-repository.yml"));
+            if (!definitions && !repository) continue;
+            List<Path> matches = new ArrayList<>();
+            try (var files = Files.walk(ancestor)) {
+                for (Path file : files.filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".schema.json")
+                        || path.toString().endsWith(".yaml") || path.toString().endsWith(".yml")).toList()) {
+                    if (repository && !file.toString().replace('\\', '/').contains("/src/product/")) continue;
+                    JsonNode document = file.toString().endsWith(".json") ? new ObjectMapper().readTree(file.toFile())
+                            : new ObjectMapper(new YAMLFactory()).readTree(file.toFile());
+                    if (resource.equals(text(document, "$id")) || resource.equals(text(document, "x-yamldefs-id"))
+                            || resource.equals(text(document, "x-jsondefs-id"))) matches.add(file);
+                }
+            } catch (IOException ex) { throw new IllegalArgumentException("Cannot discover schema identity '" + resource + "'.", ex); }
+            if (matches.size() == 1) return matches.get(0);
+            if (matches.size() > 1) throw new IllegalArgumentException("Ambiguous local schema identity '" + resource + "'.");
+            if (repository) break;
         }
         throw new IllegalArgumentException("Schema reference '" + resource + "' has no local canonical definition for " + request.path());
     }

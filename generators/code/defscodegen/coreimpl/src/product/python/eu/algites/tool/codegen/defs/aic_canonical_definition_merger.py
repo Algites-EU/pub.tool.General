@@ -15,7 +15,7 @@ class AIcCanonicalDefinitionMerger:
             return (definition.logical_name, definition.version, definition.kind,
                 sorted((prop.source_name, prop.value_kind, prop.required, prop.nullable,
                     prop.item_value_kind, None if prop.reference is None else
-                    (prop.reference.logical_name, prop.reference.version, prop.reference.target_kind))
+                    (prop.reference.logical_name, prop.reference.version, prop.reference.target_kind), prop.constraints, prop.item_constraints)
                     for prop in definition.properties),
                 tuple(value.value for value in definition.enum_values))
         for definition in definitions:

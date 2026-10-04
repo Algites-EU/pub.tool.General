@@ -1,0 +1,39 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-root:1" xmlns:s0="urn:parity:xmldefs:parity-child:1" xmlns:s1="urn:parity:xmldefs:parity-status:1" targetNamespace="urn:parity:xmldefs:parity-root:1" version="1" elementFormDefault="qualified">
+<xs:annotation><xs:documentation>Equivalent cross-format contract covering scalar values and nested structures.</xs:documentation></xs:annotation>
+<xs:import namespace="urn:parity:xmldefs:parity-child:1" schemaLocation="parity-child_1.xsd"/>
+<xs:import namespace="urn:parity:xmldefs:parity-status:1" schemaLocation="parity-status_1.xsd"/>
+<xs:element name="Value" type="tns:Contract"/>
+<xs:complexType name="Contract">
+<xs:annotation><xs:documentation>Equivalent cross-format contract covering scalar values and nested structures.</xs:documentation></xs:annotation>
+<xs:sequence>
+<xs:element name="text" minOccurs="1" type="xs:string"><xs:annotation><xs:documentation>Required text value.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="count" minOccurs="1" type="xs:integer"><xs:annotation><xs:documentation>Required integer value.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="amount" minOccurs="1" type="xs:decimal"><xs:annotation><xs:documentation>Required floating-point value.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="enabled" minOccurs="1" type="xs:boolean"><xs:annotation><xs:documentation>Required boolean value.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="optionalText" minOccurs="0" type="xs:string"><xs:annotation><xs:documentation>Optional text value.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="nullableText" minOccurs="1" nillable="true" type="xs:string"><xs:annotation><xs:documentation>Required nullable text value.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="optionalNullableText" minOccurs="0" nillable="true" type="xs:string"><xs:annotation><xs:documentation>Optional nullable text value.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="child" minOccurs="1" type="s0:Contract"><xs:annotation><xs:documentation>Child object from a subschema.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="children" minOccurs="1" maxOccurs="unbounded" type="s0:Contract"><xs:annotation><xs:documentation>Collection of child objects.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="status" minOccurs="1" type="s1:Contract"><xs:annotation><xs:documentation>State from an enum subschema.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="statuses" minOccurs="1" maxOccurs="unbounded" type="s1:Contract"><xs:annotation><xs:documentation>Collection of enum values.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="texts" minOccurs="1" maxOccurs="unbounded" type="xs:string"><xs:annotation><xs:documentation>Collection of strings.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="counts" minOccurs="1" maxOccurs="unbounded" type="xs:integer"><xs:annotation><xs:documentation>Collection of integers.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="amounts" minOccurs="1" maxOccurs="unbounded" type="xs:decimal"><xs:annotation><xs:documentation>Collection of numbers.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="flags" minOccurs="1" maxOccurs="unbounded" type="xs:boolean"><xs:annotation><xs:documentation>Collection of booleans.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="freeObject" minOccurs="1"><xs:annotation><xs:documentation>Unconstrained object value.</xs:documentation></xs:annotation><xs:complexType><xs:sequence><xs:any minOccurs="0" maxOccurs="unbounded" processContents="lax"/></xs:sequence></xs:complexType></xs:element>
+<xs:element name="inlineObject" minOccurs="1"><xs:annotation><xs:documentation>Inline nested object; its fields must not leak into the parent.</xs:documentation></xs:annotation><xs:complexType><xs:sequence><xs:element name="inner" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
+<xs:element name="anything" minOccurs="1" type="xs:anyType"><xs:annotation><xs:documentation>Unconstrained value.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="dateValue" minOccurs="1" type="xs:date"><xs:annotation><xs:documentation>Calendar date with preserved timezone and year range.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="timeValue" minOccurs="1" type="xs:time"><xs:annotation><xs:documentation>Time with preserved fractional precision.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="timestamp" minOccurs="1" type="xs:dateTime"><xs:annotation><xs:documentation>Timestamp with preserved timezone.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="durationValue" minOccurs="1" type="xs:duration"><xs:annotation><xs:documentation>Calendar duration with months and exact seconds.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="binaryHex" minOccurs="1" type="xs:hexBinary"><xs:annotation><xs:documentation>Hexadecimal binary content.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="binaryBase64" minOccurs="1" type="xs:base64Binary"><xs:annotation><xs:documentation>Base64 binary content.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="boundedText" minOccurs="1"><xs:annotation><xs:documentation>Text constrained by length and pattern.</xs:documentation></xs:annotation><xs:simpleType><xs:restriction base="xs:string"><xs:minLength value="2"/><xs:maxLength value="5"/><xs:pattern value="[A-Z]+"/></xs:restriction></xs:simpleType></xs:element>
+<xs:element name="boundedInteger" minOccurs="1"><xs:annotation><xs:documentation>Integer constrained by exact boundaries.</xs:documentation></xs:annotation><xs:simpleType><xs:restriction base="xs:integer"><xs:minInclusive value="-4"/><xs:maxInclusive value="8"/></xs:restriction></xs:simpleType></xs:element>
+<xs:element name="boundedDecimal" minOccurs="1"><xs:annotation><xs:documentation>Decimal constrained by an exclusive upper boundary.</xs:documentation></xs:annotation><xs:simpleType><xs:restriction base="xs:decimal"><xs:minInclusive value="0"/><xs:maxExclusive value="2.5"/></xs:restriction></xs:simpleType></xs:element>
+<xs:element name="inlineState" minOccurs="1"><xs:annotation><xs:documentation>Inline scalar restriction remains a string.</xs:documentation></xs:annotation><xs:simpleType><xs:restriction base="xs:string"><xs:enumeration value="first"/><xs:enumeration value="second"/></xs:restriction></xs:simpleType></xs:element>
+</xs:sequence>
+</xs:complexType>
+</xs:schema>
