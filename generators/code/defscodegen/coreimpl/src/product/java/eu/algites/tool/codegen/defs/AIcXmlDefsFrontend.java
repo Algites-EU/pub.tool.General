@@ -63,16 +63,14 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                     values.add(new AIcdEnumValueDefinition(enumElement.getAttribute("value"), documentation(enumElement)));
                 }
                 if (!values.isEmpty()) {
-                    String logical = type.getAttribute("name");
-                    if (logical == null || logical.isBlank()) logical = parsed.logicalName();
+                    String logical = parsed.logicalName();
                     return new AIcdCanonicalDefinition(identity, parsed.version(), logical, AInDefinitionKind.ENUM, sourceKind(), request.path().toString(), firstNonBlank(documentation(type), schemaDescription), List.of(), values);
                 }
             }
             NodeList complexTypes = schema.getElementsByTagNameNS(XS, "complexType");
             if (complexTypes.getLength() > 0) {
                 Element type = (Element) complexTypes.item(0);
-                String logical = type.getAttribute("name");
-                if (logical == null || logical.isBlank()) logical = parsed.logicalName();
+                String logical = parsed.logicalName();
                 List<AIcdPropertyDefinition> properties = new ArrayList<>();
                 NodeList elements = type.getElementsByTagNameNS(XS, "element");
                 for (int i = 0; i < elements.getLength(); i++) {
@@ -81,7 +79,8 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                     String xsdType = element.getAttribute("type");
                     boolean required = !"0".equals(element.getAttribute("minOccurs"));
                     boolean nullable = "true".equals(element.getAttribute("nillable"));
-                    properties.add(new AIcdPropertyDefinition(name, valueKind(xsdType), required, nullable, null, null, documentation(element)));
+                    boolean repeated = !element.getAttribute("maxOccurs").isBlank() && !"1".equals(element.getAttribute("maxOccurs"));
+                    properties.add(new AIcdPropertyDefinition(name, repeated ? AInValueKind.ARRAY : valueKind(xsdType), required, nullable, repeated ? valueKind(xsdType) : null, null, documentation(element)));
                 }
                 return new AIcdCanonicalDefinition(identity, parsed.version(), logical, AInDefinitionKind.OBJECT, sourceKind(), request.path().toString(), firstNonBlank(documentation(type), schemaDescription), properties, List.of());
             }

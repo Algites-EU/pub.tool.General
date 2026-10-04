@@ -7,9 +7,11 @@ import eu.algites.lib.naming.convention.AInVersionSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -34,6 +36,7 @@ final class AIcJsonSchemaReader {
         if (identity == null || identity.isBlank()) identity = parsed.logicalName();
         Integer version = explicitVersion != null ? explicitVersion : parsed.version();
         String description = text(root, "description");
+        root = structural(root, request, new HashSet<>());
         List<AIcdEnumValueDefinition> enumValues = enumValues(root);
         if (!enumValues.isEmpty()) {
             return new AIcdCanonicalDefinition(identity, version, logicalName, AInDefinitionKind.ENUM, sourceKind, request.path().toString(), description, List.of(), enumValues);
@@ -58,6 +61,10 @@ final class AIcJsonSchemaReader {
     }
 
     private AIcdPropertyDefinition property(String name, JsonNode node, boolean required, AIcdDefinitionLoadRequest request) {
+        return property(name, node, required, request, new HashSet<>());
+    }
+
+    private AIcdPropertyDefinition property(String name, JsonNode node, boolean required, AIcdDefinitionLoadRequest request, Set<String> visited) {
         boolean nullable = false;
         String type = text(node, "type");
         JsonNode typeNode = node.get("type");
@@ -68,6 +75,33 @@ final class AIcJsonSchemaReader {
             type = types.stream().filter(item -> !"null".equals(item)).findFirst().orElse(null);
         }
         String ref = text(node, "$ref");
+        if (ref != null && URI.create(ref).getFragment() != null && !URI.create(ref).getFragment().isEmpty()) {
+            String resource = ref.split("#", 2)[0];
+            Path target = referencePath(resource, request);
+            JsonNode document;
+            try {
+                String fileName = target.getFileName().toString().toLowerCase();
+                document = (fileName.endsWith(".yaml") || fileName.endsWith(".yml"))
+                        ? yamlMapper.readTree(target.toFile()) : jsonMapper.readTree(target.toFile());
+            } catch (IOException ex) {
+                throw new IllegalArgumentException("Cannot resolve schema reference '" + ref + "' in " + request.path(), ex);
+            }
+            String fragment = URI.create(ref).getFragment();
+            JsonNode referenced = fragment.startsWith("/") ? document.at(fragment) : anchor(document, fragment);
+            if (referenced == null || referenced.isMissingNode()) {
+                throw new IllegalArgumentException("Undefined schema reference '" + ref + "' in " + request.path());
+            }
+            String referenceKey = target.toAbsolutePath().normalize() + "#" + fragment;
+            if (!visited.add(referenceKey)) {
+                throw new IllegalArgumentException("Circular schema reference '" + ref + "' in " + request.path());
+            }
+            AIcdPropertyDefinition normalized = property(name, referenced.has("allOf")
+                    ? structural(referenced, new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), new HashSet<>()) : referenced, required,
+                    new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited);
+            return new AIcdPropertyDefinition(name, normalized.valueKind(), required, nullable || normalized.nullable(),
+                    normalized.itemValueKind(), normalized.reference(),
+                    text(node, "description") == null ? normalized.description() : text(node, "description"));
+        }
         if (ref != null) {
             String resource = ref.split("#", 2)[0];
             String stem = AIcDefinitionIdentityResolver.stripDefinitionExtensions(resource.substring(resource.lastIndexOf('/') + 1));
@@ -78,10 +112,89 @@ final class AIcJsonSchemaReader {
             return new AIcdPropertyDefinition(name, AInValueKind.REFERENCE, required, nullable, null,
                     new AIcdDefinitionReference(ref, parsed.version(), parsed.logicalName(), targetKind), text(node, "description"));
         }
-        AInValueKind kind = kind(type);
+        AInValueKind kind = type == null && !enumValues(node).isEmpty()
+                ? AInValueKind.STRING : kind(type);
         AInValueKind itemKind = null;
         if (kind == AInValueKind.ARRAY && node.get("items") != null) itemKind = kind(text(node.get("items"), "type"));
         return new AIcdPropertyDefinition(name, kind, required, nullable, itemKind, null, text(node, "description"));
+    }
+
+    /** Resolves canonical URLs from the checked-out definition roots without network downloads. */
+    private static Path referencePath(String resource, AIcdDefinitionLoadRequest request) {
+        if (resource.isEmpty()) return request.path();
+        URI uri = URI.create(resource);
+        if (!uri.isAbsolute()) return request.path().toAbsolutePath().getParent().resolve(resource).normalize();
+        if ("file".equals(uri.getScheme())) return Path.of(uri);
+        for (String sourceKind : List.of("yamldefs", "jsondefs")) {
+            String marker = "/" + sourceKind + "/";
+            String uriPath = uri.getPath();
+            int index = uriPath == null ? -1 : uriPath.indexOf(marker);
+            if (index < 0) continue;
+            for (Path ancestor = request.path().toAbsolutePath().getParent(); ancestor != null; ancestor = ancestor.getParent()) {
+                if (ancestor.getFileName() == null || !ancestor.getFileName().toString().equals(sourceKind)) continue;
+                Path candidate = ancestor.resolve(uriPath.substring(index + marker.length())).normalize();
+                if (candidate.startsWith(ancestor) && Files.isRegularFile(candidate)) return candidate;
+            }
+            for (Path ancestor = request.path().toAbsolutePath().getParent(); ancestor != null; ancestor = ancestor.getParent()) {
+                if (!Files.isRegularFile(ancestor.resolve("modustro-source-repository.yml"))) continue;
+                String suffix = "/src/product/" + sourceKind + "/" + uriPath.substring(index + marker.length());
+                try (var files = Files.walk(ancestor)) {
+                    List<Path> matches = files.filter(Files::isRegularFile)
+                            .filter(path -> path.toString().replace('\\', '/').endsWith(suffix)).toList();
+                    if (matches.size() == 1) return matches.get(0);
+                    if (matches.size() > 1) throw new IllegalArgumentException("Ambiguous local schema reference '" + resource + "'.");
+                } catch (IOException ex) { throw new IllegalArgumentException("Cannot discover local schema reference '" + resource + "'.", ex); }
+                break;
+            }
+        }
+        throw new IllegalArgumentException("Schema reference '" + resource + "' has no local canonical definition for " + request.path());
+    }
+
+    /** Extracts the structural contract of allOf compositions, including referenced root documents. */
+    private JsonNode structural(JsonNode node, AIcdDefinitionLoadRequest request, Set<String> visited) {
+        ObjectNode result = node.deepCopy();
+        String ref = text(node, "$ref");
+        List<JsonNode> branches = new ArrayList<>();
+        if (ref != null) {
+            String resource = ref.split("#", 2)[0];
+            String fragment = URI.create(ref).getFragment();
+            Path target = referencePath(resource, request);
+            String key = target.toAbsolutePath().normalize() + "#" + (fragment == null ? "" : fragment);
+            if (!visited.add(key)) throw new IllegalArgumentException("Circular schema composition '" + ref + "' in " + request.path());
+            try {
+                String name = target.getFileName().toString().toLowerCase();
+                JsonNode document = (name.endsWith(".yaml") || name.endsWith(".yml")) ? yamlMapper.readTree(target.toFile()) : jsonMapper.readTree(target.toFile());
+                JsonNode referenced = fragment == null || fragment.isEmpty() ? document : fragment.startsWith("/") ? document.at(fragment) : anchor(document, fragment);
+                if (referenced == null || referenced.isMissingNode()) throw new IllegalArgumentException("Undefined schema reference '" + ref + "' in " + request.path());
+                branches.add(structural(referenced, new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited));
+            } catch (IOException ex) { throw new IllegalArgumentException("Cannot read schema composition '" + ref + "'.", ex); }
+            visited.remove(key);
+        }
+        JsonNode allOf = node.get("allOf");
+        if (allOf != null && allOf.isArray()) for (JsonNode branch : allOf) branches.add(structural(branch, request, visited));
+        ObjectNode properties = jsonMapper.createObjectNode();
+        Set<String> required = new java.util.LinkedHashSet<>();
+        branches.add(node);
+        for (JsonNode branch : branches) {
+            if (branch.has("properties")) properties.setAll((ObjectNode) branch.get("properties"));
+            if (branch.has("required")) branch.get("required").forEach(value -> required.add(value.asText()));
+            if (branch.has("type") && !result.has("type")) result.set("type", branch.get("type"));
+        }
+        if (!properties.isEmpty()) result.set("properties", properties);
+        if (!required.isEmpty()) { var array = result.putArray("required"); required.forEach(array::add); }
+        return result;
+    }
+
+    /** Finds a named JSON Schema anchor without treating it as a versioned file name. */
+    private static JsonNode anchor(JsonNode node, String name) {
+        if (name.equals(text(node, "$anchor"))) return node;
+        if (node != null && node.isContainerNode()) {
+            for (JsonNode child : node) {
+                JsonNode match = anchor(child, name);
+                if (match != null) return match;
+            }
+        }
+        return null;
     }
 
     private AInDefinitionKind detectReferencedKind(Path path) {

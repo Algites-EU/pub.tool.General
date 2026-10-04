@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import keyword
+import re
+
 from eu.algites.lib.naming.convention.ain_output_name_kind import AInOutputNameKind
 from eu.algites.tool.codegen.defs._support import _python_type
 from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
@@ -50,6 +53,7 @@ class AIcPythonCodeGenerationBackend:
             ordered_properties = tuple(prop for prop in request.definition.properties if prop.required) + tuple(
                 prop for prop in request.definition.properties if not prop.required
             )
+            used_names = set()
             for prop in ordered_properties:
                 ptype = _python_type(prop, request, self.names)
                 if prop.reference:
@@ -60,7 +64,14 @@ class AIcPythonCodeGenerationBackend:
                     imports.add(f"from .{ref_file} import {ref_type}")
                 if not prop.required and "None" not in ptype:
                     ptype += " | None"
-                property_name = self.names.property_name(prop.source_name, request.naming_profile)
+                property_name = re.sub(r"[^a-zA-Z0-9_]", "_", self.names.property_name(prop.source_name, request.naming_profile))
+                if not property_name or property_name[0].isdigit():
+                    property_name = "_" + property_name
+                if keyword.iskeyword(property_name):
+                    property_name += "_"
+                if property_name in used_names:
+                    raise ValueError(f"Duplicate Python property name '{property_name}' in {request.definition.source_resource}")
+                used_names.add(property_name)
                 fields.append(f"    {property_name}: {ptype}" + ("" if prop.required else " = None"))
                 attributes.append(f"{property_name}: {self._doc(prop.description, f'Value of canonical property {prop.source_name}.')}")
                 mappings.append((property_name, prop.source_name))

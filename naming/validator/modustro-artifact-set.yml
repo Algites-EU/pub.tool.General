@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact-set_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact-set_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact-set_1.yamldef.schema.json
+
+ArtifactSet:
+  Name: Naming convention validator
+  Description: Command-line adapters for validating names and versioned names against configured naming conventions.

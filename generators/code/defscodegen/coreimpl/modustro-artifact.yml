@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
-# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
-$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/algites-artifact_1.yamldef.schema.json
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
 
 Artifact:
   TechnologyKinds: [java, python]
@@ -25,6 +25,10 @@ Dependencies:
       - GroupId: eu.algites.lib.naming
         ArtifactId: pub.lib.General_naming.conversion.coreimpl
         Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.convention.coreimpl
+        Usages: [develop_implementation]
         VersionRequirement: { Exact: "1.0-SNAPSHOT" }
   - DependencyKind: java
     Items:

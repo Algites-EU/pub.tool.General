@@ -42,37 +42,34 @@ class AIcXmlDefsFrontend:
                 return AIcdCanonicalDefinition(
                     identity,
                     parsed.version,
-                    simple.attrib.get("name") or parsed.logical_name,
+                    parsed.logical_name,
                     AInDefinitionKind.ENUM,
                     self.source_kind,
                     str(request.path),
                     self._documentation(simple) or schema_description,
                     enum_values=values,
                 )
-        complex_type = root.find(f"{self._xs}complexType")
+        complex_type = root.find(f".//{self._xs}complexType")
         if complex_type is not None:
             props = []
             for node in complex_type.findall(f".//{self._xs}element"):
                 xsd_type = node.attrib.get("type", "")
                 value_kind = _xsd_kind(xsd_type)
-                reference = None
-                if value_kind is AInValueKind.REFERENCE and xsd_type:
-                    local = xsd_type.split(":")[-1]
-                    reference = AIcdDefinitionReference(xsd_type, None, local, None)
+                repeated = node.attrib.get("maxOccurs", "1") != "1"
                 props.append(
                     AIcdPropertyDefinition(
                         node.attrib.get("name", "Value"),
-                        value_kind,
+                        AInValueKind.ARRAY if repeated else value_kind,
                         node.attrib.get("minOccurs") != "0",
                         node.attrib.get("nillable") == "true",
-                        reference=reference,
+                        item_value_kind=value_kind if repeated else None,
                         description=self._documentation(node),
                     )
                 )
             return AIcdCanonicalDefinition(
                 identity,
                 parsed.version,
-                complex_type.attrib.get("name") or parsed.logical_name,
+                parsed.logical_name,
                 AInDefinitionKind.OBJECT,
                 self.source_kind,
                 str(request.path),

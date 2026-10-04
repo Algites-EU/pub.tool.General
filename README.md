@@ -64,10 +64,10 @@ The CLI is only an adapter. Builder/AAC integrations should use the programmatic
 ## Build
 
 ```bash
-./gradlew clean algitesBuild
+./gradlew clean modustroBuild
 ```
 
-The repository uses the shared Algites build lifecycle and supports Java and Python artifacts.
+The repository uses the shared Modustro build lifecycle and supports Java and Python artifacts.
 
 ## Architectural role
 
@@ -76,3 +76,48 @@ The repository uses the shared Algites build lifecycle and supports Java and Pyt
 ## License
 
 See `LICENSE` and `license-usage.yml`.
+
+
+## Modustro repository initialization
+
+Repository and artifact metadata use `modustro-source-repository.yml`,
+`modustro-artifact-set.yml` and `modustro-artifact.yml`. Root Settings load the
+compiled `modustro.builder.gradleinit` artifact once; project inclusion,
+resource endpoints and metadata are resolved by that plugin. Artifact source
+sets, dependencies and output production are configured by the shared Modustro
+conventions. Source generation is inferred from `src/product/yamldefs`,
+`src/product/jsondefs` and `src/product/xmldefs`, without per-file generation
+sections in descriptors. Test-only canonical fixtures belong below `src/develop`.
+
+
+## Canonical representation regression and bootstrap
+
+Compatible YAML/JSON representations are compared by their logical type,
+version and property contract, rather than raw generated text. The merger keeps
+all descriptions and origins in generated Javadoc/docstrings while retaining
+the first representation's primary identity. Different required fields, types,
+nullability, references or enum values fail with an incompatibility error.
+Pointers and anchors refer to nodes inside a schema; their fragments are never
+parsed as versioned filenames. `allOf` compositions contribute object fields
+and requiredness. Canonical URL references are resolved from checked-out
+schema roots, without downloading schema documents during generation.
+
+The original common-metadata YAML/JSON fixtures are under CoreImpl
+`src/develop/yamldefs` and `src/develop/jsondefs`. Java TestNG and Python pytest
+regressions cover both output targets, descriptions, provenance, Java source
+compilation, Python mapping roundtrips, incompatible contracts, local pointers,
+anchors, composed objects and XML filename identity/repeated elements.
+
+The updated Builder build conventions need the new generator API. Bootstrap and
+publish the generator before activating those conventions. With JDK 17:
+
+```bash
+bash generators/code/defscodegen/bootstrap.sh test publishToMavenLocal
+./gradlew modustroBuild -Pmodustro.useMavenLocalForResolution=true
+```
+
+The independent bootstrap builds CoreIntf, CoreImpl and CLI against published
+naming libraries and does not evaluate consumer Settings. Publish their JARs,
+POMs and Gradle module metadata to the shared snapshot repository before CI
+uses the updated public governance conventions. `MODUSTRO_GRADLE_EXECUTABLE`
+optionally selects the Gradle executable.

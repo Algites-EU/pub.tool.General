@@ -70,7 +70,12 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
         List<String> imports = new ArrayList<>();
         List<String> fields = new ArrayList<>();
         List<String> attributeDocs = new ArrayList<>();
-        for (AIcdPropertyDefinition property : request.definition().properties()) {
+        List<String> mappingArguments = new ArrayList<>();
+        List<String> mappingEntries = new ArrayList<>();
+        java.util.Set<String> usedNames = new java.util.HashSet<>();
+        List<AIcdPropertyDefinition> orderedProperties = new ArrayList<>(request.definition().properties());
+        orderedProperties.sort(java.util.Comparator.comparing(AIcdPropertyDefinition::required).reversed());
+        for (AIcdPropertyDefinition property : orderedProperties) {
             String type = pythonType(property, request);
             if (property.reference() != null) {
                 AInOutputNameKind typeKind = property.reference().targetKind() == AInDefinitionKind.ENUM
@@ -83,7 +88,10 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
             }
             if (!property.required() && !type.contains("None")) type += " | None";
             String suffix = property.required() ? "" : " = None";
-            String propertyName = names.propertyName(property.sourceName(), request.namingProfile());
+            String propertyName = pythonIdentifier(names.propertyName(property.sourceName(), request.namingProfile()));
+            if (!usedNames.add(propertyName)) throw new IllegalArgumentException("Duplicate Python property name '" + propertyName + "' in " + request.definition().sourceResource());
+            mappingArguments.add(propertyName + "=value.get(" + pythonQuote(property.sourceName()) + ")");
+            mappingEntries.add(pythonQuote(property.sourceName()) + ": self." + propertyName);
             fields.add("    " + propertyName + ": " + type + suffix);
             attributeDocs.add(propertyName + ": " + pythonDocumentation(property.description(), "Value of canonical property " + property.sourceName() + "."));
         }
@@ -97,7 +105,19 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
                 "    __canonical_source_id__ = " + pythonQuote(request.definition().identity()) + "\n" +
                 "    __canonical_source_version__ = " + request.definition().version() + "\n" +
                 "    __canonical_source_resource__ = " + pythonQuote(request.definition().sourceResource()) + "\n" +
-                String.join("\n", fields) + "\n";
+                String.join("\n", fields) + "\n\n" +
+                "    @classmethod\n    def from_mapping(cls, value: Mapping[str, object]):\n        return cls(" + String.join(", ", mappingArguments) + ")\n\n" +
+                "    def to_mapping(self) -> Mapping[str, object]:\n        return {" + String.join(", ", mappingEntries) + "}\n";
+    }
+
+    /** Projects a canonical field onto a legal Python identifier while preserving its separate wire key. */
+    private static String pythonIdentifier(String name) {
+        String result = name.replaceAll("[^a-zA-Z0-9_]", "_");
+        if (result.isEmpty() || Character.isDigit(result.charAt(0))) result = "_" + result;
+        if (java.util.Set.of("False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue",
+                "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda",
+                "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield").contains(result)) result += "_";
+        return result;
     }
 
     /**

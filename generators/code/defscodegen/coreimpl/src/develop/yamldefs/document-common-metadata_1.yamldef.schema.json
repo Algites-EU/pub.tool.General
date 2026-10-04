@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/pltf/modustro/builder/common/document-common-metadata_1.yamldef.schema.json",
+  "x-algites-definition-version": 1,
+  "title": "Modustro Builder YAML Document Common Metadata v1",
+  "description": "Common technical metadata accepted by Algites/Modustro YAML root documents.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri",
+      "description": "Optional absolute URI of the schema describing this root document."
+    }
+  }
+}
