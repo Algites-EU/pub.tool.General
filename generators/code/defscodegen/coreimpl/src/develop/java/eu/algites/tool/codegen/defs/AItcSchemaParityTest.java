@@ -153,4 +153,35 @@ public final class AItcSchemaParityTest {
         Assert.assertEquals(model.properties().get(1).reference().logicalName(), "leaf");
     }
 
+    /** Excludes transient generated/build copies while retaining legitimate devops/build source directories. */
+    @Test
+    public void AIcCanonicalReferencesIgnoreBuildWorkspaces() throws Exception {
+        for (String locKind : java.util.List.of("yamldefs", "jsondefs")) {
+            Path locRepository = Files.createTempDirectory("defs-owned-roots-");
+            Files.writeString(locRepository.resolve("modustro-source-repository.yml"), "SourceRepository: {}\n");
+            String locSuffix = locKind.equals("yamldefs") ? ".yamldef.schema.json" : ".jsondef.schema.json";
+            Path locOwner = Files.createDirectories(locRepository.resolve("devops/build/owner/src/product/" + locKind + "/example"));
+            String locId = "https://defs.example.test/api/" + locKind + "/example/leaf_1" + locSuffix;
+            String locLeaf = "{\"$id\":\"" + locId + "\",\"type\":\"object\",\"properties\":{}}";
+            Files.writeString(locOwner.resolve("leaf_1" + locSuffix), locLeaf);
+            Path locTransient = Files.createDirectories(locRepository.resolve("build/run/owner/project/src/product/" + locKind + "/example"));
+            Files.writeString(locTransient.resolve("leaf_1" + locSuffix), locLeaf);
+            Path locConsumer = Files.createDirectories(locRepository.resolve("consumer/src/product/" + locKind));
+            Path locRoot = locConsumer.resolve("root_1" + locSuffix);
+            Files.writeString(locRoot, "{\"type\":\"object\",\"properties\":{\"leaf\":{\"$ref\":\"" + locId + "\"}}}");
+            var locModel = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(locRoot,
+                locKind.equals("yamldefs") ? AInDefinitionSourceKind.YAMLDEFS : AInDefinitionSourceKind.JSONDEFS,
+                AIcAlgitesNamingProfiles.javaProfile()));
+            Assert.assertEquals(locModel.properties().get(0).reference().logicalName(), "leaf");
+            String locUrn = "urn:tests:owned-leaf:1";
+            Files.writeString(locOwner.resolve("leaf_1" + locSuffix), locLeaf.replace(locId, locUrn));
+            Files.writeString(locRoot, "{\"type\":\"object\",\"properties\":{\"leaf\":{\"$ref\":\"" + locUrn + "\"}}}");
+            Files.writeString(locTransient.resolve("leaf_1" + locSuffix), "{broken transient JSON");
+            locModel = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(locRoot,
+                locKind.equals("yamldefs") ? AInDefinitionSourceKind.YAMLDEFS : AInDefinitionSourceKind.JSONDEFS,
+                AIcAlgitesNamingProfiles.javaProfile()));
+            Assert.assertEquals(locModel.properties().get(0).reference().logicalName(), "leaf");
+        }
+    }
+
 }

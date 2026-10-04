@@ -14,6 +14,10 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.FileVisitResult;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.stream.Stream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -121,6 +125,36 @@ final class AIcJsonSchemaReader {
                 AIcScalarConstraints.json(node, kind), item == null ? AIcdValueConstraints.empty() : item.constraints());
     }
 
+    /** Walks owned source roots without visiting transient build outputs or generated-source copies. */
+    private static Stream<Path> AIcCanonicalReferenceFiles(Path aRoot) throws IOException {
+        List<Path> locFiles = new ArrayList<>();
+        boolean locRepository = Files.isRegularFile(aRoot.resolve("modustro-source-repository.yml"));
+        Files.walkFileTree(aRoot, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path aDirectory, BasicFileAttributes aAttributes) {
+                if (aDirectory.equals(aRoot)) return FileVisitResult.CONTINUE;
+                String locName = aDirectory.getFileName().toString();
+                if (locName.startsWith(".") || locName.equals("__pycache__")
+                    || locName.endsWith(".gen") || locName.endsWith(".extgen")) {
+                    return FileVisitResult.SKIP_SUBTREE;
+                }
+                if (locRepository && (locName.equals("build") || locName.equals("run"))
+                    && (aDirectory.getParent().equals(aRoot)
+                        || Files.isRegularFile(aDirectory.getParent().resolve("modustro-artifact.yml")))) {
+                    return FileVisitResult.SKIP_SUBTREE;
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path aFile, BasicFileAttributes aAttributes) {
+                if (aAttributes.isRegularFile()) locFiles.add(aFile);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return locFiles.stream();
+    }
+
     /** Resolves canonical URLs from the checked-out definition roots without network downloads. */
     private static Path referencePath(String resource, AIcdDefinitionLoadRequest request) {
         if (resource.isEmpty()) return request.path();
@@ -140,7 +174,7 @@ final class AIcJsonSchemaReader {
             for (Path ancestor = request.path().toAbsolutePath().getParent(); ancestor != null; ancestor = ancestor.getParent()) {
                 if (!Files.isRegularFile(ancestor.resolve("modustro-source-repository.yml"))) continue;
                 String suffix = "/src/product/" + sourceKind + "/" + uriPath.substring(index + marker.length());
-                try (var files = Files.walk(ancestor)) {
+                try (var files = AIcCanonicalReferenceFiles(ancestor)) {
                     List<Path> matches = files.filter(Files::isRegularFile)
                             .filter(path -> path.toString().replace('\\', '/').endsWith(suffix)).toList();
                     if (matches.size() == 1) return matches.get(0);
@@ -154,7 +188,7 @@ final class AIcJsonSchemaReader {
             boolean repository = Files.isRegularFile(ancestor.resolve("modustro-source-repository.yml"));
             if (!definitions && !repository) continue;
             List<Path> matches = new ArrayList<>();
-            try (var files = Files.walk(ancestor)) {
+            try (var files = AIcCanonicalReferenceFiles(ancestor)) {
                 for (Path file : files.filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".schema.json")
                         || path.toString().endsWith(".yaml") || path.toString().endsWith(".yml")).toList()) {
                     if (repository && !file.toString().replace('\\', '/').contains("/src/product/")) continue;
