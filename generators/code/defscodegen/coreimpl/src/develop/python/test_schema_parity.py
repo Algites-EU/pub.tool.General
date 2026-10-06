@@ -67,6 +67,24 @@ def test_equivalent_models_and_complete_outputs(stem):
         assert props['double'].constraints.data_type == 'double'
 
 
+def test_schema_field_name_constants_across_all_definition_kinds():
+    """Verify documented canonical field-name constants for YAML, JSON and XML inputs."""
+    service = AIcDefaultDefsCodegenService()
+    for fmt in FORMATS:
+        model = load('parity-root', *fmt)
+        java_source = service.generate(AIcdCodeGenerationRequest(
+            model, AInCodeGenerationTarget.JAVA, 'parity_generated', AIcAlgitesNamingProfiles.java_profile())).source
+        assert 'public static final String SCHEMA_FIELD_NAME__OPTIONAL_TEXT = "optionalText";' in java_source
+        assert '<strong>Field Name:</strong> {@code optionalText}<br/>' in java_source
+        assert '<strong>Field Description:</strong> Optional text value.' in java_source
+
+        python_source = service.generate(AIcdCodeGenerationRequest(
+            model, AInCodeGenerationTarget.PYTHON, 'parity_generated', AIcAlgitesNamingProfiles.python_profile())).source
+        assert "SCHEMA_FIELD_NAME__OPTIONAL_TEXT = 'optionalText'" in python_source
+        assert '**Field Name:** ``optionalText``' in python_source
+        assert '**Field Description:** Optional text value.' in python_source
+
+
 def generate_package(tmp_path, target):
     service = AIcDefaultDefsCodegenService()
     profile = AIcAlgitesNamingProfiles.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles.python_profile()

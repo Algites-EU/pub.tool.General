@@ -64,6 +64,26 @@ public final class AItcSchemaParityTest {
         Assert.assertEquals(children.reference().logicalName(), "parity-child");
     }
 
+    /** Confirms that every frontend produces the same documented schema-field-name constants. */
+    @Test
+    public void AIcSchemaFieldNameConstantsAcrossAllDefinitionKinds() throws Exception {
+        var service = new AIcDefaultDefsCodegenService();
+        for (int format = 0; format < KINDS.size(); format++) {
+            var model = load("parity-root", format);
+            var javaSource = service.generate(new AIcdCodeGenerationRequest(
+                    model, AInCodeGenerationTarget.JAVA, "parity_generated", AIcAlgitesNamingProfiles.javaProfile())).source();
+            Assert.assertTrue(javaSource.contains("public static final String SCHEMA_FIELD_NAME__OPTIONAL_TEXT = \"optionalText\";"));
+            Assert.assertTrue(javaSource.contains("<strong>Field Name:</strong> {@code optionalText}<br/>"));
+            Assert.assertTrue(javaSource.contains("<strong>Field Description:</strong> Optional text value."));
+
+            var pythonSource = service.generate(new AIcdCodeGenerationRequest(
+                    model, AInCodeGenerationTarget.PYTHON, "parity_generated", AIcAlgitesNamingProfiles.pythonProfile())).source();
+            Assert.assertTrue(pythonSource.contains("SCHEMA_FIELD_NAME__OPTIONAL_TEXT = \"optionalText\""));
+            Assert.assertTrue(pythonSource.contains("**Field Name:** ``optionalText``"));
+            Assert.assertTrue(pythonSource.contains("**Field Description:** Optional text value."));
+        }
+    }
+
     /** Compiles all generated Java classes and imports all generated Python classes with nested references. */
     @Test
     public void AIcGeneratedContractsExecute() throws Exception {

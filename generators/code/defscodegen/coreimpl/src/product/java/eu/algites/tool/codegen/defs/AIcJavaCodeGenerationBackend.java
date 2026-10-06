@@ -101,12 +101,40 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
                 "public record " + typeName + "(\n        " + String.join(",\n        ", components) + ") {\n" +
                 "    public static final String CANONICAL_SOURCE_ID = " + quote(request.definition().identity()) + ";\n" +
                 "    public static final Integer CANONICAL_SOURCE_VERSION = " + request.definition().version() + ";\n" +
-                "    public static final String CANONICAL_SOURCE_RESOURCE = " + quote(request.definition().sourceResource()) + ";\n" +
+                "    public static final String CANONICAL_SOURCE_RESOURCE = " + quote(request.definition().sourceResource()) + ";\n\n" +
+                schemaFieldConstants(request) +
                 "    /** Validates the scalar constraints retained from the canonical schema. */\n" +
                 "    public " + typeName + " {\n" + request.definition().properties().stream()
                     .map(property -> AIcScalarGeneration.javaValidation(property, javaIdentifier(names.propertyName(property.sourceName(), request.namingProfile()))))
                     .collect(java.util.stream.Collectors.joining()) + "    }\n" +
                 "}\n";
+    }
+
+    /**
+     * Generates stable constants that expose the canonical source name of every schema-backed field.
+     *
+     * @param request generation request
+     * @return complete field-name constant declarations
+     */
+    private String schemaFieldConstants(AIcdCodeGenerationRequest request) {
+        StringBuilder result = new StringBuilder();
+        for (AIcdPropertyDefinition property : request.definition().properties()) {
+            result.append("    /**\n");
+            result.append("     * <strong>Field Name:</strong> {@code ")
+                    .append(escapeJavadocHtml(property.sourceName())).append("}");
+            if (property.description() != null && !property.description().isBlank()) {
+                result.append("<br/>\n");
+                result.append("     * <strong>Field Description:</strong> ")
+                        .append(documentation(property.description(), "")).append("\n");
+            } else {
+                result.append("\n");
+            }
+            result.append("     */\n");
+            result.append("    public static final String ")
+                    .append(names.schemaFieldNameConstant(property.sourceName(), request.namingProfile()))
+                    .append(" = ").append(quote(property.sourceName())).append(";\n\n");
+        }
+        return result.toString();
     }
 
     /**
@@ -148,7 +176,7 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
      */
     private static String documentation(String value, String fallback) {
         String selected = value == null || value.isBlank() ? fallback : value.strip();
-        return escapeJavadoc(selected.replaceAll("\\s+", " "));
+        return escapeJavadocHtml(selected.replaceAll("\\s+", " "));
     }
 
     /**
@@ -159,6 +187,11 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
      */
     private static String escapeJavadoc(String value) {
         return value.replace("*/", "* /");
+    }
+
+    /** Escapes canonical text embedded as ordinary HTML text in Javadoc. */
+    private static String escapeJavadocHtml(String value) {
+        return escapeJavadoc(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     /**

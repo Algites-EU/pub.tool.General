@@ -28,7 +28,7 @@ def constraint_tuple(constraints):
 
 def python_data_source(request, names, type_name, docstring):
     import keyword, re
-    imports, fields, docs, arguments, validations, wire_entries = set(), [], [], [], [], []
+    imports, fields, docs, arguments, validations, wire_entries, schema_field_constants = set(), [], [], [], [], [], []
     used = set()
     props = sorted(request.definition.properties, key=lambda p: not p.required)
     for prop in props:
@@ -51,6 +51,7 @@ def python_data_source(request, names, type_name, docstring):
         if prop.nullable: typ += ' | None'
         fields.append(f'    {name}: {typ}'+('' if prop.required else ' = _AI_UNSET'))
         docs.append(f'{name}: '+(' '.join((prop.description or f'Value of canonical property {prop.source_name}.').split())))
+        schema_field_constants.append(_python_schema_field_constant(prop, request, names))
         raw = f'value[{prop.source_name!r}]' if prop.required else f'value.get({prop.source_name!r}, _AI_UNSET)'
         def convert(expr):
             if ref:
@@ -75,10 +76,23 @@ def python_data_source(request, names, type_name, docstring):
     runtime = Path(__file__).with_name('_schema_runtime.py').read_text()
     return ('from __future__ import annotations\n\nfrom typing import Any, Mapping\n'+runtime+'\n'+ '\n'.join(sorted(imports))+'\n\n'
         '@dataclass(frozen=True, slots=True)\n'+f'class {type_name}:\n'+docstring(request.definition, docs)+
-        f'    __canonical_source_id__ = {request.definition.identity!r}\n    __canonical_source_version__ = {request.definition.version!r}\n    __canonical_source_resource__ = {request.definition.source_resource!r}\n'+
+        f'    __canonical_source_id__ = {request.definition.identity!r}\n    __canonical_source_version__ = {request.definition.version!r}\n    __canonical_source_resource__ = {request.definition.source_resource!r}\n\n'+
+        '\n'.join(schema_field_constants) + ('\n\n' if schema_field_constants else '') +
         '\n'.join(fields or ['    pass'])+'\n\n    def __post_init__(self):\n'+ '\n'.join(validations or ['        pass'])+
         '\n\n    @classmethod\n    def from_mapping(cls, value: Mapping[str, object]):\n'+f'        return cls({", ".join(arguments)})\n'+
         '\n    def to_mapping(self) -> Mapping[str, object]:\n        return {key: value for key, value in {\n'+ '\n'.join(wire_entries)+'\n        }.items() if value is not _AI_UNSET}\n')
+
+
+def _python_schema_field_constant(prop, request, names):
+    """Render one documented class constant for a canonical schema field name."""
+    constant = names.schema_field_name_constant(prop.source_name, request.naming_profile)
+    field_name = prop.source_name.replace('\\', '\\\\').replace('"""', '\"\"\"')
+    rows = [f'    {constant} = {prop.source_name!r}', f'    """**Field Name:** ``{field_name}``']
+    if prop.description:
+        description = ' '.join(prop.description.split()).replace('\\', '\\\\').replace('"""', '\"\"\"')
+        rows.extend(['', f'    **Field Description:** {description}'])
+    rows[-1] += '"""'
+    return '\n'.join(rows)
 
 
 def java_validation(prop, name):

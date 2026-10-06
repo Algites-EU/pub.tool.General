@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from eu.algites.lib.naming.conversion.aic_default_name_converter import AIcDefaultNameConverter
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
 from eu.algites.lib.naming.convention.ain_input_name_kind import AInInputNameKind
@@ -34,6 +36,13 @@ class AIcGenerationNames:
         """Render a generated enum constant name."""
         rule = profile.output_rules[AInOutputNameKind.ENUM_CONSTANT]
         return f"{rule.prefix}{rule.type_marker}{self.converter.convert(source_name, profile.input_conventions[AInInputNameKind.ENUM_VALUE], rule.convention)}{rule.suffix}"
+
+    def schema_field_name_constant(self, source_name, profile):
+        """Render the stable generated constant that exposes one canonical schema field name."""
+        rule = profile.output_rules[AInOutputNameKind.ENUM_CONSTANT]
+        converted = self.converter.convert(source_name, profile.input_conventions[AInInputNameKind.PROPERTY], rule.convention)
+        identifier = re.sub(r'_+', '_', re.sub(r'[^A-Za-z0-9_]', '_', converted)).strip('_') or 'FIELD'
+        return f"SCHEMA_FIELD_NAME__{identifier}"
 
     def reference_type(self, ref, profile):
         """Render the generated type name of a referenced canonical definition."""

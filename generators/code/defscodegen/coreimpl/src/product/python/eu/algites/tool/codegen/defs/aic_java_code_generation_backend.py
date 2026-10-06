@@ -61,7 +61,8 @@ class AIcJavaCodeGenerationBackend:
                 f"public record {type_name}(\n        {fields}) {{\n"
                 f"    public static final String CANONICAL_SOURCE_ID = {_java_quote(request.definition.identity)};\n"
                 f"    public static final Integer CANONICAL_SOURCE_VERSION = {_java_integer(request.definition.version)};\n"
-                f"    public static final String CANONICAL_SOURCE_RESOURCE = {_java_quote(request.definition.source_resource)};\n"
+                f"    public static final String CANONICAL_SOURCE_RESOURCE = {_java_quote(request.definition.source_resource)};\n\n"
+                f"{self._schema_field_constants(request)}"
                 "    /** Validates the scalar constraints retained from the canonical schema. */\n"
                 f"    public {type_name} {{\n"
                 + ''.join(java_validation(prop, java_identifier(self.names.property_name(prop.source_name, request.naming_profile))) for prop in request.definition.properties)
@@ -80,6 +81,23 @@ class AIcJavaCodeGenerationBackend:
             f"    {constant_name}({_java_quote(value.value)})"
         )
 
+    def _schema_field_constants(self, request) -> str:
+        """Generate documented constants for canonical schema field names."""
+        rows = []
+        for prop in request.definition.properties:
+            rows.extend([
+                "    /**",
+                f"     * <strong>Field Name:</strong> {{@code {self._escape_html(prop.source_name)}}}" + ("<br/>" if prop.description else ""),
+            ])
+            if prop.description:
+                rows.append(f"     * <strong>Field Description:</strong> {self._doc(prop.description, '')}")
+            rows.extend([
+                "     */",
+                f"    public static final String {self.names.schema_field_name_constant(prop.source_name, request.naming_profile)} = {_java_quote(prop.source_name)};",
+                "",
+            ])
+        return "\n".join(rows) + ("\n" if rows else "")
+
     @classmethod
     def _type_javadoc(cls, definition, parameter_docs=()) -> str:
         """Build the Javadoc block for one generated Java type."""
@@ -92,9 +110,14 @@ class AIcJavaCodeGenerationBackend:
     @staticmethod
     def _doc(value: str | None, fallback: str) -> str:
         """Normalize canonical documentation for a one-line Javadoc description."""
-        return AIcJavaCodeGenerationBackend._escape(" ".join((value or fallback).split()))
+        return AIcJavaCodeGenerationBackend._escape_html(" ".join((value or fallback).split()))
 
     @staticmethod
     def _escape(value: str) -> str:
         """Escape the Javadoc terminator sequence."""
         return value.replace("*/", "* /")
+
+    @staticmethod
+    def _escape_html(value: str) -> str:
+        """Escape canonical text embedded as ordinary HTML text in Javadoc."""
+        return AIcJavaCodeGenerationBackend._escape(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

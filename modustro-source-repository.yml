@@ -9,6 +9,46 @@ SourceRepository:
 GroupId: eu.algites.tool
 
 Version:
-  ReleaseLineVersion: "1"
+  ReleaseLineVersion: '1'
   Revision: 0
   QualifierKind: snapshot
+
+# Default publication policy preserves the normal repository publication behavior.
+# Snapshot invocation overrides may force individual output kinds on/off without affecting build/test/package.
+OutputPublications:
+- OutputSelector: native_product_outputs
+  TechnologyKind: java
+  Snapshot:
+    PublicationEnabled: true
+  Release:
+    PublicationEnabled: true
+- OutputSelector: native_product_outputs
+  TechnologyKind: python
+  Snapshot:
+    PublicationEnabled: true
+  Release:
+    PublicationEnabled: true
+- OutputSelector: native_develop_outputs
+  TechnologyKind: java
+  Snapshot:
+    PublicationEnabled: false
+  Release:
+    PublicationEnabled: false
+- OutputSelector: native_develop_outputs
+  TechnologyKind: python
+  Snapshot:
+    PublicationEnabled: false
+  Release:
+    PublicationEnabled: false
+- OutputSelector: modustro_docs_site
+  TechnologyKind: modustro
+  Snapshot:
+    PublicationEnabled: true
+  Release:
+    PublicationEnabled: true
+- OutputSelector: schema_site
+  TechnologyKind: modustro
+  Snapshot:
+    PublicationEnabled: true
+  Release:
+    PublicationEnabled: true

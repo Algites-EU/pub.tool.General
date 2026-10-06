@@ -70,7 +70,7 @@ final class AIcScalarGeneration {
                 aFile ? (locEnum ? AInOutputNameKind.ENUM_TYPE_FILE_STEM : AInOutputNameKind.DATA_TYPE_FILE_STEM) : (locEnum ? AInOutputNameKind.ENUM_TYPE : AInOutputNameKind.DATA_TYPE));
     }
     static String pythonData(AIcdCodeGenerationRequest aRequest, String aTypeName, AIcGenerationNames aNames, java.util.function.Function<List<String>, String> aDocumentation) {
-        List<String> locImports = new ArrayList<>(), locFields = new ArrayList<>(), locDocs = new ArrayList<>(), locArguments = new ArrayList<>(), locValidations = new ArrayList<>(), locEntries = new ArrayList<>();
+        List<String> locImports = new ArrayList<>(), locFields = new ArrayList<>(), locDocs = new ArrayList<>(), locArguments = new ArrayList<>(), locValidations = new ArrayList<>(), locEntries = new ArrayList<>(), locSchemaFieldConstants = new ArrayList<>();
         var locProperties = new ArrayList<>(aRequest.definition().properties());
         locProperties.sort(java.util.Comparator.comparing(AIcdPropertyDefinition::required).reversed());
         Set<String> locUsed = new java.util.HashSet<>();
@@ -89,6 +89,7 @@ final class AIcScalarGeneration {
             if (locProperty.nullable()) locType += " | None";
             locFields.add("    " + locName + ": " + locType + (locProperty.required() ? "" : " = _AI_UNSET"));
             locDocs.add(locName + ": " + (locProperty.description() == null ? "Value of canonical property " + locProperty.sourceName() + "." : locProperty.description()).strip().replaceAll("\\s+", " "));
+            locSchemaFieldConstants.add(pythonSchemaFieldConstant(locProperty, aRequest, aNames));
             String locRaw = locProperty.required() ? "value[" + pyquote(locProperty.sourceName()) + "]" : "value.get(" + pyquote(locProperty.sourceName()) + ", _AI_UNSET)";
             String locConvert = pythonConvert(locProperty, locArray ? "item" : locRaw, locKind, locConstraints, locRef);
             if (locArray) locConvert = "tuple(" + locConvert + " for item in " + locRaw + ")";
@@ -115,12 +116,30 @@ final class AIcScalarGeneration {
         } catch (IOException locFailure) { throw new IllegalStateException("Cannot load embedded Python schema runtime.", locFailure); }
         return "from __future__ import annotations\n\nfrom typing import Any, Mapping\n" + locRuntime + "\n" + String.join("\n", locImports.stream().distinct().sorted().toList()) + "\n\n"
                 + "@dataclass(frozen=True, slots=True)\nclass " + aTypeName + ":\n" + aDocumentation.apply(locDocs)
-                + "    __canonical_source_id__ = " + pyquote(aRequest.definition().identity()) + "\n    __canonical_source_version__ = " + aRequest.definition().version() + "\n    __canonical_source_resource__ = " + pyquote(aRequest.definition().sourceResource()) + "\n"
+                + "    __canonical_source_id__ = " + pyquote(aRequest.definition().identity()) + "\n    __canonical_source_version__ = " + aRequest.definition().version() + "\n    __canonical_source_resource__ = " + pyquote(aRequest.definition().sourceResource()) + "\n\n"
+                + String.join("\n", locSchemaFieldConstants) + (locSchemaFieldConstants.isEmpty() ? "" : "\n\n")
                 + String.join("\n", locFields.isEmpty() ? List.of("    pass") : locFields)
                 + "\n\n    def __post_init__(self):\n" + String.join("\n", locValidations.isEmpty() ? List.of("        pass") : locValidations)
                 + "\n\n    @classmethod\n    def from_mapping(cls, value: Mapping[str, object]):\n        return cls(" + String.join(", ", locArguments) + ")\n"
                 + "\n    def to_mapping(self) -> Mapping[str, object]:\n        return {key: value for key, value in {\n" + String.join("\n", locEntries) + "\n        }.items() if value is not _AI_UNSET}\n";
     }
+    private static String pythonSchemaFieldConstant(AIcdPropertyDefinition aProperty, AIcdCodeGenerationRequest aRequest, AIcGenerationNames aNames) {
+        StringBuilder locResult = new StringBuilder();
+        locResult.append("    ").append(aNames.schemaFieldNameConstant(aProperty.sourceName(), aRequest.namingProfile()))
+                .append(" = ").append(pyquote(aProperty.sourceName())).append("\n");
+        locResult.append("    \"\"\"**Field Name:** ``").append(pythonDocText(aProperty.sourceName())).append("``");
+        if (aProperty.description() != null && !aProperty.description().isBlank()) {
+            locResult.append("\n\n    **Field Description:** ")
+                    .append(pythonDocText(aProperty.description().strip().replaceAll("\\s+", " ")));
+        }
+        locResult.append("\"\"\"");
+        return locResult.toString();
+    }
+
+    private static String pythonDocText(String aValue) {
+        return aValue.replace("\\", "\\\\").replace("\"\"\"", "\\\"\\\"\\\"");
+    }
+
     private static String pythonConvert(AIcdPropertyDefinition aProperty, String aValue, AInValueKind aKind, AIcdValueConstraints aConstraints, String aRef) {
         if (aRef != null) return "(" + aValue + " if isinstance(" + aValue + ", " + aRef + ") else " + aRef + (aProperty.reference().targetKind() == AInDefinitionKind.ENUM ? "(" : ".from_mapping(") + aValue + "))";
         return "_ai_convert(" + aValue + ", " + pyquote(aConstraints.dataType()) + ", " + pyquote(aKind == null ? "ANY" : aKind.name()) + ")";

@@ -33,6 +33,23 @@ final class AIcGenerationNames {
         return rule.prefix() + rule.typeMarker() + converter.convert(sourceName, profile.inputConventions().get(AInInputNameKind.ENUM_VALUE), rule.convention()) + rule.suffix();
     }
 
+    /**
+     * Renders the stable generated constant name that exposes one canonical schema field name.
+     *
+     * @param sourceName canonical schema field name
+     * @param profile naming profile used by the generated type
+     * @return schema-field-name constant identifier
+     */
+    String schemaFieldNameConstant(String sourceName, AIcdNamingProfile profile) {
+        AIcdOutputNameRule rule = profile.outputRules().get(AInOutputNameKind.ENUM_CONSTANT);
+        String converted = converter.convert(sourceName,
+                profile.inputConventions().get(AInInputNameKind.PROPERTY), rule.convention());
+        String identifier = converted.replaceAll("[^A-Za-z0-9_]", "_")
+                .replaceAll("_+", "_").replaceAll("^_+|_+$", "");
+        if (identifier.isEmpty()) identifier = "FIELD";
+        return "SCHEMA_FIELD_NAME__" + identifier;
+    }
+
     String referenceTypeName(String logicalName, Integer version, AIcdNamingProfile profile, AInOutputNameKind kind) {
         AIcdOutputNameRule rule = profile.outputRules().get(kind);
         String converted = converter.convert(logicalName, profile.inputConventions().get(AInInputNameKind.DEFINITION), rule.convention());
