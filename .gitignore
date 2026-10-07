@@ -16,3 +16,8 @@ build/*
 # Build-integrated generated sources
 **/src/product/*.gen/
 **/src/develop/*.gen/
+
+# Canonical generated source roots are reproducible build state.
+**/src/product/*.gen/
+**/src/develop/*.gen/
+

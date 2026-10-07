@@ -148,6 +148,6 @@ final class AIcScalarGeneration {
         return "(" + pyquote(aValue.dataType()) + ", " + pyquote(aValue.minimum()) + ", " + pyquote(aValue.maximum()) + ", " + (aValue.exclusiveMinimum() ? "True" : "False") + ", " + (aValue.exclusiveMaximum() ? "True" : "False")
                 + ", " + (aValue.minLength() == null ? "None" : aValue.minLength()) + ", " + (aValue.maxLength() == null ? "None" : aValue.maxLength()) + ", " + pyquote(aValue.pattern()) + ", (" + String.join(", ", aValue.enumValues().stream().map(AIcScalarGeneration::pyquote).toList()) + (aValue.enumValues().isEmpty() ? "" : ",") + "))";
     }
-    private static String jquote(String aValue) { return "\"" + aValue.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""; }
+    static String jquote(String aValue) { return "\"" + aValue.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""; }
     private static String pyquote(String aValue) { return aValue == null ? "None" : jquote(aValue); }
 }
