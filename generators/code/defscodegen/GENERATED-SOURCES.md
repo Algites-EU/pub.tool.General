@@ -102,3 +102,18 @@ environment without needing repository metadata or the updated published generat
 Python pytest suite includes direct paired API, enum, repository CLI and comparison
 regressions. For direct execution outside Gradle, install the declared naming and
 PyYAML dependencies or place their source packages on `PYTHONPATH`.
+
+## Production naming dependency
+
+Repository binding generation calls `AIcAlgitesNamingProfiles` from
+`pub.lib.General_naming.convention.coreimpl` in production. The CoreImpl
+descriptor must declare this dependency with `Usages: [product_implementation]`;
+`develop_implementation` only adds it to the Java test classpath and fails
+`compileJava`. Python also requires this package at runtime. The bootstrap build
+uses `implementation` for the same reason. No naming source is copied into the
+generator, and the standard naming implementation remains the single owner.
+
+A source-only compilation that merges generator and naming sources cannot
+verify dependency scopes. Build each artifact against its declared production
+classpath and the published naming JARs. The CI revision
+`fa865facc441e487690ab8018b45f97083b937f9` predates this scope correction.
