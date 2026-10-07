@@ -17,7 +17,8 @@ import java.util.TreeMap;
 
 /** Repository-aware generator: one source unit per schema object, in the owning schema's package. */
 public final class AIcSchemaObjectBindingsGenerator {
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper()
+            .enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
     private final AIcJsonSchemaReader reader = new AIcJsonSchemaReader();
     private record AIcdUnit(String schema, String pointer, String name, JsonNode node, JsonNode document) { }
 
@@ -98,7 +99,7 @@ public final class AIcSchemaObjectBindingsGenerator {
         }
         Path state = repository.resolve("build/run/schema-bindings/generated-files.json");
         List<String> previous = Files.isRegularFile(state) ? mapper.readValue(state.toFile(), mapper.getTypeFactory().constructCollectionType(List.class, String.class)) : List.of();
-        // Only this generator's recorded files may be removed. Never clear a shared .gen directory.
+        /* Only recorded files owned by this generator may be removed. */
         for (String old : previous) {
             Path stale = inside(repository, old);
             if (!hasGeneratedRoot(stale)) throw new IllegalArgumentException("Invalid ownership state: " + old);
@@ -147,7 +148,7 @@ public final class AIcSchemaObjectBindingsGenerator {
             if (request.target() == AInCodeGenerationTarget.PYTHON) {
                 String file = names.referenceTypeName(ref.logicalName(), ref.version(), request.namingProfile(), fileKind);
                 source = source.replace("from ." + file + " import " + type, "from " + packageName + "." + file + " import " + type);
-            } else source = source.replaceAll("\\b" + java.util.regex.Pattern.quote(type) + "\\b", java.util.regex.Matcher.quoteReplacement(packageName + "." + type));
+            } else source = source.replaceAll("(?<![A-Za-z0-9_$.])" + java.util.regex.Pattern.quote(type) + "\\b", java.util.regex.Matcher.quoteReplacement(packageName + "." + type));
         }
         return source;
     }
@@ -160,7 +161,7 @@ public final class AIcSchemaObjectBindingsGenerator {
         if (pointer.isEmpty() || node.path("type").asText().equals("object") || node.has("properties") || node.has("enum")) {
             result.add(new AIcdUnit(schema, pointer, override == null ? name : override.required("name").asText(), node, document));
         }
-        // Visit only schema-bearing keywords: never generate DTOs for examples, defaults or property documentation.
+        /* Visit schema-bearing keywords; examples, defaults and documentation are not definitions. */
         for (String map : List.of("properties", "$defs", "definitions", "patternProperties")) {
             var entries = node.path(map).fields();
             while (entries.hasNext()) {

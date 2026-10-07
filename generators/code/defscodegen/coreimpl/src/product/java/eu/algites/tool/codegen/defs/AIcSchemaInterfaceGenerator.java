@@ -27,7 +27,7 @@ public final class AIcSchemaInterfaceGenerator {
             int start = dto.source().indexOf(marker);
             if (start < 0) throw new IllegalStateException("Missing primary DTO declaration: " + dto.typeName());
             String body = dto.source().substring(start + marker.length());
-            // Reuse the backend's exact annotations and property documentation, never infer them from field names.
+            /* Reuse the backend's exact annotations and property documentation. */
             String fields = body.substring(0, body.indexOf("\n\n    def __post_init__"));
             fields = fields.replaceAll("(?m)^    ([a-zA-Z_][a-zA-Z0-9_]*: [^\\n]+?) = _AI_UNSET$", "    $1");
             fields = fields.replaceAll("(?m)^(    SCHEMA_FIELD_NAME__[A-Z0-9_]+) =", "$1: ClassVar[str] =");
@@ -42,17 +42,25 @@ public final class AIcSchemaInterfaceGenerator {
                 fields = fields.replace(concrete, abstractType);
                 contractImports.add("from ." + abstractFile + " import " + abstractType);
             }
+            String helpers = "";
+            if (fields.contains("AIcSchemaTemporalValue") || fields.contains("AIcSchemaDuration")) {
+                helpers = dto.source().substring(dto.source().indexOf("from dataclasses import dataclass"), dto.source().indexOf("\ndef _ai_convert"));
+            }
             contract = "from __future__ import annotations\n\nfrom abc import ABC, abstractmethod\n"
                     + "from typing import Any, ClassVar, Mapping, TYPE_CHECKING\nfrom decimal import Decimal\n\n"
-                    + String.join("\n", contractImports.stream().distinct().sorted().toList()) + "\n\nclass " + interfaceName + "(ABC):\n" + fields + "\n\n    __slots__ = ()"
+                    + helpers + String.join("\n", contractImports.stream().distinct().sorted().toList()) + "\n\nclass " + interfaceName + "(ABC):\n" + fields + "\n\n    __slots__ = ()"
                     + "\n\n    @abstractmethod\n    def to_mapping(self) -> Mapping[str, object]:\n"
                     + "        \"\"\"Return canonical wire fields, omitting absent optional values.\"\"\"\n"
                     + "        raise NotImplementedError\n";
-            // The concrete dataclass implements the abstract serialization contract. Its immutable field layout
-            // remains owned by the normal backend, including defaults, validation, references and null handling.
+            /* The immutable field layout remains owned by the normal backend. */
             implementation = dto.source().replace(marker,
                     "from ." + file + " import " + interfaceName + "\n\n@dataclass(frozen=True, slots=True)\nclass "
                             + dto.typeName() + "(" + interfaceName + "):\n");
+            if (!helpers.isEmpty()) {
+                implementation = implementation.replace(helpers,
+                        "from ." + file + " import AIcSchemaTemporalValue, AIcSchemaDuration\n"
+                        + "from dataclasses import dataclass\nfrom decimal import Decimal\nimport base64\nimport re\nimport struct\n\n_AI_UNSET = object()\n");
+            }
             return new AIcdSources(new AIcdGeneratedSource(interfaceName, path + file + ".py", contract),
                     new AIcdGeneratedSource(dto.typeName(), dto.relativePath(), implementation));
         }

@@ -44,7 +44,7 @@ def python_data_source(request, names, type_name, docstring):
             file = names.render(prop.reference.logical_name, prop.reference.version, request.naming_profile, AInOutputNameKind.ENUM_TYPE_FILE_STEM if enum else AInOutputNameKind.DATA_TYPE_FILE_STEM)
             imports.add(f'from .{file} import {ref}')
         array = prop.value_kind is AInValueKind.ARRAY
-        kind = prop.item_value_kind if array else prop.value_kind
+        kind = (prop.item_value_kind or AInValueKind.ANY) if array else prop.value_kind
         constraints = prop.item_constraints if array else prop.constraints
         typ = ref or scalar_type(kind, constraints)
         if array: typ = f'tuple[{typ}, ...]'
@@ -86,10 +86,10 @@ def python_data_source(request, names, type_name, docstring):
 def _python_schema_field_constant(prop, request, names):
     """Render one documented class constant for a canonical schema field name."""
     constant = names.schema_field_name_constant(prop.source_name, request.naming_profile)
-    field_name = prop.source_name.replace('\\', '\\\\').replace('"""', '\"\"\"')
+    field_name = prop.source_name.replace('\\', '\\\\').replace('"""', r'\"\"\"')
     rows = [f'    {constant} = {prop.source_name!r}', f'    """**Field Name:** ``{field_name}``']
     if prop.description:
-        description = ' '.join(prop.description.split()).replace('\\', '\\\\').replace('"""', '\"\"\"')
+        description = ' '.join(prop.description.split()).replace('\\', '\\\\').replace('"""', r'\"\"\"')
         rows.extend(['', f'    **Field Description:** {description}'])
     rows[-1] += '"""'
     return '\n'.join(rows)

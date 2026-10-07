@@ -54,7 +54,7 @@ project(':coreimpl') {
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.3'
         testImplementation 'org.testng:testng:7.11.0'
-        testImplementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.coreimpl:1.0-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.coreimpl:1.0-SNAPSHOT'
     }
 }
 project(':cli') {
@@ -62,6 +62,24 @@ project(':cli') {
         implementation project(':coreimpl')
         implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.coreimpl:1.0-SNAPSHOT'
     }
+}
+
+// Bootstrap mirrors the native naming dependencies while bypassing generated project metadata.
+def parityPython = rootProject.layout.buildDirectory.dir('generator-parity/python-dependencies')
+def module = new File(System.getenv('_TMP_MODUSTRO_DEFS_MODULE'))
+def prepareParityPython = tasks.register('prepareGeneratorParityPython', Exec) {
+    def command = [System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3', new File(module, 'prepare_parity_python.py').absolutePath,
+        '--target', parityPython.get().asFile.absolutePath,
+        '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
+        '--requirement', 'pyyaml>=6,<7']
+    ['convention.coreintf', 'convention.coreimpl', 'conversion.coreintf', 'conversion.coreimpl'].each { artifact ->
+        command += ['--requirement', 'eu-algites-lib-naming-pub-lib-general-naming-' + artifact.replace('.', '-') + '>=1.0.dev0,<1.0a0']
+    }
+    commandLine(command)
+}
+project(':coreimpl').tasks.withType(Test).configureEach {
+    dependsOn prepareParityPython
+    environment 'MODUSTRO_GENERATOR_PARITY_PYTHON_DEPENDENCIES', parityPython.get().asFile.absolutePath
 }
 GRADLE
 

@@ -201,6 +201,6 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
      * @return quoted Java literal
      */
     private static String quote(String value) {
-        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+        return AIcScalarGeneration.jquote(value);
     }
 }

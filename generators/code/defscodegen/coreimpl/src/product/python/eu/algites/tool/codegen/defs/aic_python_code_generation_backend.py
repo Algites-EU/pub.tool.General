@@ -57,7 +57,7 @@ class AIcPythonCodeGenerationBackend:
         rows = [f'    """{description}', "", f"    Generated from canonical definition {definition.identity}/{definition.version}. Source: {definition.source_resource}. Do not edit manually."]
         if attributes:
             rows.extend(["", "    Attributes:"])
-            rows.extend(f"        {entry}" for entry in attributes)
+            rows.extend(f"        {cls._doc(entry, '')}" for entry in attributes)
         if values:
             rows.extend(["", "    Values:"])
             rows.extend(f"        {entry}" for entry in values)
@@ -67,4 +67,4 @@ class AIcPythonCodeGenerationBackend:
     @staticmethod
     def _doc(value: str | None, fallback: str) -> str:
         """Normalize canonical documentation for a one-line Python description."""
-        return " ".join((value or fallback).replace('"""', '\\\"\\\"\\\"').split())
+        return " ".join((value or fallback).replace('\\', '\\\\').replace('"""', '\\\"\\\"\\\"').split())

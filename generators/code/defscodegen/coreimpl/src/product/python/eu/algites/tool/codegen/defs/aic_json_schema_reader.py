@@ -2,6 +2,7 @@ from __future__ import annotations
 from eu.algites.tool.codegen.defs._schema_loading import load_schema
 
 import json
+import os
 import yaml
 from pathlib import Path
 from typing import Any, Mapping
@@ -56,7 +57,7 @@ class AIcJsonSchemaReader:
         if isinstance(raw_type, list):
             nullable = "null" in raw_type
             values = [value for value in raw_type if value != "null"]
-            raw_type = values[0] if len(values) == 1 else None
+            raw_type = values[0] if values else None
         if isinstance(schema.get("$ref"), str):
             ref = schema["$ref"]
             resource = ref.split("#", 1)[0]
@@ -103,7 +104,7 @@ class AIcJsonSchemaReader:
                 reference=AIcdDefinitionReference(ref, parsed.version, parsed.logical_name, target_kind),
                 description=schema.get("description"),
             )
-        if raw_type is None and isinstance(schema.get("enum"), list) and all(isinstance(value, str) for value in schema["enum"]):
+        if raw_type is None and self._enum_values(schema):
             kind = AInValueKind.STRING
         else:
             kind = _value_kind(raw_type)
@@ -134,7 +135,8 @@ class AIcJsonSchemaReader:
             for ancestor in request.path.resolve().parents:
                 if not (ancestor / "modustro-source-repository.yml").is_file():
                     continue
-                matches = list(ancestor.glob(f"**/src/product/{source_kind}/{relative}"))
+                suffix = f'/src/product/{source_kind}/{relative}'
+                matches = [path for path in AIcJsonSchemaReader._canonical_reference_files(ancestor) if path.as_posix().endswith(suffix)]
                 if len(matches) == 1:
                     return matches[0]
                 if len(matches) > 1:
@@ -145,7 +147,7 @@ class AIcJsonSchemaReader:
             repository = (ancestor / 'modustro-source-repository.yml').is_file()
             if not definitions and not repository: continue
             matches = []
-            for path in ancestor.rglob('*'):
+            for path in AIcJsonSchemaReader._canonical_reference_files(ancestor):
                 if not path.is_file() or not (path.name.endswith('.schema.json') or path.suffix in ('.yaml','.yml')): continue
                 if repository and '/src/product/' not in path.as_posix(): continue
                 document = load_schema(path)
@@ -155,6 +157,21 @@ class AIcJsonSchemaReader:
             if len(matches) > 1: raise ValueError(f"Ambiguous local schema identity '{resource}'.")
             if repository: break
         raise ValueError(f"Schema reference '{resource}' has no local canonical definition for {request.path}")
+
+    @staticmethod
+    def _canonical_reference_files(root):
+        """Walk owned roots, excluding transient/generated copies while retaining source build directories."""
+        repository = (root / 'modustro-source-repository.yml').is_file()
+        for directory, children, files in os.walk(root):
+            parent = Path(directory)
+            artifact = (parent / 'modustro-artifact.yml').is_file()
+            children[:] = [name for name in children if not (name.startswith('.') or name == '__pycache__'
+                or name.endswith(('.gen', '.extgen'))
+                or (repository and name in ('build', 'run') and (parent == root or artifact)))]
+            for name in files:
+                path = parent / name
+                if path.is_file():
+                    yield path
 
     def _structural(self, node, request, visited):
         """Extract object properties and required fields from allOf and referenced roots."""

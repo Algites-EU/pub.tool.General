@@ -96,7 +96,7 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
         result.append(". Source: ").append(definition.sourceResource()).append(". Do not edit manually.");
         if (!attributeDocs.isEmpty()) {
             result.append("\n\n    Attributes:\n");
-            for (String attributeDoc : attributeDocs) result.append("        ").append(attributeDoc).append('\n');
+            for (String attributeDoc : attributeDocs) result.append("        ").append(pythonDocumentation(attributeDoc, "")).append('\n');
             result.append("    ");
         }
         if (!valueDocs.isEmpty()) {
@@ -154,7 +154,7 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
      */
     private static String pythonDocumentation(String value, String fallback) {
         String selected = value == null || value.isBlank() ? fallback : value.strip();
-        return selected.replace("\"\"\"", "\\\"\\\"\\\"").replaceAll("\\s+", " ");
+        return selected.replace("\\", "\\\\").replace("\"\"\"", "\\\"\\\"\\\"").replaceAll("\\s+", " ");
     }
 
     /**

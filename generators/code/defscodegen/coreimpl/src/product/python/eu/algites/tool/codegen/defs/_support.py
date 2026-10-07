@@ -40,7 +40,7 @@ def _xsd_kind(value):
 
 def _java_quote(value):
     """Quote a value as a Java string literal."""
-    return '"' + str(value).replace('\\', '\\\\').replace('"', '\"') + '"'
+    return '"' + str(value).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r') + '"'
 
 
 def _java_integer(value):
