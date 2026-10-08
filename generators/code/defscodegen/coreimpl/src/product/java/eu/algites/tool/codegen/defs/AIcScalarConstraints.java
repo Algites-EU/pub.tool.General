@@ -21,7 +21,8 @@ final class AIcScalarConstraints {
         if ("anyType".equals(locType)) locType = null;
         boolean locMinExclusive = aNode.has("exclusiveMinimum"), locMaxExclusive = aNode.has("exclusiveMaximum");
         var locBase = defaults(locType);
-        List<String> locEnum = aNode.has("enum") ? java.util.stream.StreamSupport.stream(aNode.get("enum").spliterator(), false).map(JsonNode::asText).toList() : List.of();
+        List<String> locEnum = aNode.has("enum") ? java.util.stream.StreamSupport.stream(aNode.get("enum").spliterator(), false).filter(aValue -> !aValue.isNull()).map(JsonNode::asText).toList()
+                : aNode.hasNonNull("const") ? List.of(aNode.get("const").asText()) : List.of();
         return new AIcdValueConstraints(locType,
                 numeric(aNode, locMinExclusive ? "exclusiveMinimum" : "minimum", locBase.minimum()),
                 numeric(aNode, locMaxExclusive ? "exclusiveMaximum" : "maximum", locBase.maximum()),

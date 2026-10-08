@@ -117,3 +117,28 @@ A source-only compilation that merges generator and naming sources cannot
 verify dependency scopes. Build each artifact against its declared production
 classpath and the published naming JARs. The CI revision
 `fa865facc441e487690ab8018b45f97083b937f9` predates this scope correction.
+
+## Nullable canonical values and generated DTOs
+
+The JSON/YAML definition frontends distinguish a missing optional property from
+an explicitly present JSON `null` (`None` in Python). Nullability is determined
+by the complete applicable JSON Schema assertions rather than solely by the
+`type` keyword. In particular, an unrestricted property permits null, an
+`enum` containing JSON `null` permits null, `const: null` permits null, and
+composition with `oneOf`, `anyOf`, `allOf`, `not`, or `if`/`then`/`else` can
+allow or prohibit it. For references, the referenced canonical schema must
+also admit null. A string enum entry `"null"` is **not** JSON `null`.
+
+Enum source types contain only real, non-null enum members. Their containing
+DTO may represent a nullable occurrence as `None`. The generator preserves
+presence-versus-null through `from_mapping()` and `to_mapping()`; do not
+replace explicit null values with absent optional properties as a workaround.
+
+Schema-defined payloads must use the generated contracts and DTOs in consumers.
+Handwritten classes should implement behavior, adapters, or temporary runtime
+structures that are not defined by canonical schemas. Generated `.gen` sources
+remain build outputs and must not be checked into source control.
+
+Full validation of unrestricted combinator expressions and null-only scalar
+constraints is a separate capability; the nullability evaluation alone does
+not claim complete JSON Schema validation of arbitrary non-null values.

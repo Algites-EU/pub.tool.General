@@ -50,8 +50,8 @@
 <xs:element name="NMTOKENS" minOccurs="1" type="xs:NMTOKENS"><xs:annotation><xs:documentation>Canonical projection of XSD NMTOKENS.</xs:documentation></xs:annotation></xs:element>
 <xs:element name="IDREFS" minOccurs="1" type="xs:IDREFS"><xs:annotation><xs:documentation>Canonical projection of XSD IDREFS.</xs:documentation></xs:annotation></xs:element>
 <xs:element name="ENTITIES" minOccurs="1" type="xs:ENTITIES"><xs:annotation><xs:documentation>Canonical projection of XSD ENTITIES.</xs:documentation></xs:annotation></xs:element>
-<xs:element name="anySimpleType" minOccurs="1" type="xs:anySimpleType"><xs:annotation><xs:documentation>Canonical projection of XSD anySimpleType.</xs:documentation></xs:annotation></xs:element>
-<xs:element name="anyType" minOccurs="1" type="xs:anyType"><xs:annotation><xs:documentation>Canonical projection of XSD anyType.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="anySimpleType" minOccurs="1" nillable="true" type="xs:anySimpleType"><xs:annotation><xs:documentation>Canonical projection of XSD anySimpleType.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="anyType" minOccurs="1" nillable="true" type="xs:anyType"><xs:annotation><xs:documentation>Canonical projection of XSD anyType.</xs:documentation></xs:annotation></xs:element>
 </xs:sequence>
 </xs:complexType>
 </xs:schema>

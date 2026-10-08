@@ -69,13 +69,12 @@ final class AIcJsonSchemaReader {
     }
 
     private AIcdPropertyDefinition property(String name, JsonNode node, boolean required, AIcdDefinitionLoadRequest request, Set<String> visited) {
-        boolean nullable = false;
+        boolean nullable = AIcJsonSchemaNullability.acceptsNull(node);
         String type = text(node, "type");
         JsonNode typeNode = node.get("type");
         if (typeNode != null && typeNode.isArray()) {
             List<String> types = new ArrayList<>();
             typeNode.forEach(item -> types.add(item.asText()));
-            nullable = types.contains("null");
             type = types.stream().filter(item -> !"null".equals(item)).findFirst().orElse(null);
         }
         String ref = text(node, "$ref");
@@ -102,7 +101,7 @@ final class AIcJsonSchemaReader {
             AIcdPropertyDefinition normalized = property(name, referenced.has("allOf")
                     ? structural(referenced, new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), new HashSet<>()) : referenced, required,
                     new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited);
-            return new AIcdPropertyDefinition(name, normalized.valueKind(), required, nullable || normalized.nullable(),
+            return new AIcdPropertyDefinition(name, normalized.valueKind(), required, nullable && normalized.nullable(),
                     normalized.itemValueKind(), normalized.reference(),
                     text(node, "description") == null ? normalized.description() : text(node, "description"), normalized.constraints(), normalized.itemConstraints());
         }
@@ -113,11 +112,18 @@ final class AIcJsonSchemaReader {
             AIcdParsedVersionedName parsed = new AIcDefaultNameConverter().parseVersionedName(
                     stem, null, new AIcdInputVersionPolicy(AInVersionSource.FILE_NAME_SUFFIX, "_", true, false));
             AInDefinitionKind targetKind = detectReferencedKind(referencedPath);
+            JsonNode locReferencedSchema;
+            try {
+                locReferencedSchema = jsonMapper.readTree(referencedPath.toFile());
+            } catch (IOException ex) {
+                throw new IllegalArgumentException("Cannot resolve schema reference '" + ref + "' in " + request.path(), ex);
+            }
+            nullable = nullable && AIcJsonSchemaNullability.acceptsNull(locReferencedSchema);
             return new AIcdPropertyDefinition(name, AInValueKind.REFERENCE, required, nullable, null,
                     new AIcdDefinitionReference(ref, parsed.version(), parsed.logicalName(), targetKind), text(node, "description"));
         }
-        AInValueKind kind = type == null && !enumValues(node).isEmpty()
-                ? AInValueKind.STRING : kind(type);
+        AInValueKind kind = type == null && (!enumValues(node).isEmpty() || node.has("const"))
+                ? kindFromValue(node) : kind(type);
         AIcdPropertyDefinition item = kind == AInValueKind.ARRAY && node.get("items") != null
                 ? property(name, node.get("items"), true, request, new HashSet<>(visited)) : null;
         return new AIcdPropertyDefinition(name, kind, required, nullable,
@@ -294,10 +300,30 @@ final class AIcJsonSchemaReader {
         JsonNode enumNode = root.get("enum");
         if (enumNode != null && enumNode.isArray()) {
             List<AIcdEnumValueDefinition> result = new ArrayList<>();
-            enumNode.forEach(value -> result.add(new AIcdEnumValueDefinition(value.asText(), descriptions.get(value.asText()))));
+            enumNode.forEach(value -> {
+                /* JSON null is represented by nullable data, never a string enum member. */
+                if (!value.isNull()) result.add(new AIcdEnumValueDefinition(value.asText(), descriptions.get(value.asText())));
+            });
             return result;
         }
         return oneOfValues;
+    }
+
+    /** Infer the non-null primitive type of an untyped enum or constant. */
+    private static AInValueKind kindFromValue(JsonNode aNode) {
+        JsonNode locValues = aNode.get("enum");
+        JsonNode locFirst = null;
+        if (locValues != null && locValues.isArray()) {
+            for (JsonNode locValue : locValues) {
+                if (!locValue.isNull()) { locFirst = locValue; break; }
+            }
+        }
+        if (locFirst == null) locFirst = aNode.get("const");
+        if (locFirst == null || locFirst.isNull()) return AInValueKind.ANY;
+        if (locFirst.isBoolean()) return AInValueKind.BOOLEAN;
+        if (locFirst.isIntegralNumber()) return AInValueKind.INTEGER;
+        if (locFirst.isNumber()) return AInValueKind.NUMBER;
+        return locFirst.isTextual() ? AInValueKind.STRING : AInValueKind.ANY;
     }
 
     private static AInValueKind kind(String type) {

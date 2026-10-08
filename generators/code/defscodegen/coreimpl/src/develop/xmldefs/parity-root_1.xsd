@@ -23,7 +23,7 @@
 <xs:element name="flags" minOccurs="1" maxOccurs="unbounded" type="xs:boolean"><xs:annotation><xs:documentation>Collection of booleans.</xs:documentation></xs:annotation></xs:element>
 <xs:element name="freeObject" minOccurs="1"><xs:annotation><xs:documentation>Unconstrained object value.</xs:documentation></xs:annotation><xs:complexType><xs:sequence><xs:any minOccurs="0" maxOccurs="unbounded" processContents="lax"/></xs:sequence></xs:complexType></xs:element>
 <xs:element name="inlineObject" minOccurs="1"><xs:annotation><xs:documentation>Inline nested object; its fields must not leak into the parent.</xs:documentation></xs:annotation><xs:complexType><xs:sequence><xs:element name="inner" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
-<xs:element name="anything" minOccurs="1" type="xs:anyType"><xs:annotation><xs:documentation>Unconstrained value.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="anything" minOccurs="1" nillable="true" type="xs:anyType"><xs:annotation><xs:documentation>Unconstrained value.</xs:documentation></xs:annotation></xs:element>
 <xs:element name="dateValue" minOccurs="1" type="xs:date"><xs:annotation><xs:documentation>Calendar date with preserved timezone and year range.</xs:documentation></xs:annotation></xs:element>
 <xs:element name="timeValue" minOccurs="1" type="xs:time"><xs:annotation><xs:documentation>Time with preserved fractional precision.</xs:documentation></xs:annotation></xs:element>
 <xs:element name="timestamp" minOccurs="1" type="xs:dateTime"><xs:annotation><xs:documentation>Timestamp with preserved timezone.</xs:documentation></xs:annotation></xs:element>

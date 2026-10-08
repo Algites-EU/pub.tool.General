@@ -21,6 +21,7 @@ from eu.algites.lib.naming.convention.ain_version_source import AInVersionSource
 from eu.algites.tool.codegen.defs._support import _strip_extensions
 from eu.algites.tool.codegen.defs._support import _value_kind
 from eu.algites.tool.codegen.defs.aic_scalar_constraints import from_json
+from eu.algites.tool.codegen.defs._json_nullability import _accepts_null, _non_null_kind
 from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
 
 class AIcJsonSchemaReader:
@@ -53,9 +54,8 @@ class AIcJsonSchemaReader:
         if not isinstance(schema, Mapping):
             return AIcdPropertyDefinition(str(name), AInValueKind.ANY, required)
         raw_type = schema.get("type")
-        nullable = False
+        nullable = _accepts_null(schema)
         if isinstance(raw_type, list):
-            nullable = "null" in raw_type
             values = [value for value in raw_type if value != "null"]
             raw_type = values[0] if values else None
         if isinstance(schema.get("$ref"), str):
@@ -86,7 +86,7 @@ class AIcJsonSchemaReader:
                     referenced = self._structural(referenced, AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), set())
                 normalized = self._property(name, referenced, required,
                     AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), visited)
-                return AIcdPropertyDefinition(str(name), normalized.value_kind, required, nullable or normalized.nullable,
+                return AIcdPropertyDefinition(str(name), normalized.value_kind, required, nullable and normalized.nullable,
                     normalized.item_value_kind, normalized.reference,
                     schema.get("description", normalized.description), normalized.constraints, normalized.item_constraints)
             target_path = self._reference_path(resource, request)
@@ -96,6 +96,7 @@ class AIcJsonSchemaReader:
                 AIcdInputVersionPolicy(AInVersionSource.FILE_NAME_SUFFIX, "_", True, False),
             )
             target_kind = self._detect_referenced_kind(target_path)
+            nullable = nullable and _accepts_null(load_schema(target_path))
             return AIcdPropertyDefinition(
                 str(name),
                 AInValueKind.REFERENCE,
@@ -104,8 +105,8 @@ class AIcJsonSchemaReader:
                 reference=AIcdDefinitionReference(ref, parsed.version, parsed.logical_name, target_kind),
                 description=schema.get("description"),
             )
-        if raw_type is None and self._enum_values(schema):
-            kind = AInValueKind.STRING
+        if raw_type is None and (self._enum_values(schema) or "const" in schema):
+            kind = _non_null_kind(schema)
         else:
             kind = _value_kind(raw_type)
         item = self._property(name, schema['items'], True, request, set(visited or ())) if kind is AInValueKind.ARRAY and isinstance(schema.get('items'), Mapping) else None
@@ -249,7 +250,8 @@ class AIcJsonSchemaReader:
                 one_of_values.append(AIcdEnumValueDefinition(value, description))
         enum_values = root.get("enum")
         if isinstance(enum_values, list):
-            return tuple(AIcdEnumValueDefinition(AIcJsonSchemaReader._wire_value(value), descriptions.get(AIcJsonSchemaReader._wire_value(value))) for value in enum_values)
+            return tuple(AIcdEnumValueDefinition(AIcJsonSchemaReader._wire_value(value), descriptions.get(AIcJsonSchemaReader._wire_value(value)))
+                         for value in enum_values if value is not None)
         return tuple(one_of_values)
 
     @staticmethod

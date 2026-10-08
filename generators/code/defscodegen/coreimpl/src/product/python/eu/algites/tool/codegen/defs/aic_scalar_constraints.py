@@ -40,4 +40,5 @@ def from_json(node, kind):
         decimal_text(node.get('exclusiveMaximum', node.get('maximum'))) if 'exclusiveMaximum' in node or 'maximum' in node else base.maximum,
         'exclusiveMinimum' in node, 'exclusiveMaximum' in node,
         node.get('minLength'), node.get('maxLength'), node.get('pattern'),
-        tuple('true' if v is True else 'false' if v is False else 'null' if v is None else str(v) for v in node.get('enum', ())))
+        tuple('true' if v is True else 'false' if v is False else str(v) for v in
+              (node.get('enum', ()) if 'enum' in node else ((node['const'],) if 'const' in node else ())) if v is not None))
