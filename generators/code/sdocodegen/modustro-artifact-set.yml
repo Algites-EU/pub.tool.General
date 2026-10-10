@@ -1,0 +1,5 @@
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact-set_1.yamldef.schema.json
+ArtifactSet:
+  Name: Smart Data Object code generation
+  Description: Generates mutable interfaces and implementations exclusively from normalized read-only contracts.
+GroupId: eu.algites.tool.codegen

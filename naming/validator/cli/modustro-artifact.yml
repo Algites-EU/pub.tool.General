@@ -11,10 +11,10 @@ Dependencies:
   - DependencyKind: modustro
     Items:
       - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.validation.coreintf
+        ArtifactId: pub.lib.General_naming.validation.intf
         Usages: [product_api]
-        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.validation.coreimpl
+        ArtifactId: pub.lib.General_naming.validation.impl
         Usages: [product_implementation]
-        VersionRequirement: { Exact: "1.0-SNAPSHOT" }
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }

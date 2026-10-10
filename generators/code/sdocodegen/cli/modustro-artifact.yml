@@ -1,0 +1,16 @@
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+Artifact:
+  TechnologyKinds: [java, python]
+  Name: SmartDataObject generator CLI
+  Description: Standalone Java and Python CLIs for compiled/importable AIig contracts.
+Dependencies:
+  - DependencyKind: modustro
+    Items:
+      - GroupId: eu.algites.tool.codegen
+        ArtifactId: pub.tool.General_generators.code.sdocodegen.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.tool.codegen
+        ArtifactId: pub.tool.General_generators.code.sdocodegen.impl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }

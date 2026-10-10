@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+
+Artifact:
+  TechnologyKinds: [java, python]
+  Name: Defs Codegen core implementation
+  Description: Default distinct yamldefs/jsondefs/xmldefs frontends and Java/Python source generators.
+
+Dependencies:
+  - DependencyKind: modustro
+    Items:
+      - GroupId: eu.algites.tool.codegen
+        ArtifactId: pub.tool.General_generators.code.defscodegen.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.dataobject.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.convention.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.conversion.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.conversion.impl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.convention.impl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+  - DependencyKind: java
+    Items:
+      - GroupId: com.fasterxml.jackson.core
+        ArtifactId: jackson-databind
+        Usages: [product_implementation]
+        VersionRequirement:
+          Minimum: ">=2.0.0"
+          Maximum: "<3.0.0"
+          MaximumStrict: true
+      - GroupId: com.fasterxml.jackson.dataformat
+        ArtifactId: jackson-dataformat-yaml
+        Usages: [product_implementation]
+        VersionRequirement:
+          Minimum: ">=2.0.0"
+          Maximum: "<3.0.0"
+          MaximumStrict: true
+      - GroupId: org.testng
+        ArtifactId: testng
+        Usages: [develop_implementation]
+        VersionRequirement:
+          Minimum: ">=7.0.0"
+          Maximum: "<8.0.0"
+          MaximumStrict: true
+  - DependencyKind: python
+    Items:
+      - ArtifactId: pyyaml
+        Usages: [product_implementation]
+        VersionRequirement:
+          Minimum: ">=6.0"
+          Maximum: "<7.0"

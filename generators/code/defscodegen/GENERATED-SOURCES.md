@@ -1,144 +1,68 @@
-# Schema object contracts and implementations
+# Definition-to-contract generation — 1.1
 
-Both the JVM and native Python `AIcSchemaObjectBindingsGenerator` render Java and
-Python using their existing canonical readers, naming profiles and backends.
-`AIcSchemaInterfaceGenerator.generate(request)` returns a contract and its
-implementation; enum definitions return only the shared enum contract.
-The existing standalone `service.generate(request)` API is unchanged.
+`defscodegen` is the **first stage** of the SmartDataObject generation pipeline.
+It supports standalone canonical `yamldefs`, `jsondefs`, and `xmldefs` inputs and emits
+annotated, read-only `AIig*` contracts plus shared `AIng*` enums in Java and Python.
+It must not write implementations into a second artifact root.
 
-The native Python classes live in `aic_schema_interface_generator.py` and
-`aic_schema_object_bindings_generator.py`. Their paired API is `generate(request)`;
-their repository API is `generate_repository(repository, manifest, check=False)`.
-The JVM equivalent is `generateRepository(repository, manifest, check)`.
-Both return the same per-schema metadata and use the same ownership manifest.
-For example, with the generator and its declared dependencies installed:
+- JVM: `AIcSchemaContractInterfaceGenerator` and `AIcSchemaContractBindingsGenerator`.
+- Python: `AIcSchemaContractInterfaceGenerator` and `AIcSchemaContractBindingsGenerator` in
+  `aic_schema_contract_interface_generator.py` and
+  `aic_schema_contract_bindings_generator.py`.
+- CLI: `AIcDefsCodegenCli` / `aic_defs_codegen_cli.py`.
 
-```bash
-python3 -m eu.algites.tool.codegen.defs.aic_schema_object_bindings_generator \
-  /path/to/repository /path/to/repository/devtools/schema-field-bindings.json
-```
-
-`--check` and `--json` have the same meaning in both CLIs. Whichever implementation
-last generated a tree owns its exact formatting; a check verifies that formatting.
-Cross-implementation integration tests compare semantics independently of formatting.
-
-Repository generation accepts a manifest such as:
+The repository manifest has `artifact`, `languages`, and optional `bindings`:
 
 ```json
 {
-  "artifact": "aac/coreintf",
-  "implementation_artifact": "aac/coreimpl",
-  "languages": ["python"],
+  "artifact": "aac/intf",
+  "languages": ["java", "python"],
   "bindings": []
 }
 ```
 
-Objects, nested objects and enums are discovered in `src/product/jsondefs` and
-`src/product/yamldefs`. A generated package is derived from the schema's package
-path, never from a shared output package. JSON/YAML representations are merged
-only if their canonical shapes are compatible. Different object pointers in
-one source remain different types, including a named definition and a property
-that use the same label. Cross-package references retain their owning package.
+Each generated field carries normalized name, description, `presenceRequired`
+/ `presence_required`, and `allowsNull` / `allows_null`. Java uses
+`AIaDataObject` and `AIaDataObjectField`, Python uses `AIcdDataObject` and
+`AIcdDataObjectField`. The resulting contracts extend the matching general
+`AIiDataObject` marker, regardless of the original schema format.
 
-Contracts (`AIig...`) and enums (`AIng...`) belong to the interface artifact's
-`java.gen`/`python.gen` roots. Concrete records/dataclasses (`AIcgd...`) implement
-those contracts in the implementation artifact's roots. Abstract Python
-contracts expose annotated attributes, documented `ClassVar` field constants,
-canonical provenance and abstract `to_mapping()`; Java interfaces expose field
-constants and documented typed accessors. Concrete implementations retain the
-normal backend's validation, optional-value and wire serialization behavior.
-Native Python temporal/duration helper types used in contract annotations live
-with the contract; its concrete dataclass imports the same types. No generator
-package is required at application runtime.
+**The second stage** is `../sdocodegen/`. It consumes the annotated contracts,
+not the schemas. It writes mutable interfaces and concrete SmartDataObjects into
+separate `java.gen`/`python.gen` roots. See its README.
 
-Only the generator writes these roots. All `.gen`/`.extgen` directories are
-ignored by Git and excluded from source archives. Handwritten source imports
-the generated contracts, constants and enums. Generated classes require no
-installed generator at program runtime. Standalone inline DTO generation, such
-as AAC capability bindings, remains supported.
+Repository-scoped schema discovery covers `yamldefs`, `jsondefs` and `xmldefs`
+(`*.xsd`) for both Java and Python. XML documents pass through the existing XSD
+canonical frontend. A parity fixture verifies that equivalent JSON, YAML and XSD
+object contracts merge into the same generated type, and imported XSD definitions
+and enums are discovered together.
 
-Compile/publish the updated Defs Codegen generator **before** building consumer
-repositories. The existing `bootstrap.sh` breaks the self-hosting dependency;
-without arguments it tests and publishes the JVM generator to Maven Local.
-Consumers in GitHub need the corresponding published generator snapshot.
-AAC and Security wire `generateModustroSchemaBindings` into their compile,
-staging, package metadata and test prerequisites. Local AAC build/test scripts
-call the same Gradle entry point. No `.gen` contents are fetched from Git.
+For JSON/YAML object schemas, a single explicit `allOf` `$ref` to an emitted
+object contract creates a *real interface inheritance edge*; only the new fields
+are declared on the child. Inherited fields are validated against their parent;
+contradictory metadata or an unresolved parent fails generation. Parent references
+may be file-relative or local JSON Pointers. Equivalent JSON/YAML representations
+may merge while preserving the same parent relationship. Arbitrary multiple-base
+`allOf` and XSD `complexContent`/`extension` are not silently flattened into
+incorrect inheritance. XSD XML attributes are also not yet mapped into the
+canonical field projection: both native XML frontends reject those constructs
+explicitly instead of losing fields. These are limitations of the currently
+supported XSD projection, not `pub.lib.General` constraints.
 
-The generator records owned paths in
-`build/run/schema-bindings/generated-files.json`. Later generation removes only
-stale owned paths, preserving files produced by other generators. `--check`
-validates without writing; `--json` prints per-schema output metadata. All outputs
-are calculated and collision/representation checks pass before any file is
-changed. Inputs and owned paths must remain inside the repository.
+Contract repository generation records ownership under
+`build/run/schema-contract-bindings/generated-files.json` and supports
+`--check`, stale output removal and collision detection. It does not own
+SDO-generated files or outputs of unrelated generators.
 
-These conventions apply to any technology with interface/abstract-class and
-implementation concepts, and are retained here for future changes.
+The first-stage wrapper continues to reuse parts of the legacy DTO renderer
+in memory, but never publishes its DTO result. Fully removing that internal
+compatibility path is a follow-up; output ownership is already separate.
 
-## Independent implementation integration tests
+The old `AIcSchemaInterfaceGenerator` (paired API) and
+`AIcSchemaObjectBindingsGenerator` (paired repository API) remain temporarily
+for existing 1.0 consumers. They are **legacy compatibility APIs** and must
+not be selected by new 1.1 Builder integrations. A follow-up migration of AAC
+and other consumers is required before these APIs can be removed.
 
-`AItcGeneratorImplementationParityTest` is part of the ordinary Java TestNG suite.
-It runs `src/develop/python/generator_implementation_parity.py`, which invokes
-the native Python API and the JVM API/CLI on the same inputs. It checks all three
-standalone source frontends (JSON/YAML/XSD) and both output targets. Repository
-binding discovery itself accepts the canonical JSON/YAML roots.
-
-Python output is compared as AST, preserving constants, annotations, control flow
-and documentation; only docstring whitespace is normalized. Java output is compared
-as lexical tokens, preserving string/character literals and documentation text.
-The tests separately compile Java outputs, import every Python module, resolve
-type hints, round-trip nested references and check invalid values. They also cover
-cross-package repeated references, enum/null/boolean normalization, exact decimal
-facets, escaped documentation, name collisions, ignored non-schema examples,
-compatible representations, owned stale pruning and read-only checks.
-
-`gradle/generator-parity.gradle.kts` prepares the Java test's Python dependencies
-under `build/run/generator-parity` using Builder-generated `pyproject.toml` metadata
-and configured public Python input subscriptions. It does not install into the
-global interpreter. Standard `test`/`check` run the TestNG bridge automatically.
-The bootstrap build mirrors its naming dependencies and prepares the same isolated
-environment without needing repository metadata or the updated published generator.
-`prepareModustroGeneratorParityPython` can also be run explicitly. The independent
-Python pytest suite includes direct paired API, enum, repository CLI and comparison
-regressions. For direct execution outside Gradle, install the declared naming and
-PyYAML dependencies or place their source packages on `PYTHONPATH`.
-
-## Production naming dependency
-
-Repository binding generation calls `AIcAlgitesNamingProfiles` from
-`pub.lib.General_naming.convention.coreimpl` in production. The CoreImpl
-descriptor must declare this dependency with `Usages: [product_implementation]`;
-`develop_implementation` only adds it to the Java test classpath and fails
-`compileJava`. Python also requires this package at runtime. The bootstrap build
-uses `implementation` for the same reason. No naming source is copied into the
-generator, and the standard naming implementation remains the single owner.
-
-A source-only compilation that merges generator and naming sources cannot
-verify dependency scopes. Build each artifact against its declared production
-classpath and the published naming JARs. The CI revision
-`fa865facc441e487690ab8018b45f97083b937f9` predates this scope correction.
-
-## Nullable canonical values and generated DTOs
-
-The JSON/YAML definition frontends distinguish a missing optional property from
-an explicitly present JSON `null` (`None` in Python). Nullability is determined
-by the complete applicable JSON Schema assertions rather than solely by the
-`type` keyword. In particular, an unrestricted property permits null, an
-`enum` containing JSON `null` permits null, `const: null` permits null, and
-composition with `oneOf`, `anyOf`, `allOf`, `not`, or `if`/`then`/`else` can
-allow or prohibit it. For references, the referenced canonical schema must
-also admit null. A string enum entry `"null"` is **not** JSON `null`.
-
-Enum source types contain only real, non-null enum members. Their containing
-DTO may represent a nullable occurrence as `None`. The generator preserves
-presence-versus-null through `from_mapping()` and `to_mapping()`; do not
-replace explicit null values with absent optional properties as a workaround.
-
-Schema-defined payloads must use the generated contracts and DTOs in consumers.
-Handwritten classes should implement behavior, adapters, or temporary runtime
-structures that are not defined by canonical schemas. Generated `.gen` sources
-remain build outputs and must not be checked into source control.
-
-Full validation of unrestricted combinator expressions and null-only scalar
-constraints is a separate capability; the nullability evaluation alone does
-not claim complete JSON Schema validation of arbitrary non-null values.
+`bootstrap.sh` builds the first generator without loading the bootstrap Builder
+plugin, and parity tests cover Java and Python native implementations.

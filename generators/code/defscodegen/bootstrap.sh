@@ -9,8 +9,8 @@ trap 'rm -rf -- "${locBootstrapDir}"' EXIT
 # Break the self-hosting dependency: build the generator without loading repository conventions that use it.
 cat > "${locBootstrapDir}/settings.gradle" <<'GRADLE'
 rootProject.name = 'modustro-defscodegen-bootstrap'
-include 'coreintf', 'coreimpl', 'cli'
-['coreintf', 'coreimpl', 'cli'].each { name ->
+include 'intf', 'impl', 'cli'
+['intf', 'impl', 'cli'].each { name ->
     project(":" + name).projectDir = new File(System.getenv('_TMP_MODUSTRO_DEFS_MODULE'), name)
 }
 GRADLE
@@ -19,7 +19,7 @@ subprojects {
     apply plugin: 'java-library'
     apply plugin: 'maven-publish'
     group = 'eu.algites.tool.codegen'
-    version = providers.gradleProperty('modustro.defscodegen.version').getOrElse('1.0-SNAPSHOT')
+    version = providers.gradleProperty('modustro.defscodegen.version').getOrElse('1.1-SNAPSHOT')
     repositories {
         mavenLocal()
         mavenCentral()
@@ -43,24 +43,25 @@ subprojects {
         }
     }
 }
-project(':coreintf') {
-    dependencies { api 'eu.algites.lib.naming:pub.lib.General_naming.convention.coreintf:1.0-SNAPSHOT' }
+project(':intf') {
+    dependencies { api 'eu.algites.lib.naming:pub.lib.General_naming.convention.intf:1.1-SNAPSHOT' }
 }
-project(':coreimpl') {
+project(':impl') {
     dependencies {
-        api project(':coreintf')
-        api 'eu.algites.lib.naming:pub.lib.General_naming.conversion.coreintf:1.0-SNAPSHOT'
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.conversion.coreimpl:1.0-SNAPSHOT'
+        api project(':intf')
+        api 'eu.algites.lib.data:pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT' 
+        api 'eu.algites.lib.naming:pub.lib.General_naming.conversion.intf:1.1-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.conversion.impl:1.1-SNAPSHOT'
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.3'
         testImplementation 'org.testng:testng:7.11.0'
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.coreimpl:1.0-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.impl:1.1-SNAPSHOT'
     }
 }
 project(':cli') {
     dependencies {
-        implementation project(':coreimpl')
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.coreimpl:1.0-SNAPSHOT'
+        implementation project(':impl')
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.impl:1.1-SNAPSHOT'
     }
 }
 
@@ -71,13 +72,15 @@ def prepareParityPython = tasks.register('prepareGeneratorParityPython', Exec) {
     def command = [System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3', new File(module, 'prepare_parity_python.py').absolutePath,
         '--target', parityPython.get().asFile.absolutePath,
         '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
-        '--requirement', 'pyyaml>=6,<7']
-    ['convention.coreintf', 'convention.coreimpl', 'conversion.coreintf', 'conversion.coreimpl'].each { artifact ->
-        command += ['--requirement', 'eu-algites-lib-naming-pub-lib-general-naming-' + artifact.replace('.', '-') + '>=1.0.dev0,<1.0a0']
+        '--requirement', 'pyyaml>=6,<7',
+        '--requirement', 'pytest>=8,<10',
+        '--requirement', 'eu-algites-lib-data-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0']
+    ['convention.intf', 'convention.impl', 'conversion.intf', 'conversion.impl'].each { artifact ->
+        command += ['--requirement', 'eu-algites-lib-naming-pub-lib-general-naming-' + artifact.replace('.', '-') + '>=1.1.dev0,<1.1a0']
     }
     commandLine(command)
 }
-project(':coreimpl').tasks.withType(Test).configureEach {
+project(':impl').tasks.withType(Test).configureEach {
     dependsOn prepareParityPython
     environment 'MODUSTRO_GENERATOR_PARITY_PYTHON_DEPENDENCIES', parityPython.get().asFile.absolutePath
 }

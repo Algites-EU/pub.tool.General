@@ -1,0 +1,12 @@
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+Artifact:
+  TechnologyKinds: [java, python]
+  Name: SmartDataObject code generator API
+  Description: Schema-independent Java and Python generation contracts.
+Dependencies:
+  - DependencyKind: modustro
+    Items:
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.dataobject.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }

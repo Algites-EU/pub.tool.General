@@ -1,0 +1,26 @@
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+Artifact:
+  TechnologyKinds: [java, python]
+  Name: SmartDataObject generator implementation
+  Description: Native Java and Python implementation generation from annotated AIig contracts.
+Dependencies:
+  - DependencyKind: modustro
+    Items:
+      - GroupId: eu.algites.tool.codegen
+        ArtifactId: pub.tool.General_generators.code.sdocodegen.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.dataobject.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.smartdataobject.impl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+  - DependencyKind: java
+    Items:
+      - GroupId: org.testng
+        ArtifactId: testng
+        Usages: [develop_implementation]
+        VersionRequirement: { Minimum: ">=7.0.0", Maximum: "<8.0.0", MaximumStrict: true }

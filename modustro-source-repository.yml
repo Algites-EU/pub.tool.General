@@ -10,7 +10,7 @@ GroupId: eu.algites.tool
 
 Version:
   ReleaseLineVersion: '1'
-  Revision: 0
+  Revision: 1
   QualifierKind: snapshot
 
 # Default publication policy preserves the normal repository publication behavior.

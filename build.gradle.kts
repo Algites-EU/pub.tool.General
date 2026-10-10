@@ -6,3 +6,5 @@ if (locModustroRootBuildScript.isFile) {
 }
 
 apply(from = "gradle/generator-parity.gradle.kts")
+
+apply(from = "gradle/sdocodegen-parity.gradle.kts")
