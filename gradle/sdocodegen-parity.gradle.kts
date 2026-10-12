@@ -20,6 +20,10 @@ val locSdoEndpoints = (locSdoImpl.tasks.named("resolvePythonDependencies").get()
 val locSdoDefsEndpoints = (locSdoDefsImpl.tasks.named("resolvePythonDependencies").get()
     .property("endpointDefinitions") as ListProperty<String>).get()
 val locSdoAllEndpoints = (locSdoEndpoints + locSdoDefsEndpoints).distinct()
+/* Reuse the Defs generator's complete resolved Python runtime while testing SDO's
+ * develop-only dependency on that generator. The published SDO runtime remains independent. */
+val locSdoDefsPythonDirectory = layout.buildDirectory.dir("run/generator-parity/python-dependencies")
+val locSdoDefsPreparationTask = tasks.named("prepareModustroGeneratorParityPython")
 val locPrepareSdoParityPython = tasks.register<Exec>("prepareModustroSdoParityPython") {
     group = "verification"
     description = "Prepares Python SmartDataObject runtime and generator verification dependencies."
@@ -42,7 +46,8 @@ val locPrepareSdoParityPython = tasks.register<Exec>("prepareModustroSdoParityPy
         + locSdoMetadata.flatMap { listOf("--metadata", it.asFile.absolutePath) })
 }
 locSdoImpl.tasks.withType<Test>().configureEach {
-    dependsOn(locPrepareSdoParityPython)
+    dependsOn(locPrepareSdoParityPython, locSdoDefsPreparationTask)
+    inputs.dir(locSdoDefsPythonDirectory)
     inputs.files(locSdoIntf.layout.projectDirectory.dir("src/product/python"),
         locSdoImpl.layout.projectDirectory.dir("src/product/python"),
         locSdoImpl.layout.projectDirectory.dir("src/develop/python"),
@@ -50,4 +55,5 @@ locSdoImpl.tasks.withType<Test>().configureEach {
         layout.projectDirectory.dir("generators/code/defscodegen/impl/src/product/python"))
     inputs.dir(locSdoPythonDirectory)
     environment("MODUSTRO_SDO_PYTHON_DEPENDENCIES", locSdoPythonDirectory.get().asFile.absolutePath)
+    environment("MODUSTRO_DEFSCODEGEN_PYTHON_DEPENDENCIES", locSdoDefsPythonDirectory.get().asFile.absolutePath)
 }

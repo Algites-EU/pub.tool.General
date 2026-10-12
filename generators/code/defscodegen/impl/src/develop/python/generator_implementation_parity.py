@@ -135,7 +135,13 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
         self.assertEqual(results[0], results[1])
         self.compare_outputs()
         for root, _ in self.repositories.values():
-            env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(root / artifact / 'src/product/python.gen') for artifact in ('intf','impl')),
+            # Generated sources extend the installed DataObject API. Preserve the
+            # resolved Python dependencies inherited from the Gradle test worker.
+            native_paths = [str(root / artifact / 'src/product/python.gen') for artifact in ('intf', 'impl')]
+            existing_path = os.environ.get('PYTHONPATH')
+            if existing_path:
+                native_paths.append(existing_path)
+            env = dict(os.environ, PYTHONPATH=os.pathsep.join(native_paths),
                 PYTHONPYCACHEPREFIX=str(root / 'build/pycache'))
             runtime = '''
 from decimal import Decimal
@@ -158,7 +164,12 @@ wire = dict(Name='example',Count=10**80,Amount=Decimal('123456789.123456789'),Fl
     Date='2024-02-29Z',Duration='P1Y2M',Binary='01FF')
 value = AIcgdRoot_1.from_mapping(wire)
 assert isinstance(value,AIigRoot_1) and value.to_mapping() == wire
-assert not hasattr(value,'__dict__') and 'TextValues' not in value.to_mapping()
+assert 'TextValues' not in value.to_mapping()
+assert dataclasses.is_dataclass(AIcgdRoot_1) and AIcgdRoot_1.__dataclass_params__.frozen
+assert AIcgdRoot_1.__slots__  # The inherited DataObject interface may provide __dict__.
+try: value.name = 'changed'
+except (AttributeError, TypeError): pass
+else: raise AssertionError('Generated DTO is not frozen')
 assert value.child.id == 7
 assert typing.get_type_hints(AIigRoot_1)['date'] is typing.get_type_hints(AIcgdRoot_1)['date']
 try: AIcgdRoot_1.from_mapping(dict(wire,Child={'Id':10}))
@@ -166,8 +177,12 @@ except ValueError: pass
 else: raise AssertionError('Invalid referenced scalar value accepted')
 '''
             subprocess.run([sys.executable,'-c',runtime], cwd=root, env=env, check=True)
-            java = [str(p) for artifact in ('intf','impl') for p in (root / artifact / 'src/product/java.gen').rglob('*.java')]
-            subprocess.run(['java','com.sun.tools.javac.Main','-d',str(root / 'build/classes'),*java], check=True)
+            java = [str(p) for artifact in ('intf', 'impl')
+                for p in (root / artifact / 'src/product/java.gen').rglob('*.java')]
+            classes = root / 'build/classes'
+            classes.mkdir(parents=True, exist_ok=True)
+            subprocess.run(['java', 'com.sun.tools.javac.Main', '-classpath', self.java_classpath,
+                '-d', str(classes), *java], check=True)
 
     def test_paired_api_all_frontends_and_targets(self):
         from eu.algites.lib.naming.convention.aic_algites_naming_profiles import AIcAlgitesNamingProfiles

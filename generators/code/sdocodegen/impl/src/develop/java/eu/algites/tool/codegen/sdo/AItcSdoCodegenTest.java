@@ -135,6 +135,9 @@ public final class AItcSdoCodegenTest {
         }
         String locDependencies = System.getenv("MODUSTRO_SDO_PYTHON_DEPENDENCIES");
         if (locDependencies != null && !locDependencies.isBlank()) locPaths.add(locDependencies);
+        /* The develop-only Defs generator contributes its own transitive Python runtime. */
+        String locDefsDependencies = System.getenv("MODUSTRO_DEFSCODEGEN_PYTHON_DEPENDENCIES");
+        if (locDefsDependencies != null && !locDefsDependencies.isBlank()) locPaths.add(locDefsDependencies);
         String locPrevious = System.getenv("PYTHONPATH");
         if (locPrevious != null && !locPrevious.isBlank()) locPaths.add(locPrevious);
         locProcess.environment().put("PYTHONPATH", String.join(java.io.File.pathSeparator, locPaths));
