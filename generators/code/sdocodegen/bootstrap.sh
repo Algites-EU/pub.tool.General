@@ -57,7 +57,7 @@ def module = new File(System.getenv('_TMP_MODUSTRO_SDO_MODULE'))
 def sdoPython = rootProject.layout.buildDirectory.dir('sdo-parity/python-dependencies')
 def prepareSdoPython = tasks.register('prepareSdoPython', Exec) {
     commandLine(System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3',
-        new File(module, '../defscodegen/prepare_parity_python.py').canonicalPath,
+        new File(module, '../defscodegen/impl/src/develop/python/prepare_parity_python.py').canonicalPath,
         '--target', sdoPython.get().asFile.absolutePath,
         '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
         '--requirement', 'pytest>=8,<10',

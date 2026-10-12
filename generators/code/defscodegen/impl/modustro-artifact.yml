@@ -64,3 +64,9 @@ Dependencies:
         VersionRequirement:
           Minimum: ">=6.0"
           Maximum: "<7.0"
+      - ArtifactId: pytest
+        Usages: [develop_implementation]
+        VersionRequirement:
+          Minimum: ">=8.0"
+          Maximum: "<10.0"
+          MaximumStrict: true

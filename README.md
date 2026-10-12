@@ -86,6 +86,10 @@ The CLI is only an adapter. Builder/AAC integrations should use the programmatic
 
 The repository uses the shared Modustro build lifecycle and supports Java and Python artifacts.
 
+Python product builds (wheel/sdist) use the standard shared Modustro lifecycle and do not require repository-specific Gradle scripts. Python native tests live under `src/develop/python` and can run without a JVM when their Python dependencies are installed.
+
+The two `gradle/*-parity.gradle.kts` scripts are temporary verification bridges: today's shared Builder does not yet provision Python test dependencies or execute pytest as an independent Gradle test lifecycle. They preserve cross-implementation integration checks in `./gradlew check` until that capability is introduced in Builder. Removing them alone would silently disable those checks. The Python dependency preparation helper is kept under Defs Codegen `impl/src/develop/python` rather than outside the source tree.
+
 ## Architectural role
 
 `pub.lib.General` owns reusable algorithms and models that are useful outside a development tool. `pub.tool.General` owns development operations such as code generation and command-line traversal/adapters. AAC-specific code generation should build on Defs Codegen and retain only AAC capability/Data-Entity-specific generation in AAC.

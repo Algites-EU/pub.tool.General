@@ -69,7 +69,7 @@ project(':cli') {
 def parityPython = rootProject.layout.buildDirectory.dir('generator-parity/python-dependencies')
 def module = new File(System.getenv('_TMP_MODUSTRO_DEFS_MODULE'))
 def prepareParityPython = tasks.register('prepareGeneratorParityPython', Exec) {
-    def command = [System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3', new File(module, 'prepare_parity_python.py').absolutePath,
+    def command = [System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3', new File(module, 'impl/src/develop/python/prepare_parity_python.py').absolutePath,
         '--target', parityPython.get().asFile.absolutePath,
         '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
         '--requirement', 'pyyaml>=6,<7',

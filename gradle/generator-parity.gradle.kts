@@ -7,7 +7,7 @@ val locGeneratorImpl = project(":generators:code:defscodegen:impl")
 val locGeneratorIntf = project(":generators:code:defscodegen:intf")
 val locParityPythonDirectory = layout.buildDirectory.dir("run/generator-parity/python-dependencies")
 val locPythonExecutable = providers.environmentVariable("ALGITES_PYTHON_EXECUTABLE").getOrElse("python3")
-val locParityPreparationScript = layout.projectDirectory.file("generators/code/defscodegen/prepare_parity_python.py")
+val locParityPreparationScript = layout.projectDirectory.file("generators/code/defscodegen/impl/src/develop/python/prepare_parity_python.py")
 val locParityMetadata = listOf(locGeneratorIntf, locGeneratorImpl).map { it.layout.projectDirectory.file("pyproject.toml") }
 val locParityRefreshDependencies = gradle.startParameter.isRefreshDependencies
 @Suppress("UNCHECKED_CAST")

@@ -7,7 +7,7 @@ val locSdoIntf = project(":generators:code:sdocodegen:intf")
 val locSdoImpl = project(":generators:code:sdocodegen:impl")
 val locSdoPythonDirectory = layout.buildDirectory.dir("run/sdo-parity/python-dependencies")
 val locSdoPythonExecutable = providers.environmentVariable("ALGITES_PYTHON_EXECUTABLE").getOrElse("python3")
-val locSdoPreparationScript = layout.projectDirectory.file("generators/code/defscodegen/prepare_parity_python.py")
+val locSdoPreparationScript = layout.projectDirectory.file("generators/code/defscodegen/impl/src/develop/python/prepare_parity_python.py")
 /* SDO verification also imports Defs codegen directly; provision its declared Python dependencies. */
 val locSdoDefsIntf = project(":generators:code:defscodegen:intf")
 val locSdoDefsImpl = project(":generators:code:defscodegen:impl")
