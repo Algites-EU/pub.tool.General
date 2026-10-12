@@ -36,7 +36,11 @@ class AIcSchemaInterfaceGenerator:
             + ', description=' + repr(model.description or '') + ')\n')
         result += '    __data_object_fields__ = (\n'
         for prop in model.properties:
-            suffix = self.names.property_name(prop.source_name, request.naming_profile)
+            suffix = re.sub(r'[^a-zA-Z0-9_]', '_', self.names.property_name(prop.source_name, request.naming_profile))
+            if not suffix or suffix[0].isdigit():
+                suffix = '_' + suffix
+            if keyword.iskeyword(suffix):
+                suffix += '_'
             result += ('        AIcdDataObjectField(name=' + repr(prop.source_name)
                 + ', description=' + repr(prop.description or '')
                 + ', presence_required=' + str(bool(prop.required))

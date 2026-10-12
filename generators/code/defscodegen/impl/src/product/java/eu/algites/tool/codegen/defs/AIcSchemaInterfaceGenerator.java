@@ -46,9 +46,50 @@ public final class AIcSchemaInterfaceGenerator {
             if (fields.contains("AIcSchemaTemporalValue") || fields.contains("AIcSchemaDuration")) {
                 helpers = dto.source().substring(dto.source().indexOf("from dataclasses import dataclass"), dto.source().indexOf("\ndef _ai_convert"));
             }
+            StringBuilder metadata = new StringBuilder();
+            metadata.append("    __data_object__ = AIcdDataObject(id=")
+                    .append(AIcScalarGeneration.jquote(request.definition().identity()))
+                    .append(", version=")
+                    .append(request.definition().version() == null ? -1 : request.definition().version())
+                    .append(", description=")
+                    .append(AIcScalarGeneration.jquote(request.definition().description() == null ? "" : request.definition().description()))
+                    .append(")\n    __data_object_fields__ = (\n");
+            StringBuilder getters = new StringBuilder();
+            for (AIcdPropertyDefinition property : request.definition().properties()) {
+                String propertyName = pythonPropertyIdentifier(names.propertyName(property.sourceName(), request.namingProfile()));
+                String suffix = Character.toUpperCase(propertyName.charAt(0)) + propertyName.substring(1);
+                String getterName = "get" + suffix;
+                metadata.append("        AIcdDataObjectField(name=")
+                        .append(AIcScalarGeneration.jquote(property.sourceName()))
+                        .append(", description=")
+                        .append(AIcScalarGeneration.jquote(property.description() == null ? "" : property.description()))
+                        .append(", presence_required=")
+                        .append(property.required() ? "True" : "False")
+                        .append(", allows_null=")
+                        .append(property.nullable() ? "True" : "False")
+                        .append(", getter_name=")
+                        .append(AIcScalarGeneration.jquote(getterName))
+                        .append("),\n");
+                String returned = "";
+                if (property.reference() != null && property.valueKind() == AInValueKind.REFERENCE
+                        && property.reference().targetKind() != AInDefinitionKind.ENUM) {
+                    var reference = property.reference();
+                    returned = " -> " + names.referenceTypeName(reference.logicalName(), reference.version(),
+                            request.namingProfile(), AInOutputNameKind.INTERFACE_TYPE)
+                            + (property.nullable() ? " | None" : "");
+                }
+                getters.append("    def get").append(suffix).append("(self)").append(returned)
+                        .append(":\n        return self.").append(propertyName).append("\n\n");
+            }
+            metadata.append("    )\n\n").append(getters);
             contract = "from __future__ import annotations\n\nfrom abc import ABC, abstractmethod\n"
-                    + "from typing import Any, ClassVar, Mapping, TYPE_CHECKING\nfrom decimal import Decimal\n\n"
-                    + helpers + String.join("\n", contractImports.stream().distinct().sorted().toList()) + "\n\nclass " + interfaceName + "(ABC):\n" + fields + "\n\n    __slots__ = ()"
+                    + "from typing import Any, ClassVar, Mapping, TYPE_CHECKING\nfrom decimal import Decimal\n"
+                    + "from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\n"
+                    + "from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n"
+                    + "from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\n\n"
+                    + helpers + String.join("\n", contractImports.stream().distinct().sorted().toList())
+                    + "\n\nclass " + interfaceName + "(ABC, AIiDataObject):\n" + metadata + fields
+                    + "\n\n    __slots__ = ()"
                     + "\n\n    @abstractmethod\n    def to_mapping(self) -> Mapping[str, object]:\n"
                     + "        \"\"\"Return canonical wire fields, omitting absent optional values.\"\"\"\n"
                     + "        raise NotImplementedError\n";
@@ -104,6 +145,20 @@ public final class AIcSchemaInterfaceGenerator {
         return new AIcdSources(new AIcdGeneratedSource(interfaceName, path + interfaceName + ".java", contract),
                 new AIcdGeneratedSource(dto.typeName(), dto.relativePath(), implementation));
     }
+
+    /** Match the Python generator's normalization of field identifiers. */
+    private static String pythonPropertyIdentifier(String name) {
+        String result = name.replaceAll("[^a-zA-Z0-9_]", "_");
+        if (result.isEmpty() || Character.isDigit(result.charAt(0))) result = "_" + result;
+        if (PYTHON_RESERVED.contains(result)) result += "_";
+        return result;
+    }
+
+    private static final java.util.Set<String> PYTHON_RESERVED = java.util.Set.of(
+        "False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue",
+        "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import",
+        "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while",
+        "with", "yield");
 
     private static final java.util.Set<String> JAVA_RESERVED = java.util.Set.of(
         "class", "interface", "enum", "default", "new", "return", "package", "private", "public", "protected",
