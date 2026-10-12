@@ -23,7 +23,9 @@ val locPrepareSdoParityPython = tasks.register<Exec>("prepareModustroSdoParityPy
     inputs.property("pythonExecutable", locSdoPythonExecutable)
     inputs.property("publicSubscriptions", locSdoEndpoints)
     outputs.dir(locSdoPythonDirectory)
-    outputs.upToDateWhen { !locSdoRefreshDependencies }
+    if (locSdoRefreshDependencies) {
+        outputs.upToDateWhen { false }
+    }
     commandLine(listOf(locSdoPythonExecutable, locSdoPreparationScript.asFile.absolutePath,
         "--target", locSdoPythonDirectory.get().asFile.absolutePath,
         "--endpoints-json", JsonOutput.toJson(locSdoEndpoints),

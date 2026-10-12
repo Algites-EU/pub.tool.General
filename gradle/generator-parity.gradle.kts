@@ -22,7 +22,9 @@ val locPrepareGeneratorParityPython = tasks.register<Exec>("prepareModustroGener
     inputs.property("publicSubscriptions", locParityEndpoints)
     outputs.dir(locParityPythonDirectory)
     val locRefreshDependencies = locParityRefreshDependencies
-    outputs.upToDateWhen { !locRefreshDependencies }
+    if (locRefreshDependencies) {
+        outputs.upToDateWhen { false }
+    }
     commandLine(listOf(locPythonExecutable, locParityPreparationScript.asFile.absolutePath,
         "--target", locParityPythonDirectory.get().asFile.absolutePath,
         "--endpoints-json", JsonOutput.toJson(locParityEndpoints),
