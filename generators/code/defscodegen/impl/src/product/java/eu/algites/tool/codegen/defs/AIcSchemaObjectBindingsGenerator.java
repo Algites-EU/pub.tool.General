@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import eu.algites.lib.naming.convention.AIcAlgitesNamingProfiles;
-import eu.algites.lib.naming.convention.AIcdNamingProfile;
+import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -73,7 +73,7 @@ public final class AIcSchemaObjectBindingsGenerator {
                     case "java" -> AInCodeGenerationTarget.JAVA;
                     default -> throw new IllegalArgumentException("Unsupported target: " + targetText);
                 };
-                AIcdNamingProfile profile = target == AInCodeGenerationTarget.PYTHON ? AIcAlgitesNamingProfiles.pythonProfile() : AIcAlgitesNamingProfiles.javaProfile();
+                AIiNameConventionCatalog profile = target == AInCodeGenerationTarget.PYTHON ? AIcAlgitesNamingProfiles.pythonProfile() : AIcAlgitesNamingProfiles.javaProfile();
                 var load = new AIcdDefinitionLoadRequest(source, sourceKind.equals("jsondefs") ? AInDefinitionSourceKind.JSONDEFS : AInDefinitionSourceKind.YAMLDEFS, profile);
                 var loaded = reader.read(projection, load, load.sourceKind(), "x-jsondefs-id", "x-jsondefs-version", "x-jsondefs-name");
                 var definition = new AIcdCanonicalDefinition(loaded.identity(), loaded.version(), loaded.logicalName(), loaded.kind(), loaded.sourceKind(),
@@ -140,10 +140,10 @@ public final class AIcSchemaObjectBindingsGenerator {
             String packageName = candidates.get(0);
             if (packageName.equals(request.packageName())) continue;
             boolean isEnum = ref.targetKind() == AInDefinitionKind.ENUM;
-            var typeKind = isEnum ? eu.algites.lib.naming.convention.AInOutputNameKind.ENUM_TYPE : contract
-                ? eu.algites.lib.naming.convention.AInOutputNameKind.INTERFACE_TYPE : eu.algites.lib.naming.convention.AInOutputNameKind.DATA_TYPE;
-            var fileKind = isEnum ? eu.algites.lib.naming.convention.AInOutputNameKind.ENUM_TYPE_FILE_STEM : contract
-                ? eu.algites.lib.naming.convention.AInOutputNameKind.INTERFACE_TYPE_FILE_STEM : eu.algites.lib.naming.convention.AInOutputNameKind.DATA_TYPE_FILE_STEM;
+            var typeKind = isEnum ? eu.algites.tool.codegen.defs.AInDefsNameRole.ENUM_TYPE : contract
+                ? eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE : eu.algites.tool.codegen.defs.AInDefsNameRole.DATA_TYPE;
+            var fileKind = isEnum ? eu.algites.tool.codegen.defs.AInDefsNameRole.ENUM_TYPE_FILE_STEM : contract
+                ? eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE_FILE_STEM : eu.algites.tool.codegen.defs.AInDefsNameRole.DATA_TYPE_FILE_STEM;
             String type = names.referenceTypeName(ref.logicalName(), ref.version(), request.namingProfile(), typeKind);
             if (request.target() == AInCodeGenerationTarget.PYTHON) {
                 String file = names.referenceTypeName(ref.logicalName(), ref.version(), request.namingProfile(), fileKind);

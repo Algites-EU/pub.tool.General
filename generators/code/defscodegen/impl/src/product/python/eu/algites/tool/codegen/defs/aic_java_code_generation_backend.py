@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from eu.algites.lib.naming.convention.ain_output_name_kind import AInOutputNameKind
+from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from eu.algites.tool.codegen.defs._support import _java_integer, _java_quote, _java_type
 from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
 from eu.algites.tool.codegen.defs.aicd_generated_source import AIcdGeneratedSource
@@ -21,7 +21,7 @@ class AIcJavaCodeGenerationBackend:
     def generate(self, request) -> AIcdGeneratedSource:
         """Generate one Java source file from a canonical definition."""
         is_enum = request.definition.kind is AInDefinitionKind.ENUM
-        kind = AInOutputNameKind.ENUM_TYPE if is_enum else AInOutputNameKind.DATA_TYPE
+        kind = AInDefsNameRole.ENUM_TYPE if is_enum else AInDefsNameRole.DATA_TYPE
         type_name = self.names.type_name(request.definition, request.naming_profile, kind)
         if is_enum:
             body = ",\n".join(

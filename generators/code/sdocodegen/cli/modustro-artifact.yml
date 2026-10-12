@@ -14,3 +14,7 @@ Dependencies:
         ArtifactId: pub.tool.General_generators.code.sdocodegen.impl
         Usages: [product_implementation]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.convention.impl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }

@@ -9,7 +9,8 @@ import re
 from urllib.parse import urlsplit, unquote
 
 from eu.algites.lib.naming.convention.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.lib.naming.convention.ain_output_name_kind import AInOutputNameKind
+from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
+from eu.algites.lib.naming.convention.aic_name_convention_catalog import AIcNameConventionCatalog
 from eu.algites.tool.codegen.defs._schema_loading import load_schema
 from eu.algites.tool.codegen.defs.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
@@ -36,19 +37,63 @@ class AIcSchemaContractBindingsGenerator:
 
     def generate_repository(self, repository: Path, manifest_file: Path, check: bool = False) -> list[dict[str, str]]:
         """Generate interface outputs only, or verify them without modifying files."""
-        repository = Path(os.path.abspath(repository))
         manifest = json.loads(Path(manifest_file).read_text(encoding='utf-8'))
-        intf = self._inside(repository, manifest['artifact'])
+        return self.generate_manifest(repository, manifest, check)
+
+    def generate_manifest(self, repository: Path, manifest: dict, check: bool = False) -> list[dict[str, str]]:
+        """Generate all selected targets from explicit schema roots and YAML naming catalogs."""
+        repository = Path(os.path.abspath(repository))
+        intf = self._inside(repository, manifest.get('artifact', '.'))
+        explicit = 'schema_inputs' in manifest
+        output_roots = {t: self._inside(repository, d) for t, d in manifest.get('technology_outputs', {}).items()}
+        catalogs = {t: AIcNameConventionCatalog.load(self._inside(repository, file))
+                    for t, file in manifest.get('technology_naming_profiles', {}).items()}
+        target_profiles = {t: AIcNameConventionCatalog.load(self._inside(repository, file))
+                           for t, file in manifest.get('technology_naming_profiles', {}).items()}
+        source_catalogs = {k: AIcNameConventionCatalog.load(self._inside(repository, file))
+                           for k, file in manifest.get('schema_input_naming_profiles', {}).items()}
+        if explicit:
+            for technology in output_roots:
+                if technology not in catalogs:
+                    raise ValueError('Missing target naming catalog: ' + technology)
+        if manifest.get('clean_only'):
+            for technology, target_root in output_roots.items():
+                roles = {f'algites-{technology}-gen-intf-versioned', f'algites-{technology}-gen-enum-versioned'}
+                catalogs[technology].clean(target_root, roles)
+            return []
         overrides = {entry['schema'] + '#' + entry.get('pointer', ''): entry for entry in manifest.get('bindings', ())}
         units = []
-        for kind, suffix in (('jsondefs', '.jsondef.schema.json'), ('yamldefs', '.yamldef.schema.json'), ('xmldefs', '.xsd')):
-            root = intf / 'src/product' / kind
+        source_roots = manifest.get('schema_inputs') or [
+            {'kind': kind, 'directory': str(intf / 'src/product' / kind)}
+            for kind in ('jsondefs', 'yamldefs', 'xmldefs')]
+        root_by_source = {}
+        kind_by_source = {}
+        for source_input in source_roots:
+            kind = source_input['kind']
+            suffix = {'jsondefs': '.jsondef.schema.json', 'yamldefs': '.yamldef.schema.json', 'xmldefs': '.xsd'}[kind]
+            root = Path(source_input['directory']).resolve() if Path(source_input['directory']).is_absolute() else self._inside(repository, source_input['directory'])
+            if not root.is_relative_to(repository):
+                raise ValueError('Schema root escapes repository: ' + str(root))
+            if kind in source_catalogs and not manifest.get('allow_unversioned_schemas', False):
+                required_profile = f'algites-{kind[:-1] if kind != "xmldefs" else "xmldef"}-schema-versioned'
+            else:
+                required_profile = None
             if not root.is_dir():
                 continue
             for source in sorted(root.rglob('*')):
                 if not source.is_file() or not source.name.endswith(suffix):
                     continue
                 schema = source.relative_to(repository).as_posix()
+                if schema in root_by_source:
+                    raise ValueError('Overlapping schema input roots: ' + schema)
+                root_by_source[schema] = root
+                kind_by_source[schema] = kind
+                if kind in source_catalogs:
+                    recognized = source_catalogs[kind].recognize_filename(source.name)
+                    if recognized is None:
+                        raise ValueError('Schema filename violates input naming profile: ' + schema)
+                    if required_profile is not None and recognized.convention_name != required_profile:
+                        raise ValueError('Unversioned schema is not allowed: ' + schema)
                 document = {} if kind == 'xmldefs' else load_schema(source)
                 base = re.sub(r'_[0-9]+$', '', source.name[:-len(suffix)])
                 if kind == 'xmldefs':
@@ -68,20 +113,21 @@ class AIcSchemaContractBindingsGenerator:
         generator = AIcSchemaContractInterfaceGenerator()
         for unit in units:
             source = self._inside(repository, unit.schema)
-            kind = next(k for k in ('yamldefs', 'jsondefs', 'xmldefs') if '/' + k + '/' in unit.schema)
-            package = source.parent.relative_to(intf / 'src/product' / kind).as_posix().replace('/', '.')
+            kind = kind_by_source[unit.schema]
+            package = source.parent.relative_to(root_by_source[unit.schema]).as_posix().replace('/', '.')
             if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*', package):
                 raise ValueError(f'Schema must have a legal package path: {unit.schema}')
             projection = deepcopy(unit.node)
             if kind != 'xmldefs':
                 if '$defs' in unit.document:
                     projection['$defs'] = unit.document['$defs']
-                projection['x-jsondefs-id'] = unit.document.get('$id', unit.schema) + ('#' + unit.pointer if unit.pointer else '')
+                projection['x-jsondefs-id'] = (unit.document.get('x-yamldefs-id') or unit.document.get('x-jsondefs-id') or unit.document.get('$id') or unit.schema) + ('#' + unit.pointer if unit.pointer else '')
                 projection['x-jsondefs-name'] = unit.name
             parent_unit = self._parent_unit(unit, unit_index, repository) if kind != 'xmldefs' else None
             for language in manifest['languages']:
                 target = AInCodeGenerationTarget(language)
-                profile = AIcAlgitesNamingProfiles.python_profile() if target is AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles.java_profile()
+                profile = target_profiles.get(language) or (AIcAlgitesNamingProfiles.python_profile()
+                            if target is AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles.java_profile())
                 load = AIcdDefinitionLoadRequest(source,
                     {'yamldefs': AInDefinitionSourceKind.YAMLDEFS, 'jsondefs': AInDefinitionSourceKind.JSONDEFS,
                      'xmldefs': AInDefinitionSourceKind.XMLDEFS}[kind], profile)
@@ -97,12 +143,17 @@ class AIcSchemaContractBindingsGenerator:
                 unit_requests[(language, unit.schema, unit.pointer)] = request
                 relations.setdefault(key, []).append((language, parent_unit))
                 result.append(dict(schema=unit.schema, pointer=unit.pointer, language=language, type=preview.type_name,
-                    path=(intf / 'src/product' / (language + '.gen') / preview.relative_path).relative_to(repository).as_posix()))
+                    path=(output_roots.get(language, intf / 'src/product' / (language + '.gen')) / preview.relative_path).relative_to(repository).as_posix()))
 
+        units_by_resource = {unit.schema + ('#' + unit.pointer if unit.pointer else ''): unit
+                             for unit in units}
         for representations in requests.values():
             first = representations[0]
-            if len({r.definition.source_kind for r in representations}) != len(representations):
-                raise ValueError('Different objects resolve to the same generated type: ' + str([r.definition.source_resource for r in representations]))
+            identities = {self._canonical_identity(r.definition, r.package_name, units_by_resource)
+                          for r in representations}
+            if len(identities) != 1:
+                raise ValueError('Canonical identity collision for one generated output: ' +
+                    str([(r.definition.identity, r.definition.source_resource) for r in representations]))
             merged = AIcCanonicalDefinitionMerger.merge(r.definition for r in representations)
             parent_relations = relations[first.target.value + '#' + generator.generate(first).relative_path]
             parent_requests = [None if value is None else unit_requests.get(
@@ -131,11 +182,17 @@ class AIcSchemaContractBindingsGenerator:
                 parent = (parent_type, parent_module)
             pair = generator.generate(replace(first, definition=merged), parent)
             language = first.target.value
-            self._add(pending, intf / 'src/product' / (language + '.gen') / pair.relative_path,
+            self._add(pending, output_roots.get(language, intf / 'src/product' / (language + '.gen')) / pair.relative_path,
                 self._qualify_references(pair.source, first, requests, True))
 
+        # Only clean after all inputs, identities, inheritance and output paths validate.
+        if explicit and not check:
+            for technology, target_root in output_roots.items():
+                roles = {f'algites-{technology}-gen-intf-versioned', f'algites-{technology}-gen-enum-versioned'}
+                catalogs[technology].clean(target_root, roles)
+
         state = repository / 'build/run/schema-contract-bindings/generated-files.json'
-        previous = json.loads(state.read_text(encoding='utf-8')) if state.is_file() else []
+        previous = [] if explicit else (json.loads(state.read_text(encoding='utf-8')) if state.is_file() else [])
         for old in previous:
             stale = self._inside(repository, old)
             if not any(part.endswith('.gen') for part in stale.parts):
@@ -152,10 +209,26 @@ class AIcSchemaContractBindingsGenerator:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 if not path.is_file() or path.read_text(encoding='utf-8') != source:
                     path.write_text(source, encoding='utf-8')
-        if not check:
+        if not check and not explicit:
             state.parent.mkdir(parents=True, exist_ok=True)
             state.write_text(json.dumps([p.relative_to(repository).as_posix() for p in sorted(pending)], indent=2) + '\n', encoding='utf-8')
         return result
+
+    @staticmethod
+    def _canonical_identity(definition, package_name, units_by_resource):
+        """Normalize only format-specific publication aliases, never arbitrary schema IDs."""
+        origin = units_by_resource[definition.source_resource]
+        document = origin.document
+        explicit_id = (document.get('x-yamldefs-id') or document.get('x-jsondefs-id')
+                       or document.get('$id')) if document else None
+        if not explicit_id and (definition.source_kind is not AInDefinitionSourceKind.XMLDEFS
+                                or definition.identity == definition.logical_name):
+            return ('implicit', package_name, definition.logical_name, definition.version, origin.pointer)
+        identity = str(definition.identity)
+        identity = re.sub(r'(/api/)(?:yamldefs|jsondefs|xmldefs)(/)', r'\1schema\2', identity)
+        identity = re.sub(r'\.(?:yamldef|jsondef)\.schema\.json(?=#|$)|\.xsd(?=#|$)',
+                          '.schema', identity)
+        return ('explicit', identity, definition.version)
 
     @staticmethod
     def _field_shape(field):
@@ -211,8 +284,8 @@ class AIcSchemaContractBindingsGenerator:
             if package == request.package_name:
                 continue
             is_enum = ref.target_kind is AInDefinitionKind.ENUM
-            type_kind = AInOutputNameKind.ENUM_TYPE if is_enum else (AInOutputNameKind.INTERFACE_TYPE if contract else AInOutputNameKind.DATA_TYPE)
-            file_kind = AInOutputNameKind.ENUM_TYPE_FILE_STEM if is_enum else (AInOutputNameKind.INTERFACE_TYPE_FILE_STEM if contract else AInOutputNameKind.DATA_TYPE_FILE_STEM)
+            type_kind = AInDefsNameRole.ENUM_TYPE if is_enum else (AInDefsNameRole.INTERFACE_TYPE if contract else AInDefsNameRole.DATA_TYPE)
+            file_kind = AInDefsNameRole.ENUM_TYPE_FILE_STEM if is_enum else (AInDefsNameRole.INTERFACE_TYPE_FILE_STEM if contract else AInDefsNameRole.DATA_TYPE_FILE_STEM)
             typ = names.render(ref.logical_name, ref.version, request.naming_profile, type_kind)
             if request.target is AInCodeGenerationTarget.PYTHON:
                 file = names.render(ref.logical_name, ref.version, request.naming_profile, file_kind)

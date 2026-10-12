@@ -1,7 +1,7 @@
 from pathlib import Path
 from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
-from eu.algites.lib.naming.convention.ain_output_name_kind import AInOutputNameKind
+from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 
 TEMPORAL = {'date', 'time', 'dateTime', 'dateTimeStamp', 'gYearMonth', 'gYear', 'gMonthDay', 'gDay', 'gMonth'}
 DURATION = {'duration', 'yearMonthDuration', 'dayTimeDuration'}
@@ -40,8 +40,8 @@ def python_data_source(request, names, type_name, docstring):
         ref = None
         if prop.reference:
             enum = prop.reference.target_kind is AInDefinitionKind.ENUM
-            ref = names.render(prop.reference.logical_name, prop.reference.version, request.naming_profile, AInOutputNameKind.ENUM_TYPE if enum else AInOutputNameKind.DATA_TYPE)
-            file = names.render(prop.reference.logical_name, prop.reference.version, request.naming_profile, AInOutputNameKind.ENUM_TYPE_FILE_STEM if enum else AInOutputNameKind.DATA_TYPE_FILE_STEM)
+            ref = names.render(prop.reference.logical_name, prop.reference.version, request.naming_profile, AInDefsNameRole.ENUM_TYPE if enum else AInDefsNameRole.DATA_TYPE)
+            file = names.render(prop.reference.logical_name, prop.reference.version, request.naming_profile, AInDefsNameRole.ENUM_TYPE_FILE_STEM if enum else AInDefsNameRole.DATA_TYPE_FILE_STEM)
             imports.add(f'from .{file} import {ref}')
         array = prop.value_kind is AInValueKind.ARRAY
         kind = (prop.item_value_kind or AInValueKind.ANY) if array else prop.value_kind

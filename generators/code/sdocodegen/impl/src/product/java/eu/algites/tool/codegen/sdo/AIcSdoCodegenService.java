@@ -2,6 +2,7 @@ package eu.algites.tool.codegen.sdo;
 
 import eu.algites.lib.data.dataobject.AIaDataObjectField;
 import eu.algites.lib.data.dataobject.AIiDataObject;
+import eu.algites.lib.naming.convention.AIcNameConventionCatalog;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -16,6 +17,13 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
 
     @Override
     public AIcdSdoGenerationResult generate(Class<?> aReadContract, String aImplementationMarker) {
+        return generate(aReadContract, aImplementationMarker, null, null, null);
+    }
+
+    /** Generates SDO classes using the selected YAML naming catalogs for each of the three roles. */
+    public AIcdSdoGenerationResult generate(Class<?> aReadContract, String aImplementationMarker,
+            AIcNameConventionCatalog aInputNames, AIcNameConventionCatalog aMutableNames,
+            AIcNameConventionCatalog aConcreteNames) {
         Objects.requireNonNull(aReadContract, "read contract");
         String locMarker = Objects.requireNonNull(aImplementationMarker, "marker");
         if (!locMarker.matches("[a-z][a-z0-9]*")) {
@@ -37,13 +45,13 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         if (locAll.isEmpty()) throw new IllegalArgumentException("No annotated read-only getters: " + aReadContract);
         String locPackage = aReadContract.getPackageName();
         String locTail = aReadContract.getSimpleName().substring(4);
-        String locMutable = "AIig" + locMarker + locTail;
-        String locConcrete = "AIcg" + locMarker + locTail;
+        String locMutable = typeName(aReadContract, locMarker, true, aInputNames, aMutableNames, aConcreteNames);
+        String locConcrete = typeName(aReadContract, locMarker, false, aInputNames, aMutableNames, aConcreteNames);
         String locMutableParent = locParent == null ? null
-                : qualifiedName(locParent, "AIig" + locMarker + locParent.getSimpleName().substring(4));
+                : qualifiedName(locParent, typeName(locParent, locMarker, true, aInputNames, aMutableNames, aConcreteNames));
         String locConcreteParent = locParent == null
                 ? "eu.algites.lib.data.smartdataobject.AIcSmartDataObject"
-                : qualifiedName(locParent, "AIcg" + locMarker + locParent.getSimpleName().substring(4));
+                : qualifiedName(locParent, typeName(locParent, locMarker, false, aInputNames, aMutableNames, aConcreteNames));
         StringBuilder locInterface = new StringBuilder("package " + locPackage + ";\n\n"
                 + "/** Generated mutable contract derived from " + aReadContract.getSimpleName() + ". */\n"
                 + "public interface " + locMutable + " extends " + aReadContract.getCanonicalName()
@@ -58,9 +66,14 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         for (var locField : locOwn.values()) {
             Method locGetter = locField.method();
             String locName = locField.field().name();
-            String locType = mutableValueType(locGetter, locMarker);
+            String locType = mutableValueType(locGetter, locMarker, aInputNames, aMutableNames, aConcreteNames);
             String locSuffix = suffix(locGetter.getName());
-            String locParameter = "a" + locSuffix;
+            String locParameter = aMutableNames == null ? "a" + locSuffix
+                    : aMutableNames.format("algites-java-gen-data-intf-versioned", "method_parameter_name",
+                            Map.of("identifier", locSuffix), "upper_camel_case");
+            if (aConcreteNames != null && !aConcreteNames.matches(
+                    "algites-java-gen-data-class-versioned", "method_parameter_name", locParameter))
+                throw new IllegalArgumentException("SDO parameter name does not match concrete naming profile: " + locParameter);
             String locLiteral = "\"" + escape(locName) + "\"";
             String locBoxed = boxed(locGetter.getReturnType(), locType);
             if (AIiDataObject.class.isAssignableFrom(locGetter.getReturnType())
@@ -91,8 +104,10 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         locImplementation.append("}\n");
         String locPath = locPackage.replace('.', '/') + "/";
         return new AIcdSdoGenerationResult(
-                new AIcdGeneratedSdoSource(locMutable, locPath + locMutable + ".java", locInterface.toString()),
-                new AIcdGeneratedSdoSource(locConcrete, locPath + locConcrete + ".java", locImplementation.toString()));
+                new AIcdGeneratedSdoSource(locMutable, locPath
+                        + fileName(locMutable, true, aMutableNames, aConcreteNames), locInterface.toString()),
+                new AIcdGeneratedSdoSource(locConcrete, locPath
+                        + fileName(locConcrete, false, aMutableNames, aConcreteNames), locImplementation.toString()));
     }
 
     /** Collect the complete inherited contract tree, detecting incompatible redeclarations. */
@@ -136,12 +151,37 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         return locResult;
     }
 
+    private static String typeName(Class<?> aContract, String aMarker, boolean aMutable,
+            AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableCatalog,
+            AIcNameConventionCatalog aConcreteCatalog) {
+        if (aInput == null || aMutableCatalog == null || aConcreteCatalog == null)
+            return (aMutable ? "AIig" : "AIcg") + aMarker + aContract.getSimpleName().substring(4);
+        var locVars = aInput.parse("algites-java-gen-intf-versioned", "main_container_name",
+                aContract.getSimpleName());
+        AIcNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
+        return locTarget.format(aMutable ? "algites-java-gen-data-intf-versioned"
+                : "algites-java-gen-data-class-versioned", "main_container_name", locVars, "upper_camel_case");
+    }
+
+    private static String fileName(String aType, boolean aMutable,
+            AIcNameConventionCatalog aMutableCatalog, AIcNameConventionCatalog aConcreteCatalog) {
+        AIcNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
+        if (locTarget == null) return aType + ".java";
+        String locRole = aMutable ? "algites-java-gen-data-intf-versioned" : "algites-java-gen-data-class-versioned";
+        var locVars = locTarget.parse(locRole, "main_container_name", aType);
+        return locTarget.format(locRole, "file_name_stem", locVars, "upper_camel_case")
+                + locTarget.format(locRole, "file_name_suffix", locVars, "upper_camel_case");
+    }
+
     /** A nested read contract becomes a covariant mutable value in the generated SDO API. */
-    private static String mutableValueType(Method aGetter, String aMarker) {
+    private static String mutableValueType(Method aGetter, String aMarker,
+            AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableNames,
+            AIcNameConventionCatalog aConcreteNames) {
         Class<?> locReturn = aGetter.getReturnType();
         if (locReturn.isInterface() && locReturn.getSimpleName().startsWith("AIig")
                 && AIiDataObject.class.isAssignableFrom(locReturn)) {
-            return qualifiedName(locReturn, "AIig" + aMarker + locReturn.getSimpleName().substring(4));
+            return qualifiedName(locReturn, typeName(locReturn, aMarker, true,
+                    aInput, aMutableNames, aConcreteNames));
         }
         /* Invariant generic collections cannot be narrowed in a Java override. */
         return aGetter.getGenericReturnType().getTypeName().replace('$', '.');

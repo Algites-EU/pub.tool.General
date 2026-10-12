@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import eu.algites.lib.naming.convention.AIcAlgitesNamingProfiles;
-import eu.algites.lib.naming.convention.AIcdNamingProfile;
+import eu.algites.lib.naming.convention.AIcNameConventionCatalog;
+import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,6 +16,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.Set;
+import java.util.HashMap;
 
 /** Contract-only generator. Owns AIig interfaces and enums but never implementation output roots. */
 public final class AIcSchemaContractBindingsGenerator {
@@ -25,14 +28,55 @@ public final class AIcSchemaContractBindingsGenerator {
 
     /** Generate only read contracts/enums. Implementation generation belongs to SdoCodegen. */
     public List<Map<String, String>> generateRepository(Path repository, Path manifestFile, boolean check) throws IOException {
+        return generateManifest(repository, mapper.readTree(manifestFile.toFile()), check);
+    }
+
+    /** Executes a declarative batch without writing a temporary manifest to the product repository. */
+    public List<Map<String, String>> generateManifest(Path repository, JsonNode manifest, boolean check) throws IOException {
         repository = repository.toAbsolutePath().normalize();
-        JsonNode manifest = mapper.readTree(manifestFile.toFile());
-        Path intf = inside(repository, manifest.required("artifact").asText());
+        Path intf = inside(repository, manifest.path("artifact").asText("."));
+        boolean explicit = manifest.has("schema_inputs");
+        Map<String, Path> outputRoots = new LinkedHashMap<>();
+        Map<String, AIcNameConventionCatalog> catalogs = new LinkedHashMap<>();
+        Map<String, AIiNameConventionCatalog> targetProfiles = new LinkedHashMap<>();
+        Map<String, AIcNameConventionCatalog> sourceCatalogs = new LinkedHashMap<>();
+        for (var entry : iterable(manifest.path("technology_outputs").fields()))
+            outputRoots.put(entry.getKey(), inside(repository, entry.getValue().asText()));
+        for (var entry : iterable(manifest.path("technology_naming_profiles").fields())) {
+            Path file = inside(repository, entry.getValue().asText());
+            catalogs.put(entry.getKey(), AIcNameConventionCatalog.load(file));
+            targetProfiles.put(entry.getKey(), AIcNameConventionCatalog.load(file));
+        }
+        for (var entry : iterable(manifest.path("schema_input_naming_profiles").fields()))
+            sourceCatalogs.put(entry.getKey(), AIcNameConventionCatalog.load(inside(repository, entry.getValue().asText())));
+        if (explicit) {
+            for (String technology : outputRoots.keySet())
+                if (!catalogs.containsKey(technology))
+                    throw new IllegalArgumentException("Missing output naming profile for " + technology);
+        }
+        if (manifest.path("clean_only").asBoolean()) {
+            for (var entry : outputRoots.entrySet())
+                catalogs.get(entry.getKey()).clean(entry.getValue(), Set.of(
+                        "algites-" + entry.getKey() + "-gen-intf-versioned",
+                        "algites-" + entry.getKey() + "-gen-enum-versioned"));
+            return List.of();
+        }
+        Map<String, Path> rootBySchema = new LinkedHashMap<>();
+        Map<String, String> kindBySchema = new LinkedHashMap<>();
         Map<String, JsonNode> overrides = new LinkedHashMap<>();
         for (JsonNode entry : manifest.path("bindings")) overrides.put(entry.required("schema").asText() + "#" + entry.path("pointer").asText(), entry);
         List<AIcdUnit> units = new ArrayList<>();
-        for (String kind : List.of("jsondefs", "yamldefs", "xmldefs")) {
-            Path root = intf.resolve("src/product/" + kind);
+        List<Map.Entry<String, Path>> sourceRoots = new ArrayList<>();
+        if (explicit) {
+            for (JsonNode item : manifest.path("schema_inputs"))
+                sourceRoots.add(Map.entry(item.required("kind").asText(), inside(repository, item.required("directory").asText())));
+        } else {
+            for (String kind : List.of("jsondefs", "yamldefs", "xmldefs"))
+                sourceRoots.add(Map.entry(kind, intf.resolve("src/product/" + kind)));
+        }
+        for (var sourceInput : sourceRoots) {
+            String kind = sourceInput.getKey();
+            Path root = sourceInput.getValue();
             if (!Files.isDirectory(root)) continue;
             String suffix = switch (kind) {
                 case "jsondefs" -> ".jsondef.schema.json";
@@ -43,6 +87,18 @@ public final class AIcSchemaContractBindingsGenerator {
                 for (Path source : paths.filter(Files::isRegularFile).sorted().toList()) {
                     if (!source.getFileName().toString().endsWith(suffix)) continue;
                     String schema = portable(repository.relativize(source));
+                    if (rootBySchema.putIfAbsent(schema, root) != null)
+                        throw new IllegalArgumentException("Overlapping input roots for " + schema);
+                    kindBySchema.put(schema, kind);
+                    AIcNameConventionCatalog sourceCatalog = sourceCatalogs.get(kind);
+                    if (sourceCatalog != null) {
+                        var named = sourceCatalog.recognizeFilename(source.getFileName().toString(), null);
+                        if (named == null) throw new IllegalArgumentException("Invalid schema filename: " + schema);
+                        String sourceName = kind.substring(0, kind.length() - 1);
+                        if (!manifest.path("allow_unversioned_schemas").asBoolean()
+                                && !named.conventionName().equals("algites-" + sourceName + "-schema-versioned"))
+                            throw new IllegalArgumentException("Unversioned schema is not allowed: " + schema);
+                    }
                     JsonNode document = kind.equals("xmldefs") ? mapper.createObjectNode() : mapper.readTree(source.toFile());
                     String base = source.getFileName().toString().substring(0, source.getFileName().toString().length() - suffix.length()).replaceFirst("_[0-9]+$", "");
                     if (kind.equals("xmldefs")) {
@@ -65,9 +121,8 @@ public final class AIcSchemaContractBindingsGenerator {
         for (AIcdUnit unit : units) unitIndex.put(unit.schema + "#" + unit.pointer, unit);
         for (AIcdUnit unit : units) {
             Path source = inside(repository, unit.schema);
-            String sourceKind = unit.schema.contains("/yamldefs/") ? "yamldefs"
-                    : unit.schema.contains("/xmldefs/") ? "xmldefs" : "jsondefs";
-            Path schemaRoot = intf.resolve("src/product/" + sourceKind);
+            String sourceKind = kindBySchema.get(unit.schema);
+            Path schemaRoot = rootBySchema.get(unit.schema);
             String packageName = portable(schemaRoot.relativize(source.getParent())).replace('/', '.');
             if (!packageName.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")) {
                 throw new IllegalArgumentException("Schema must have a legal package path: " + unit.schema);
@@ -75,8 +130,10 @@ public final class AIcSchemaContractBindingsGenerator {
             ObjectNode projection = ((ObjectNode) unit.node).deepCopy();
             if (!sourceKind.equals("xmldefs")) {
                 if (unit.document.has("$defs")) projection.set("$defs", unit.document.get("$defs"));
-                projection.put("x-jsondefs-id", unit.document.path("$id").asText(unit.schema)
-                        + (unit.pointer.isEmpty() ? "" : "#" + unit.pointer));
+                String declaredId = unit.document.path("x-yamldefs-id").asText("");
+                if (declaredId.isEmpty()) declaredId = unit.document.path("x-jsondefs-id").asText("");
+                if (declaredId.isEmpty()) declaredId = unit.document.path("$id").asText(unit.schema);
+                projection.put("x-jsondefs-id", declaredId + (unit.pointer.isEmpty() ? "" : "#" + unit.pointer));
                 projection.put("x-jsondefs-name", unit.name);
             }
             AIcdUnit parentUnit = sourceKind.equals("xmldefs") ? null : parentUnit(unit, unitIndex, repository);
@@ -87,7 +144,8 @@ public final class AIcSchemaContractBindingsGenerator {
                     case "java" -> AInCodeGenerationTarget.JAVA;
                     default -> throw new IllegalArgumentException("Unsupported target: " + targetText);
                 };
-                AIcdNamingProfile profile = target == AInCodeGenerationTarget.PYTHON
+                AIiNameConventionCatalog profile = targetProfiles.get(targetText);
+                if (profile == null) profile = target == AInCodeGenerationTarget.PYTHON
                     ? AIcAlgitesNamingProfiles.pythonProfile() : AIcAlgitesNamingProfiles.javaProfile();
                 var sourceType = switch (sourceKind) {
                     case "yamldefs" -> AInDefinitionSourceKind.YAMLDEFS;
@@ -107,15 +165,17 @@ public final class AIcSchemaContractBindingsGenerator {
                 unitRequests.put(targetText + "#" + unit.schema + "#" + unit.pointer, request);
                 relations.computeIfAbsent(outputKey, key -> new ArrayList<>()).add(parentUnit);
                 result.add(Map.of("schema", unit.schema, "pointer", unit.pointer, "language", targetText, "type", preview.typeName(),
-                    "path", portable(repository.relativize(intf.resolve("src/product/" + targetText + ".gen").resolve(preview.relativePath())))));
+                    "path", portable(repository.relativize(outputRoots.getOrDefault(targetText,
+                        intf.resolve("src/product/" + targetText + ".gen")).resolve(preview.relativePath())))));
             }
         }
         for (var representations : requests.values()) {
             var first = representations.get(0);
-            if (representations.stream().map(r -> r.definition().sourceKind()).distinct().count() != representations.size()) {
-                throw new IllegalArgumentException("Different objects resolve to the same generated type: "
-                    + representations.stream().map(r -> r.definition().sourceResource()).toList());
-            }
+            long identityCount = representations.stream().map(r -> canonicalIdentity(
+                    r.definition(), r.packageName(), unitIndex)).distinct().count();
+            if (identityCount != 1)
+                throw new IllegalArgumentException("Canonical identity collision for one generated output: "
+                    + representations.stream().map(r -> r.definition().identity() + " (" + r.definition().sourceResource() + ")").toList());
             var merged = AIcCanonicalDefinitionMerger.AIcMerge(representations.stream().map(AIcdCodeGenerationRequest::definition).toList());
             String targetText = first.target() == AInCodeGenerationTarget.PYTHON ? "python" : "java";
             String outputKey = targetText + "#" + new AIcSchemaContractInterfaceGenerator().generate(first).relativePath();
@@ -149,10 +209,19 @@ public final class AIcSchemaContractBindingsGenerator {
             var pair = new AIcSchemaContractInterfaceGenerator().generate(
                 new AIcdCodeGenerationRequest(merged, first.target(), first.packageName(), first.namingProfile()),
                 parentName, parentModule);
-            add(pending, intf.resolve("src/product/" + targetText + ".gen").resolve(pair.relativePath()), qualifyReferences(pair.source(), first, requests, true));
+            add(pending, outputRoots.getOrDefault(targetText, intf.resolve("src/product/" + targetText + ".gen"))
+                    .resolve(pair.relativePath()), qualifyReferences(pair.source(), first, requests, true));
+        }
+        /* Validate the complete batch before cleaning any previously generated source. */
+        if (explicit && !check) {
+            for (var entry : outputRoots.entrySet())
+                catalogs.get(entry.getKey()).clean(entry.getValue(), Set.of(
+                        "algites-" + entry.getKey() + "-gen-intf-versioned",
+                        "algites-" + entry.getKey() + "-gen-enum-versioned"));
         }
         Path state = repository.resolve("build/run/schema-contract-bindings/generated-files.json");
-        List<String> previous = Files.isRegularFile(state) ? mapper.readValue(state.toFile(), mapper.getTypeFactory().constructCollectionType(List.class, String.class)) : List.of();
+        List<String> previous = explicit ? List.of() : Files.isRegularFile(state)
+                ? mapper.readValue(state.toFile(), mapper.getTypeFactory().constructCollectionType(List.class, String.class)) : List.of();
         /* Only recorded files owned by this generator may be removed. */
         for (String old : previous) {
             Path stale = inside(repository, old);
@@ -171,11 +240,34 @@ public final class AIcSchemaContractBindingsGenerator {
                 if (!Files.isRegularFile(path) || !Files.readString(path).equals(entry.getValue())) Files.writeString(path, entry.getValue(), StandardCharsets.UTF_8);
             }
         }
-        if (!check) {
+        if (!check && !explicit) {
             Files.createDirectories(state.getParent());
             mapper.writerWithDefaultPrettyPrinter().writeValue(state.toFile(), pending.keySet().stream().map(repository::relativize).map(AIcSchemaContractBindingsGenerator::portable).toList());
         }
         return result;
+    }
+
+    private static <K, V> Iterable<Map.Entry<K, V>> iterable(java.util.Iterator<Map.Entry<K, V>> aIterator) {
+        return () -> aIterator;
+    }
+
+    /** Distinguishes semantic schema IDs from format-specific publication URL aliases. */
+    private static Object canonicalIdentity(AIcdCanonicalDefinition definition, String packageName,
+                                            Map<String, AIcdUnit> unitIndex) {
+        AIcdUnit origin = unitIndex.get(definition.sourceResource());
+        if (origin == null) origin = unitIndex.get(definition.sourceResource() + "#");
+        if (origin == null) throw new IllegalArgumentException("Unknown canonical source " + definition.sourceResource());
+        JsonNode document = origin.document();
+        String explicit = document.path("x-yamldefs-id").asText("");
+        if (explicit.isEmpty()) explicit = document.path("x-jsondefs-id").asText("");
+        if (explicit.isEmpty()) explicit = document.path("$id").asText("");
+        if (explicit.isEmpty() && (definition.sourceKind() != AInDefinitionSourceKind.XMLDEFS
+                || definition.identity().equals(definition.logicalName())))
+            return java.util.Arrays.asList("implicit", packageName, definition.logicalName(), definition.version(), origin.pointer());
+        String identity = definition.identity()
+                .replaceAll("(/api/)(?:yamldefs|jsondefs|xmldefs)(/)", "$1schema$2")
+                .replaceAll("\\.(?:yamldef|jsondef)\\.schema\\.json(?=#|$)|\\.xsd(?=#|$)", ".schema");
+        return java.util.Arrays.asList("explicit", identity, definition.version());
     }
 
     /** Keep canonical inherited field compatibility independent of documentation. */
@@ -230,10 +322,10 @@ public final class AIcSchemaContractBindingsGenerator {
             String packageName = candidates.get(0);
             if (packageName.equals(request.packageName())) continue;
             boolean isEnum = ref.targetKind() == AInDefinitionKind.ENUM;
-            var typeKind = isEnum ? eu.algites.lib.naming.convention.AInOutputNameKind.ENUM_TYPE : contract
-                ? eu.algites.lib.naming.convention.AInOutputNameKind.INTERFACE_TYPE : eu.algites.lib.naming.convention.AInOutputNameKind.DATA_TYPE;
-            var fileKind = isEnum ? eu.algites.lib.naming.convention.AInOutputNameKind.ENUM_TYPE_FILE_STEM : contract
-                ? eu.algites.lib.naming.convention.AInOutputNameKind.INTERFACE_TYPE_FILE_STEM : eu.algites.lib.naming.convention.AInOutputNameKind.DATA_TYPE_FILE_STEM;
+            var typeKind = isEnum ? eu.algites.tool.codegen.defs.AInDefsNameRole.ENUM_TYPE : contract
+                ? eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE : eu.algites.tool.codegen.defs.AInDefsNameRole.DATA_TYPE;
+            var fileKind = isEnum ? eu.algites.tool.codegen.defs.AInDefsNameRole.ENUM_TYPE_FILE_STEM : contract
+                ? eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE_FILE_STEM : eu.algites.tool.codegen.defs.AInDefsNameRole.DATA_TYPE_FILE_STEM;
             String type = names.referenceTypeName(ref.logicalName(), ref.version(), request.namingProfile(), typeKind);
             if (request.target() == AInCodeGenerationTarget.PYTHON) {
                 String file = names.referenceTypeName(ref.logicalName(), ref.version(), request.namingProfile(), fileKind);

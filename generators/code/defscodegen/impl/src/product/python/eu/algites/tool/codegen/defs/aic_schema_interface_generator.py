@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import keyword
 import re
 
-from eu.algites.lib.naming.convention.ain_output_name_kind import AInOutputNameKind
+from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from eu.algites.tool.codegen.defs._support import _java_integer, _java_quote, _java_type
 from eu.algites.tool.codegen.defs.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
 from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
@@ -58,7 +58,7 @@ class AIcSchemaInterfaceGenerator:
             if (prop.reference is not None and prop.value_kind is AInValueKind.REFERENCE
                     and prop.reference.target_kind is not AInDefinitionKind.ENUM):
                 nested = self.names.render(prop.reference.logical_name, prop.reference.version,
-                    request.naming_profile, AInOutputNameKind.INTERFACE_TYPE)
+                    request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
                 returned = f' -> {nested}' + (' | None' if prop.nullable else '')
             result += f'    def get{suffix}(self){returned}:\n        return self.{property_name}\n\n' 
         return result
@@ -68,10 +68,10 @@ class AIcSchemaInterfaceGenerator:
         dto = AIcDefaultDefsCodegenService().generate(request)
         if request.definition.kind is AInDefinitionKind.ENUM:
             return self.AIcdSources(dto, None)
-        interface = self.names.type_name(request.definition, request.naming_profile, AInOutputNameKind.INTERFACE_TYPE)
+        interface = self.names.type_name(request.definition, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
         path = request.package_name.replace('.', '/') + '/'
         if request.target is AInCodeGenerationTarget.PYTHON:
-            file = self.names.file_stem(request.definition, request.naming_profile, AInOutputNameKind.INTERFACE_TYPE_FILE_STEM)
+            file = self.names.file_stem(request.definition, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
             marker = f'@dataclass(frozen=True, slots=True)\nclass {dto.type_name}:\n'
             if marker not in dto.source:
                 raise ValueError(f'Missing primary DTO declaration: {dto.type_name}')
@@ -85,11 +85,11 @@ class AIcSchemaInterfaceGenerator:
                     continue
                 is_enum = ref.target_kind is AInDefinitionKind.ENUM
                 concrete = self.names.render(ref.logical_name, ref.version, request.naming_profile,
-                    AInOutputNameKind.ENUM_TYPE if is_enum else AInOutputNameKind.DATA_TYPE)
+                    AInDefsNameRole.ENUM_TYPE if is_enum else AInDefsNameRole.DATA_TYPE)
                 abstract = self.names.render(ref.logical_name, ref.version, request.naming_profile,
-                    AInOutputNameKind.ENUM_TYPE if is_enum else AInOutputNameKind.INTERFACE_TYPE)
+                    AInDefsNameRole.ENUM_TYPE if is_enum else AInDefsNameRole.INTERFACE_TYPE)
                 abstract_file = self.names.render(ref.logical_name, ref.version, request.naming_profile,
-                    AInOutputNameKind.ENUM_TYPE_FILE_STEM if is_enum else AInOutputNameKind.INTERFACE_TYPE_FILE_STEM)
+                    AInDefsNameRole.ENUM_TYPE_FILE_STEM if is_enum else AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
                 fields = fields.replace(concrete, abstract)
                 imports.add(f'from .{abstract_file} import {abstract}')
             helpers = ''
@@ -132,8 +132,8 @@ class AIcSchemaInterfaceGenerator:
             typ = _java_type(prop, request, self.names)
             if prop.reference is not None and prop.reference.target_kind is not AInDefinitionKind.ENUM:
                 ref = prop.reference
-                concrete = self.names.render(ref.logical_name, ref.version, request.naming_profile, AInOutputNameKind.DATA_TYPE)
-                abstract = self.names.render(ref.logical_name, ref.version, request.naming_profile, AInOutputNameKind.INTERFACE_TYPE)
+                concrete = self.names.render(ref.logical_name, ref.version, request.naming_profile, AInDefsNameRole.DATA_TYPE)
+                abstract = self.names.render(ref.logical_name, ref.version, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
                 typ = typ.replace(concrete, abstract)
                 if prop.value_kind is AInValueKind.ARRAY:
                     typ = typ.replace('<', '<? extends ')

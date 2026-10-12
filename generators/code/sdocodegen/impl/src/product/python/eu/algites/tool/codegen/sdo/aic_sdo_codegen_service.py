@@ -18,7 +18,7 @@ from eu.algites.tool.codegen.sdo.aii_sdo_codegen_service import AIiSdoCodegenSer
 class AIcSdoCodegenService(AIiSdoCodegenService):
     """Turn any importable AIig contract into a mutable interface and implementation."""
 
-    def generate(self, read_contract: type, marker: str = 'd') -> AIcdSdoGenerationResult:
+    def generate(self, read_contract: type, marker: str = 'd', naming=None) -> AIcdSdoGenerationResult:
         if not isclass(read_contract) or not issubclass(read_contract, AIiDataObject) or not read_contract.__name__.startswith('AIig'):
             raise ValueError('Read contract must be an AIig subclass of AIiDataObject')
         if not re.fullmatch(r'[a-z][a-z0-9]*', marker):
@@ -41,9 +41,42 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         if len(parents) > 1:
             raise ValueError('Multiple read-contract parents need an explicit conflict policy')
         parent = parents[0] if parents else None
-        tail = read_contract.__name__[4:]
-        mutable_name = 'AIig' + marker + tail
-        concrete_name = 'AIcg' + marker + tail
+        input_role = 'algites-python-gen-intf-versioned'
+        mutable_role = 'algites-python-gen-data-intf-versioned'
+        concrete_role = 'algites-python-gen-data-class-versioned'
+
+        def names_for(contract):
+            if naming is None:
+                tail = contract.__name__[4:]
+                return 'AIig' + marker + tail, 'AIcg' + marker + tail
+            input_cat, mutable_cat, concrete_cat = naming
+            values = input_cat.parse(input_role, 'main_container_name', contract.__name__)
+            return (mutable_cat.format(mutable_role, 'main_container_name', values, 'upper_camel_case'),
+                    concrete_cat.format(concrete_role, 'main_container_name', values, 'upper_camel_case'))
+
+        def stem_for(type_name, is_mutable):
+            if naming is None:
+                return _snake(type_name, marker)
+            cat = naming[1] if is_mutable else naming[2]
+            role = mutable_role if is_mutable else concrete_role
+            values = cat.parse(role, 'main_container_name', type_name)
+            return cat.format(role, 'file_name_stem', values, 'upper_camel_case')
+
+        def extension_for(is_mutable):
+            if naming is None:
+                return '.py'
+            cat = naming[1] if is_mutable else naming[2]
+            role = mutable_role if is_mutable else concrete_role
+            return cat.format(role, 'file_name_suffix', {})
+
+        mutable_name, concrete_name = names_for(read_contract)
+        # The selected YAML profiles also own names of generated method parameters.
+        parameter_name = 'value'
+        if naming is not None:
+            parameter_name = naming[1].format(mutable_role, 'method_parameter_name',
+                                              {'identifier': 'value'}, 'lower_snake_case')
+            if not naming[2].matches(concrete_role, 'method_parameter_name', parameter_name):
+                raise ValueError('SDO parameter name does not match the implementation naming profile')
         package = read_contract.__module__.rsplit('.', 1)[0]
         prefix = package.replace('.', '/') + '/'
         contract_import = f'from {read_contract.__module__} import {read_contract.__name__}'
@@ -54,14 +87,13 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             'from eu.algites.lib.data.smartdataobject.aii_smart_data_object import AIiSmartDataObject']
         concrete_lines = [f'"""Generated SmartDataObject implementation for {read_contract.__name__}."""',
             'from __future__ import annotations',
-            f'from {package}.{_snake(mutable_name, marker)} import {mutable_name}',
+            f'from {package}.{stem_for(mutable_name, True)} import {mutable_name}',
             'from eu.algites.lib.data.smartdataobject.aic_smart_data_object import AIcSmartDataObject']
         if parent is not None:
-            parent_mut = 'AIig' + marker + parent.__name__[4:]
-            parent_impl = 'AIcg' + marker + parent.__name__[4:]
+            parent_mut, parent_impl = names_for(parent)
             parent_pkg = parent.__module__.rsplit('.', 1)[0]
-            mutable_lines.append(f'from {parent_pkg}.{_snake(parent_mut, marker)} import {parent_mut}')
-            concrete_lines.append(f'from {parent_pkg}.{_snake(parent_impl, marker)} import {parent_impl}')
+            mutable_lines.append(f'from {parent_pkg}.{stem_for(parent_mut, True)} import {parent_mut}')
+            concrete_lines.append(f'from {parent_pkg}.{stem_for(parent_impl, False)} import {parent_impl}')
             mutable_bases = f'{read_contract.__name__}, {parent_mut}, AIiSmartDataObject'
             concrete_base = parent_impl
         else:
@@ -83,28 +115,28 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             if not getter.isidentifier() or not suffix.isidentifier():
                 raise ValueError('Invalid field getter: ' + getter)
             nested_details = _nested_contract(read_contract, getter)
-            nested_type = (('AIig' + marker + nested_details[0].__name__[4:])
+            nested_type = (names_for(nested_details[0])[0]
                 + (' | None' if nested_details[1] else '')) if nested_details else None
             typed_value = nested_type or 'object'
             if nested_type is not None:
                 nested_class = nested_details[0]
-                nested_name = 'AIig' + marker + nested_class.__name__[4:]
+                nested_name = names_for(nested_class)[0]
                 nested_package = nested_class.__module__.rsplit('.', 1)[0]
-                nested_file = _snake(nested_name, marker)
+                nested_file = stem_for(nested_name, True)
                 mutable_imports.append(f'from {nested_package}.{nested_file} import {nested_name}')
                 concrete_imports.append(f'from {nested_package}.{nested_file} import {nested_name}')
             if nested_type is not None:
                 mutable_lines.extend(['', '    @abstractmethod',
                     f'    def {getter}(self) -> {typed_value}: ...'])
             mutable_lines.extend(['', '    @abstractmethod',
-                f'    def set{suffix}(self, value: {typed_value}) -> None: ...',
+                f'    def set{suffix}(self, {parameter_name}: {typed_value}) -> None: ...',
                 '', '    @abstractmethod', f'    def get_{suffix}(self) -> {typed_value}: ...',
                 '', '    @abstractmethod', f'    def isPresent_{suffix}(self) -> bool: ...',
                 '', '    @abstractmethod', f'    def unset_{suffix}(self) -> None: ...'])
             concrete_lines.extend(['', f'    def {getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
                 f'        return self.get_EffectiveField({name!r})',
-                '', f'    def set{suffix}(self, value' + (f': {typed_value}' if nested_type else '') + '):',
-                f'        self.set_RawField({name!r}, value)',
+                '', f'    def set{suffix}(self, {parameter_name}' + (f': {typed_value}' if nested_type else '') + '):',
+                f'        self.set_RawField({name!r}, {parameter_name})',
                 '', f'    def get_{suffix}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
                 f'        return self.get_RawField({name!r})',
                 '', f'    def isPresent_{suffix}(self):',
@@ -116,8 +148,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         concrete_lines[2:2] = ['from typing import TYPE_CHECKING', '', 'if TYPE_CHECKING:',
             *['    ' + item for item in sorted(set(concrete_imports))]] if concrete_imports else []
         return AIcdSdoGenerationResult(
-            AIcdGeneratedSdoSource(mutable_name, prefix + _snake(mutable_name, marker) + '.py', '\n'.join(mutable_lines) + '\n'),
-            AIcdGeneratedSdoSource(concrete_name, prefix + _snake(concrete_name, marker) + '.py', '\n'.join(concrete_lines) + '\n'))
+            AIcdGeneratedSdoSource(mutable_name, prefix + stem_for(mutable_name, True) + '.py', '\n'.join(mutable_lines) + '\n'),
+            AIcdGeneratedSdoSource(concrete_name, prefix + stem_for(concrete_name, False) + extension_for(False), '\n'.join(concrete_lines) + '\n'))
 
 
 def _snake(type_name: str, marker: str) -> str:

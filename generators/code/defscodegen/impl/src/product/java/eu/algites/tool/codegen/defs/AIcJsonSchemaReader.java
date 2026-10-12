@@ -1,9 +1,9 @@
 package eu.algites.tool.codegen.defs;
 
-import eu.algites.lib.naming.conversion.AIcDefaultNameConverter;
-import eu.algites.lib.naming.convention.AIcdInputVersionPolicy;
-import eu.algites.lib.naming.conversion.AIcdParsedVersionedName;
-import eu.algites.lib.naming.convention.AInVersionSource;
+
+
+
+
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -109,8 +109,7 @@ final class AIcJsonSchemaReader {
             String resource = ref.split("#", 2)[0];
             Path referencedPath = referencePath(resource, request);
             String stem = AIcDefinitionIdentityResolver.stripDefinitionExtensions(referencedPath.getFileName().toString());
-            AIcdParsedVersionedName parsed = new AIcDefaultNameConverter().parseVersionedName(
-                    stem, null, new AIcdInputVersionPolicy(AInVersionSource.FILE_NAME_SUFFIX, "_", true, false));
+            AIcdParsedVersionedName parsed = AIcDefinitionIdentityResolver.parseVersionedStem(stem, null);
             AInDefinitionKind targetKind = detectReferencedKind(referencedPath);
             JsonNode locReferencedSchema;
             try {

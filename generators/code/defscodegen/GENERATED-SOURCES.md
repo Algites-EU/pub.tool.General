@@ -49,10 +49,12 @@ canonical field projection: both native XML frontends reject those constructs
 explicitly instead of losing fields. These are limitations of the currently
 supported XSD projection, not `pub.lib.General` constraints.
 
-Contract repository generation records ownership under
-`build/run/schema-contract-bindings/generated-files.json` and supports
-`--check`, stale output removal and collision detection. It does not own
-SDO-generated files or outputs of unrelated generators.
+Legacy manifest-based repository generation records ownership under
+`build/run/schema-contract-bindings/generated-files.json`. The **explicit
+YAML-driven batch CLI** instead uses whole-filename naming conventions to
+clean its generated interface/enum roles after successful preflight. Both
+paths support `--check` and collision detection; neither may delete
+SDO-generated files or unrelated generator outputs.
 
 The first-stage wrapper continues to reuse parts of the legacy DTO renderer
 in memory, but never publishes its DTO result. Fully removing that internal
@@ -66,3 +68,9 @@ and other consumers is required before these APIs can be removed.
 
 `bootstrap.sh` builds the first generator without loading the bootstrap Builder
 plugin, and parity tests cover Java and Python native implementations.
+
+In explicit CLI batch mode, outputs are recognized by their complete YAML naming
+conventions; source collision validation (including canonical identity) runs
+before any output cleanup. Same-format schema duplicates from distinct roots
+may merge when both their canonical identities and their structures match.
+See [Code Generators Reference Guide](../CODEGEN-REFERENCE.md).

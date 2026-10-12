@@ -1,6 +1,6 @@
 package eu.algites.tool.codegen.defs;
 
-import eu.algites.lib.naming.convention.AInOutputNameKind;
+import eu.algites.tool.codegen.defs.AInDefsNameRole;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,13 +16,13 @@ public final class AIcSchemaInterfaceGenerator {
         if (request.definition().kind() == AInDefinitionKind.ENUM) {
             return new AIcdSources(new AIcDefaultDefsCodegenService().generate(request), null);
         }
-        String interfaceName = names.typeName(request.definition(), request.namingProfile(), AInOutputNameKind.INTERFACE_TYPE);
+        String interfaceName = names.typeName(request.definition(), request.namingProfile(), AInDefsNameRole.INTERFACE_TYPE);
         AIcdGeneratedSource dto = new AIcDefaultDefsCodegenService().generate(request);
         String contract;
         String implementation;
         String path = request.packageName().replace('.', '/') + "/";
         if (request.target() == AInCodeGenerationTarget.PYTHON) {
-            String file = names.fileStem(request.definition(), request.namingProfile(), AInOutputNameKind.INTERFACE_TYPE_FILE_STEM);
+            String file = names.fileStem(request.definition(), request.namingProfile(), AInDefsNameRole.INTERFACE_TYPE_FILE_STEM);
             String marker = "@dataclass(frozen=True, slots=True)\nclass " + dto.typeName() + ":\n";
             int start = dto.source().indexOf(marker);
             if (start < 0) throw new IllegalStateException("Missing primary DTO declaration: " + dto.typeName());
@@ -36,9 +36,9 @@ public final class AIcSchemaInterfaceGenerator {
                 var reference = property.reference();
                 if (reference == null) continue;
                 boolean isEnum = reference.targetKind() == AInDefinitionKind.ENUM;
-                String concrete = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), isEnum ? AInOutputNameKind.ENUM_TYPE : AInOutputNameKind.DATA_TYPE);
-                String abstractType = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), isEnum ? AInOutputNameKind.ENUM_TYPE : AInOutputNameKind.INTERFACE_TYPE);
-                String abstractFile = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), isEnum ? AInOutputNameKind.ENUM_TYPE_FILE_STEM : AInOutputNameKind.INTERFACE_TYPE_FILE_STEM);
+                String concrete = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), isEnum ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
+                String abstractType = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), isEnum ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.INTERFACE_TYPE);
+                String abstractFile = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), isEnum ? AInDefsNameRole.ENUM_TYPE_FILE_STEM : AInDefsNameRole.INTERFACE_TYPE_FILE_STEM);
                 fields = fields.replace(concrete, abstractType);
                 contractImports.add("from ." + abstractFile + " import " + abstractType);
             }
@@ -75,7 +75,7 @@ public final class AIcSchemaInterfaceGenerator {
                         && property.reference().targetKind() != AInDefinitionKind.ENUM) {
                     var reference = property.reference();
                     returned = " -> " + names.referenceTypeName(reference.logicalName(), reference.version(),
-                            request.namingProfile(), AInOutputNameKind.INTERFACE_TYPE)
+                            request.namingProfile(), AInDefsNameRole.INTERFACE_TYPE)
                             + (property.nullable() ? " | None" : "");
                 }
                 getters.append("    def get").append(suffix).append("(self)").append(returned)
@@ -126,8 +126,8 @@ public final class AIcSchemaInterfaceGenerator {
             String propertyType = AIcScalarGeneration.javaType(property, request, names);
             if (property.reference() != null && property.reference().targetKind() != AInDefinitionKind.ENUM) {
                 var reference = property.reference();
-                String concrete = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), AInOutputNameKind.DATA_TYPE);
-                String abstractType = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), AInOutputNameKind.INTERFACE_TYPE);
+                String concrete = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), AInDefsNameRole.DATA_TYPE);
+                String abstractType = names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(), AInDefsNameRole.INTERFACE_TYPE);
                 propertyType = propertyType.replace(concrete, abstractType);
                 if (property.valueKind() == AInValueKind.ARRAY) propertyType = propertyType.replace("<", "<? extends ");
             }

@@ -8,16 +8,13 @@ from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import unquote, urlsplit
 from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
-from eu.algites.lib.naming.conversion.aic_default_name_converter import AIcDefaultNameConverter
 from eu.algites.tool.codegen.defs.aic_definition_identity_resolver import AIcDefinitionIdentityResolver
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.aicd_definition_reference import AIcdDefinitionReference
 from eu.algites.tool.codegen.defs.aicd_enum_value_definition import AIcdEnumValueDefinition
-from eu.algites.lib.naming.convention.aicd_input_version_policy import AIcdInputVersionPolicy
 from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
 from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
-from eu.algites.lib.naming.convention.ain_version_source import AInVersionSource
 from eu.algites.tool.codegen.defs._support import _strip_extensions
 from eu.algites.tool.codegen.defs._support import _value_kind
 from eu.algites.tool.codegen.defs.aic_scalar_constraints import from_json
@@ -90,11 +87,7 @@ class AIcJsonSchemaReader:
                     normalized.item_value_kind, normalized.reference,
                     schema.get("description", normalized.description), normalized.constraints, normalized.item_constraints)
             target_path = self._reference_path(resource, request)
-            parsed = AIcDefaultNameConverter().parse_versioned_name(
-                _strip_extensions(target_path.name),
-                None,
-                AIcdInputVersionPolicy(AInVersionSource.FILE_NAME_SUFFIX, "_", True, False),
-            )
+            parsed = AIcDefinitionIdentityResolver.parse_versioned_stem(_strip_extensions(target_path.name), None)
             target_kind = self._detect_referenced_kind(target_path)
             nullable = nullable and _accepts_null(load_schema(target_path))
             return AIcdPropertyDefinition(

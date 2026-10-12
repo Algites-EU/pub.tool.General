@@ -3,7 +3,7 @@ from __future__ import annotations
 import keyword
 import re
 
-from eu.algites.lib.naming.convention.ain_output_name_kind import AInOutputNameKind
+from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from eu.algites.tool.codegen.defs._support import _python_type
 from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
 from eu.algites.tool.codegen.defs.aicd_generated_source import AIcdGeneratedSource
@@ -23,8 +23,8 @@ class AIcPythonCodeGenerationBackend:
     def generate(self, request) -> AIcdGeneratedSource:
         """Generate one Python module from a canonical definition."""
         is_enum = request.definition.kind is AInDefinitionKind.ENUM
-        type_kind = AInOutputNameKind.ENUM_TYPE if is_enum else AInOutputNameKind.DATA_TYPE
-        file_kind = AInOutputNameKind.ENUM_TYPE_FILE_STEM if is_enum else AInOutputNameKind.DATA_TYPE_FILE_STEM
+        type_kind = AInDefsNameRole.ENUM_TYPE if is_enum else AInDefsNameRole.DATA_TYPE
+        file_kind = AInDefsNameRole.ENUM_TYPE_FILE_STEM if is_enum else AInDefsNameRole.DATA_TYPE_FILE_STEM
         type_name = self.names.type_name(request.definition, request.naming_profile, type_kind)
         file_stem = self.names.file_stem(request.definition, request.naming_profile, file_kind)
         if is_enum:

@@ -1,6 +1,6 @@
 package eu.algites.tool.codegen.defs;
 
-import eu.algites.lib.naming.convention.AInOutputNameKind;
+import eu.algites.tool.codegen.defs.AInDefsNameRole;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -67,7 +67,7 @@ final class AIcScalarGeneration {
     private static String reference(AIcdPropertyDefinition aProperty, AIcdCodeGenerationRequest aRequest, AIcGenerationNames aNames, boolean aFile) {
         boolean locEnum = aProperty.reference().targetKind() == AInDefinitionKind.ENUM;
         return aNames.referenceTypeName(aProperty.reference().logicalName(), aProperty.reference().version(), aRequest.namingProfile(),
-                aFile ? (locEnum ? AInOutputNameKind.ENUM_TYPE_FILE_STEM : AInOutputNameKind.DATA_TYPE_FILE_STEM) : (locEnum ? AInOutputNameKind.ENUM_TYPE : AInOutputNameKind.DATA_TYPE));
+                aFile ? (locEnum ? AInDefsNameRole.ENUM_TYPE_FILE_STEM : AInDefsNameRole.DATA_TYPE_FILE_STEM) : (locEnum ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE));
     }
     static String pythonData(AIcdCodeGenerationRequest aRequest, String aTypeName, AIcGenerationNames aNames, java.util.function.Function<List<String>, String> aDocumentation) {
         List<String> locImports = new ArrayList<>(), locFields = new ArrayList<>(), locDocs = new ArrayList<>(), locArguments = new ArrayList<>(), locValidations = new ArrayList<>(), locEntries = new ArrayList<>(), locSchemaFieldConstants = new ArrayList<>();

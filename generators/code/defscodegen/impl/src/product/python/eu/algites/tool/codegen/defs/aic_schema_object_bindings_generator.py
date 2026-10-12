@@ -9,7 +9,7 @@ import re
 from urllib.parse import urlsplit
 
 from eu.algites.lib.naming.convention.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.lib.naming.convention.ain_output_name_kind import AInOutputNameKind
+from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from eu.algites.tool.codegen.defs._schema_loading import load_schema
 from eu.algites.tool.codegen.defs.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
@@ -140,8 +140,8 @@ class AIcSchemaObjectBindingsGenerator:
             if package == request.package_name:
                 continue
             is_enum = ref.target_kind is AInDefinitionKind.ENUM
-            type_kind = AInOutputNameKind.ENUM_TYPE if is_enum else (AInOutputNameKind.INTERFACE_TYPE if contract else AInOutputNameKind.DATA_TYPE)
-            file_kind = AInOutputNameKind.ENUM_TYPE_FILE_STEM if is_enum else (AInOutputNameKind.INTERFACE_TYPE_FILE_STEM if contract else AInOutputNameKind.DATA_TYPE_FILE_STEM)
+            type_kind = AInDefsNameRole.ENUM_TYPE if is_enum else (AInDefsNameRole.INTERFACE_TYPE if contract else AInDefsNameRole.DATA_TYPE)
+            file_kind = AInDefsNameRole.ENUM_TYPE_FILE_STEM if is_enum else (AInDefsNameRole.INTERFACE_TYPE_FILE_STEM if contract else AInDefsNameRole.DATA_TYPE_FILE_STEM)
             typ = names.render(ref.logical_name, ref.version, request.naming_profile, type_kind)
             if request.target is AInCodeGenerationTarget.PYTHON:
                 file = names.render(ref.logical_name, ref.version, request.naming_profile, file_kind)

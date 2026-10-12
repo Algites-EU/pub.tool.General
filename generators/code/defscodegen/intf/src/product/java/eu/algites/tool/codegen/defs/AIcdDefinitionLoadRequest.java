@@ -1,6 +1,6 @@
 package eu.algites.tool.codegen.defs;
 
-import eu.algites.lib.naming.convention.AIcdNamingProfile;
+import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 
 
 import java.nio.file.Path;
@@ -13,7 +13,7 @@ import java.util.Objects;
  * @param sourceKind definition source family
  * @param namingProfile input naming and version profile
  */
-public record AIcdDefinitionLoadRequest(Path path, AInDefinitionSourceKind sourceKind, AIcdNamingProfile namingProfile) {
+public record AIcdDefinitionLoadRequest(Path path, AInDefinitionSourceKind sourceKind, AIiNameConventionCatalog namingProfile) {
     /** Validates and normalizes the supplied data-object components. */
     public AIcdDefinitionLoadRequest {
         Objects.requireNonNull(path, "path");

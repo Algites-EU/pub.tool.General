@@ -51,3 +51,6 @@ source archives.
 
 Use `./generators/code/sdocodegen/bootstrap.sh` to build without loading a
 Builder plugin that may itself depend on these generators.
+
+Batch CLI options, role-based cleanup and native Java/Python prerequisites are
+documented in [Code Generators Reference Guide](../CODEGEN-REFERENCE.md).

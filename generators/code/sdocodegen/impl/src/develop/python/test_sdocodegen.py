@@ -153,3 +153,19 @@ def test_nullable_nested_contract_uses_nullable_mutable_return(contracts):
     assert 'def getChild(self) -> AIigdChild | None' in result.mutable_interface.source
     assert 'def setChild(self, value: AIigdChild | None)' in result.mutable_interface.source
     assert 'def get_Child(self) -> AIigdChild | None' in result.mutable_interface.source
+
+
+def test_yaml_named_sdo_setter_parameter_follows_python_profile(contracts):
+    from eu.algites.lib.naming.convention.aic_name_convention_catalog import AIcNameConventionCatalog
+    _, parent, _ = contracts
+    catalog = AIcNameConventionCatalog.standard('python')
+    # The naming-backed path requires versioned DO contracts.
+    parent.__name__ = 'AIigParent_1'
+    generated = AIcSdoCodegenService().generate(parent, naming=(catalog, catalog, catalog))
+    assert 'def setName(self, a_value: object)' in generated.mutable_interface.source
+    assert 'def setName(self, a_value)' in generated.implementation.source
+    assert "self.set_RawField('Name', a_value)" in generated.implementation.source
+    assert catalog.recognize_filename(Path(generated.mutable_interface.relative_path).name,
+                                     {'algites-python-gen-data-intf-versioned'}) is not None
+    assert catalog.recognize_filename(Path(generated.implementation.relative_path).name,
+                                     {'algites-python-gen-data-class-versioned'}) is not None

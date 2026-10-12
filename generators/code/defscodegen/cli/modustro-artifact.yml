@@ -22,3 +22,13 @@ Dependencies:
         ArtifactId: pub.lib.General_naming.convention.impl
         Usages: [product_implementation]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+  - DependencyKind: java
+    Items:
+      - GroupId: com.fasterxml.jackson.core
+        ArtifactId: jackson-databind
+        Usages: [product_implementation]
+        VersionRequirement:
+          Minimum: ">=2.0.0"
+          Maximum: "<3.0.0"
+          MaximumStrict: true
+

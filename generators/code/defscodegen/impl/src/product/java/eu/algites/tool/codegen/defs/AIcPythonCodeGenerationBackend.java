@@ -1,6 +1,6 @@
 package eu.algites.tool.codegen.defs;
 
-import eu.algites.lib.naming.convention.AInOutputNameKind;
+import eu.algites.tool.codegen.defs.AInDefsNameRole;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,9 +31,9 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
     @Override
     public AIcdGeneratedSource generate(AIcdCodeGenerationRequest request) {
         boolean enumDefinition = request.definition().kind() == AInDefinitionKind.ENUM;
-        String typeName = names.typeName(request.definition(), request.namingProfile(), enumDefinition ? AInOutputNameKind.ENUM_TYPE : AInOutputNameKind.DATA_TYPE);
+        String typeName = names.typeName(request.definition(), request.namingProfile(), enumDefinition ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
         String source = enumDefinition ? enumSource(request, typeName) : dataSource(request, typeName);
-        String fileStem = names.fileStem(request.definition(), request.namingProfile(), enumDefinition ? AInOutputNameKind.ENUM_TYPE_FILE_STEM : AInOutputNameKind.DATA_TYPE_FILE_STEM);
+        String fileStem = names.fileStem(request.definition(), request.namingProfile(), enumDefinition ? AInDefsNameRole.ENUM_TYPE_FILE_STEM : AInDefsNameRole.DATA_TYPE_FILE_STEM);
         String relative = request.packageName().replace('.', '/') + "/" + fileStem + ".py";
         return new AIcdGeneratedSource(typeName, relative, source);
     }
@@ -116,7 +116,7 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
      * @return Python type annotation
      */
     private String pythonType(AIcdPropertyDefinition property, AIcdCodeGenerationRequest request) {
-        if (property.reference() != null) return names.referenceTypeName(property.reference().logicalName(), property.reference().version(), request.namingProfile(), property.reference().targetKind() == AInDefinitionKind.ENUM ? AInOutputNameKind.ENUM_TYPE : AInOutputNameKind.DATA_TYPE);
+        if (property.reference() != null) return names.referenceTypeName(property.reference().logicalName(), property.reference().version(), request.namingProfile(), property.reference().targetKind() == AInDefinitionKind.ENUM ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
         return switch (property.valueKind()) {
             case STRING -> "str";
             case INTEGER -> "int";

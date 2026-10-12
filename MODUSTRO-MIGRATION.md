@@ -65,3 +65,23 @@ New Builder integrations must use `AIcSchemaContractBindingsGenerator`
 no schema input). The old schema-object binding API remains a compatibility
 adapter for consumer repositories that have not yet migrated. Publish both
 new generator families before updating the governance Builder bootstrap.
+
+## 1.1 canonical batch inputs and YAML naming (2026-10-12)
+
+The new explicit Defs Codegen batch CLI accepts multiple schema input roots,
+including several roots of the same source kind. Schemas mapping to one generated
+source are merged only if their canonical identities (with recognized public
+format-URL aliases) and normalized contracts agree. Distinct IDs cannot occupy
+the same output path; same-format duplicate declarations are not rejected merely
+for sharing a source kind. All schema parsing, reference resolution, merging
+and output collision detection completes before any naming-based cleanup.
+Failures found during preflight therefore leave the previous generated files
+untouched. This is not a filesystem transaction if writing fails later.
+
+Detailed options, naming YAML rules, single-definition compatibility mode, SDO
+reflection/import requirements and error semantics are described in
+[Code Generators Reference Guide](generators/code/CODEGEN-REFERENCE.md).
+
+The 2026-10-04 validation figures above are historical for that migration;
+they are **not** a statement that the new 1.1 snapshot has passed a full JVM or
+remote deployment test.

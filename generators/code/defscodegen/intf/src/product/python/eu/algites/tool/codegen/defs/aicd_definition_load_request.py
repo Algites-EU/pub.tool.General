@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from eu.algites.lib.naming.convention.aicd_naming_profile import AIcdNamingProfile
+from eu.algites.lib.naming.convention.aic_name_convention_catalog import AIcNameConventionCatalog
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 
 @dataclass(frozen=True, slots=True)
@@ -16,4 +16,4 @@ class AIcdDefinitionLoadRequest:
     """
     path: Path
     source_kind: AInDefinitionSourceKind
-    naming_profile: AIcdNamingProfile
+    naming_profile: AIcNameConventionCatalog

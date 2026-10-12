@@ -22,10 +22,10 @@ public final class AItcGeneratorImplementationParityTest {
                 "eu.algites.tool.codegen.defs.AItcGeneratorImplementationParityTest",
                 "eu.algites.tool.codegen.defs.AIcSchemaObjectBindingsGenerator",
                 "eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest",
-                "eu.algites.lib.naming.convention.AIcdNamingProfile",
+                "eu.algites.lib.naming.convention.AIiNameConventionCatalog",
                 "eu.algites.lib.naming.convention.AIcAlgitesNamingProfiles",
-                "eu.algites.lib.naming.conversion.AIiNameConverter",
-                "eu.algites.lib.naming.conversion.AIcDefaultNameConverter",
+                "eu.algites.tool.codegen.defs.AInDefsNameRole",
+                "eu.algites.lib.naming.convention.AIcNameConventionCatalog",
                 "com.fasterxml.jackson.databind.ObjectMapper", "com.fasterxml.jackson.core.JsonFactory",
                 "com.fasterxml.jackson.annotation.JsonCreator", "com.fasterxml.jackson.dataformat.yaml.YAMLFactory",
                 "org.yaml.snakeyaml.Yaml"}) {

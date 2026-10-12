@@ -31,12 +31,12 @@ The repository name `General` is a repository classification only. It is intenti
 
 ### Naming validator CLI
 
-The naming validator CLI is a thin command-line adapter over `pub.lib.General_naming.validation.*`.
+The naming validator CLI validates names directly with the YAML-backed `pub.lib.General_naming.convention.impl` catalog.
 
 - GroupId: `eu.algites.tool.naming`
 - package namespace: `eu.algites.tool.naming.validator`
 
-The reusable validator model and implementation remain library functionality rather than being duplicated in this tool repository.
+The library provides declarative naming matchers and converters; this CLI only selects the catalog, convention and structural role.
 
 ### Defs Codegen
 
@@ -47,7 +47,7 @@ schema-independent `generators/code/sdocodegen` second stage generates mutable
 stages support Java and Python. The 1.0 paired generator API remains available
 for existing consumers but is not used by the new 1.1 pipeline.
 
-Defs Codegen deliberately treats the three source families as distinct frontends: It deliberately treats the three Algites definition source families as distinct frontends:
+Defs Codegen treats the three Algites definition source families as distinct frontends:
 
 - `yamldefs` — YAML-oriented definition language/profile; it may carry semantics beyond JSON definitions;
 - `jsondefs` — JSON definition/schema frontend;
@@ -67,6 +67,12 @@ produces mutable interfaces (`AIigd..._N`) and concrete types (`AIcgd..._N`). Na
 Canonical definition documentation is part of code generation. `jsondefs` and `yamldefs` descriptions and XSD `xs:documentation` are normalized into the canonical model and propagated to generated Java Javadoc and Python docstrings. Read-contract property descriptions are emitted as normalized Java annotations
 and Python field descriptors. Legacy paired DTO generation also retains record
 components and Python `Attributes` documentation. Generated source always retains canonical provenance and a do-not-edit notice in addition to source documentation. Algites-authored definitions are expected to provide meaningful descriptions rather than relying on generated fallback text.
+
+## Code generator reference
+
+See **[Code Generators Reference Guide](generators/code/CODEGEN-REFERENCE.md)**
+for both native CLIs, full option tables, naming YAML layout, overlapping
+schema input behavior, error-safe Defs cleanup, and current migration limits.
 
 ## API and CLI boundaries
 
@@ -113,8 +119,10 @@ sections in descriptors. Test-only canonical fixtures belong below `src/develop`
 
 ## Canonical representation regression and bootstrap
 
-Compatible YAML/JSON representations are compared by their logical type,
-version and property contract, rather than raw generated text. The merger keeps
+Compatible YAML/JSON representations are compared by canonical identity,
+version and property contract, rather than raw generated text, in explicit
+batch generation. Format-specific Algites publication URL aliases normalize
+to one identity; unrelated IDs mapping to the same source file are rejected. The merger keeps
 all descriptions and origins in generated Javadoc/docstrings while retaining
 the first representation's primary identity. Different required fields, types,
 nullability, references or enum values fail with an incompatibility error.

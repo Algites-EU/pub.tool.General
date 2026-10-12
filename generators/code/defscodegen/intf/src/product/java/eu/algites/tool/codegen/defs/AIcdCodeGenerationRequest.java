@@ -1,6 +1,6 @@
 package eu.algites.tool.codegen.defs;
 
-import eu.algites.lib.naming.convention.AIcdNamingProfile;
+import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 
 
 import java.util.Objects;
@@ -17,7 +17,7 @@ public record AIcdCodeGenerationRequest(
         AIcdCanonicalDefinition definition,
         AInCodeGenerationTarget target,
         String packageName,
-        AIcdNamingProfile namingProfile) {
+        AIiNameConventionCatalog namingProfile) {
     /** Validates and normalizes the supplied data-object components. */
     public AIcdCodeGenerationRequest {
         Objects.requireNonNull(definition, "definition");

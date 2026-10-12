@@ -1,30 +1,25 @@
 package eu.algites.tool.naming.validator;
 
-import eu.algites.lib.naming.validation.AIcAlgitesConventionProfiles;
-import eu.algites.lib.naming.validation.AIcdConventionViolation;
-import eu.algites.lib.naming.validation.AIcDefaultConventionValidator;
-import eu.algites.lib.naming.validation.AInConventionSubject;
+import eu.algites.lib.naming.convention.AIcNameConventionCatalog;
+import java.nio.file.Path;
 
-
-import java.util.List;
-
-/** Command-line adapter for validating one governed name. */
+/** CLI adapter for validating one name using a declarative NameConvention. */
 public final class AIcNamingValidatorCli {
-    private AIcNamingValidatorCli() {
-    }
+    private AIcNamingValidatorCli() { }
 
     /**
-     * Validates one name with the strict Algites convention profile.
+     * Tests one name against a YAML catalog, profile and source-structure kind.
      *
-     * @param args convention subject and value
+     * @param aArguments catalog YAML, profile ID, structure kind and name
+     * @throws Exception when the catalog cannot be loaded
      */
-    public static void main(String[] args) {
-        if (args.length != 2) {
-            throw new IllegalArgumentException("Usage: <CONVENTION_SUBJECT> <value>");
+    public static void main(String[] aArguments) throws Exception {
+        if (aArguments.length != 4)
+            throw new IllegalArgumentException("Usage: <catalog.yml> <name-convention> <source-structure-kind> <name>");
+        AIcNameConventionCatalog locCatalog = AIcNameConventionCatalog.load(Path.of(aArguments[0]));
+        if (!locCatalog.matches(aArguments[1], aArguments[2], aArguments[3])) {
+            System.err.println("ERROR: Invalid name for " + aArguments[1] + "/" + aArguments[2] + ": " + aArguments[3]);
+            System.exit(2);
         }
-        AInConventionSubject subject = AInConventionSubject.valueOf(args[0]);
-        List<AIcdConventionViolation> findings = new AIcDefaultConventionValidator().validateName(subject, args[1], AIcAlgitesConventionProfiles.strict());
-        for (AIcdConventionViolation finding : findings) System.err.println(finding.reaction() + ": " + finding.message() + " value=" + finding.value());
-        if (findings.stream().anyMatch(finding -> finding.reaction().name().equals("ERROR"))) System.exit(2);
     }
 }

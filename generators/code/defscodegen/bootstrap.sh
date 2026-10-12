@@ -50,8 +50,6 @@ project(':impl') {
     dependencies {
         api project(':intf')
         api 'eu.algites.lib.data:pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT' 
-        api 'eu.algites.lib.naming:pub.lib.General_naming.conversion.intf:1.1-SNAPSHOT'
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.conversion.impl:1.1-SNAPSHOT'
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.3'
         testImplementation 'org.testng:testng:7.11.0'
@@ -75,7 +73,7 @@ def prepareParityPython = tasks.register('prepareGeneratorParityPython', Exec) {
         '--requirement', 'pyyaml>=6,<7',
         '--requirement', 'pytest>=8,<10',
         '--requirement', 'eu-algites-lib-data-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0']
-    ['convention.intf', 'convention.impl', 'conversion.intf', 'conversion.impl'].each { artifact ->
+    ['convention.intf', 'convention.impl'].each { artifact ->
         command += ['--requirement', 'eu-algites-lib-naming-pub-lib-general-naming-' + artifact.replace('.', '-') + '>=1.1.dev0,<1.1a0']
     }
     commandLine(command)

@@ -23,14 +23,6 @@ Dependencies:
         Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.conversion.intf
-        Usages: [product_api]
-        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
-      - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.conversion.impl
-        Usages: [product_implementation]
-        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
-      - GroupId: eu.algites.lib.naming
         ArtifactId: pub.lib.General_naming.convention.impl
         Usages: [product_implementation]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }

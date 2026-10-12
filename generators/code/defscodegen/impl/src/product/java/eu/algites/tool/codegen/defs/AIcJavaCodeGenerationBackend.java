@@ -1,6 +1,6 @@
 package eu.algites.tool.codegen.defs;
 
-import eu.algites.lib.naming.convention.AInOutputNameKind;
+import eu.algites.tool.codegen.defs.AInDefsNameRole;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +31,7 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
     @Override
     public AIcdGeneratedSource generate(AIcdCodeGenerationRequest request) {
         boolean enumDefinition = request.definition().kind() == AInDefinitionKind.ENUM;
-        String typeName = names.typeName(request.definition(), request.namingProfile(), enumDefinition ? AInOutputNameKind.ENUM_TYPE : AInOutputNameKind.DATA_TYPE);
+        String typeName = names.typeName(request.definition(), request.namingProfile(), enumDefinition ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
         String source = enumDefinition ? enumSource(request, typeName) : dataSource(request, typeName);
         String relative = request.packageName().replace('.', '/') + "/" + typeName + ".java";
         return new AIcdGeneratedSource(typeName, relative, source);

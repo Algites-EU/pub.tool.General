@@ -170,4 +170,26 @@ public final class AItcSdoCodegenTest {
         Assert.expectThrows(IllegalArgumentException.class,
                 () -> new AIcSdoCodegenService().generate(AIigParent.class, "../"));
     }
+
+    /** The YAML-backed Java generation uses the selected interface/class and parameter naming conventions. */
+    @AIaDataObject(id = "test:catalog-customer", version = 1)
+    public interface AIigCatalogCustomer_1 extends AIiDataObject {
+        @AIaDataObjectField(name = "Name", presenceRequired = true)
+        String getName();
+    }
+
+    /** A naming configuration affects generated names, file suffixes and setter argument identifiers. */
+    @Test
+    public void AIcYamlNamingControlsGeneratedSdo() throws Exception {
+        var locCatalog = eu.algites.lib.naming.convention.AIcNameConventionCatalog.standard("java");
+        var locResult = new AIcSdoCodegenService().generate(AIigCatalogCustomer_1.class, "d",
+                locCatalog, locCatalog, locCatalog);
+        Assert.assertEquals(locResult.mutableInterface().typeName(), "AIigdCatalogCustomer_1");
+        Assert.assertEquals(locResult.implementation().typeName(), "AIcgdCatalogCustomer_1");
+        Assert.assertTrue(locResult.mutableInterface().relativePath().endsWith("AIigdCatalogCustomer_1.java"));
+        Assert.assertTrue(locResult.implementation().relativePath().endsWith("AIcgdCatalogCustomer_1.java"));
+        Assert.assertTrue(locResult.mutableInterface().source().contains("setName(java.lang.String aName)"));
+        Assert.assertTrue(locResult.implementation().source().contains("setName(java.lang.String aName)"));
+    }
+
 }

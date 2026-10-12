@@ -1,58 +1,76 @@
 package eu.algites.tool.codegen.defs;
 
-import eu.algites.lib.naming.conversion.AIcDefaultNameConverter;
-import eu.algites.lib.naming.convention.AIcdNamingProfile;
-import eu.algites.lib.naming.convention.AIcdOutputNameRule;
-import eu.algites.lib.naming.convention.AInInputNameKind;
-import eu.algites.lib.naming.convention.AInOutputNameKind;
+import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
+import java.util.Map;
 
-
-/** Shared output-name projection. */
+/** Resolves all rendered names from the selected YAML NameCompositions. */
 final class AIcGenerationNames {
-    private final AIcDefaultNameConverter converter = new AIcDefaultNameConverter();
-
-    String typeName(AIcdCanonicalDefinition definition, AIcdNamingProfile profile, AInOutputNameKind kind) {
-        AIcdOutputNameRule rule = profile.outputRules().get(kind);
-        String converted = converter.convert(definition.logicalName(), profile.inputConventions().get(AInInputNameKind.DEFINITION), rule.convention());
-        return rule.prefix() + rule.typeMarker() + converted + rule.suffix() + converter.renderVersion(definition.version(), profile.outputVersionPolicy());
+    private static String technology(AIiNameConventionCatalog aCatalog) {
+        if (aCatalog.names().stream().anyMatch(aName -> aName.startsWith("algites-java-"))) return "java";
+        if (aCatalog.names().stream().anyMatch(aName -> aName.startsWith("algites-python-"))) return "python";
+        throw new IllegalArgumentException("No recognized standard technology naming roles in catalog");
     }
 
-    String fileStem(AIcdCanonicalDefinition definition, AIcdNamingProfile profile, AInOutputNameKind kind) {
-        AIcdOutputNameRule rule = profile.outputRules().get(kind);
-        String converted = converter.convert(definition.logicalName(), profile.inputConventions().get(AInInputNameKind.DEFINITION), rule.convention());
-        return rule.prefix() + rule.typeMarker() + converted + rule.suffix() + converter.renderVersion(definition.version(), profile.outputVersionPolicy());
+    private static String role(AInDefsNameRole aRole) {
+        return switch (aRole) {
+            case ENUM_TYPE, ENUM_TYPE_FILE_STEM -> "enum";
+            case INTERFACE_TYPE, INTERFACE_TYPE_FILE_STEM -> "intf";
+            case DATA_TYPE, DATA_TYPE_FILE_STEM -> "data-class";
+            default -> throw new IllegalArgumentException("Not a generated type role: " + aRole);
+        };
     }
 
-    String propertyName(String sourceName, AIcdNamingProfile profile) {
-        AIcdOutputNameRule rule = profile.outputRules().get(AInOutputNameKind.PROPERTY);
-        return rule.prefix() + rule.typeMarker() + converter.convert(sourceName, profile.inputConventions().get(AInInputNameKind.PROPERTY), rule.convention()) + rule.suffix();
+    private static String type(AIiNameConventionCatalog aCatalog, String aIdentifier, Integer aVersion,
+            AInDefsNameRole aRole, String aStructure) {
+        String locPrefix = "algites-" + technology(aCatalog) + "-gen-" + role(aRole);
+        String locProfile = locPrefix + (aVersion == null ? "" : "-versioned");
+        /* Derived schema-pointer ordinals must not imitate a filename version suffix. */
+        String locIdentifier = aIdentifier.replaceAll("(?<=[a-z])-(?=[0-9]+(?:-|$))", "");
+        Map<String, String> locVariables = aVersion == null
+                ? Map.of("identifier", locIdentifier)
+                : Map.of("identifier", locIdentifier, "version", aVersion.toString());
+        return aCatalog.format(locProfile, aStructure, locVariables, "lower_kebab_case");
     }
 
-    String enumConstant(String sourceName, AIcdNamingProfile profile) {
-        AIcdOutputNameRule rule = profile.outputRules().get(AInOutputNameKind.ENUM_CONSTANT);
-        return rule.prefix() + rule.typeMarker() + converter.convert(sourceName, profile.inputConventions().get(AInInputNameKind.ENUM_VALUE), rule.convention()) + rule.suffix();
+    String typeName(AIcdCanonicalDefinition aDefinition, AIiNameConventionCatalog aProfile, AInDefsNameRole aKind) {
+        return type(aProfile, aDefinition.logicalName(), aDefinition.version(), aKind, "main_container_name");
     }
 
-    /**
-     * Renders the stable generated constant name that exposes one canonical schema field name.
-     *
-     * @param sourceName canonical schema field name
-     * @param profile naming profile used by the generated type
-     * @return schema-field-name constant identifier
-     */
-    String schemaFieldNameConstant(String sourceName, AIcdNamingProfile profile) {
-        AIcdOutputNameRule rule = profile.outputRules().get(AInOutputNameKind.ENUM_CONSTANT);
-        String converted = converter.convert(sourceName,
-                profile.inputConventions().get(AInInputNameKind.PROPERTY), rule.convention());
-        String identifier = converted.replaceAll("[^A-Za-z0-9_]", "_")
-                .replaceAll("_+", "_").replaceAll("^_+|_+$", "");
-        if (identifier.isEmpty()) identifier = "FIELD";
-        return "SCHEMA_FIELD_NAME__" + identifier;
+    String fileStem(AIcdCanonicalDefinition aDefinition, AIiNameConventionCatalog aProfile, AInDefsNameRole aKind) {
+        return type(aProfile, aDefinition.logicalName(), aDefinition.version(), aKind, "file_name_stem");
     }
 
-    String referenceTypeName(String logicalName, Integer version, AIcdNamingProfile profile, AInOutputNameKind kind) {
-        AIcdOutputNameRule rule = profile.outputRules().get(kind);
-        String converted = converter.convert(logicalName, profile.inputConventions().get(AInInputNameKind.DEFINITION), rule.convention());
-        return rule.prefix() + rule.typeMarker() + converted + rule.suffix() + converter.renderVersion(version, profile.outputVersionPolicy());
+    String referenceTypeName(String aName, Integer aVersion, AIiNameConventionCatalog aProfile, AInDefsNameRole aKind) {
+        return type(aProfile, aName, aVersion, aKind,
+                aKind.name().endsWith("FILE_STEM") ? "file_name_stem" : "main_container_name");
+    }
+
+    private static String property(AIiNameConventionCatalog aProfile, String aName, String aStructure,
+            String aSourceConvention) {
+        String locRole = "algites-" + technology(aProfile) + "-gen-intf-versioned";
+        try {
+            return aProfile.format(locRole, aStructure, Map.of("identifier", aName), aSourceConvention);
+        } catch (IllegalArgumentException aError) {
+            /* JSON-Schema allows properties such as $schema that are not source identifiers. */
+            String locNormalized = aName.replaceAll("[^A-Za-z0-9]+", "-").replaceAll("^-|-$", "")
+                    .toLowerCase(java.util.Locale.ROOT);
+            if (locNormalized.isEmpty() || Character.isDigit(locNormalized.charAt(0)))
+                locNormalized = "field-" + locNormalized;
+            return aProfile.format(locRole, aStructure, Map.of("identifier", locNormalized), "lower_kebab_case");
+        }
+    }
+
+    String propertyName(String aName, AIiNameConventionCatalog aProfile) {
+        return property(aProfile, aName, "field_name", "upper_camel_case");
+    }
+
+    String enumConstant(String aName, AIiNameConventionCatalog aProfile) {
+        return property(aProfile, aName, "enum_item_name", "lower_snake_case");
+    }
+
+    String schemaFieldNameConstant(String aName, AIiNameConventionCatalog aProfile) {
+        String locIdentifier = property(aProfile, aName, "constant_name", "upper_camel_case")
+                .replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_+", "_").replaceAll("^_+|_+$", "");
+        return "SCHEMA_FIELD_NAME__" + (locIdentifier.isEmpty() ? "FIELD" : locIdentifier);
     }
 }
