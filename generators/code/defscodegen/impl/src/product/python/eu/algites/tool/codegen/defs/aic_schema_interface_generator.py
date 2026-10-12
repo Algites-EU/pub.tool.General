@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import keyword
 import re
 
 from eu.algites.lib.naming.convention.ain_output_name_kind import AInOutputNameKind
@@ -43,7 +44,11 @@ class AIcSchemaInterfaceGenerator:
                 + ', getter_name=' + repr('get' + suffix[0].upper() + suffix[1:]) + '),\n')
         result += '    )\n\n'
         for prop in model.properties:
-            property_name = self.names.property_name(prop.source_name, request.naming_profile)
+            property_name = re.sub(r'[^a-zA-Z0-9_]', '_', self.names.property_name(prop.source_name, request.naming_profile))
+            if not property_name or property_name[0].isdigit():
+                property_name = '_' + property_name
+            if keyword.iskeyword(property_name):
+                property_name += '_'
             suffix = property_name[0].upper() + property_name[1:]
             returned = ''
             if (prop.reference is not None and prop.value_kind is AInValueKind.REFERENCE
