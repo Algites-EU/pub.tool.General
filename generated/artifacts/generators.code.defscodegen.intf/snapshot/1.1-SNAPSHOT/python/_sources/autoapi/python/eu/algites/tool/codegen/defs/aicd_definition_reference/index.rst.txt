@@ -1,0 +1,56 @@
+python.eu.algites.tool.codegen.defs.aicd_definition_reference
+=============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aicd_definition_reference
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aicd_definition_reference.AIcdDefinitionReference
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdDefinitionReference
+
+   Carries immutable definition reference data.
+
+   .. attribute:: identity
+
+      Canonical definition identity.
+
+   .. attribute:: version
+
+      Canonical definition version.
+
+   .. attribute:: logical_name
+
+      Logical name without its version suffix.
+
+   .. attribute:: target_kind
+
+      Referenced definition kind.
+
+
+   .. py:attribute:: identity
+      :type:  str
+
+
+   .. py:attribute:: version
+      :type:  int | None
+
+
+   .. py:attribute:: logical_name
+      :type:  str
+
+
+   .. py:attribute:: target_kind
+      :type:  eu.algites.tool.codegen.defs.ain_definition_kind.AInDefinitionKind | None
+      :value: None
+
+
+

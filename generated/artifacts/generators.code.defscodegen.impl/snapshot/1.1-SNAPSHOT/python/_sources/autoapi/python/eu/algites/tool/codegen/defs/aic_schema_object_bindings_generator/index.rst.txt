@@ -1,0 +1,59 @@
+python.eu.algites.tool.codegen.defs.aic_schema_object_bindings_generator
+========================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_schema_object_bindings_generator
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_schema_object_bindings_generator.AIcSchemaObjectBindingsGenerator
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcSchemaObjectBindingsGenerator
+
+   Generate repository contracts and implementations in each owning schema package.
+
+
+   .. py:class:: AIcdUnit
+
+      .. py:attribute:: schema
+         :type:  str
+
+
+      .. py:attribute:: pointer
+         :type:  str
+
+
+      .. py:attribute:: name
+         :type:  str
+
+
+      .. py:attribute:: node
+         :type:  dict
+
+
+      .. py:attribute:: document
+         :type:  dict
+
+
+
+   .. py:method:: generate_repository(repository: pathlib.Path, manifest_file: pathlib.Path, check: bool = False) -> list[dict[str, str]]
+
+      Generate intf/impl outputs, or verify them without modifying any file.
+
+
+
+   .. py:method:: main(args=None)
+      :staticmethod:
+
+
+      Standalone Python entry point equivalent to the JVM repository generator.
+
+
+

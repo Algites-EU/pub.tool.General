@@ -1,0 +1,76 @@
+python.eu.algites.tool.codegen.defs.aicd_value_constraints
+==========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aicd_value_constraints
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aicd_value_constraints.AIcdValueConstraints
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdValueConstraints
+
+   Scalar family and portable basic constraints; decimal bounds retain exact precision.
+
+
+   .. py:attribute:: data_type
+      :type:  str | None
+      :value: None
+
+
+
+   .. py:attribute:: minimum
+      :type:  str | None
+      :value: None
+
+
+
+   .. py:attribute:: maximum
+      :type:  str | None
+      :value: None
+
+
+
+   .. py:attribute:: exclusive_minimum
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: exclusive_maximum
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: min_length
+      :type:  int | None
+      :value: None
+
+
+
+   .. py:attribute:: max_length
+      :type:  int | None
+      :value: None
+
+
+
+   .. py:attribute:: pattern
+      :type:  str | None
+      :value: None
+
+
+
+   .. py:attribute:: enum_values
+      :type:  tuple[str, Ellipsis]
+      :value: ()
+
+
+

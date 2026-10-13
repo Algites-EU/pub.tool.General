@@ -1,0 +1,40 @@
+python.eu.algites.tool.codegen.defs.ain_definition_kind
+=======================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.ain_definition_kind
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.ain_definition_kind.AInDefinitionKind
+
+
+Module Contents
+---------------
+
+.. py:class:: AInDefinitionKind
+
+   Bases: :py:obj:`str`, :py:obj:`enum.Enum`
+
+
+   Defines the definition kind enumeration.
+
+
+   .. py:attribute:: OBJECT
+      :value: 'OBJECT'
+
+
+
+   .. py:attribute:: ENUM
+      :value: 'ENUM'
+
+
+
+   .. py:attribute:: SCALAR
+      :value: 'SCALAR'
+
+
+

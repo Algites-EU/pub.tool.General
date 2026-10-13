@@ -1,0 +1,13 @@
+ManifestVersion: 1
+Artifact:
+  RepositoryId: pub.tool.General
+  LocalArtifactId: generators.code.sdocodegen.impl
+  ArtifactCoordinateId: pub.tool.General_generators.code.sdocodegen.impl
+  GroupId: eu.algites.tool.codegen
+  Version: 1.1-SNAPSHOT
+  SourcePath: generators/code/sdocodegen/impl
+  StructureKind: artifact
+  Name: "SmartDataObject generator implementation"
+  Description: "Native Java and Python implementation generation from annotated AIig contracts."
+SourceMetadata:
+  DescriptorHierarchy:

@@ -1,0 +1,47 @@
+python.eu.algites.tool.codegen.defs.aic_scalar_generation
+=========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_scalar_generation
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_scalar_generation.TEMPORAL
+   python.eu.algites.tool.codegen.defs.aic_scalar_generation.DURATION
+   python.eu.algites.tool.codegen.defs.aic_scalar_generation.BINARY
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_scalar_generation.scalar_type
+   python.eu.algites.tool.codegen.defs.aic_scalar_generation.constraint_tuple
+   python.eu.algites.tool.codegen.defs.aic_scalar_generation.python_data_source
+   python.eu.algites.tool.codegen.defs.aic_scalar_generation.java_validation
+   python.eu.algites.tool.codegen.defs.aic_scalar_generation.java_identifier
+
+
+Module Contents
+---------------
+
+.. py:data:: TEMPORAL
+
+.. py:data:: DURATION
+
+.. py:data:: BINARY
+
+.. py:function:: scalar_type(kind, constraints, java=False)
+
+.. py:function:: constraint_tuple(constraints)
+
+.. py:function:: python_data_source(request, names, type_name, docstring)
+
+.. py:function:: java_validation(prop, name)
+
+.. py:function:: java_identifier(name)
+

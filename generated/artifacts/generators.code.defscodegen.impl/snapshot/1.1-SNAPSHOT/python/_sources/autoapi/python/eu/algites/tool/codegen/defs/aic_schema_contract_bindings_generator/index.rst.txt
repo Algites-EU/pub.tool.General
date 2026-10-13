@@ -1,0 +1,65 @@
+python.eu.algites.tool.codegen.defs.aic_schema_contract_bindings_generator
+==========================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_schema_contract_bindings_generator
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_schema_contract_bindings_generator.AIcSchemaContractBindingsGenerator
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcSchemaContractBindingsGenerator
+
+   Generate annotated read-only repository contracts in each schema package.
+
+
+   .. py:class:: AIcdUnit
+
+      .. py:attribute:: schema
+         :type:  str
+
+
+      .. py:attribute:: pointer
+         :type:  str
+
+
+      .. py:attribute:: name
+         :type:  str
+
+
+      .. py:attribute:: node
+         :type:  dict
+
+
+      .. py:attribute:: document
+         :type:  dict
+
+
+
+   .. py:method:: generate_repository(repository: pathlib.Path, manifest_file: pathlib.Path, check: bool = False) -> list[dict[str, str]]
+
+      Generate interface outputs only, or verify them without modifying files.
+
+
+
+   .. py:method:: generate_manifest(repository: pathlib.Path, manifest: dict, check: bool = False) -> list[dict[str, str]]
+
+      Generate all selected targets from explicit schema roots and YAML naming catalogs.
+
+
+
+   .. py:method:: main(args=None)
+      :staticmethod:
+
+
+      Standalone Python entry point equivalent to the JVM repository generator.
+
+
+

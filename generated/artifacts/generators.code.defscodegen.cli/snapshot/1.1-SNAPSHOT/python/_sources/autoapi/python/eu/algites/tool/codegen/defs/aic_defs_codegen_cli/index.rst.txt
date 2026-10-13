@@ -1,0 +1,27 @@
+python.eu.algites.tool.codegen.defs.aic_defs_codegen_cli
+========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_defs_codegen_cli
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_defs_codegen_cli.AIcDefsCodegenCli
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcDefsCodegenCli
+
+   CLI adapter for single-source compatibility and YAML-driven batch generation.
+
+
+   .. py:method:: main(args: list[str] | None = None) -> int
+      :staticmethod:
+
+
+

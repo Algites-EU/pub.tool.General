@@ -1,0 +1,36 @@
+python.eu.algites.tool.codegen.sdo.aii_sdo_codegen_service
+==========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.sdo.aii_sdo_codegen_service
+
+.. autoapi-nested-parse::
+
+   Schema-independent SmartDataObject generator contract.
+
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.sdo.aii_sdo_codegen_service.AIiSdoCodegenService
+
+
+Module Contents
+---------------
+
+.. py:class:: AIiSdoCodegenService
+
+   Bases: :py:obj:`abc.ABC`
+
+
+   Helper class that provides a standard way to create an ABC using
+   inheritance.
+
+
+   .. py:method:: generate(read_contract: type, marker: str = 'd') -> python.eu.algites.tool.codegen.sdo.aicd_sdo_generation_result.AIcdSdoGenerationResult
+      :abstractmethod:
+
+
+

@@ -1,0 +1,36 @@
+python.eu.algites.tool.codegen.sdo.aic_sdo_codegen_service
+==========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.sdo.aic_sdo_codegen_service
+
+.. autoapi-nested-parse::
+
+   Generate SmartDataObject types from imported, annotated read-only contracts.
+
+   No schema readers or definition types are imported: the normalized AIig contract is
+   both the input and the sole source of truth. Class inheritance is preserved.
+
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.sdo.aic_sdo_codegen_service.AIcSdoCodegenService
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcSdoCodegenService
+
+   Bases: :py:obj:`eu.algites.tool.codegen.sdo.aii_sdo_codegen_service.AIiSdoCodegenService`
+
+
+   Turn any importable AIig contract into a mutable interface and implementation.
+
+
+   .. py:method:: generate(read_contract: type, marker: str = 'd', naming=None) -> eu.algites.tool.codegen.sdo.aicd_sdo_generation_result.AIcdSdoGenerationResult
+
+

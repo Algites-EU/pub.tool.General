@@ -1,0 +1,46 @@
+python.eu.algites.tool.codegen.defs.aicd_generated_source
+=========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aicd_generated_source
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdGeneratedSource
+
+   Carries immutable generated source data.
+
+   .. attribute:: type_name
+
+      Generated primary type name.
+
+   .. attribute:: relative_path
+
+      Generated source relative path.
+
+   .. attribute:: source
+
+      Complete generated source text.
+
+
+   .. py:attribute:: type_name
+      :type:  str
+
+
+   .. py:attribute:: relative_path
+      :type:  str
+
+
+   .. py:attribute:: source
+      :type:  str
+
+

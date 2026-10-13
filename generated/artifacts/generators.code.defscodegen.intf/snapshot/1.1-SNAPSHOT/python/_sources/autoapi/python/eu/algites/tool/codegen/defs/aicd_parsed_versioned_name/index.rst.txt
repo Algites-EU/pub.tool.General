@@ -1,0 +1,38 @@
+python.eu.algites.tool.codegen.defs.aicd_parsed_versioned_name
+==============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aicd_parsed_versioned_name
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aicd_parsed_versioned_name.AIcdParsedVersionedName
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdParsedVersionedName
+
+   Carries immutable parsed versioned name data.
+
+   .. attribute:: logical_name
+
+      Logical name without its version suffix.
+
+   .. attribute:: version
+
+      Canonical definition version.
+
+
+   .. py:attribute:: logical_name
+      :type:  str
+
+
+   .. py:attribute:: version
+      :type:  int | None
+
+

@@ -1,0 +1,75 @@
+python.eu.algites.tool.codegen.defs.ain_defs_name_role
+======================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.ain_defs_name_role
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.ain_defs_name_role.AInDefsNameRole
+
+
+Module Contents
+---------------
+
+.. py:class:: AInDefsNameRole
+
+   Bases: :py:obj:`str`, :py:obj:`enum.Enum`
+
+
+   Internal output-role markers for the Defs renderer.
+
+
+   .. py:attribute:: DATA_TYPE
+      :value: 'DATA_TYPE'
+
+
+
+   .. py:attribute:: ENUM_TYPE
+      :value: 'ENUM_TYPE'
+
+
+
+   .. py:attribute:: INTERFACE_TYPE
+      :value: 'INTERFACE_TYPE'
+
+
+
+   .. py:attribute:: PROPERTY
+      :value: 'PROPERTY'
+
+
+
+   .. py:attribute:: ENUM_CONSTANT
+      :value: 'ENUM_CONSTANT'
+
+
+
+   .. py:attribute:: PACKAGE_SEGMENT
+      :value: 'PACKAGE_SEGMENT'
+
+
+
+   .. py:attribute:: FILE_STEM
+      :value: 'FILE_STEM'
+
+
+
+   .. py:attribute:: DATA_TYPE_FILE_STEM
+      :value: 'DATA_TYPE_FILE_STEM'
+
+
+
+   .. py:attribute:: ENUM_TYPE_FILE_STEM
+      :value: 'ENUM_TYPE_FILE_STEM'
+
+
+
+   .. py:attribute:: INTERFACE_TYPE_FILE_STEM
+      :value: 'INTERFACE_TYPE_FILE_STEM'
+
+
+

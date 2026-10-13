@@ -1,0 +1,34 @@
+python.eu.algites.tool.codegen.defs.aic_default_defs_codegen_service
+====================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_default_defs_codegen_service
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_default_defs_codegen_service.AIcDefaultDefsCodegenService
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcDefaultDefsCodegenService(frontends=None, backends=None)
+
+   Provides default defs codegen service functionality.
+
+
+   .. py:method:: load(request)
+
+      Load one source definition into the normalized canonical-definition model.
+
+
+
+   .. py:method:: generate(request)
+
+      Generate one source artifact from a normalized canonical definition.
+
+
+

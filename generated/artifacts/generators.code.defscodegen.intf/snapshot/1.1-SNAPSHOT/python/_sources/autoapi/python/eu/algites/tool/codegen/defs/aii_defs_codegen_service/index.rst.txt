@@ -1,0 +1,37 @@
+python.eu.algites.tool.codegen.defs.aii_defs_codegen_service
+============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aii_defs_codegen_service
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aii_defs_codegen_service.AIiDefsCodegenService
+
+
+Module Contents
+---------------
+
+.. py:class:: AIiDefsCodegenService
+
+   Bases: :py:obj:`Protocol`
+
+
+   Defines the programmatic service contract for canonical-definition code generation.
+
+
+   .. py:method:: load(request: eu.algites.tool.codegen.defs.aicd_definition_load_request.AIcdDefinitionLoadRequest) -> eu.algites.tool.codegen.defs.aicd_canonical_definition.AIcdCanonicalDefinition
+
+      Load one source definition into the normalized canonical-definition model.
+
+
+
+   .. py:method:: generate(request: eu.algites.tool.codegen.defs.aicd_code_generation_request.AIcdCodeGenerationRequest) -> eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource
+
+      Generate one source artifact from a normalized canonical definition.
+
+
+

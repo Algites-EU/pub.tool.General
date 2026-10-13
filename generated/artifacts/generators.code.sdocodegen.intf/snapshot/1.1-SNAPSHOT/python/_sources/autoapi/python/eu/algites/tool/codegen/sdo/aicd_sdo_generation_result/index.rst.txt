@@ -1,0 +1,32 @@
+python.eu.algites.tool.codegen.sdo.aicd_sdo_generation_result
+=============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.sdo.aicd_sdo_generation_result
+
+.. autoapi-nested-parse::
+
+   Mutable interface and concrete class generated from one read contract.
+
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.sdo.aicd_sdo_generation_result.AIcdSdoGenerationResult
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdSdoGenerationResult
+
+   .. py:attribute:: mutable_interface
+      :type:  python.eu.algites.tool.codegen.sdo.aicd_generated_sdo_source.AIcdGeneratedSdoSource
+
+
+   .. py:attribute:: implementation
+      :type:  python.eu.algites.tool.codegen.sdo.aicd_generated_sdo_source.AIcdGeneratedSdoSource
+
+

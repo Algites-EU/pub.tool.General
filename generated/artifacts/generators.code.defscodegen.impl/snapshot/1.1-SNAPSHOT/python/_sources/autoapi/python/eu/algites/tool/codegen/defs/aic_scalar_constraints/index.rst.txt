@@ -1,0 +1,34 @@
+python.eu.algites.tool.codegen.defs.aic_scalar_constraints
+==========================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aic_scalar_constraints
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aic_scalar_constraints.decimal_text
+   python.eu.algites.tool.codegen.defs.aic_scalar_constraints.defaults
+   python.eu.algites.tool.codegen.defs.aic_scalar_constraints.from_json
+
+
+Module Contents
+---------------
+
+.. py:function:: decimal_text(value)
+
+   Normalize exact decimal boundaries without using floating-point arithmetic.
+
+
+.. py:function:: defaults(data_type)
+
+   Retain integer subtype bounds without narrowing arbitrary-precision values.
+
+
+.. py:function:: from_json(node, kind)
+
+   Use JSON Schema keywords, with explicit Modustro hints for types lacking native equivalents.
+
+

@@ -1,0 +1,13 @@
+ManifestVersion: 1
+Artifact:
+  RepositoryId: pub.tool.General
+  LocalArtifactId: generators.code.sdocodegen.intf
+  ArtifactCoordinateId: pub.tool.General_generators.code.sdocodegen.intf
+  GroupId: eu.algites.tool.codegen
+  Version: 1.1-SNAPSHOT
+  SourcePath: generators/code/sdocodegen/intf
+  StructureKind: artifact
+  Name: "SmartDataObject code generator API"
+  Description: "Schema-independent Java and Python generation contracts."
+SourceMetadata:
+  DescriptorHierarchy:

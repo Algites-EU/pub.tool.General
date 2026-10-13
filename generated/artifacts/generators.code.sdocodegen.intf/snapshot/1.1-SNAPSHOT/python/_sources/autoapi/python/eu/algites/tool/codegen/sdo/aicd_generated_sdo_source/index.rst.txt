@@ -1,0 +1,36 @@
+python.eu.algites.tool.codegen.sdo.aicd_generated_sdo_source
+============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.sdo.aicd_generated_sdo_source
+
+.. autoapi-nested-parse::
+
+   One generated source and its output path.
+
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.sdo.aicd_generated_sdo_source.AIcdGeneratedSdoSource
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdGeneratedSdoSource
+
+   .. py:attribute:: type_name
+      :type:  str
+
+
+   .. py:attribute:: relative_path
+      :type:  str
+
+
+   .. py:attribute:: source
+      :type:  str
+
+

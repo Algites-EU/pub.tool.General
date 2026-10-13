@@ -1,0 +1,65 @@
+python.eu.algites.tool.codegen.defs.ain_value_kind
+==================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.ain_value_kind
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.ain_value_kind.AInValueKind
+
+
+Module Contents
+---------------
+
+.. py:class:: AInValueKind
+
+   Bases: :py:obj:`str`, :py:obj:`enum.Enum`
+
+
+   Defines the value kind enumeration.
+
+
+   .. py:attribute:: STRING
+      :value: 'STRING'
+
+
+
+   .. py:attribute:: INTEGER
+      :value: 'INTEGER'
+
+
+
+   .. py:attribute:: NUMBER
+      :value: 'NUMBER'
+
+
+
+   .. py:attribute:: BOOLEAN
+      :value: 'BOOLEAN'
+
+
+
+   .. py:attribute:: ARRAY
+      :value: 'ARRAY'
+
+
+
+   .. py:attribute:: OBJECT
+      :value: 'OBJECT'
+
+
+
+   .. py:attribute:: REFERENCE
+      :value: 'REFERENCE'
+
+
+
+   .. py:attribute:: ANY
+      :value: 'ANY'
+
+
+

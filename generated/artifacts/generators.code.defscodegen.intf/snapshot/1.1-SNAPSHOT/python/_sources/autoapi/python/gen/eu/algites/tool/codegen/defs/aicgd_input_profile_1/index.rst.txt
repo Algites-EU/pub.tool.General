@@ -1,0 +1,121 @@
+python.gen.eu.algites.tool.codegen.defs.aicgd_input_profile_1
+=============================================================
+
+.. py:module:: python.gen.eu.algites.tool.codegen.defs.aicgd_input_profile_1
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   python.gen.eu.algites.tool.codegen.defs.aicgd_input_profile_1.AIcSchemaTemporalValue
+   python.gen.eu.algites.tool.codegen.defs.aicgd_input_profile_1.AIcSchemaDuration
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.gen.eu.algites.tool.codegen.defs.aicgd_input_profile_1.AIcgdInputProfile_1
+
+
+Module Contents
+---------------
+
+.. py:data:: AIcSchemaTemporalValue
+
+.. py:data:: AIcSchemaDuration
+
+.. py:class:: AIcgdInputProfile_1
+
+   Defines how defs-codegen interprets one supported source-definition family.
+
+   Generated from canonical definition eu.algites.tool.codegen.defs.input-profile/1. Source: src/product/yamldefs/eu/algites/tool/codegen/defs/input-profile_1.yamldef.schema.json. Do not edit manually.
+
+   .. attribute:: source_kind
+
+      Selects the source-definition family handled by the frontend.
+
+   .. attribute:: naming_profile
+
+      Names the naming profile applied while interpreting and generating identifiers.
+
+   .. attribute:: require_canonical_identity
+
+      Requires every loaded definition to expose a canonical identity.
+
+   .. attribute:: require_definition_version
+
+      Requires every loaded definition to expose a semantic version.
+
+
+   .. py:attribute:: SCHEMA_FIELD_NAME__SOURCE_KIND
+      :value: 'SourceKind'
+
+
+      ** ``SourceKind``
+
+      **Field Description:** Selects the source-definition family handled by the frontend.
+
+      :type: **Field Name
+
+
+   .. py:attribute:: SCHEMA_FIELD_NAME__NAMING_PROFILE
+      :value: 'NamingProfile'
+
+
+      ** ``NamingProfile``
+
+      **Field Description:** Names the naming profile applied while interpreting and generating identifiers.
+
+      :type: **Field Name
+
+
+   .. py:attribute:: SCHEMA_FIELD_NAME__REQUIRE_CANONICAL_IDENTITY
+      :value: 'RequireCanonicalIdentity'
+
+
+      ** ``RequireCanonicalIdentity``
+
+      **Field Description:** Requires every loaded definition to expose a canonical identity.
+
+      :type: **Field Name
+
+
+   .. py:attribute:: SCHEMA_FIELD_NAME__REQUIRE_DEFINITION_VERSION
+      :value: 'RequireDefinitionVersion'
+
+
+      ** ``RequireDefinitionVersion``
+
+      **Field Description:** Requires every loaded definition to expose a semantic version.
+
+      :type: **Field Name
+
+
+   .. py:attribute:: source_kind
+      :type:  str
+
+
+   .. py:attribute:: naming_profile
+      :type:  str
+
+
+   .. py:attribute:: require_canonical_identity
+      :type:  bool
+
+
+   .. py:attribute:: require_definition_version
+      :type:  bool
+
+
+   .. py:method:: from_mapping(value: Mapping[str, object])
+      :classmethod:
+
+
+
+   .. py:method:: to_mapping() -> Mapping[str, object]
+
+
