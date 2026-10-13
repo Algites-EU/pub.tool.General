@@ -37,7 +37,8 @@ public final class AItcSchemaObjectBindingsTest {
         for (var output : result) Assert.assertTrue(output.get("path").contains("/example/contracts/"));
         Path intf = fixture.root.resolve("intf/src/product/python.gen");
         Path impl = fixture.root.resolve("impl/src/product/python.gen");
-        var process = new ProcessBuilder("python3", "-c", """
+        String locPython = System.getenv().getOrDefault("ALGITES_PYTHON_EXECUTABLE", "python3");
+        var process = new ProcessBuilder(locPython, "-c", """
             import inspect, dataclasses
             from example.contracts.aiig_example_1 import AIigExample_1
             from example.contracts.aicgd_example_1 import AIcgdExample_1
@@ -50,14 +51,23 @@ public final class AItcSchemaObjectBindingsTest {
             value = AIcgdExample_1.from_mapping({'Name':'Example','Items':[{'Id':7}]})
             assert isinstance(value, AIigExample_1)
             assert value.to_mapping() == {'Name':'Example','Items':[{'Id':7}]}
-            assert not hasattr(value, '__dict__')
+            assert AIcgdExample_1.__slots__
+            assert dataclasses.is_dataclass(AIcgdExample_1)
+            assert AIcgdExample_1.__dataclass_params__.frozen
             assert all(not f.name.startswith('SCHEMA_FIELD_NAME__') for f in dataclasses.fields(value))
             assert AIngExampleState_1.OPEN.value == 'open'
             try: AIigExample_1()
             except TypeError: pass
             else: raise AssertionError('Abstract contract is constructible')
             """).inheritIO();
-        process.environment().put("PYTHONPATH", intf + java.io.File.pathSeparator + impl);
+        var locPythonPaths = new ArrayList<String>();
+        locPythonPaths.add(intf.toString());
+        locPythonPaths.add(impl.toString());
+        String locDependencies = System.getenv("MODUSTRO_GENERATOR_PARITY_PYTHON_DEPENDENCIES");
+        if (locDependencies != null && !locDependencies.isBlank()) locPythonPaths.add(locDependencies);
+        String locExistingPythonPath = process.environment().get("PYTHONPATH");
+        if (locExistingPythonPath != null && !locExistingPythonPath.isBlank()) locPythonPaths.add(locExistingPythonPath);
+        process.environment().put("PYTHONPATH", String.join(java.io.File.pathSeparator, locPythonPaths));
         process.environment().put("PYTHONPYCACHEPREFIX", fixture.root.resolve("build/pycache").toString());
         Assert.assertEquals(process.start().waitFor(), 0);
         var compilerArguments = new ArrayList<String>();

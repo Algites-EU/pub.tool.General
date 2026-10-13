@@ -74,13 +74,21 @@ def create_fixture(root):
 
 
 def normalized_python(source):
-    """Ignore syntax formatting/quote style, retaining code, literals and documentation."""
+    """Compare executable Python exactly while ignoring whitespace in documentation literals.
+
+    Generated DataObject classes can place a standalone documentation string
+    after canonical metadata assignments, not necessarily as their first member.
+    The expression has no executable effect there; normalizing only the first
+    statement would report false implementation mismatches.
+    """
     tree = ast.parse(source)
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
-            first = node.body[0]
-            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
-                first.value.value = ' '.join(first.value.value.split())
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for statement in node.body:
+            if (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant)
+                    and isinstance(statement.value.value, str)):
+                statement.value.value = ' '.join(statement.value.value.split())
     return ast.dump(tree, include_attributes=False)
 
 
@@ -129,6 +137,14 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
             sources = [(root / relative).read_text(encoding='utf-8') for root in roots]
             normalize = normalized_python if relative.endswith('.py') else normalized_java
             self.assertEqual(normalize(sources[0]), normalize(sources[1]), relative)
+
+    def test_documentation_normalization_after_metadata(self):
+        """Docs after metadata may differ in indentation; executable values must not."""
+        first = 'class Example:\n    marker = 1\n    """Example text."""\n    value = "keep  spaces"\n'
+        second = 'class Example:\n    marker = 1\n    """Example\n        text.\n    """\n    value = "keep  spaces"\n'
+        self.assertEqual(normalized_python(first), normalized_python(second))
+        self.assertNotEqual(normalized_python(first), normalized_python(second.replace('keep  spaces', 'keep spaces')))
+        self.assertNotEqual(normalized_python(first), normalized_python(second.replace('marker = 1', 'marker = 2')))
 
     def test_complete_outputs_and_native_runtime(self):
         results = [self.generate(kind) for kind in self.repositories]

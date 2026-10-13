@@ -1,24 +1,39 @@
 """Regression tests for canonical input merging and preflight-safe batch cleanup."""
 
 import json
+from importlib import resources
 from pathlib import Path
-import shutil
 
 import pytest
 
-from eu.algites.lib.naming.convention import aic_algites_naming_profiles
 from eu.algites.tool.codegen.defs.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+
+
+def _naming_resource_bytes(name: str) -> bytes:
+    """Read published naming resources without depending on another artifact's source layout."""
+    providers = (
+        ('eu.algites.lib.naming.convention', ()),
+        ('algites.pub.lib.general.naming.convention.impl',
+         ('eu', 'algites', 'lib', 'naming', 'convention')),
+    )
+    for package, subpath in providers:
+        try:
+            candidate = resources.files(package).joinpath(*subpath, name)
+        except (ModuleNotFoundError, TypeError):
+            continue
+        if candidate.is_file():
+            return candidate.read_bytes()
+    raise FileNotFoundError(f'Missing installed Algites naming resource: {name}')
 
 
 @pytest.fixture
 def prepared(tmp_path):
-    library = Path(aic_algites_naming_profiles.__file__).parent
     config = tmp_path / 'config'
     config.mkdir()
     for name in ('standard-conventions.yml', 'algites-python-name-conventions.yml',
                  'algites-java-name-conventions.yml', 'algites-yamldef-name-conventions.yml',
                  'algites-jsondef-name-conventions.yml'):
-        shutil.copy(library / name, config / name)
+        (config / name).write_bytes(_naming_resource_bytes(name))
     return tmp_path
 
 
@@ -131,8 +146,8 @@ def test_xsd_without_namespace_can_merge_with_implicit_json_identity(prepared):
       </xs:sequence></xs:complexType>
     </xs:schema>''', encoding='utf-8')
     # Reuse the shipped XSD catalog and the same relative example package.
-    library = Path(aic_algites_naming_profiles.__file__).parent
-    shutil.copy(library / 'algites-xmldef-name-conventions.yml', prepared / 'config/algites-xmldef-name-conventions.yml')
+    (prepared / 'config/algites-xmldef-name-conventions.yml').write_bytes(
+        _naming_resource_bytes('algites-xmldef-name-conventions.yml'))
     result = AIcSchemaContractBindingsGenerator().generate_manifest(
         prepared, _manifest(prepared, [('jsondefs', json_source), ('xmldefs', xml_source)]))
     assert len(result) == 2

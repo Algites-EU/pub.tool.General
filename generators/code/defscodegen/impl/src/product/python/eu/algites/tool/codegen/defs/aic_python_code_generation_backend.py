@@ -61,8 +61,10 @@ class AIcPythonCodeGenerationBackend:
         if values:
             rows.extend(["", "    Values:"])
             rows.extend(f"        {entry}" for entry in values)
-        rows.append('    """')
-        return "\n".join(rows) + "\n"
+        if attributes or values:
+            rows.append('    """')
+            return "\n".join(rows) + "\n"
+        return "\n".join(rows) + '"""\n'
 
     @staticmethod
     def _doc(value: str | None, fallback: str) -> str:

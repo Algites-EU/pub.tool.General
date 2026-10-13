@@ -62,6 +62,10 @@ def test_comparison_retains_semantic_differences():
     assert normalized_python("value = 'one'\n") == normalized_python('value="one"\n')
     assert normalized_python("value = 'one'\n") != normalized_python("value = 'two'\n")
     assert normalized_python('value = 1\n') != normalized_python('value = 2\n')
+    metadata_first = 'class Example:\n    __data_object__ = 1\n    """Canonical documentation."""\n'
+    metadata_second = 'class Example:\n    __data_object__ = 1\n    """Canonical\n        documentation.\n    """\n'
+    assert normalized_python(metadata_first) == normalized_python(metadata_second)
+    assert normalized_python(metadata_first) != normalized_python(metadata_second.replace('Canonical', 'Incorrect'))
     assert normalized_java('class Example { String value = "one two"; }') == normalized_java('class\nExample{String value="one two";}')
     assert normalized_java('String value="one two";') != normalized_java('String value="onetwo";')
     assert normalized_java('/** Field documentation. */ class Example {}') != normalized_java('/** Lost documentation. */ class Example {}')
