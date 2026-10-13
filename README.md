@@ -94,7 +94,17 @@ The repository uses the shared Modustro build lifecycle and supports Java and Py
 
 Python product builds (wheel/sdist) use the standard shared Modustro lifecycle and do not require repository-specific Gradle scripts. Python native tests live under `src/develop/python` and can run without a JVM when their Python dependencies are installed.
 
-The two `gradle/*-parity.gradle.kts` scripts are temporary verification bridges: today's shared Builder does not yet provision Python test dependencies or execute pytest as an independent Gradle test lifecycle. They preserve cross-implementation integration checks in `./gradlew check` until that capability is introduced in Builder. Removing them alone would silently disable those checks. The Python dependency preparation helper is kept under Defs Codegen `impl/src/develop/python` rather than outside the source tree.
+The general Modustro Builder now provides native Python testing behind
+`MODUSTRO_ENABLE_NATIVE_PYTHON_TESTS=true` and provisions local wheels together
+with declared external Python dependencies. This repository enables that mode
+in `gradle.properties`. The ordinary `check` task executes Python `pytest`
+in addition to Java TestNG, including the cross-language Defs parity wrapper.
+The old repository-specific parity Gradle scripts are no longer applied.
+
+**Rollout requirement:** first deploy the matching Builder support from
+`pub.gov.Algites`, then test this repository on the new Builder. The bundled
+standalone generator `bootstrap.sh` scripts remain a separate emergency/self-hosting
+path with explicit source roots.
 
 ## Architectural role
 
@@ -165,3 +175,16 @@ optionally selects the Gradle executable.
 The descriptor/directory rename helper is
 `pub.tool.General-git-mv-1.1-codegen.sh`. No changes in `pub.lib.General` are
 necessary for the independent Java/Python generators implemented here.
+
+### Native Python verification (Modustro Phase 0)
+
+Python test modules in `src/develop/python/test_*.py` run through Modustro's
+`testModustroPython` task, which installs built local wheels and published
+external dependencies into an isolated Python virtual environment. Cross-language
+Java tests receive `MODUSTRO_PYTHON_TEST_EXECUTABLE` and
+`MODUSTRO_ARTIFACT_DIRECTORY`; tests do not search for sibling source directories.
+The two repository-specific `gradle/*parity.gradle.kts` scripts have been
+removed, and their verification is now part of the standard `check` lifecycle.
+
+Upgrade the bootstrap Builder before using this change: the old Builder does
+not provide this Python test environment.

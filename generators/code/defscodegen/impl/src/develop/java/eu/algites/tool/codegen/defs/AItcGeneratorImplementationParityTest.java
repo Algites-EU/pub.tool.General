@@ -12,10 +12,13 @@ public final class AItcGeneratorImplementationParityTest {
     /** Runs the complete cross-implementation integration suite as part of the Java test phase. */
     @Test
     public void AIcIndependentGeneratorOutputsAndRuntime() throws Exception {
-        Path locRoot = Path.of("").toAbsolutePath();
-        String locRelative = "generators/code/defscodegen/impl/src/develop/python/generator_implementation_parity.py";
-        while (locRoot != null && !Files.isRegularFile(locRoot.resolve(locRelative))) locRoot = locRoot.getParent();
-        if (locRoot == null) throw new IllegalStateException("Cannot find generator implementation parity suite in checkout");
+        String locArtifactLocation = System.getenv("MODUSTRO_ARTIFACT_DIRECTORY");
+        if (locArtifactLocation == null || locArtifactLocation.isBlank()) {
+            throw new IllegalStateException("Modustro must provide MODUSTRO_ARTIFACT_DIRECTORY to cross-technology tests");
+        }
+        Path locArtifact = Path.of(locArtifactLocation).toAbsolutePath();
+        Path locSuite = locArtifact.resolve("src/develop/python/generator_implementation_parity.py");
+        if (!Files.isRegularFile(locSuite)) throw new IllegalStateException("Missing artifact-local parity suite: " + locSuite);
         var locClasspath = new LinkedHashSet<String>();
         locClasspath.add(System.getProperty("java.class.path"));
         for (String locClass : new String[]{
@@ -31,19 +34,16 @@ public final class AItcGeneratorImplementationParityTest {
                 "org.yaml.snakeyaml.Yaml"}) {
             locClasspath.add(Path.of(Class.forName(locClass).getProtectionDomain().getCodeSource().getLocation().toURI()).toString());
         }
-        String locPython = System.getenv().getOrDefault("ALGITES_PYTHON_EXECUTABLE", "python3");
-        var locProcess = new ProcessBuilder(locPython, locRoot.resolve(locRelative).toString(), "--java-classpath",
-                String.join(java.io.File.pathSeparator, locClasspath)).directory(locRoot.toFile()).redirectErrorStream(true);
-        String locExistingPythonPath = System.getenv().getOrDefault("PYTHONPATH", "");
-        var locPythonPaths = new java.util.ArrayList<String>();
-        for (String locArtifact : java.util.List.of("intf", "impl")) {
-            locPythonPaths.add(locRoot.resolve("generators/code/defscodegen/" + locArtifact + "/src/product/python").toString());
+        String locPython = System.getenv().getOrDefault("MODUSTRO_PYTHON_TEST_EXECUTABLE", "");
+        if (locPython.isBlank()) throw new IllegalStateException("Modustro must provide a resolved Python test executable");
+        var locProcess = new ProcessBuilder(locPython, locSuite.toString(), "--java-classpath",
+                String.join(java.io.File.pathSeparator, locClasspath)).directory(locArtifact.toFile()).redirectErrorStream(true);
+        locProcess.environment().remove("PYTHONPATH");
+        String locExplicitPythonPath = System.getenv("MODUSTRO_PYTHON_TEST_PATH");
+        if (locExplicitPythonPath != null && !locExplicitPythonPath.isBlank()) {
+            locProcess.environment().put("PYTHONPATH", locExplicitPythonPath);
         }
-        String locPreparedDependencies = System.getenv("MODUSTRO_GENERATOR_PARITY_PYTHON_DEPENDENCIES");
-        if (locPreparedDependencies != null && !locPreparedDependencies.isBlank()) locPythonPaths.add(locPreparedDependencies);
-        if (!locExistingPythonPath.isEmpty()) locPythonPaths.add(locExistingPythonPath);
-        locProcess.environment().put("PYTHONPATH", String.join(java.io.File.pathSeparator, locPythonPaths));
-        locProcess.environment().put("PYTHONPYCACHEPREFIX", locRoot.resolve("build/run/generator-parity/pycache").toString());
+        locProcess.environment().put("PYTHONPYCACHEPREFIX", locArtifact.resolve("run/pycache").toString());
         var locStarted = locProcess.start();
         String locOutput = new String(locStarted.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         Assert.assertEquals(locStarted.waitFor(), 0, locOutput);

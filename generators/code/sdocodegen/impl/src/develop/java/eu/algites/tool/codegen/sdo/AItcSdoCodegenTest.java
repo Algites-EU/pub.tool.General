@@ -113,40 +113,6 @@ public final class AItcSdoCodegenTest {
         }
     }
 
-    /** Python implementation is exercised by the same Gradle verification task. */
-    @Test
-    public void AIcPythonImplementationAndRuntime() throws Exception {
-        Path locRoot = Path.of("").toAbsolutePath();
-        String locRelative = "generators/code/sdocodegen/impl/src/develop/python/test_sdocodegen.py";
-        while (locRoot != null && !Files.isRegularFile(locRoot.resolve(locRelative))) {
-            locRoot = locRoot.getParent();
-        }
-        if (locRoot == null) throw new IllegalStateException("Cannot locate SDO Python test suite");
-        var locPython = System.getenv().getOrDefault("ALGITES_PYTHON_EXECUTABLE", "python3");
-        var locProcess = new ProcessBuilder(locPython, "-m", "pytest", "-q",
-                locRoot.resolve(locRelative).toString()).directory(locRoot.toFile()).redirectErrorStream(true);
-        var locPaths = new java.util.ArrayList<String>();
-        for (String locArtifact : java.util.List.of("intf", "impl")) {
-            locPaths.add(locRoot.resolve("generators/code/sdocodegen/" + locArtifact + "/src/product/python").toString());
-        }
-        /* The cross-stage integration test reads Defs sources from this checkout; no production dependency is introduced. */
-        for (String locArtifact : java.util.List.of("intf", "impl")) {
-            locPaths.add(locRoot.resolve("generators/code/defscodegen/" + locArtifact + "/src/product/python").toString());
-        }
-        String locDependencies = System.getenv("MODUSTRO_SDO_PYTHON_DEPENDENCIES");
-        if (locDependencies != null && !locDependencies.isBlank()) locPaths.add(locDependencies);
-        /* The develop-only Defs generator contributes its own transitive Python runtime. */
-        String locDefsDependencies = System.getenv("MODUSTRO_DEFSCODEGEN_PYTHON_DEPENDENCIES");
-        if (locDefsDependencies != null && !locDefsDependencies.isBlank()) locPaths.add(locDefsDependencies);
-        String locPrevious = System.getenv("PYTHONPATH");
-        if (locPrevious != null && !locPrevious.isBlank()) locPaths.add(locPrevious);
-        locProcess.environment().put("PYTHONPATH", String.join(java.io.File.pathSeparator, locPaths));
-        locProcess.environment().put("PYTHONPYCACHEPREFIX", locRoot.resolve("build/run/sdo-parity/pycache").toString());
-        Process locStarted = locProcess.start();
-        String locOutput = new String(locStarted.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        Assert.assertEquals(locStarted.waitFor(), 0, locOutput);
-    }
-
     /** Reject ambiguous inherited metadata before writing any generated file. */
     @Test
     public void AIcRejectsConflictingInheritance() {

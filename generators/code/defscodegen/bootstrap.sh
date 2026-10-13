@@ -72,15 +72,21 @@ def prepareParityPython = tasks.register('prepareGeneratorParityPython', Exec) {
         '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
         '--requirement', 'pyyaml>=6,<7',
         '--requirement', 'pytest>=8,<10',
-        '--requirement', 'eu-algites-lib-data-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0']
+        '--requirement', 'eu-algites-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0']
     ['convention.intf', 'convention.impl'].each { artifact ->
-        command += ['--requirement', 'eu-algites-lib-naming-pub-lib-general-naming-' + artifact.replace('.', '-') + '>=1.1.dev0,<1.1a0']
+        command += ['--requirement', 'eu-algites-pub-lib-general-naming-' + artifact.replace('.', '-') + '>=1.1.dev0,<1.1a0']
     }
     commandLine(command)
 }
 project(':impl').tasks.withType(Test).configureEach {
     dependsOn prepareParityPython
-    environment 'MODUSTRO_GENERATOR_PARITY_PYTHON_DEPENDENCIES', parityPython.get().asFile.absolutePath
+    environment 'MODUSTRO_ARTIFACT_DIRECTORY', new File(module, 'impl').absolutePath
+    environment 'MODUSTRO_PYTHON_TEST_EXECUTABLE', System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3'
+    environment 'MODUSTRO_PYTHON_TEST_PATH', [
+        new File(module, 'intf/src/product/python').absolutePath,
+        new File(module, 'impl/src/product/python').absolutePath,
+        parityPython.get().asFile.absolutePath
+    ].join(File.pathSeparator)
 }
 GRADLE
 

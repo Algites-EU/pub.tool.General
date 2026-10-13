@@ -352,12 +352,13 @@ canonical-ID collisions, incompatible schema shapes, generated-source
 preservation on preflight failure, Java/Python type rendering and the
 separate SDO stage.
 
-Current temporary Gradle parity bridges are in `gradle/generator-parity.gradle.kts`
-and `gradle/sdocodegen-parity.gradle.kts`. The supported bootstrap entry points
-are `generators/code/defscodegen/bootstrap.sh` and
-`generators/code/sdocodegen/bootstrap.sh`. The eventual Modustro
-`SourceGenerators` descriptors are **not yet an implemented replacement** for
-these invocations; do not assume the CLI flags are already wired into Builder.
+The repository-specific Gradle parity bridges have been retired in the
+Phase-0 native Python verification preview. The Builder provides an isolated
+virtualenv from native wheels and Python subscriptions and attaches `pytest`
+to each artifact `check`; cross-language Java tests receive the same interpreter.
+This requires the matching Builder update and an enabled
+`MODUSTRO_ENABLE_NATIVE_PYTHON_TESTS` property. Standalone emergency bootstraps
+are independent of the normal Modustro verification lifecycle.
 
 The complete snapshot publish/deployment still requires running the actual
 JVM/Gradle integration tests in CI with published `pub.lib.General` 1.1-SNAPSHOT.
@@ -366,7 +367,7 @@ JVM/Gradle integration tests in CI with published `pub.lib.General` 1.1-SNAPSHOT
 ### User-defined naming variables example
 
 The `pub.lib.General` naming catalog contains a tested pair of files,
-`naming/convention/impl/src/product/resources/eu/algites/lib/naming/convention/example-input.yml`
+`naming/convention/impl/src/product/config/eu/algites/lib/naming/convention/example-input.yml`
 and `example-output.yml`. They illustrate the native YAML engine's `variable`
 segments and the nested `(?<version>(?<major>...)\.(?<minor>...))` captures.
 For example, `customer_address--eu_west--beta--2.7.demo.schema` can be

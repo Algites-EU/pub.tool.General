@@ -37,7 +37,10 @@ public final class AItcSchemaObjectBindingsTest {
         for (var output : result) Assert.assertTrue(output.get("path").contains("/example/contracts/"));
         Path intf = fixture.root.resolve("intf/src/product/python.gen");
         Path impl = fixture.root.resolve("impl/src/product/python.gen");
-        String locPython = System.getenv().getOrDefault("ALGITES_PYTHON_EXECUTABLE", "python3");
+        String locPython = System.getenv("MODUSTRO_PYTHON_TEST_EXECUTABLE");
+        if (locPython == null || locPython.isBlank()) {
+            throw new IllegalStateException("Missing isolated Python test executable from Modustro Builder");
+        }
         var process = new ProcessBuilder(locPython, "-c", """
             import inspect, dataclasses
             from example.contracts.aiig_example_1 import AIigExample_1
@@ -60,14 +63,11 @@ public final class AItcSchemaObjectBindingsTest {
             except TypeError: pass
             else: raise AssertionError('Abstract contract is constructible')
             """).inheritIO();
-        var locPythonPaths = new ArrayList<String>();
-        locPythonPaths.add(intf.toString());
-        locPythonPaths.add(impl.toString());
-        String locDependencies = System.getenv("MODUSTRO_GENERATOR_PARITY_PYTHON_DEPENDENCIES");
-        if (locDependencies != null && !locDependencies.isBlank()) locPythonPaths.add(locDependencies);
-        String locExistingPythonPath = process.environment().get("PYTHONPATH");
-        if (locExistingPythonPath != null && !locExistingPythonPath.isBlank()) locPythonPaths.add(locExistingPythonPath);
-        process.environment().put("PYTHONPATH", String.join(java.io.File.pathSeparator, locPythonPaths));
+        process.environment().remove("PYTHONPATH");
+        String locExtraPythonRoots = System.getenv("MODUSTRO_PYTHON_TEST_PATH");
+        process.environment().put("PYTHONPATH", intf + java.io.File.pathSeparator + impl +
+                (locExtraPythonRoots == null || locExtraPythonRoots.isBlank() ? "" :
+                        java.io.File.pathSeparator + locExtraPythonRoots));
         process.environment().put("PYTHONPYCACHEPREFIX", fixture.root.resolve("build/pycache").toString());
         Assert.assertEquals(process.start().waitFor(), 0);
         var compilerArguments = new ArrayList<String>();

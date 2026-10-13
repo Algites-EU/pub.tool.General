@@ -12,25 +12,25 @@ public final class AItcSchemaContractGenerationTest {
     /** Runs independent native Python generation through the same Gradle verification stage. */
     @Test
     public void AIcNativePythonContractGeneration() throws Exception {
-        Path locRoot = Path.of("").toAbsolutePath();
-        String locRelative = "generators/code/defscodegen/impl/src/develop/python/test_contract_only_generation.py";
-        while (locRoot != null && !Files.isRegularFile(locRoot.resolve(locRelative))) {
-            locRoot = locRoot.getParent();
+        String locArtifactDirectory = System.getenv("MODUSTRO_ARTIFACT_DIRECTORY");
+        if (locArtifactDirectory == null || locArtifactDirectory.isBlank()) {
+            throw new IllegalStateException("Missing Modustro artifact directory for Python contract verification");
         }
-        if (locRoot == null) throw new IllegalStateException("Missing native contract test");
-        String locPython = System.getenv().getOrDefault("ALGITES_PYTHON_EXECUTABLE", "python3");
-        var locProcess = new ProcessBuilder(locPython, "-m", "pytest", "-q",
-                locRoot.resolve(locRelative).toString()).directory(locRoot.toFile()).redirectErrorStream(true);
-        var locPythonPath = new java.util.ArrayList<String>();
-        for (String locArtifact : java.util.List.of("intf", "impl")) {
-            locPythonPath.add(locRoot.resolve("generators/code/defscodegen/" + locArtifact + "/src/product/python").toString());
+        Path locArtifact = Path.of(locArtifactDirectory).toAbsolutePath();
+        Path locSuite = locArtifact.resolve("src/develop/python/test_contract_only_generation.py");
+        if (!Files.isRegularFile(locSuite)) throw new IllegalStateException("Missing native contract test: " + locSuite);
+        String locPython = System.getenv("MODUSTRO_PYTHON_TEST_EXECUTABLE");
+        if (locPython == null || locPython.isBlank()) {
+            throw new IllegalStateException("Missing Modustro Python test executable");
         }
-        String locDependencies = System.getenv("MODUSTRO_GENERATOR_PARITY_PYTHON_DEPENDENCIES");
-        if (locDependencies != null && !locDependencies.isBlank()) locPythonPath.add(locDependencies);
-        String locPrevious = System.getenv("PYTHONPATH");
-        if (locPrevious != null && !locPrevious.isBlank()) locPythonPath.add(locPrevious);
-        locProcess.environment().put("PYTHONPATH", String.join(java.io.File.pathSeparator, locPythonPath));
-        locProcess.environment().put("PYTHONPYCACHEPREFIX", locRoot.resolve("build/run/defs-contracts/pycache").toString());
+        var locProcess = new ProcessBuilder(locPython, "-m", "pytest", "-q", locSuite.toString())
+                .directory(locArtifact.toFile()).redirectErrorStream(true);
+        locProcess.environment().remove("PYTHONPATH");
+        String locPythonTestPath = System.getenv("MODUSTRO_PYTHON_TEST_PATH");
+        if (locPythonTestPath != null && !locPythonTestPath.isBlank()) {
+            locProcess.environment().put("PYTHONPATH", locPythonTestPath);
+        }
+        locProcess.environment().put("PYTHONPYCACHEPREFIX", locArtifact.resolve("run/pycache").toString());
         var locStarted = locProcess.start();
         String locOutput = new String(locStarted.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8);

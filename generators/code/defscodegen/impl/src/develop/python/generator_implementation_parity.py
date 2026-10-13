@@ -1,7 +1,7 @@
 """Integration checks between the independent JVM and Python generator implementations.
 
-Run with --java-classpath from a checkout with the generator/naming Python packages
-installed. The Java TestNG suite invokes the same checks automatically.
+Run with --java-classpath using the Modustro-installed Python test environment.
+Java TestNG invokes this suite without cross-artifact source paths.
 """
 from __future__ import annotations
 

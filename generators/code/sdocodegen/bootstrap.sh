@@ -61,13 +61,24 @@ def prepareSdoPython = tasks.register('prepareSdoPython', Exec) {
         '--target', sdoPython.get().asFile.absolutePath,
         '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
         '--requirement', 'pytest>=8,<10',
-        '--requirement', 'eu-algites-lib-data-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0',
-        '--requirement', 'eu-algites-lib-data-pub-lib-general-data-smartdataobject-impl>=1.1.dev0,<1.1a0')
+        '--requirement', 'eu-algites-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0',
+        '--requirement', 'eu-algites-pub-lib-general-data-smartdataobject-impl>=1.1.dev0,<1.1a0',
+        '--requirement', 'eu-algites-pub-lib-general-naming-convention-impl>=1.1.dev0,<1.1a0')
 }
-project(':impl').tasks.withType(Test).configureEach {
+def runSdoPython = tasks.register('testSdoPython', Exec) {
     dependsOn prepareSdoPython
-    environment 'MODUSTRO_SDO_PYTHON_DEPENDENCIES', sdoPython.get().asFile.absolutePath
+    def python = System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3'
+    commandLine python, '-m', 'pytest', '-q', new File(module, 'impl/src/develop/python/test_sdocodegen.py').absolutePath
+    def defsModule = new File(module, '../defscodegen')
+    environment 'PYTHONPATH', [
+        new File(module, 'intf/src/product/python').absolutePath,
+        new File(module, 'impl/src/product/python').absolutePath,
+        new File(defsModule, 'intf/src/product/python').absolutePath,
+        new File(defsModule, 'impl/src/product/python').absolutePath,
+        sdoPython.get().asFile.absolutePath
+    ].join(File.pathSeparator)
 }
+project(':impl').tasks.named('test').configure { finalizedBy runSdoPython }
 GRADLE
 locGradleCommand=(bash "${locRepositoryDirectory}/gradlew")
 if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then locGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}"); fi
