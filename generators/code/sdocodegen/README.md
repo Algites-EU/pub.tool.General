@@ -49,7 +49,7 @@ owns mutable contracts and concrete implementations. Source trees under `.gen`
 are generated outputs and should never be committed or packaged as handwritten
 source archives.
 
-Use `./generators/code/sdocodegen/bootstrap.sh` to build without loading a
+Use `./generators/code/bootstrap.sh` to build without loading a
 Builder plugin that may itself depend on these generators.
 
 Batch CLI options, role-based cleanup and native Java/Python prerequisites are

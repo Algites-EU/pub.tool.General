@@ -102,9 +102,7 @@ in addition to Java TestNG, including the cross-language Defs parity wrapper.
 The old repository-specific parity Gradle scripts are no longer applied.
 
 **Rollout requirement:** first deploy the matching Builder support from
-`pub.gov.Algites`, then test this repository on the new Builder. The bundled
-standalone generator `bootstrap.sh` scripts remain a separate emergency/self-hosting
-path with explicit source roots.
+`pub.gov.Algites`, then test this repository on the new Builder. The combined standalone `generators/code/bootstrap.sh` builds both generators in independent temporary Gradle contexts and uploads all six Java Maven packages through a single `algites-cloudsmith --session` invocation. For local preparation without upload set `MODUSTRO_BOOTSTRAP_PREPARE_ONLY=1`.
 
 ## Architectural role
 
@@ -151,7 +149,7 @@ The updated Builder build conventions need the new generator API. Bootstrap and
 publish the generator before activating those conventions. With JDK 17:
 
 ```bash
-bash generators/code/defscodegen/bootstrap.sh test publishToMavenLocal
+bash generators/code/bootstrap.sh
 ./gradlew modustroBuild -Pmodustro.useMavenLocalForResolution=true
 ```
 
