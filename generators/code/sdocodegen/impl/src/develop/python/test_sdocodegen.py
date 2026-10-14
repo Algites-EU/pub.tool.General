@@ -169,3 +169,31 @@ def test_yaml_named_sdo_setter_parameter_follows_python_profile(contracts):
                                      {'algites-python-gen-data-intf-versioned'}) is not None
     assert catalog.recognize_filename(Path(generated.implementation.relative_path).name,
                                      {'algites-python-gen-data-class-versioned'}) is not None
+
+
+def test_generated_smartdo_policy_on_interface_and_getter(tmp_path, monkeypatch):
+    import importlib
+    package = 'policy_contracts'
+    folder = tmp_path / package
+    folder.mkdir()
+    (folder / '__init__.py').write_text('')
+    (folder / 'aiig_policy.py').write_text(
+        "from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\n"
+        "from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\n"
+        "from eu.algites.lib.data.smartdataobject.smart_data_object_policy import smart_data_object, smart_data_object_field\n"
+        "@smart_data_object(allow_non_present_read=True)\n"
+        "class AIigPolicy(AIiDataObject):\n"
+        "    __data_object_fields__ = (AIcdDataObjectField('Soft', presence_required=True, getter_name='getSoft'), AIcdDataObjectField('Strict', presence_required=True, getter_name='getStrict'))\n"
+        "    def getSoft(self): raise NotImplementedError\n"
+        "    @smart_data_object_field(allow_non_present_read=False)\n"
+        "    def getStrict(self): raise NotImplementedError\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    read_contract = importlib.import_module(package + '.aiig_policy').AIigPolicy
+    emit(AIcSdoCodegenService().generate(read_contract), tmp_path)
+    generated = importlib.import_module(package + '.aicgd_policy').AIcgdPolicy()
+    assert generated.getSoft() is None
+    assert generated.get_Soft() is None
+    assert not generated.isPresent_Soft()
+    assert not generated.is_ByRawValuesValid()
+    with pytest.raises(ValueError, match='Required property is absent'):
+        generated.getStrict()

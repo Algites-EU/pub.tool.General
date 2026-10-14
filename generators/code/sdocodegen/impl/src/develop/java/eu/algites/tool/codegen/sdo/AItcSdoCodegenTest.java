@@ -158,4 +158,47 @@ public final class AItcSdoCodegenTest {
         Assert.assertTrue(locResult.implementation().source().contains("setName(java.lang.String aName)"));
     }
 
+    /** Generated Java SmartDOs honor interface defaults and explicit getter overrides. */
+    @AIaDataObject(id = "test:read-policy", version = 1)
+    @eu.algites.lib.data.smartdataobject.AIaSmartDataObject(allowNonPresentRead = true)
+    public interface AIigReadPolicy extends AIiDataObject {
+        @AIaDataObjectField(name = "Soft", presenceRequired = true)
+        String getSoft();
+
+        @AIaDataObjectField(name = "Strict", presenceRequired = true)
+        @eu.algites.lib.data.smartdataobject.AIaSmartDataObjectField(allowNonPresentRead = false)
+        String getStrict();
+    }
+
+    @Test
+    public void AIcGeneratedJavaHonorsSmartReadPolicy() throws Exception {
+        var locGenerated = new AIcSdoCodegenService().generate(AIigReadPolicy.class, "d");
+        Path locRoot = Files.createTempDirectory("sdo-policy-java-");
+        Path locClasses = Files.createDirectory(locRoot.resolve("classes"));
+        var locFiles = new java.util.ArrayList<String>();
+        for (var locUnit : java.util.List.of(locGenerated.mutableInterface(), locGenerated.implementation())) {
+            Path locFile = locRoot.resolve(locUnit.relativePath());
+            Files.createDirectories(locFile.getParent());
+            Files.writeString(locFile, locUnit.source());
+            locFiles.add(locFile.toString());
+        }
+        var locArgs = new java.util.ArrayList<>(java.util.List.of(
+                "-cp", System.getProperty("java.class.path"), "-d", locClasses.toString()));
+        locArgs.addAll(locFiles);
+        Assert.assertEquals(ToolProvider.getSystemJavaCompiler().run(null, null, null,
+                locArgs.toArray(String[]::new)), 0);
+        try (var locLoader = new URLClassLoader(new java.net.URL[] {locClasses.toUri().toURL()},
+                getClass().getClassLoader())) {
+            var locType = locLoader.loadClass("eu.algites.tool.codegen.sdo.AIcgdReadPolicy");
+            var locInstance = locType.getConstructor().newInstance();
+            Assert.assertNull(locType.getMethod("getSoft").invoke(locInstance));
+            Assert.assertNull(locType.getMethod("get_Soft").invoke(locInstance));
+            Assert.assertEquals(locType.getMethod("isPresent_Soft").invoke(locInstance), false);
+            Assert.assertEquals(locType.getMethod("is_ByRawValuesValid").invoke(locInstance), false);
+            var locException = Assert.expectThrows(InvocationTargetException.class,
+                    () -> locType.getMethod("getStrict").invoke(locInstance));
+            Assert.assertTrue(locException.getCause() instanceof IllegalStateException);
+        }
+    }
+
 }
