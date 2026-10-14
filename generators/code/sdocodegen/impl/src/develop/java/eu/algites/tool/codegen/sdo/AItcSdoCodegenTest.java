@@ -201,4 +201,17 @@ public final class AItcSdoCodegenTest {
         }
     }
 
+    @AIaDataObject(id = "test:inferred-name", version = 1)
+    public interface AIigInferredName extends AIiDataObject {
+        @AIaDataObjectField(presenceRequired = true)
+        String getInferred();
+    }
+
+    @Test
+    public void AIcInfersOmittedFieldNameFromGetter() {
+        var locGenerated = new AIcSdoCodegenService().generate(AIigInferredName.class, "d");
+        Assert.assertTrue(locGenerated.implementation().source().contains("get_EffectiveField(\"Inferred\")"));
+        Assert.assertTrue(locGenerated.implementation().source().contains("set_RawField(\"Inferred\""));
+    }
+
 }

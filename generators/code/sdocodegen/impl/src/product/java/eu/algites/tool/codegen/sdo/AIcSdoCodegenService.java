@@ -65,7 +65,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 + "    public " + locConcrete + "() { super(); }\n");
         for (var locField : locOwn.values()) {
             Method locGetter = locField.method();
-            String locName = locField.field().name();
+            String locName = fieldName(locField.method(), locField.field());
             String locType = mutableValueType(locGetter, locMarker, aInputNames, aMutableNames, aConcreteNames);
             String locSuffix = suffix(locGetter.getName());
             String locParameter = aMutableNames == null ? "a" + locSuffix
@@ -142,13 +142,17 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     || aMethod.getReturnType() == void.class) {
                 throw new IllegalArgumentException("Annotated method is not a value getter: " + aMethod);
             }
-            AIcdGetter locPrevious = locResult.putIfAbsent(locAnnotation.name(), new AIcdGetter(aMethod, locAnnotation));
+            AIcdGetter locPrevious = locResult.putIfAbsent(fieldName(aMethod, locAnnotation), new AIcdGetter(aMethod, locAnnotation));
             if (locPrevious != null && (!locPrevious.method().getGenericReturnType()
                     .equals(aMethod.getGenericReturnType()) || !locPrevious.field().equals(locAnnotation))) {
-                throw new IllegalArgumentException("Conflicting inherited field: " + locAnnotation.name());
+                throw new IllegalArgumentException("Conflicting inherited field: " + fieldName(aMethod, locAnnotation));
             }
         });
         return locResult;
+    }
+
+    private static String fieldName(Method aGetter, AIaDataObjectField aField) {
+        return aField.name().isBlank() ? suffix(aGetter.getName()) : aField.name();
     }
 
     private static String typeName(Class<?> aContract, String aMarker, boolean aMutable,
