@@ -195,5 +195,6 @@
     "boundedInteger",
     "boundedDecimal"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "x-algites-schema-version": 1
 }

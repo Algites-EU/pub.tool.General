@@ -10,16 +10,17 @@ from inspect import isclass
 from typing import get_type_hints, get_args, get_origin, Union
 from types import UnionType
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
+from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from eu.algites.tool.codegen.sdo.aicd_generated_sdo_source import AIcdGeneratedSdoSource
 from eu.algites.tool.codegen.sdo.aicd_sdo_generation_result import AIcdSdoGenerationResult
 from eu.algites.tool.codegen.sdo.aii_sdo_codegen_service import AIiSdoCodegenService
 
 
 class AIcSdoCodegenService(AIiSdoCodegenService):
-    """Turn any importable AIig contract into a mutable interface and implementation."""
+    """Generate SDOs from annotated AIig or handwritten AIi read-only contracts."""
 
     def generate(self, read_contract: type, marker: str = 'd', naming=None) -> AIcdSdoGenerationResult:
-        if not isclass(read_contract) or not issubclass(read_contract, AIiDataObject) or not read_contract.__name__.startswith('AIig'):
+        if not isclass(read_contract) or not issubclass(read_contract, AIiDataObject) or not read_contract.__name__.startswith(('AIig', 'AIi')) or read_contract is AIiDataObject:
             raise ValueError('Read contract must be an AIig subclass of AIiDataObject')
         if not re.fullmatch(r'[a-z][a-z0-9]*', marker):
             raise ValueError(f'Invalid mutable implementation marker: {marker!r}')
@@ -35,20 +36,21 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 all_fields[field.name] = field
         if len({f.name for f in fields}) != len(fields):
             raise ValueError('Duplicate field in read contract')
-        parents = [c for c in read_contract.__bases__ if c.__name__.startswith('AIig') and issubclass(c, AIiDataObject)]
+        parents = [c for c in read_contract.__bases__ if c is not AIiDataObject and c.__name__.startswith(('AIig', 'AIi')) and issubclass(c, AIiDataObject)]
+        parent = parents[0] if len(parents) == 1 else None
         if len(parents) > 1:
-            raise ValueError('Multiple read-contract parents need an explicit conflict policy')
-        parent = parents[0] if parents else None
+            fields = tuple(all_fields.values())
         input_role = 'algites-python-gen-intf-versioned'
         mutable_role = 'algites-python-gen-data-intf-versioned'
         concrete_role = 'algites-python-gen-data-class-versioned'
 
         def names_for(contract):
             if naming is None:
-                tail = contract.__name__[4:]
+                tail = contract.__name__[4 if contract.__name__.startswith('AIig') else 3:]
                 return 'AIig' + marker + tail, 'AIcg' + marker + tail
             input_cat, mutable_cat, concrete_cat = naming
-            values = input_cat.parse(input_role, 'main_container_name', contract.__name__)
+            read_name = contract.__name__ if contract.__name__.startswith('AIig') else 'AIig' + contract.__name__[3:]
+            values = input_cat.parse(input_role, 'main_container_name', read_name)
             return (mutable_cat.format(mutable_role, 'main_container_name', values, 'upper_camel_case'),
                     concrete_cat.format(concrete_role, 'main_container_name', values, 'upper_camel_case'))
 
@@ -87,7 +89,14 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             'from __future__ import annotations',
             f'from {package}.{stem_for(mutable_name, True)} import {mutable_name}',
             'from eu.algites.lib.data.smartdataobject.aic_smart_data_object import AIcSmartDataObject']
-        if parent is not None:
+        if len(parents) > 1:
+            mutable_bases = read_contract.__name__ + ', ' + ', '.join(names_for(p)[0] for p in parents) + ', AIiSmartDataObject'
+            concrete_base = 'AIcSmartDataObject'
+            for inherited in parents:
+                parent_mut, _ = names_for(inherited)
+                parent_pkg = inherited.__module__.rsplit('.', 1)[0]
+                mutable_lines.append(f'from {parent_pkg}.{stem_for(parent_mut, True)} import {parent_mut}')
+        elif parent is not None:
             parent_mut, parent_impl = names_for(parent)
             parent_pkg = parent.__module__.rsplit('.', 1)[0]
             mutable_lines.append(f'from {parent_pkg}.{stem_for(parent_mut, True)} import {parent_mut}')
@@ -97,7 +106,34 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         else:
             mutable_bases = f'{read_contract.__name__}, AIiSmartDataObject'
             concrete_base = 'AIcSmartDataObject'
+        import re as _re
+        inherited_definition = getattr(read_contract, '__data_object__', None)
+        schema_id = getattr(inherited_definition, 'schema_id', '') if inherited_definition else ''
+        schema_version = getattr(inherited_definition, 'schema_version', -1) if inherited_definition else -1
+        parsed = _re.fullmatch(r'AIi(?:g)?(.+?)(?:_([1-9][0-9]*))?', read_contract.__name__)
+        if not schema_id:
+            if not parsed:
+                raise ValueError('Cannot derive SchemaId from contract name')
+            if naming is not None:
+                read_name = read_contract.__name__ if read_contract.__name__.startswith('AIig') else 'AIig' + read_contract.__name__[3:]
+                details = naming[0].parse(input_role, 'main_container_name', read_name)
+                logical = naming[0].convert_identifier(details['identifier'],
+                    'upper_camel_case', 'lower_kebab_case')
+            else:
+                logical = _re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', parsed.group(1)).lower()
+            schema_id = read_contract.__module__.rsplit('.', 1)[0] + '.' + logical
+        if schema_version < 0:
+            if not parsed or parsed.group(2) is None:
+                raise ValueError('SchemaVersion is required for an unversioned handwritten AIig')
+            schema_version = int(parsed.group(2))
+        inherited = inherited_definition or AIcdDataObject()
+        annotation = (f'AIcdDataObject(schema_id={schema_id!r}, schema_version={schema_version}, '
+            f'title={inherited.title!r}, description={inherited.description!r}, schema_url={inherited.schema_url!r}, '
+            f'xml_local_name={inherited.xml_local_name!r}, xml_namespace={inherited.xml_namespace!r}, '
+            f'fingerprint={inherited.fingerprint!r})')
+        mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject')
         mutable_lines.extend(['', '', f'class {mutable_name}({mutable_bases}):',
+                              f'    __data_object__ = {annotation}', 
                               '    """Presence-aware setters, raw getters and unsetters."""'])
         concrete_lines.extend(['', '', f'class {concrete_name}({concrete_base}, {mutable_name}):',
                                '    """Generated implementation; inherited fields use parent behavior."""'])
@@ -145,11 +181,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             *['    ' + item for item in sorted(set(mutable_imports))]] if mutable_imports else []
         concrete_lines[2:2] = ['from typing import TYPE_CHECKING', '', 'if TYPE_CHECKING:',
             *['    ' + item for item in sorted(set(concrete_imports))]] if concrete_imports else []
-        definition = getattr(read_contract, '__data_object__', None)
-        source_id = getattr(definition, 'id', '')
-        source_version = getattr(definition, 'version', None)
-        if source_version == -1:
-            source_version = None
+        source_id = schema_id
+        source_version = schema_version
         mutable_module = package + '.' + stem_for(mutable_name, True)
         concrete_module = package + '.' + stem_for(concrete_name, False)
         return AIcdSdoGenerationResult(

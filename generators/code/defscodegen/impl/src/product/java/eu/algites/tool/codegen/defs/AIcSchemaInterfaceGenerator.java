@@ -47,9 +47,9 @@ public final class AIcSchemaInterfaceGenerator {
                 helpers = dto.source().substring(dto.source().indexOf("from dataclasses import dataclass"), dto.source().indexOf("\ndef _ai_convert"));
             }
             StringBuilder metadata = new StringBuilder();
-            metadata.append("    __data_object__ = AIcdDataObject(id=")
+            metadata.append("    __data_object__ = AIcdDataObject(schema_id=")
                     .append(AIcScalarGeneration.jquote(request.definition().identity()))
-                    .append(", version=")
+                    .append(", schema_version=")
                     .append(request.definition().version() == null ? -1 : request.definition().version())
                     .append(", description=")
                     .append(AIcScalarGeneration.jquote(request.definition().description() == null ? "" : request.definition().description()))
@@ -108,9 +108,9 @@ public final class AIcSchemaInterfaceGenerator {
         }
         List<String> rows = new ArrayList<>();
         rows.add("package " + request.packageName() + ";\n\n/** Generated schema contract. Do not edit manually. */");
-        rows.add("@eu.algites.lib.data.dataobject.AIaDataObject(id = "
+        rows.add("@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = "
                 + AIcScalarGeneration.jquote(request.definition().identity())
-                + ", version = " + (request.definition().version() == null ? -1 : request.definition().version())
+                + ", schemaVersion = " + (request.definition().version() == null ? -1 : request.definition().version())
                 + ", description = " + AIcScalarGeneration.jquote(request.definition().description() == null ? "" : request.definition().description()) + ")");
         rows.add("public interface " + interfaceName + " extends eu.algites.lib.data.dataobject.AIiDataObject {");
         rows.add("    String CANONICAL_SOURCE_ID = " + AIcScalarGeneration.jquote(request.definition().identity()) + ";");

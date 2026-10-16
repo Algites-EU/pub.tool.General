@@ -5,7 +5,7 @@ from eu.algites.tool.codegen.sdo.aic_sdo_codegen_service import AIcSdoCodegenSer
 
 
 class AIigEmpty(AIiDataObject):
-    __data_object__ = AIcdDataObject(id='unit.empty', version=1)
+    __data_object__ = AIcdDataObject(schema_id='unit.empty', schema_version=1)
     __data_object_fields__ = ()
 
 

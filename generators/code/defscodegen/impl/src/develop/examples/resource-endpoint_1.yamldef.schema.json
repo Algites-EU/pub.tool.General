@@ -22,5 +22,8 @@
     "Id",
     "Action"
   ],
-  "description": "Example canonical object definition for a resource endpoint."
+  "description": "Example canonical object definition for a resource endpoint.",
+  "$id": "urn:algites:development:resource-endpoint_1.yamldef",
+  "x-algites-schema-id": "example.resource-endpoint",
+  "x-algites-schema-version": 1
 }

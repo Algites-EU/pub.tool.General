@@ -17,5 +17,6 @@
       "const": "complete",
       "description": "Work is complete."
     }
-  ]
+  ],
+  "x-algites-schema-version": 1
 }

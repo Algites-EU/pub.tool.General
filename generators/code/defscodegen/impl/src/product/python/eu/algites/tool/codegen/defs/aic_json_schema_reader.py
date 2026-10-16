@@ -32,7 +32,7 @@ class AIcJsonSchemaReader:
         explicit_version = root.get(version_extension) if isinstance(root.get(version_extension), int) else None
         parsed = self.identities.from_file(request, explicit_version)
         logical_name = str(root.get(name_extension) or parsed.logical_name)
-        identity = str(root.get(id_extension) or root.get("$id") or parsed.logical_name)
+        identity = str(root.get("x-algites-schema-id") or root.get(id_extension) or root.get("$id") or parsed.logical_name)
         version = explicit_version if explicit_version is not None else parsed.version
         description = root.get("description") if isinstance(root.get("description"), str) else None
         root = self._structural(root, request, set())

@@ -6,6 +6,8 @@ import eu.algites.lib.naming.convention.AIcNameConventionCatalog;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.regex.Pattern;
+import eu.algites.lib.data.dataobject.AIaDataObject;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,38 +32,75 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             throw new IllegalArgumentException("Invalid implementation marker: " + locMarker);
         }
         if (!aReadContract.isInterface() || !AIiDataObject.class.isAssignableFrom(aReadContract)
-                || !aReadContract.getSimpleName().startsWith("AIig")) {
-            throw new IllegalArgumentException("Expected AIig extending AIiDataObject: " + aReadContract);
+                || !isReadContract(aReadContract)) {
+            throw new IllegalArgumentException("Expected AIi/AIig extending AIiDataObject: " + aReadContract);
         }
         var locParents = Arrays.stream(aReadContract.getInterfaces())
-                .filter(aClass -> aClass.getSimpleName().startsWith("AIig")
-                        && AIiDataObject.class.isAssignableFrom(aClass)).toList();
-        if (locParents.size() > 1) {
-            throw new IllegalArgumentException("Multiple inherited AIig contracts require an explicit conflict policy");
-        }
+                .filter(AIcSdoCodegenService::isReadContract).toList();
         Class<?> locParent = locParents.isEmpty() ? null : locParents.get(0);
         LinkedHashMap<String, AIcdGetter> locOwn = fields(aReadContract.getDeclaredMethods());
         LinkedHashMap<String, AIcdGetter> locAll = inheritedFields(aReadContract);
+        /* A multiply inherited contract cannot extend both concrete parent classes.
+         * Flatten its fields into a single concrete SDO while implementing every
+         * inherited mutable interface and keeping the original read-only diamond.
+         */
+        if (locParents.size() > 1) locOwn = locAll;
         String locPackage = aReadContract.getPackageName();
-        String locTail = aReadContract.getSimpleName().substring(4);
+        AIaDataObject locSourceAnnotation = aReadContract.getDeclaredAnnotation(AIaDataObject.class);
+        String locSchemaId = locSourceAnnotation == null ? "" : locSourceAnnotation.schemaId();
+        int locSchemaVersion = locSourceAnnotation == null ? -1 : locSourceAnnotation.schemaVersion();
+        var locParsedIdentity = Pattern.compile("^AIi(?:g)?(.+?)(?:_([1-9][0-9]*))?$")
+                .matcher(aReadContract.getSimpleName());
+        if (!locParsedIdentity.matches()) throw new IllegalArgumentException("Invalid AIig name");
+        if (locSchemaId.isBlank()) {
+            String locLogicalName = aInputNames == null
+                    ? locParsedIdentity.group(1)
+                        .replaceAll("([a-z0-9])([A-Z])", "$1-$2").toLowerCase(java.util.Locale.ROOT)
+                    : AIcNameConventionCatalog.convertIdentifier(
+                        aInputNames.parse("algites-java-gen-intf-versioned", "main_container_name",
+                                normalizedReadName(aReadContract)).get("identifier"),
+                        "upper_camel_case", "lower_kebab_case");
+            locSchemaId = locPackage + "." + locLogicalName;
+        }
+        if (locSchemaVersion < 0) {
+            if (locParsedIdentity.group(2) == null)
+                throw new IllegalArgumentException("Missing SchemaVersion on handwritten AIig: " + aReadContract
+                        + "; supply schemaVersion or use a versioned AIig name");
+            locSchemaVersion = Integer.parseInt(locParsedIdentity.group(2));
+        }
+        String locAnnotationLiteral = "@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = \""
+                + escape(locSchemaId) + "\", schemaVersion = " + locSchemaVersion
+                + ", schemaUrl = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.schemaUrl()) + "\""
+                + ", title = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.title())
+                + "\", description = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.description())
+                + "\", xmlLocalName = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.xmlLocalName())
+                + "\", xmlNamespace = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.xmlNamespace())
+                + "\", fingerprint = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.fingerprint())
+                + "\")\n";
         String locMutable = typeName(aReadContract, locMarker, true, aInputNames, aMutableNames, aConcreteNames);
         String locConcrete = typeName(aReadContract, locMarker, false, aInputNames, aMutableNames, aConcreteNames);
-        String locMutableParent = locParent == null ? null
-                : qualifiedName(locParent, typeName(locParent, locMarker, true, aInputNames, aMutableNames, aConcreteNames));
-        String locConcreteParent = locParent == null
+        String locMutableParents = locParents.stream()
+                .map(aParent -> qualifiedName(aParent, typeName(aParent, locMarker, true,
+                        aInputNames, aMutableNames, aConcreteNames)))
+                .reduce("", (aLeft, aRight) -> aLeft + ", " + aRight);
+        String locConcreteParent = locParent == null || locParents.size() > 1
                 ? "eu.algites.lib.data.smartdataobject.AIcSmartDataObject"
                 : qualifiedName(locParent, typeName(locParent, locMarker, false, aInputNames, aMutableNames, aConcreteNames));
         StringBuilder locInterface = new StringBuilder("package " + locPackage + ";\n\n"
                 + "/** Generated mutable contract derived from " + aReadContract.getSimpleName() + ". */\n"
+                + locAnnotationLiteral
                 + "public interface " + locMutable + " extends " + aReadContract.getCanonicalName()
-                + (locMutableParent == null ? "" : ", " + locMutableParent)
+                + locMutableParents
                 + ", eu.algites.lib.data.smartdataobject.AIiSmartDataObject {\n");
         StringBuilder locImplementation = new StringBuilder("package " + locPackage + ";\n\n"
                 + "/** Generated mutable implementation of " + aReadContract.getSimpleName() + ". */\n"
                 + "public class " + locConcrete + " extends " + locConcreteParent
                 + " implements " + locMutable + " {\n"
                 + "    /** Create an object whose raw fields are initially absent. */\n"
-                + "    public " + locConcrete + "() { super(); }\n");
+                + "    public " + locConcrete + "() { super(); }\n"
+                + "    /** Reconstruct an identity-preserving typed SmartDataObject graph. */\n"
+                + "    public " + locConcrete
+                + "(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }\n");
         for (var locField : locOwn.values()) {
             Method locGetter = locField.method();
             String locName = fieldName(locField.method(), locField.field());
@@ -76,7 +115,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             String locLiteral = "\"" + escape(locName) + "\"";
             String locBoxed = boxed(locGetter.getReturnType(), locType);
             if (AIiDataObject.class.isAssignableFrom(locGetter.getReturnType())
-                    && locGetter.getReturnType().getSimpleName().startsWith("AIig")) {
+                    && isReadContract(locGetter.getReturnType())) {
                 locInterface.append("    @Override ").append(locType).append(' ')
                         .append(locGetter.getName()).append("();\n");
             }
@@ -102,9 +141,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         locInterface.append("}\n");
         locImplementation.append("}\n");
         String locPath = locPackage.replace('.', '/') + "/";
-        var locMetadata = aReadContract.getAnnotation(eu.algites.lib.data.dataobject.AIaDataObject.class);
-        String locSourceId = locMetadata == null ? "" : locMetadata.id();
-        Integer locSourceVersion = locMetadata == null || locMetadata.version() < 0 ? null : locMetadata.version();
+        String locSourceId = locSchemaId;
+        Integer locSourceVersion = locSchemaVersion;
         return new AIcdSdoGenerationResult(
                 new AIcdGeneratedSdoSource(locMutable, locPath
                         + fileName(locMutable, true, aMutableNames, aConcreteNames), locInterface.toString(),
@@ -114,6 +152,19 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                         + fileName(locConcrete, false, aMutableNames, aConcreteNames), locImplementation.toString(),
                         locPackage, locPackage, locPackage + "." + locConcrete,
                         "SMART_DATA_OBJECT_TYPE", locSourceId, locSourceVersion));
+    }
+
+    /** Handwritten AIi and generated AIig contracts share the same naming suffix. */
+    private static boolean isReadContract(Class<?> aClass) {
+        return aClass.isInterface() && aClass != AIiDataObject.class
+                && AIiDataObject.class.isAssignableFrom(aClass)
+                && (aClass.getSimpleName().startsWith("AIig") || aClass.getSimpleName().startsWith("AIi"));
+    }
+
+    /** A selected General naming profile expects the generated-interface role prefix. */
+    private static String normalizedReadName(Class<?> aClass) {
+        String locName = aClass.getSimpleName();
+        return locName.startsWith("AIig") ? locName : "AIig" + locName.substring(3);
     }
 
     /** Collect the complete inherited contract tree, detecting incompatible redeclarations. */
@@ -165,9 +216,9 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableCatalog,
             AIcNameConventionCatalog aConcreteCatalog) {
         if (aInput == null || aMutableCatalog == null || aConcreteCatalog == null)
-            return (aMutable ? "AIig" : "AIcg") + aMarker + aContract.getSimpleName().substring(4);
+            return (aMutable ? "AIig" : "AIcg") + aMarker + aContract.getSimpleName().substring(aContract.getSimpleName().startsWith("AIig") ? 4 : 3);
         var locVars = aInput.parse("algites-java-gen-intf-versioned", "main_container_name",
-                aContract.getSimpleName());
+                normalizedReadName(aContract));
         AIcNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
         return locTarget.format(aMutable ? "algites-java-gen-data-intf-versioned"
                 : "algites-java-gen-data-class-versioned", "main_container_name", locVars, "upper_camel_case");
@@ -188,8 +239,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableNames,
             AIcNameConventionCatalog aConcreteNames) {
         Class<?> locReturn = aGetter.getReturnType();
-        if (locReturn.isInterface() && locReturn.getSimpleName().startsWith("AIig")
-                && AIiDataObject.class.isAssignableFrom(locReturn)) {
+        if (isReadContract(locReturn)) {
             return qualifiedName(locReturn, typeName(locReturn, aMarker, true,
                     aInput, aMutableNames, aConcreteNames));
         }

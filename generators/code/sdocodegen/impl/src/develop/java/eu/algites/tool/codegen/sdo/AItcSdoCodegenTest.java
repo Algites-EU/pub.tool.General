@@ -14,13 +14,13 @@ import org.testng.annotations.Test;
 /** Independent JVM tests of the schema-free generated SmartDataObject hierarchy. */
 public final class AItcSdoCodegenTest {
     /** Handwritten read-only base contract. */
-    @AIaDataObject(id = "test:parent", version = 1)
+    @AIaDataObject(schemaId = "test:parent", schemaVersion = 1)
     public interface AIigParent extends AIiDataObject {
         @AIaDataObjectField(name = "Name", presenceRequired = true)
         String getName();
     }
     /** Handwritten derived contract; parent metadata must remain visible. */
-    @AIaDataObject(id = "test:child", version = 1)
+    @AIaDataObject(schemaId = "test:child", schemaVersion = 1)
     public interface AIigChild extends AIigParent {
         @AIaDataObjectField(name = "Count", presenceRequired = true)
         Integer getCount();
@@ -66,7 +66,7 @@ public final class AItcSdoCodegenTest {
     }
 
     /** A nested read contract is exposed covariantly as a mutable SDO contract. */
-    @AIaDataObject(id = "test:container", version = 1)
+    @AIaDataObject(schemaId = "test:container", schemaVersion = 1)
     public interface AIigContainer extends AIiDataObject {
         @AIaDataObjectField(name = "Child", presenceRequired = true)
         AIigChild getChild();
@@ -138,7 +138,7 @@ public final class AItcSdoCodegenTest {
     }
 
     /** The YAML-backed Java generation uses the selected interface/class and parameter naming conventions. */
-    @AIaDataObject(id = "test:catalog-customer", version = 1)
+    @AIaDataObject(schemaId = "test:catalog-customer", schemaVersion = 1)
     public interface AIigCatalogCustomer_1 extends AIiDataObject {
         @AIaDataObjectField(name = "Name", presenceRequired = true)
         String getName();
@@ -159,7 +159,7 @@ public final class AItcSdoCodegenTest {
     }
 
     /** Generated Java SmartDOs honor interface defaults and explicit getter overrides. */
-    @AIaDataObject(id = "test:read-policy", version = 1)
+    @AIaDataObject(schemaId = "test:read-policy", schemaVersion = 1)
     @eu.algites.lib.data.smartdataobject.AIaSmartDataObject(allowNonPresentRead = true)
     public interface AIigReadPolicy extends AIiDataObject {
         @AIaDataObjectField(name = "Soft", presenceRequired = true)
@@ -201,7 +201,7 @@ public final class AItcSdoCodegenTest {
         }
     }
 
-    @AIaDataObject(id = "test:inferred-name", version = 1)
+    @AIaDataObject(schemaId = "test:inferred-name", schemaVersion = 1)
     public interface AIigInferredName extends AIiDataObject {
         @AIaDataObjectField(presenceRequired = true)
         String getInferred();

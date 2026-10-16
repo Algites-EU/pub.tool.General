@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.jsondef.schema.json",
+  "x-algites-schema-id": "eu.algites.tool.codegen.defs.schema-field-bindings",
+  "x-algites-schema-version": 1,
+  "title": "Algites Schema Field Bindings",
+  "description": "Generator instructions identifying canonical JSON Schema resources and optional field-binding projections.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.jsondef.schema.json"
+    },
+    "artifact": {
+      "type": "string",
+      "minLength": 1
+    },
+    "implementation_artifact": {
+      "type": "string",
+      "minLength": 1
+    },
+    "languages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "java",
+          "python"
+        ]
+      }
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pointer": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "common_one_of_fields": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "schema"
+        ]
+      }
+    }
+  },
+  "required": [
+    "artifact",
+    "languages",
+    "bindings"
+  ]
+}

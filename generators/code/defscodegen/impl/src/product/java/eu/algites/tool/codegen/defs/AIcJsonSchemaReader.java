@@ -35,7 +35,10 @@ final class AIcJsonSchemaReader {
         AIcdParsedVersionedName parsed = identities.fromFileName(request, explicitVersion);
         String logicalName = text(root, nameExtension);
         if (logicalName == null || logicalName.isBlank()) logicalName = parsed.logicalName();
-        String identity = text(root, idExtension);
+        /* Algites logical SchemaId must never be reconstructed from JSON Schema $id,
+         * which is a URI resource identifier and may be the published SchemaUrl. */
+        String identity = text(root, "x-algites-schema-id");
+        if (identity == null || identity.isBlank()) identity = text(root, idExtension);
         if (identity == null || identity.isBlank()) identity = text(root, "$id");
         if (identity == null || identity.isBlank()) identity = parsed.logicalName();
         Integer version = explicitVersion != null ? explicitVersion : parsed.version();

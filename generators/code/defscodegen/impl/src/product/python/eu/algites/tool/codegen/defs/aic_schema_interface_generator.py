@@ -32,8 +32,8 @@ class AIcSchemaInterfaceGenerator:
     def _metadata(self, request) -> str:
         """Metadata is derived exclusively from normalized canonical definitions."""
         model = request.definition
-        result = ('    __data_object__ = AIcdDataObject(id=' + repr(model.identity)
-            + ', version=' + str(model.version if model.version is not None else -1)
+        result = ('    __data_object__ = AIcdDataObject(schema_id=' + repr(model.identity)
+            + ', schema_version=' + str(model.version if model.version is not None else -1)
             + ', description=' + repr(model.description or '') + ')\n')
         result += '    __data_object_fields__ = (\n'
         for prop in model.properties:
@@ -118,7 +118,7 @@ class AIcSchemaInterfaceGenerator:
                 AIcdGeneratedSource(dto.type_name, dto.relative_path, implementation, dto.generated_types))
 
         rows = [f'package {request.package_name};\n\n/** Generated schema contract. Do not edit manually. */',
-            f'@eu.algites.lib.data.dataobject.AIaDataObject(id = {_java_quote(request.definition.identity)}, version = {_java_integer(request.definition.version) if request.definition.version is not None else -1}, description = {_java_quote(request.definition.description or "")})',
+            f'@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = {_java_quote(request.definition.identity)}, schemaVersion = {_java_integer(request.definition.version) if request.definition.version is not None else -1}, description = {_java_quote(request.definition.description or "")})',
             f'public interface {interface} extends eu.algites.lib.data.dataobject.AIiDataObject {{',
             f'    String CANONICAL_SOURCE_ID = {_java_quote(request.definition.identity)};',
             f'    Integer CANONICAL_SOURCE_VERSION = {_java_integer(request.definition.version)};',

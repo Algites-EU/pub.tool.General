@@ -11,5 +11,6 @@
       "format": "uri",
       "description": "Optional absolute URI of the schema describing this root document."
     }
-  }
+  },
+  "x-algites-schema-version": 1
 }

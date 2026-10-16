@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from eu.algites.tool.codegen.sdo.aic_sdo_codegen_service import AIcSdoCodegenService
+from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 
 
 @pytest.fixture
@@ -13,8 +14,8 @@ def contracts(tmp_path, monkeypatch):
     loc = tmp_path / package
     loc.mkdir()
     (loc / '__init__.py').write_text('')
-    (loc / 'aiig_parent.py').write_text("from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\nfrom eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\nclass AIigParent(AIiDataObject):\n    __data_object_fields__ = (AIcdDataObjectField('Name', presence_required=True, getter_name='getName'),)\n    def getName(self): raise NotImplementedError\n")
-    (loc / 'aiig_child.py').write_text("from .aiig_parent import AIigParent\nfrom eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\nclass AIigChild(AIigParent):\n    __data_object_fields__ = (AIcdDataObjectField('Amount', getter_name='getAmount'),)\n    def getAmount(self): raise NotImplementedError\n")
+    (loc / 'aiig_parent.py').write_text("from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\nfrom eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\nfrom eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\nclass AIigParent(AIiDataObject):\n    __data_object__ = AIcdDataObject(schema_id='tests.parent', schema_version=1)\n    __data_object_fields__ = (AIcdDataObjectField('Name', presence_required=True, getter_name='getName'),)\n    def getName(self): raise NotImplementedError\n")
+    (loc / 'aiig_child.py').write_text("from .aiig_parent import AIigParent\nfrom eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\nfrom eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\nclass AIigChild(AIigParent):\n    __data_object__ = AIcdDataObject(schema_id='tests.child', schema_version=1)\n    __data_object_fields__ = (AIcdDataObjectField('Amount', getter_name='getAmount'),)\n    def getAmount(self): raise NotImplementedError\n")
     monkeypatch.syspath_prepend(str(tmp_path))
     return tmp_path, importlib.import_module(package + '.aiig_parent').AIigParent, importlib.import_module(package + '.aiig_child').AIigChild
 
@@ -82,6 +83,7 @@ def test_nested_data_object_getter_is_covariant(contracts):
     class AIigContainer(parent.__bases__[0]):
         __data_object_fields__ = (AIcdDataObjectField('Child', getter_name='getChild'),)
         def getChild(self) -> child: raise NotImplementedError
+    AIigContainer.__data_object__ = AIcdDataObject(schema_id='tests.container', schema_version=1)
     AIigContainer.__module__ = parent.__module__
     setattr(module, 'AIigContainer', AIigContainer)
     generator=AIcSdoCodegenService()
@@ -147,6 +149,7 @@ def test_nullable_nested_contract_uses_nullable_mutable_return(contracts):
     class AIigNullable(parent.__bases__[0]):
         __data_object_fields__ = (AIcdDataObjectField('Child', allows_null=True, getter_name='getChild'),)
         def getChild(self) -> child | None: raise NotImplementedError
+    AIigNullable.__data_object__ = AIcdDataObject(schema_id='tests.nullable', schema_version=1)
     AIigNullable.__module__ = parent.__module__
     setattr(module, 'AIigNullable', AIigNullable)
     result = AIcSdoCodegenService().generate(AIigNullable)
@@ -180,9 +183,11 @@ def test_generated_smartdo_policy_on_interface_and_getter(tmp_path, monkeypatch)
     (folder / 'aiig_policy.py').write_text(
         "from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\n"
         "from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\n"
+        "from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n"
         "from eu.algites.lib.data.smartdataobject.smart_data_object_policy import smart_data_object, smart_data_object_field\n"
         "@smart_data_object(allow_non_present_read=True)\n"
         "class AIigPolicy(AIiDataObject):\n"
+        "    __data_object__ = AIcdDataObject(schema_id='tests.policy', schema_version=1)\n"
         "    __data_object_fields__ = (AIcdDataObjectField('Soft', presence_required=True, getter_name='getSoft'), AIcdDataObjectField('Strict', presence_required=True, getter_name='getStrict'))\n"
         "    def getSoft(self): raise NotImplementedError\n"
         "    @smart_data_object_field(allow_non_present_read=False)\n"

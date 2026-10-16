@@ -18,5 +18,6 @@
     "label",
     "quantity"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "x-algites-schema-version": 1
 }

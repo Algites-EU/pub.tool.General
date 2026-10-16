@@ -340,5 +340,6 @@
     "anySimpleType",
     "anyType"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "x-algites-schema-version": 1
 }
