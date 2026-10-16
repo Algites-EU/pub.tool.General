@@ -48,7 +48,14 @@ loadScripts(document, 'script');</script>
 <div class="header">
 <h1>Index</h1>
 </div>
-<a href="#I:A">A</a>&nbsp;<a href="#I:B">B</a>&nbsp;<a href="#I:C">C</a>&nbsp;<a href="#I:D">D</a>&nbsp;<a href="#I:E">E</a>&nbsp;<a href="#I:F">F</a>&nbsp;<a href="#I:G">G</a>&nbsp;<a href="#I:H">H</a>&nbsp;<a href="#I:I">I</a>&nbsp;<a href="#I:J">J</a>&nbsp;<a href="#I:K">K</a>&nbsp;<a href="#I:L">L</a>&nbsp;<a href="#I:M">M</a>&nbsp;<a href="#I:N">N</a>&nbsp;<a href="#I:O">O</a>&nbsp;<a href="#I:P">P</a>&nbsp;<a href="#I:R">R</a>&nbsp;<a href="#I:S">S</a>&nbsp;<a href="#I:T">T</a>&nbsp;<a href="#I:V">V</a>&nbsp;<a href="#I:X">X</a>&nbsp;<a href="#I:Y">Y</a>&nbsp;<br><a href="allclasses-index.html">All&nbsp;Classes&nbsp;and&nbsp;Interfaces</a><span class="vertical-separator">|</span><a href="allpackages-index.html">All&nbsp;Packages</a><span class="vertical-separator">|</span><a href="constant-values.html">Constant&nbsp;Field&nbsp;Values</a>
+<a href="#I:$">$</a>&nbsp;<a href="#I:A">A</a>&nbsp;<a href="#I:B">B</a>&nbsp;<a href="#I:C">C</a>&nbsp;<a href="#I:D">D</a>&nbsp;<a href="#I:E">E</a>&nbsp;<a href="#I:F">F</a>&nbsp;<a href="#I:G">G</a>&nbsp;<a href="#I:H">H</a>&nbsp;<a href="#I:I">I</a>&nbsp;<a href="#I:J">J</a>&nbsp;<a href="#I:K">K</a>&nbsp;<a href="#I:L">L</a>&nbsp;<a href="#I:M">M</a>&nbsp;<a href="#I:N">N</a>&nbsp;<a href="#I:O">O</a>&nbsp;<a href="#I:P">P</a>&nbsp;<a href="#I:R">R</a>&nbsp;<a href="#I:S">S</a>&nbsp;<a href="#I:T">T</a>&nbsp;<a href="#I:V">V</a>&nbsp;<a href="#I:X">X</a>&nbsp;<a href="#I:Y">Y</a>&nbsp;<br><a href="allclasses-index.html">All&nbsp;Classes&nbsp;and&nbsp;Interfaces</a><span class="vertical-separator">|</span><a href="allpackages-index.html">All&nbsp;Packages</a><span class="vertical-separator">|</span><a href="constant-values.html">Constant&nbsp;Field&nbsp;Values</a>
+<h2 class="title" id="I:$">$</h2>
+<dl class="index">
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#$schema()" class="member-name-link">$schema()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#param-$schema"><code>$schema</code></a> record component.</div>
+</dd>
+</dl>
 <h2 class="title" id="I:A">A</h2>
 <dl class="index">
 <dt><a href="eu/algites/tool/codegen/defs/AIcdCanonicalDefinition.html" class="type-name-link" title="class in eu.algites.tool.codegen.defs">AIcdCanonicalDefinition</a> - Record Class in <a href="eu/algites/tool/codegen/defs/package-summary.html">eu.algites.tool.codegen.defs</a></dt>
@@ -93,11 +100,23 @@ loadScripts(document, 'script');</script>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html" class="type-name-link" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedSource</a> - Record Class in <a href="eu/algites/tool/codegen/defs/package-summary.html">eu.algites.tool.codegen.defs</a></dt>
 <dd>
-<div class="block">Generated source unit.</div>
+<div class="block">Generated source unit with explicit importable type identities.</div>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#%3Cinit%3E(java.lang.String,java.lang.String,java.lang.String)" class="member-name-link">AIcdGeneratedSource(String, String, String)</a> - Constructor for record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedSource</a></dt>
 <dd>
-<div class="block">Validates and normalizes the supplied data-object components.</div>
+<div class="block">Compatibility constructor for legacy consumers and non-type source units.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#%3Cinit%3E(java.lang.String,java.lang.String,java.lang.String,java.util.List)" class="member-name-link">AIcdGeneratedSource(String, String, String, List&lt;AIcdGeneratedTypeIdentity&gt;)</a> - Constructor for record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedSource</a></dt>
+<dd>
+<div class="block">Validates and defensively copies the source metadata.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" class="type-name-link" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a> - Record Class in <a href="eu/algites/tool/codegen/defs/package-summary.html">eu.algites.tool.codegen.defs</a></dt>
+<dd>
+<div class="block">Importable identity of one generated type, with its canonical source and generation role.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#%3Cinit%3E(java.lang.String,java.lang.String,java.lang.String,java.lang.String,eu.algites.tool.codegen.defs.AInDefsNameRole,eu.algites.tool.codegen.defs.AInCodeGenerationTarget,java.lang.String,java.lang.Integer)" class="member-name-link">AIcdGeneratedTypeIdentity(String, String, String, String, AInDefsNameRole, AInCodeGenerationTarget, String, Integer)</a> - Constructor for record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Validates an immutable generated type identity.</div>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdParsedVersionedName.html" class="type-name-link" title="class in eu.algites.tool.codegen.defs">AIcdParsedVersionedName</a> - Record Class in <a href="eu/algites/tool/codegen/defs/package-summary.html">eu.algites.tool.codegen.defs</a></dt>
 <dd>
@@ -132,6 +151,14 @@ loadScripts(document, 'script');</script>
 <div class="block">Defines how defs-codegen interprets one supported source-definition family.</div>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html#%3Cinit%3E(java.lang.String,java.lang.String,java.lang.Boolean,java.lang.Boolean)" class="member-name-link">AIcgdInputProfile_1(String, String, Boolean, Boolean)</a> - Constructor for record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdInputProfile_1</a></dt>
+<dd>
+<div class="block">Validates the scalar constraints retained from the canonical schema.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" class="type-name-link" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a> - Record Class in <a href="eu/algites/tool/codegen/defs/package-summary.html">eu.algites.tool.codegen.defs</a></dt>
+<dd>
+<div class="block">Generator instructions identifying canonical JSON Schema resources and optional field-binding projections.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#%3Cinit%3E(java.lang.String,java.lang.String,java.lang.String,java.util.List,java.util.List)" class="member-name-link">AIcgdSchemaFieldBindings_1(String, String, String, List&lt;String&gt;, List&lt;Map&lt;String, Object&gt;&gt;)</a> - Constructor for record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
 <dd>
 <div class="block">Validates the scalar constraints retained from the canonical schema.</div>
 </dd>
@@ -175,9 +202,17 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Represents the array value.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#artifact()" class="member-name-link">artifact()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#param-artifact"><code>artifact</code></a> record component.</div>
+</dd>
 </dl>
 <h2 class="title" id="I:B">B</h2>
 <dl class="index">
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#bindings()" class="member-name-link">bindings()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#param-bindings"><code>bindings</code></a> record component.</div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AInValueKind.html#BOOLEAN" class="member-name-link">BOOLEAN</a> - Enum constant in enum class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AInValueKind.html" title="enum class in eu.algites.tool.codegen.defs">AInValueKind</a></dt>
 <dd>
 <div class="block">Represents the boolean value.</div>
@@ -187,9 +222,15 @@ loadScripts(document, 'script');</script>
 <dl class="index">
 <dt><a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html#CANONICAL_SOURCE_ID" class="member-name-link">CANONICAL_SOURCE_ID</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdInputProfile_1</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#CANONICAL_SOURCE_ID" class="member-name-link">CANONICAL_SOURCE_ID</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html#CANONICAL_SOURCE_RESOURCE" class="member-name-link">CANONICAL_SOURCE_RESOURCE</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdInputProfile_1</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#CANONICAL_SOURCE_RESOURCE" class="member-name-link">CANONICAL_SOURCE_RESOURCE</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html#CANONICAL_SOURCE_VERSION" class="member-name-link">CANONICAL_SOURCE_VERSION</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdInputProfile_1</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#CANONICAL_SOURCE_VERSION" class="member-name-link">CANONICAL_SOURCE_VERSION</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdPropertyDefinition.html#constraints()" class="member-name-link">constraints()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdPropertyDefinition.html" title="class in eu.algites.tool.codegen.defs">AIcdPropertyDefinition</a></dt>
 <dd>
@@ -271,6 +312,10 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Indicates whether some other object is "equal to" this one.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#equals(java.lang.Object)" class="member-name-link">equals(Object)</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Indicates whether some other object is "equal to" this one.</div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdParsedVersionedName.html#equals(java.lang.Object)" class="member-name-link">equals(Object)</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdParsedVersionedName.html" title="class in eu.algites.tool.codegen.defs">AIcdParsedVersionedName</a></dt>
 <dd>
 <div class="block">Indicates whether some other object is "equal to" this one.</div>
@@ -284,6 +329,10 @@ loadScripts(document, 'script');</script>
 <div class="block">Indicates whether some other object is "equal to" this one.</div>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html#equals(java.lang.Object)" class="member-name-link">equals(Object)</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdInputProfile_1</a></dt>
+<dd>
+<div class="block">Indicates whether some other object is "equal to" this one.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#equals(java.lang.Object)" class="member-name-link">equals(Object)</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
 <dd>
 <div class="block">Indicates whether some other object is "equal to" this one.</div>
 </dd>
@@ -302,6 +351,14 @@ loadScripts(document, 'script');</script>
 <dl class="index">
 <dt><a href="eu/algites/tool/codegen/defs/AInDefsNameRole.html#FILE_STEM" class="member-name-link">FILE_STEM</a> - Enum constant in enum class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AInDefsNameRole.html" title="enum class in eu.algites.tool.codegen.defs">AInDefsNameRole</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#fromRequest(eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest,java.lang.String,java.lang.String,eu.algites.tool.codegen.defs.AInDefsNameRole)" class="member-name-link">fromRequest(AIcdCodeGenerationRequest, String, String, AInDefsNameRole)</a> - Static method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Builds a language-aware importable identity from the canonical request.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#fullyQualifiedTypeName()" class="member-name-link">fullyQualifiedTypeName()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns the value of the <code>fullyQualifiedTypeName</code> record component.</div>
+</dd>
 </dl>
 <h2 class="title" id="I:G">G</h2>
 <dl class="index">
@@ -312,6 +369,10 @@ loadScripts(document, 'script');</script>
 <dt><a href="eu/algites/tool/codegen/defs/AIiDefsCodegenService.html#generate(eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest)" class="member-name-link">generate(AIcdCodeGenerationRequest)</a> - Method in interface eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIiDefsCodegenService.html" title="interface in eu.algites.tool.codegen.defs">AIiDefsCodegenService</a></dt>
 <dd>
 <div class="block">Generates one source artifact from a normalized canonical definition.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#generatedTypes()" class="member-name-link">generatedTypes()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedSource</a></dt>
+<dd>
+<div class="block">Returns the value of the <code>generatedTypes</code> record component.</div>
 </dd>
 </dl>
 <h2 class="title" id="I:H">H</h2>
@@ -340,6 +401,10 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Returns a hash code value for this object.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#hashCode()" class="member-name-link">hashCode()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns a hash code value for this object.</div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdParsedVersionedName.html#hashCode()" class="member-name-link">hashCode()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdParsedVersionedName.html" title="class in eu.algites.tool.codegen.defs">AIcdParsedVersionedName</a></dt>
 <dd>
 <div class="block">Returns a hash code value for this object.</div>
@@ -356,6 +421,10 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Returns a hash code value for this object.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#hashCode()" class="member-name-link">hashCode()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block">Returns a hash code value for this object.</div>
+</dd>
 </dl>
 <h2 class="title" id="I:I">I</h2>
 <dl class="index">
@@ -366,6 +435,10 @@ loadScripts(document, 'script');</script>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdDefinitionReference.html#identity()" class="member-name-link">identity()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdDefinitionReference.html" title="class in eu.algites.tool.codegen.defs">AIcdDefinitionReference</a></dt>
 <dd>
 <div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcdDefinitionReference.html#param-identity"><code>identity</code></a> record component.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#implementation_artifact()" class="member-name-link">implementation_artifact()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#param-implementation_artifact"><code>implementation_artifact</code></a> record component.</div>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AInValueKind.html#INTEGER" class="member-name-link">INTEGER</a> - Enum constant in enum class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AInValueKind.html" title="enum class in eu.algites.tool.codegen.defs">AInValueKind</a></dt>
 <dd>
@@ -404,6 +477,10 @@ loadScripts(document, 'script');</script>
 </dl>
 <h2 class="title" id="I:L">L</h2>
 <dl class="index">
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#languages()" class="member-name-link">languages()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#param-languages"><code>languages</code></a> record component.</div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIiDefinitionFrontend.html#load(eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest)" class="member-name-link">load(AIcdDefinitionLoadRequest)</a> - Method in interface eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIiDefinitionFrontend.html" title="interface in eu.algites.tool.codegen.defs">AIiDefinitionFrontend</a></dt>
 <dd>
 <div class="block">Loads one source definition into the normalized canonical-definition model.</div>
@@ -443,9 +520,17 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcdValueConstraints.html#param-minLength"><code>minLength</code></a> record component.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#moduleName()" class="member-name-link">moduleName()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns the value of the <code>moduleName</code> record component.</div>
+</dd>
 </dl>
 <h2 class="title" id="I:N">N</h2>
 <dl class="index">
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#namespace()" class="member-name-link">namespace()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns the value of the <code>namespace</code> record component.</div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdCodeGenerationRequest.html#namingProfile()" class="member-name-link">namingProfile()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdCodeGenerationRequest.html" title="class in eu.algites.tool.codegen.defs">AIcdCodeGenerationRequest</a></dt>
 <dd>
 <div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcdCodeGenerationRequest.html#param-namingProfile"><code>namingProfile</code></a> record component.</div>
@@ -494,6 +579,10 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcdValueConstraints.html#param-pattern"><code>pattern</code></a> record component.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#primaryType()" class="member-name-link">primaryType()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedSource</a></dt>
+<dd>
+<div class="block">Resolves the primary generated type without parsing source text.</div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdCanonicalDefinition.html#properties()" class="member-name-link">properties()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdCanonicalDefinition.html" title="class in eu.algites.tool.codegen.defs">AIcdCanonicalDefinition</a></dt>
 <dd>
 <div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcdCanonicalDefinition.html#param-properties"><code>properties</code></a> record component.</div>
@@ -517,7 +606,7 @@ loadScripts(document, 'script');</script>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#relativePath()" class="member-name-link">relativePath()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedSource</a></dt>
 <dd>
-<div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#param-relativePath"><code>relativePath</code></a> record component.</div>
+<div class="block">Returns the value of the <code>relativePath</code> record component.</div>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html#requireCanonicalIdentity()" class="member-name-link">requireCanonicalIdentity()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdInputProfile_1</a></dt>
 <dd>
@@ -538,6 +627,22 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Represents the scalar value.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#SCHEMA_FIELD_NAME__ARTIFACT" class="member-name-link">SCHEMA_FIELD_NAME__ARTIFACT</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block"><strong>Field Name:</strong> <code>artifact</code></div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#SCHEMA_FIELD_NAME__BINDINGS" class="member-name-link">SCHEMA_FIELD_NAME__BINDINGS</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block"><strong>Field Name:</strong> <code>bindings</code></div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#SCHEMA_FIELD_NAME__IMPLEMENTATION_ARTIFACT" class="member-name-link">SCHEMA_FIELD_NAME__IMPLEMENTATION_ARTIFACT</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block"><strong>Field Name:</strong> <code>implementation_artifact</code></div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#SCHEMA_FIELD_NAME__LANGUAGES" class="member-name-link">SCHEMA_FIELD_NAME__LANGUAGES</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block"><strong>Field Name:</strong> <code>languages</code></div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html#SCHEMA_FIELD_NAME__NAMING_PROFILE" class="member-name-link">SCHEMA_FIELD_NAME__NAMING_PROFILE</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdInputProfile_1</a></dt>
 <dd>
 <div class="block"><strong>Field Name:</strong> <code>NamingProfile</code><br/>
@@ -553,6 +658,10 @@ loadScripts(document, 'script');</script>
 <div class="block"><strong>Field Name:</strong> <code>RequireDefinitionVersion</code><br/>
  <strong>Field Description:</strong> Requires every loaded definition to expose a semantic version.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#SCHEMA_FIELD_NAME__SCHEMA" class="member-name-link">SCHEMA_FIELD_NAME__SCHEMA</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block"><strong>Field Name:</strong> <code>$schema</code></div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html#SCHEMA_FIELD_NAME__SOURCE_KIND" class="member-name-link">SCHEMA_FIELD_NAME__SOURCE_KIND</a> - Static variable in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdInputProfile_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdInputProfile_1</a></dt>
 <dd>
 <div class="block"><strong>Field Name:</strong> <code>SourceKind</code><br/>
@@ -560,7 +669,15 @@ loadScripts(document, 'script');</script>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#source()" class="member-name-link">source()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedSource</a></dt>
 <dd>
-<div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#param-source"><code>source</code></a> record component.</div>
+<div class="block">Returns the value of the <code>source</code> record component.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#sourceDefinitionId()" class="member-name-link">sourceDefinitionId()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns the value of the <code>sourceDefinitionId</code> record component.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#sourceDefinitionVersion()" class="member-name-link">sourceDefinitionVersion()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns the value of the <code>sourceDefinitionVersion</code> record component.</div>
 </dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdCanonicalDefinition.html#sourceKind()" class="member-name-link">sourceKind()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdCanonicalDefinition.html" title="class in eu.algites.tool.codegen.defs">AIcdCanonicalDefinition</a></dt>
 <dd>
@@ -605,6 +722,10 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcdDefinitionReference.html#param-targetKind"><code>targetKind</code></a> record component.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#technologyKind()" class="member-name-link">technologyKind()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns the value of the <code>technologyKind</code> record component.</div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdCanonicalDefinition.html#toString()" class="member-name-link">toString()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdCanonicalDefinition.html" title="class in eu.algites.tool.codegen.defs">AIcdCanonicalDefinition</a></dt>
 <dd>
 <div class="block">Returns a string representation of this record class.</div>
@@ -629,6 +750,10 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Returns a string representation of this record class.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#toString()" class="member-name-link">toString()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns a string representation of this record class.</div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdParsedVersionedName.html#toString()" class="member-name-link">toString()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdParsedVersionedName.html" title="class in eu.algites.tool.codegen.defs">AIcdParsedVersionedName</a></dt>
 <dd>
 <div class="block">Returns a string representation of this record class.</div>
@@ -645,9 +770,21 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Returns a string representation of this record class.</div>
 </dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html#toString()" class="member-name-link">toString()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcgdSchemaFieldBindings_1.html" title="class in eu.algites.tool.codegen.defs">AIcgdSchemaFieldBindings_1</a></dt>
+<dd>
+<div class="block">Returns a string representation of this record class.</div>
+</dd>
 <dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#typeName()" class="member-name-link">typeName()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedSource.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedSource</a></dt>
 <dd>
-<div class="block">Returns the value of the <a href="./eu/algites/tool/codegen/defs/AIcdGeneratedSource.html#param-typeName"><code>typeName</code></a> record component.</div>
+<div class="block">Returns the value of the <code>typeName</code> record component.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#typeName()" class="member-name-link">typeName()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns the value of the <code>typeName</code> record component.</div>
+</dd>
+<dt><a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html#typeRole()" class="member-name-link">typeRole()</a> - Method in record class eu.algites.tool.codegen.defs.<a href="eu/algites/tool/codegen/defs/AIcdGeneratedTypeIdentity.html" title="class in eu.algites.tool.codegen.defs">AIcdGeneratedTypeIdentity</a></dt>
+<dd>
+<div class="block">Returns the value of the <code>typeRole</code> record component.</div>
 </dd>
 </dl>
 <h2 class="title" id="I:V">V</h2>
@@ -732,7 +869,7 @@ the order they are declared.</div>
 <div class="block">Represents the yamldefs value.</div>
 </dd>
 </dl>
-<a href="#I:A">A</a>&nbsp;<a href="#I:B">B</a>&nbsp;<a href="#I:C">C</a>&nbsp;<a href="#I:D">D</a>&nbsp;<a href="#I:E">E</a>&nbsp;<a href="#I:F">F</a>&nbsp;<a href="#I:G">G</a>&nbsp;<a href="#I:H">H</a>&nbsp;<a href="#I:I">I</a>&nbsp;<a href="#I:J">J</a>&nbsp;<a href="#I:K">K</a>&nbsp;<a href="#I:L">L</a>&nbsp;<a href="#I:M">M</a>&nbsp;<a href="#I:N">N</a>&nbsp;<a href="#I:O">O</a>&nbsp;<a href="#I:P">P</a>&nbsp;<a href="#I:R">R</a>&nbsp;<a href="#I:S">S</a>&nbsp;<a href="#I:T">T</a>&nbsp;<a href="#I:V">V</a>&nbsp;<a href="#I:X">X</a>&nbsp;<a href="#I:Y">Y</a>&nbsp;<br><a href="allclasses-index.html">All&nbsp;Classes&nbsp;and&nbsp;Interfaces</a><span class="vertical-separator">|</span><a href="allpackages-index.html">All&nbsp;Packages</a><span class="vertical-separator">|</span><a href="constant-values.html">Constant&nbsp;Field&nbsp;Values</a></main>
+<a href="#I:$">$</a>&nbsp;<a href="#I:A">A</a>&nbsp;<a href="#I:B">B</a>&nbsp;<a href="#I:C">C</a>&nbsp;<a href="#I:D">D</a>&nbsp;<a href="#I:E">E</a>&nbsp;<a href="#I:F">F</a>&nbsp;<a href="#I:G">G</a>&nbsp;<a href="#I:H">H</a>&nbsp;<a href="#I:I">I</a>&nbsp;<a href="#I:J">J</a>&nbsp;<a href="#I:K">K</a>&nbsp;<a href="#I:L">L</a>&nbsp;<a href="#I:M">M</a>&nbsp;<a href="#I:N">N</a>&nbsp;<a href="#I:O">O</a>&nbsp;<a href="#I:P">P</a>&nbsp;<a href="#I:R">R</a>&nbsp;<a href="#I:S">S</a>&nbsp;<a href="#I:T">T</a>&nbsp;<a href="#I:V">V</a>&nbsp;<a href="#I:X">X</a>&nbsp;<a href="#I:Y">Y</a>&nbsp;<br><a href="allclasses-index.html">All&nbsp;Classes&nbsp;and&nbsp;Interfaces</a><span class="vertical-separator">|</span><a href="allpackages-index.html">All&nbsp;Packages</a><span class="vertical-separator">|</span><a href="constant-values.html">Constant&nbsp;Field&nbsp;Values</a></main>
 </div>
 </div>
 </body>

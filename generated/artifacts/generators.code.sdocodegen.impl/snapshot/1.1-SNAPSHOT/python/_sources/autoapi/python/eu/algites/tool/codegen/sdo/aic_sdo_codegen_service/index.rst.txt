@@ -28,7 +28,7 @@ Module Contents
    Bases: :py:obj:`eu.algites.tool.codegen.sdo.aii_sdo_codegen_service.AIiSdoCodegenService`
 
 
-   Turn any importable AIig contract into a mutable interface and implementation.
+   Generate SDOs from annotated AIig or handwritten AIi read-only contracts.
 
 
    .. py:method:: generate(read_contract: type, marker: str = 'd', naming=None) -> eu.algites.tool.codegen.sdo.aicd_sdo_generation_result.AIcdSdoGenerationResult

@@ -1,0 +1,62 @@
+python.eu.algites.tool.codegen.defs.aicd_generated_type_identity
+================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.aicd_generated_type_identity
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.aicd_generated_type_identity.AIcdGeneratedTypeIdentity
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcdGeneratedTypeIdentity
+
+   A primary generated type's importable identity, role and canonical origin.
+
+   A Python qualified name includes its module and symbol; a Java qualified
+   name contains the package and type. Never infer either from source text.
+
+
+   .. py:attribute:: type_name
+      :type:  str
+
+
+   .. py:attribute:: namespace
+      :type:  str
+
+
+   .. py:attribute:: module_name
+      :type:  str
+
+
+   .. py:attribute:: fully_qualified_type_name
+      :type:  str
+
+
+   .. py:attribute:: type_role
+      :type:  eu.algites.tool.codegen.defs.ain_defs_name_role.AInDefsNameRole
+
+
+   .. py:attribute:: technology_kind
+      :type:  eu.algites.tool.codegen.defs.ain_code_generation_target.AInCodeGenerationTarget
+
+
+   .. py:attribute:: source_definition_id
+      :type:  str
+
+
+   .. py:attribute:: source_definition_version
+      :type:  int | None
+
+
+   .. py:method:: from_request(request, type_name: str, relative_path: str, role: eu.algites.tool.codegen.defs.ain_defs_name_role.AInDefsNameRole) -> AIcdGeneratedTypeIdentity
+      :classmethod:
+
+
+

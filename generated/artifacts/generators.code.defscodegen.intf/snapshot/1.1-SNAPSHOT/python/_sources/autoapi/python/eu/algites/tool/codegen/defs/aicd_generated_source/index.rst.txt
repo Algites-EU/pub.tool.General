@@ -17,19 +17,11 @@ Module Contents
 
 .. py:class:: AIcdGeneratedSource
 
-   Carries immutable generated source data.
+   A source unit and its explicitly identified generated public types.
 
-   .. attribute:: type_name
-
-      Generated primary type name.
-
-   .. attribute:: relative_path
-
-      Generated source relative path.
-
-   .. attribute:: source
-
-      Complete generated source text.
+   ``generated_types`` describes importable declarations; callers must not
+   reconstruct names from a source file or from source text. The default is
+   retained for older producers and non-type source units.
 
 
    .. py:attribute:: type_name
@@ -42,5 +34,16 @@ Module Contents
 
    .. py:attribute:: source
       :type:  str
+
+
+   .. py:attribute:: generated_types
+      :type:  tuple[eu.algites.tool.codegen.defs.aicd_generated_type_identity.AIcdGeneratedTypeIdentity, Ellipsis]
+      :value: ()
+
+
+
+   .. py:property:: primary_type
+      :type: eu.algites.tool.codegen.defs.aicd_generated_type_identity.AIcdGeneratedTypeIdentity
+
 
 

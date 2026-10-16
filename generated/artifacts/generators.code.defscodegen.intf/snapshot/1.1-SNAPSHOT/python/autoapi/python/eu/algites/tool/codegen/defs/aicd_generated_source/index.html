@@ -39,7 +39,7 @@
 <table class="autosummary longtable docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource" title="python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AIcdGeneratedSource</span></code></a></p></td>
-<td><p>Carries immutable generated source data.</p></td>
+<td><p>A source unit and its explicitly identified generated public types.</p></td>
 </tr>
 </tbody>
 </table>
@@ -49,38 +49,33 @@
 <dl class="py class">
 <dt class="sig sig-object py" id="python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">python.eu.algites.tool.codegen.defs.aicd_generated_source.</span></span><span class="sig-name descname"><span class="pre">AIcdGeneratedSource</span></span><a class="headerlink" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource" title="Link to this definition">¶</a></dt>
-<dd><p>Carries immutable generated source data.</p>
+<dd><p>A source unit and its explicitly identified generated public types.</p>
+<p><code class="docutils literal notranslate"><span class="pre">generated_types</span></code> describes importable declarations; callers must not
+reconstruct names from a source file or from source text. The default is
+retained for older producers and non-type source units.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.type_name">
-<span class="sig-name descname"><span class="pre">type_name</span></span><a class="headerlink" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.type_name" title="Link to this definition">¶</a></dt>
-<dd><p>Generated primary type name.</p>
-</dd></dl>
+<span class="sig-name descname"><span class="pre">type_name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.type_name" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.relative_path">
-<span class="sig-name descname"><span class="pre">relative_path</span></span><a class="headerlink" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.relative_path" title="Link to this definition">¶</a></dt>
-<dd><p>Generated source relative path.</p>
-</dd></dl>
+<span class="sig-name descname"><span class="pre">relative_path</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.relative_path" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.source">
-<span class="sig-name descname"><span class="pre">source</span></span><a class="headerlink" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.source" title="Link to this definition">¶</a></dt>
-<dd><p>Complete generated source text.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="id0">
-<span class="sig-name descname"><span class="pre">type_name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#id0" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">source</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.source" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="id1">
-<span class="sig-name descname"><span class="pre">relative_path</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#id1" title="Link to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.generated_types">
+<span class="sig-name descname"><span class="pre">generated_types</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="../aicd_generated_type_identity/index.html#python.eu.algites.tool.codegen.defs.aicd_generated_type_identity.AIcdGeneratedTypeIdentity" title="python.eu.algites.tool.codegen.defs.aicd_generated_type_identity.AIcdGeneratedTypeIdentity"><span class="pre">eu.algites.tool.codegen.defs.aicd_generated_type_identity.AIcdGeneratedTypeIdentity</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Ellipsis</span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">()</span></span><a class="headerlink" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.generated_types" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="py attribute">
-<dt class="sig sig-object py" id="id2">
-<span class="sig-name descname"><span class="pre">source</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#id2" title="Link to this definition">¶</a></dt>
+<dl class="py property">
+<dt class="sig sig-object py" id="python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.primary_type">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">primary_type</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../aicd_generated_type_identity/index.html#python.eu.algites.tool.codegen.defs.aicd_generated_type_identity.AIcdGeneratedTypeIdentity" title="python.eu.algites.tool.codegen.defs.aicd_generated_type_identity.AIcdGeneratedTypeIdentity"><span class="pre">eu.algites.tool.codegen.defs.aicd_generated_type_identity.AIcdGeneratedTypeIdentity</span></a></span><a class="headerlink" href="#python.eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource.primary_type" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>

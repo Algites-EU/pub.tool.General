@@ -1,0 +1,126 @@
+python.gen.eu.algites.tool.codegen.defs.aicgd_schema_field_bindings_1
+=====================================================================
+
+.. py:module:: python.gen.eu.algites.tool.codegen.defs.aicgd_schema_field_bindings_1
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   python.gen.eu.algites.tool.codegen.defs.aicgd_schema_field_bindings_1.AIcSchemaTemporalValue
+   python.gen.eu.algites.tool.codegen.defs.aicgd_schema_field_bindings_1.AIcSchemaDuration
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.gen.eu.algites.tool.codegen.defs.aicgd_schema_field_bindings_1.AIcgdSchemaFieldBindings_1
+
+
+Module Contents
+---------------
+
+.. py:data:: AIcSchemaTemporalValue
+
+.. py:data:: AIcSchemaDuration
+
+.. py:class:: AIcgdSchemaFieldBindings_1
+
+   Generator instructions identifying canonical JSON Schema resources and optional field-binding projections.
+
+   Generated from canonical definition https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.jsondef.schema.json/1. Source: src/product/jsondefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.jsondef.schema.json. Do not edit manually.
+
+   .. attribute:: artifact
+
+      Value of canonical property artifact.
+
+   .. attribute:: languages
+
+      Value of canonical property languages.
+
+   .. attribute:: bindings
+
+      Value of canonical property bindings.
+
+   .. attribute:: _schema
+
+      Value of canonical property $schema.
+
+   .. attribute:: implementation_artifact
+
+      Value of canonical property implementation_artifact.
+
+
+   .. py:attribute:: SCHEMA_FIELD_NAME__ARTIFACT
+      :value: 'artifact'
+
+
+      ** ``artifact``
+
+      :type: **Field Name
+
+
+   .. py:attribute:: SCHEMA_FIELD_NAME__LANGUAGES
+      :value: 'languages'
+
+
+      ** ``languages``
+
+      :type: **Field Name
+
+
+   .. py:attribute:: SCHEMA_FIELD_NAME__BINDINGS
+      :value: 'bindings'
+
+
+      ** ``bindings``
+
+      :type: **Field Name
+
+
+   .. py:attribute:: SCHEMA_FIELD_NAME__SCHEMA
+      :value: '$schema'
+
+
+      ** ``$schema``
+
+      :type: **Field Name
+
+
+   .. py:attribute:: SCHEMA_FIELD_NAME__IMPLEMENTATION_ARTIFACT
+      :value: 'implementation_artifact'
+
+
+      ** ``implementation_artifact``
+
+      :type: **Field Name
+
+
+   .. py:attribute:: artifact
+      :type:  str
+
+
+   .. py:attribute:: languages
+      :type:  tuple[str, Ellipsis]
+
+
+   .. py:attribute:: bindings
+      :type:  tuple[Mapping[str, Any], Ellipsis]
+
+
+   .. py:attribute:: implementation_artifact
+      :type:  str
+
+
+   .. py:method:: from_mapping(value: Mapping[str, object])
+      :classmethod:
+
+
+
+   .. py:method:: to_mapping() -> Mapping[str, object]
+
+

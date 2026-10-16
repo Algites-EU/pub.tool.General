@@ -5,7 +5,7 @@ python.eu.algites.tool.codegen.sdo.aicd_generated_sdo_source
 
 .. autoapi-nested-parse::
 
-   One generated source and its output path.
+   One generated SmartDataObject source with its importable type identity.
 
 
 
@@ -32,5 +32,44 @@ Module Contents
 
    .. py:attribute:: source
       :type:  str
+
+
+   .. py:attribute:: namespace
+      :type:  str
+      :value: ''
+
+
+
+   .. py:attribute:: module_name
+      :type:  str
+      :value: ''
+
+
+
+   .. py:attribute:: fully_qualified_type_name
+      :type:  str
+      :value: ''
+
+
+
+   .. py:attribute:: type_role
+      :type:  str
+      :value: ''
+
+
+
+   .. py:attribute:: source_definition_id
+      :type:  str
+      :value: ''
+
+
+
+   .. py:attribute:: source_definition_version
+      :type:  int | None
+      :value: None
+
+
+
+   .. py:property:: primary_type
 
 
