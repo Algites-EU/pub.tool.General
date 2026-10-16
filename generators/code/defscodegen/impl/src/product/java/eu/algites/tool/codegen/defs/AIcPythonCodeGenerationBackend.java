@@ -35,7 +35,8 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
         String source = enumDefinition ? enumSource(request, typeName) : dataSource(request, typeName);
         String fileStem = names.fileStem(request.definition(), request.namingProfile(), enumDefinition ? AInDefsNameRole.ENUM_TYPE_FILE_STEM : AInDefsNameRole.DATA_TYPE_FILE_STEM);
         String relative = request.packageName().replace('.', '/') + "/" + fileStem + ".py";
-        return new AIcdGeneratedSource(typeName, relative, source);
+        return new AIcdGeneratedSource(typeName, relative, source,
+                List.of(AIcdGeneratedTypeIdentity.fromRequest(request, typeName, relative, enumDefinition ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE)));
     }
 
     /**

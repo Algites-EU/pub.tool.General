@@ -34,7 +34,8 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
         String typeName = names.typeName(request.definition(), request.namingProfile(), enumDefinition ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
         String source = enumDefinition ? enumSource(request, typeName) : dataSource(request, typeName);
         String relative = request.packageName().replace('.', '/') + "/" + typeName + ".java";
-        return new AIcdGeneratedSource(typeName, relative, source);
+        return new AIcdGeneratedSource(typeName, relative, source,
+                List.of(AIcdGeneratedTypeIdentity.fromRequest(request, typeName, relative, enumDefinition ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE)));
     }
 
     /**

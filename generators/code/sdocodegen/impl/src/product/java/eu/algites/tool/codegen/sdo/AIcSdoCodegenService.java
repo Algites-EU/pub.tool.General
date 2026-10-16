@@ -42,7 +42,6 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         Class<?> locParent = locParents.isEmpty() ? null : locParents.get(0);
         LinkedHashMap<String, AIcdGetter> locOwn = fields(aReadContract.getDeclaredMethods());
         LinkedHashMap<String, AIcdGetter> locAll = inheritedFields(aReadContract);
-        if (locAll.isEmpty()) throw new IllegalArgumentException("No annotated read-only getters: " + aReadContract);
         String locPackage = aReadContract.getPackageName();
         String locTail = aReadContract.getSimpleName().substring(4);
         String locMutable = typeName(aReadContract, locMarker, true, aInputNames, aMutableNames, aConcreteNames);
@@ -103,11 +102,18 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         locInterface.append("}\n");
         locImplementation.append("}\n");
         String locPath = locPackage.replace('.', '/') + "/";
+        var locMetadata = aReadContract.getAnnotation(eu.algites.lib.data.dataobject.AIaDataObject.class);
+        String locSourceId = locMetadata == null ? "" : locMetadata.id();
+        Integer locSourceVersion = locMetadata == null || locMetadata.version() < 0 ? null : locMetadata.version();
         return new AIcdSdoGenerationResult(
                 new AIcdGeneratedSdoSource(locMutable, locPath
-                        + fileName(locMutable, true, aMutableNames, aConcreteNames), locInterface.toString()),
+                        + fileName(locMutable, true, aMutableNames, aConcreteNames), locInterface.toString(),
+                        locPackage, locPackage, locPackage + "." + locMutable,
+                        "MUTABLE_INTERFACE_TYPE", locSourceId, locSourceVersion),
                 new AIcdGeneratedSdoSource(locConcrete, locPath
-                        + fileName(locConcrete, false, aMutableNames, aConcreteNames), locImplementation.toString()));
+                        + fileName(locConcrete, false, aMutableNames, aConcreteNames), locImplementation.toString(),
+                        locPackage, locPackage, locPackage + "." + locConcrete,
+                        "SMART_DATA_OBJECT_TYPE", locSourceId, locSourceVersion));
     }
 
     /** Collect the complete inherited contract tree, detecting incompatible redeclarations. */

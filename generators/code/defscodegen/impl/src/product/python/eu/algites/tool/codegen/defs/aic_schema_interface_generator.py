@@ -10,6 +10,7 @@ from eu.algites.tool.codegen.defs.aic_default_defs_codegen_service import AIcDef
 from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
 from eu.algites.tool.codegen.defs.aic_scalar_generation import java_identifier
 from eu.algites.tool.codegen.defs.aicd_generated_source import AIcdGeneratedSource
+from eu.algites.tool.codegen.defs.aicd_generated_type_identity import AIcdGeneratedTypeIdentity
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
 from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
@@ -112,8 +113,9 @@ class AIcSchemaInterfaceGenerator:
                 implementation = implementation.replace(helpers,
                     f'from .{file} import AIcSchemaTemporalValue, AIcSchemaDuration\n'
                     'from dataclasses import dataclass\nfrom decimal import Decimal\nimport base64\nimport re\nimport struct\n\n_AI_UNSET = object()\n', 1)
-            return self.AIcdSources(AIcdGeneratedSource(interface, path + file + '.py', contract),
-                AIcdGeneratedSource(dto.type_name, dto.relative_path, implementation))
+            return self.AIcdSources(AIcdGeneratedSource(interface, path + file + '.py', contract,
+                    (AIcdGeneratedTypeIdentity.from_request(request, interface, path + file + '.py', AInDefsNameRole.INTERFACE_TYPE),)),
+                AIcdGeneratedSource(dto.type_name, dto.relative_path, implementation, dto.generated_types))
 
         rows = [f'package {request.package_name};\n\n/** Generated schema contract. Do not edit manually. */',
             f'@eu.algites.lib.data.dataobject.AIaDataObject(id = {_java_quote(request.definition.identity)}, version = {_java_integer(request.definition.version) if request.definition.version is not None else -1}, description = {_java_quote(request.definition.description or "")})',
@@ -144,5 +146,6 @@ class AIcSchemaInterfaceGenerator:
         if marker not in dto.source:
             raise ValueError(f'Missing record declaration: {dto.type_name}')
         implementation = dto.source.replace(marker, f') implements {interface} {{\n', 1)
-        return self.AIcdSources(AIcdGeneratedSource(interface, path + interface + '.java', '\n'.join(rows) + '\n'),
-            AIcdGeneratedSource(dto.type_name, dto.relative_path, implementation))
+        return self.AIcdSources(AIcdGeneratedSource(interface, path + interface + '.java', '\n'.join(rows) + '\n',
+                (AIcdGeneratedTypeIdentity.from_request(request, interface, path + interface + '.java', AInDefsNameRole.INTERFACE_TYPE),)),
+            AIcdGeneratedSource(dto.type_name, dto.relative_path, implementation, dto.generated_types))

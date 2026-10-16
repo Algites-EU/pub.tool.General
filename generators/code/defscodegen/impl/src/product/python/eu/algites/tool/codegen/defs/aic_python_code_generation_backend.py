@@ -7,6 +7,7 @@ from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from eu.algites.tool.codegen.defs._support import _python_type
 from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
 from eu.algites.tool.codegen.defs.aicd_generated_source import AIcdGeneratedSource
+from eu.algites.tool.codegen.defs.aicd_generated_type_identity import AIcdGeneratedTypeIdentity
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
 
@@ -48,7 +49,9 @@ class AIcPythonCodeGenerationBackend:
         else:
             from eu.algites.tool.codegen.defs.aic_scalar_generation import python_data_source
             source = python_data_source(request, self.names, type_name, self._type_docstring)
-        return AIcdGeneratedSource(type_name, request.package_name.replace('.', '/') + f"/{file_stem}.py", source)
+        relative = request.package_name.replace('.', '/') + f"/{file_stem}.py"
+        return AIcdGeneratedSource(type_name, relative, source,
+            (AIcdGeneratedTypeIdentity.from_request(request, type_name, relative, type_kind),))
 
     @classmethod
     def _type_docstring(cls, definition, attributes=(), values=()) -> str:

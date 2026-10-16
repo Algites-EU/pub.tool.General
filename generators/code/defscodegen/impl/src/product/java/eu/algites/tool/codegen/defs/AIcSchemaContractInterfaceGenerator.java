@@ -25,7 +25,7 @@ public final class AIcSchemaContractInterfaceGenerator {
             locSource = locSource.replace(locDeclaration,
                     "public interface " + locBase.typeName() + " extends " + aParentModule + "." + aParentType + " {");
         }
-        return new AIcdGeneratedSource(locBase.typeName(), locBase.relativePath(), locSource);
+        return new AIcdGeneratedSource(locBase.typeName(), locBase.relativePath(), locSource, locBase.generatedTypes());
     }
 
     /** Generate an annotated read contract without writing a concrete implementation. */
@@ -51,6 +51,6 @@ public final class AIcSchemaContractInterfaceGenerator {
         locSource = locSource.replaceAll(
                 "(?m)^(    def get[A-Za-z0-9_]+\\(self\\)(?: -> [^:]+)?:)$",
                 "    @abstractmethod\n$1");
-        return new AIcdGeneratedSource(locContract.typeName(), locContract.relativePath(), locSource);
+        return new AIcdGeneratedSource(locContract.typeName(), locContract.relativePath(), locSource, locContract.generatedTypes());
     }
 }

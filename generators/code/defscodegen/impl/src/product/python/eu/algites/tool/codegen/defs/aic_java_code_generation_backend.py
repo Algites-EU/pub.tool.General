@@ -4,6 +4,7 @@ from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from eu.algites.tool.codegen.defs._support import _java_integer, _java_quote, _java_type
 from eu.algites.tool.codegen.defs.aic_generation_names import AIcGenerationNames
 from eu.algites.tool.codegen.defs.aicd_generated_source import AIcdGeneratedSource
+from eu.algites.tool.codegen.defs.aicd_generated_type_identity import AIcdGeneratedTypeIdentity
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
 from eu.algites.tool.codegen.defs.aic_scalar_generation import java_validation, java_identifier
@@ -68,7 +69,9 @@ class AIcJavaCodeGenerationBackend:
                 + ''.join(java_validation(prop, java_identifier(self.names.property_name(prop.source_name, request.naming_profile))) for prop in request.definition.properties)
                 + "    }\n}\n"
             )
-        return AIcdGeneratedSource(type_name, request.package_name.replace('.', '/') + f"/{type_name}.java", source)
+        relative = request.package_name.replace('.', '/') + f"/{type_name}.java"
+        return AIcdGeneratedSource(type_name, relative, source,
+            (AIcdGeneratedTypeIdentity.from_request(request, type_name, relative, kind),))
 
     def _enum_constant(self, value, request) -> str:
         """Generate one documented Java enum constant."""

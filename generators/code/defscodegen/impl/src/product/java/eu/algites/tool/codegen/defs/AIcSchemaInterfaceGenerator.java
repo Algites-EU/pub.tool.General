@@ -102,8 +102,9 @@ public final class AIcSchemaInterfaceGenerator {
                         "from ." + file + " import AIcSchemaTemporalValue, AIcSchemaDuration\n"
                         + "from dataclasses import dataclass\nfrom decimal import Decimal\nimport base64\nimport re\nimport struct\n\n_AI_UNSET = object()\n");
             }
-            return new AIcdSources(new AIcdGeneratedSource(interfaceName, path + file + ".py", contract),
-                    new AIcdGeneratedSource(dto.typeName(), dto.relativePath(), implementation));
+            return new AIcdSources(new AIcdGeneratedSource(interfaceName, path + file + ".py", contract,
+                    List.of(AIcdGeneratedTypeIdentity.fromRequest(request, interfaceName, path + file + ".py", AInDefsNameRole.INTERFACE_TYPE))),
+                    new AIcdGeneratedSource(dto.typeName(), dto.relativePath(), implementation, dto.generatedTypes()));
         }
         List<String> rows = new ArrayList<>();
         rows.add("package " + request.packageName() + ";\n\n/** Generated schema contract. Do not edit manually. */");
@@ -142,8 +143,9 @@ public final class AIcSchemaInterfaceGenerator {
         int recordEnd = dto.source().indexOf(") {\n");
         if (recordEnd < 0) throw new IllegalStateException("Missing record declaration: " + dto.typeName());
         implementation = dto.source().substring(0, recordEnd) + ") implements " + interfaceName + " {\n" + dto.source().substring(recordEnd + 4);
-        return new AIcdSources(new AIcdGeneratedSource(interfaceName, path + interfaceName + ".java", contract),
-                new AIcdGeneratedSource(dto.typeName(), dto.relativePath(), implementation));
+        return new AIcdSources(new AIcdGeneratedSource(interfaceName, path + interfaceName + ".java", contract,
+                List.of(AIcdGeneratedTypeIdentity.fromRequest(request, interfaceName, path + interfaceName + ".java", AInDefsNameRole.INTERFACE_TYPE))),
+                new AIcdGeneratedSource(dto.typeName(), dto.relativePath(), implementation, dto.generatedTypes()));
     }
 
     /** Match the Python generator's normalization of field identifiers. */

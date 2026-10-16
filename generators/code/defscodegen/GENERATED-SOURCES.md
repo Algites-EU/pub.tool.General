@@ -74,3 +74,22 @@ conventions; source collision validation (including canonical identity) runs
 before any output cleanup. Same-format schema duplicates from distinct roots
 may merge when both their canonical identities and their structures match.
 See [Code Generators Reference Guide](../CODEGEN-REFERENCE.md).
+
+## Structured generated type identities
+
+`AIcdGeneratedSource` exposes `generated_types` and `primary_type` for the
+importable declarations it owns. Every generated type identity reports:
+`type_name`, `namespace`, `module_name`, `fully_qualified_type_name`,
+`type_role`, `technology_kind`, `source_definition_id` and
+`source_definition_version`. For Python, a qualified name includes the
+**module file** before the class; in Java it is `package.Class`.
+
+Canonical schema contract generation populates this metadata directly in both
+Java and Python. Consumers (AAC included) must not reconstruct qualified names
+by splitting the rendered source or guessing from file names. The legacy
+three-argument source constructor remains for other/non-type outputs; requesting
+`primary_type` from a source with no type metadata is an explicit error.
+
+The canonical data pipeline is `Defs Codegen (AIig)` followed by `SDO Codegen
+(AIigd / AIcgd)`. Consumers must not select the legacy paired DTO generator
+as a substitute for the standard two-stage pipeline.

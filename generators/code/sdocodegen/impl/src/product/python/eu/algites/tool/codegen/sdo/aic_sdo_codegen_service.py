@@ -33,8 +33,6 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 if previous is not None and previous != field:
                     raise ValueError('Conflicting inherited field: ' + field.name)
                 all_fields[field.name] = field
-        if not all_fields:
-            raise ValueError('No annotated read contract fields')
         if len({f.name for f in fields}) != len(fields):
             raise ValueError('Duplicate field in read contract')
         parents = [c for c in read_contract.__bases__ if c.__name__.startswith('AIig') and issubclass(c, AIiDataObject)]
@@ -147,9 +145,22 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             *['    ' + item for item in sorted(set(mutable_imports))]] if mutable_imports else []
         concrete_lines[2:2] = ['from typing import TYPE_CHECKING', '', 'if TYPE_CHECKING:',
             *['    ' + item for item in sorted(set(concrete_imports))]] if concrete_imports else []
+        definition = getattr(read_contract, '__data_object__', None)
+        source_id = getattr(definition, 'id', '')
+        source_version = getattr(definition, 'version', None)
+        if source_version == -1:
+            source_version = None
+        mutable_module = package + '.' + stem_for(mutable_name, True)
+        concrete_module = package + '.' + stem_for(concrete_name, False)
         return AIcdSdoGenerationResult(
-            AIcdGeneratedSdoSource(mutable_name, prefix + stem_for(mutable_name, True) + '.py', '\n'.join(mutable_lines) + '\n'),
-            AIcdGeneratedSdoSource(concrete_name, prefix + stem_for(concrete_name, False) + extension_for(False), '\n'.join(concrete_lines) + '\n'))
+            AIcdGeneratedSdoSource(
+                mutable_name, prefix + stem_for(mutable_name, True) + '.py',
+                '\n'.join(mutable_lines) + '\n', package, mutable_module,
+                mutable_module + '.' + mutable_name, 'MUTABLE_INTERFACE_TYPE', source_id, source_version),
+            AIcdGeneratedSdoSource(
+                concrete_name, prefix + stem_for(concrete_name, False) + extension_for(False),
+                '\n'.join(concrete_lines) + '\n', package, concrete_module,
+                concrete_module + '.' + concrete_name, 'SMART_DATA_OBJECT_TYPE', source_id, source_version))
 
 
 def _snake(type_name: str, marker: str) -> str:

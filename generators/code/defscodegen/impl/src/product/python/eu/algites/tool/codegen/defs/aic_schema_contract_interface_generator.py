@@ -14,8 +14,7 @@ class AIcSchemaContractInterfaceGenerator:
                 replacement = f'public interface {result.type_name} extends {parent_module}.{parent_type} {{'
                 if declaration not in result.source:
                     raise ValueError('Cannot locate Java contract declaration for inheritance')
-                return AIcdGeneratedSource(result.type_name, result.relative_path,
-                    result.source.replace(declaration, replacement))
+                return AIcdGeneratedSource(result.type_name, result.relative_path, result.source.replace(declaration, replacement), result.generated_types)
             return result
         source = result.source
         # SmartDataObject owns serialization; read contract getters are the complete abstract API.
@@ -29,4 +28,4 @@ class AIcSchemaContractInterfaceGenerator:
             source = source.replace('from __future__ import annotations\n',
                 'from __future__ import annotations\n'
                 + f'from {parent_module} import {parent_type}\n', 1)
-        return AIcdGeneratedSource(result.type_name, result.relative_path, source)
+        return AIcdGeneratedSource(result.type_name, result.relative_path, source, result.generated_types)
