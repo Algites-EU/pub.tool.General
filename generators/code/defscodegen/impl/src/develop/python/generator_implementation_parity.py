@@ -122,7 +122,7 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
                 AIcSchemaObjectBindingsGenerator().generate_repository(root, manifest, check)
             return None
         process = subprocess.run(['java','-cp',self.java_classpath,
-            'eu.algites.tool.codegen.defs.AIcSchemaObjectBindingsGenerator',str(root),str(manifest),'--json',
+            'eu.algites.tool.codegen.defs.impl.standard.AIcSchemaObjectBindingsGenerator',str(root),str(manifest),'--json',
             *(['--check'] if check else [])], text=True, capture_output=True)
         if success:
             self.assertEqual(process.returncode, 0, process.stderr)
@@ -219,7 +219,7 @@ else: raise AssertionError('Invalid referenced scalar value accepted')
                         model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(source,kind,profile))
                         pair = AIcSchemaInterfaceGenerator().generate(AIcdCodeGenerationRequest(model,target,'api_parity',profile))
                         output = self.root / 'api' / kind.value / target.value / stem
-                        subprocess.run(['java','-cp',self.java_classpath,'eu.algites.tool.codegen.defs.AItcGeneratorImplementationParityTest',
+                        subprocess.run(['java','-cp',self.java_classpath,'eu.algites.tool.codegen.defs.impl.standard.AItcGeneratorImplementationParityTest',
                             kind.name,target.name,str(source),'api_parity',str(output)],check=True,capture_output=True)
                         expected = [item for item in (pair.contract,pair.implementation) if item is not None]
                         self.assertEqual({p.relative_to(output).as_posix() for p in output.rglob('*') if p.is_file()}, {item.relative_path for item in expected})

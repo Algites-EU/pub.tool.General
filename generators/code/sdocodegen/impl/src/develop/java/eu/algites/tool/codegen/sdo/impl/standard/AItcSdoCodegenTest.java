@@ -51,8 +51,8 @@ public final class AItcSdoCodegenTest {
                 locOptions.toArray(String[]::new)), 0);
         try (var locLoader = new URLClassLoader(new java.net.URL[] { locOutput.toUri().toURL() },
                 getClass().getClassLoader())) {
-            Class<?> locType = locLoader.loadClass("eu.algites.tool.codegen.sdo.AIcgdChild");
-            Assert.assertTrue(locLoader.loadClass("eu.algites.tool.codegen.sdo.AIcgdParent").isAssignableFrom(locType));
+            Class<?> locType = locLoader.loadClass(locChild.implementation().fullyQualifiedTypeName());
+            Assert.assertTrue(locLoader.loadClass(locParent.implementation().fullyQualifiedTypeName()).isAssignableFrom(locType));
             Object locInstance = locType.getConstructor().newInstance();
             Assert.assertEquals(locType.getMethod("is_ByRawValuesValid").invoke(locInstance), false);
             locType.getMethod("setName", String.class).invoke(locInstance, "Alpha");
@@ -79,15 +79,17 @@ public final class AItcSdoCodegenTest {
         Path locRoot = Files.createTempDirectory("sdo-nested-java-");
         Path locClasses = Files.createDirectory(locRoot.resolve("classes"));
         var locFiles = new java.util.ArrayList<String>();
-        for (var locContract : java.util.List.of(AIigParent.class, AIigChild.class, AIigContainer.class)) {
-            var locSources = locGenerator.generate(locContract, "d");
+        var locParentSources = locGenerator.generate(AIigParent.class, "d");
+        var locChildSources = locGenerator.generate(AIigChild.class, "d");
+        var locContainerSources = locGenerator.generate(AIigContainer.class, "d");
+        for (var locSources : java.util.List.of(locParentSources, locChildSources, locContainerSources)) {
             for (var locSource : java.util.List.of(locSources.mutableInterface(), locSources.implementation())) {
                 Path locFile = locRoot.resolve(locSource.relativePath());
                 Files.createDirectories(locFile.getParent());
                 Files.writeString(locFile, locSource.source());
                 locFiles.add(locFile.toString());
             }
-            if (locContract == AIigContainer.class) {
+            if (locSources == locContainerSources) {
                 Assert.assertTrue(locSources.mutableInterface().source().contains("AIigdChild getChild()"));
                 Assert.assertTrue(locSources.mutableInterface().source().contains("setChild("));
                 Assert.assertTrue(locSources.mutableInterface().source().contains("AIigdChild get_Child()"));
@@ -100,9 +102,9 @@ public final class AItcSdoCodegenTest {
                 locArgs.toArray(String[]::new)), 0);
         try (var locLoader = new URLClassLoader(new java.net.URL[] {locClasses.toUri().toURL()},
                 getClass().getClassLoader())) {
-            var locMutableChild = locLoader.loadClass("eu.algites.tool.codegen.sdo.AIigdChild");
-            var locContainer = locLoader.loadClass("eu.algites.tool.codegen.sdo.AIcgdContainer");
-            var locChild = locLoader.loadClass("eu.algites.tool.codegen.sdo.AIcgdChild")
+            var locMutableChild = locLoader.loadClass(locChildSources.mutableInterface().fullyQualifiedTypeName());
+            var locContainer = locLoader.loadClass(locContainerSources.implementation().fullyQualifiedTypeName());
+            var locChild = locLoader.loadClass(locChildSources.implementation().fullyQualifiedTypeName())
                     .getConstructor().newInstance();
             Assert.assertEquals(locContainer.getMethod("getChild").getReturnType(), locMutableChild);
             Assert.assertEquals(locContainer.getMethod("setChild", locMutableChild).getParameterTypes()[0], locMutableChild);
@@ -189,7 +191,7 @@ public final class AItcSdoCodegenTest {
                 locArgs.toArray(String[]::new)), 0);
         try (var locLoader = new URLClassLoader(new java.net.URL[] {locClasses.toUri().toURL()},
                 getClass().getClassLoader())) {
-            var locType = locLoader.loadClass("eu.algites.tool.codegen.sdo.AIcgdReadPolicy");
+            var locType = locLoader.loadClass(locGenerated.implementation().fullyQualifiedTypeName());
             var locInstance = locType.getConstructor().newInstance();
             Assert.assertNull(locType.getMethod("getSoft").invoke(locInstance));
             Assert.assertNull(locType.getMethod("get_Soft").invoke(locInstance));

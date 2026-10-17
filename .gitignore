@@ -21,6 +21,8 @@ build/*
 **/src/product/*.gen/
 **/src/develop/*.gen/
 
+**/pyproject.toml
+**/.pytest_cache/*
 
 # JetBrains IDE project files
 .idea/
