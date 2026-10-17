@@ -1,6 +1,6 @@
 """Mutable interface and concrete class generated from one read contract."""
 from dataclasses import dataclass
-from .aicd_generated_sdo_source import AIcdGeneratedSdoSource
+from eu.algites.tool.codegen.sdo.aicd_generated_sdo_source import AIcdGeneratedSdoSource
 
 @dataclass(frozen=True)
 class AIcdSdoGenerationResult:

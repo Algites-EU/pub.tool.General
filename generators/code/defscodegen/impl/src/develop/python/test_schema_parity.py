@@ -9,9 +9,9 @@ import sys
 import typing
 import pytest
 
-from eu.algites.lib.naming.convention.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-from eu.algites.tool.codegen.defs.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
+from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
@@ -27,7 +27,7 @@ FORMATS = ((AInDefinitionSourceKind.YAMLDEFS, 'yamldefs', 'yamldef.schema.json')
 def load(stem, kind, folder, suffix):
     return AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(
         Path(__file__).parents[1] / folder / f'{stem}_1.{suffix}', kind,
-        AIcAlgitesNamingProfiles.python_profile()))
+        AIcAlgitesNamingProfiles_1.python_profile()))
 
 
 def normalize(model):
@@ -43,7 +43,7 @@ def test_equivalent_models_and_complete_outputs(stem):
     merged = AIcCanonicalDefinitionMerger.merge(models)
     assert all(model.identity in merged.description for model in models)
     for target in AInCodeGenerationTarget:
-        profile = AIcAlgitesNamingProfiles.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles.python_profile()
+        profile = AIcAlgitesNamingProfiles_1.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles_1.python_profile()
         outputs = [AIcDefaultDefsCodegenService().generate(AIcdCodeGenerationRequest(
             normalize(model), target, 'parity_generated', profile)) for model in models]
         assert outputs[0] == outputs[1] == outputs[2]
@@ -73,13 +73,13 @@ def test_schema_field_name_constants_across_all_definition_kinds():
     for fmt in FORMATS:
         model = load('parity-root', *fmt)
         java_source = service.generate(AIcdCodeGenerationRequest(
-            model, AInCodeGenerationTarget.JAVA, 'parity_generated', AIcAlgitesNamingProfiles.java_profile())).source
+            model, AInCodeGenerationTarget.JAVA, 'parity_generated', AIcAlgitesNamingProfiles_1.java_profile())).source
         assert 'public static final String SCHEMA_FIELD_NAME__OPTIONAL_TEXT = "optionalText";' in java_source
         assert '<strong>Field Name:</strong> {@code optionalText}<br/>' in java_source
         assert '<strong>Field Description:</strong> Optional text value.' in java_source
 
         python_source = service.generate(AIcdCodeGenerationRequest(
-            model, AInCodeGenerationTarget.PYTHON, 'parity_generated', AIcAlgitesNamingProfiles.python_profile())).source
+            model, AInCodeGenerationTarget.PYTHON, 'parity_generated', AIcAlgitesNamingProfiles_1.python_profile())).source
         assert "SCHEMA_FIELD_NAME__OPTIONAL_TEXT = 'optionalText'" in python_source
         assert '**Field Name:** ``optionalText``' in python_source
         assert '**Field Description:** Optional text value.' in python_source
@@ -87,7 +87,7 @@ def test_schema_field_name_constants_across_all_definition_kinds():
 
 def generate_package(tmp_path, target):
     service = AIcDefaultDefsCodegenService()
-    profile = AIcAlgitesNamingProfiles.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles.python_profile()
+    profile = AIcAlgitesNamingProfiles_1.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles_1.python_profile()
     paths = []
     for stem in STEMS:
         output = service.generate(AIcdCodeGenerationRequest(load(stem, *FORMATS[2]), target, 'parity_generated', profile))
@@ -152,12 +152,12 @@ def test_schema_decimal_facets_remain_exact(tmp_path, kind, suffix):
     path = tmp_path / f'exact_1.{suffix}'
     boundary = '0.12345678901234567890123456789'
     path.write_text('{"type":"object","properties":{"value":{"type":"number","minimum":'+boundary+'}}}')
-    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles.python_profile()))
+    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles_1.python_profile()))
     assert model.properties[0].constraints.minimum == boundary
 
 
 def test_float_width_and_calendar_values():
-    from eu.algites.tool.codegen.defs._schema_runtime import _ai_convert, AIcSchemaTemporalValue, AIcSchemaDuration
+    from eu.algites.tool.codegen.defs.impl.standard._schema_runtime import _ai_convert, AIcSchemaTemporalValue, AIcSchemaDuration
     assert _ai_convert('16777217', 'float', 'NUMBER') == 16777216.0
     assert _ai_convert('16777217', 'double', 'NUMBER') == 16777217.0
     for dtype, value in [('date','12345-02-28+14:00'),('time','24:00:00Z'),('dateTime','2024-02-29T12:34:56.1234567890123456789'),
@@ -172,7 +172,7 @@ def test_urn_subschema_and_anchor_resolution(tmp_path):
     (definitions / 'leaf_1.yamldef.schema.json').write_text('{"$id":"urn:tests:leaf:1","$defs":{"value":{"$anchor":"Content","type":"integer","minimum":1}},"type":"object","properties":{}}')
     path = definitions / 'root_1.yamldef.schema.json'
     path.write_text('{"type":"object","properties":{"inline":{"$ref":"urn:tests:leaf:1#Content"},"leaf":{"$ref":"urn:tests:leaf:1"}}}')
-    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,AInDefinitionSourceKind.YAMLDEFS,AIcAlgitesNamingProfiles.python_profile()))
+    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,AInDefinitionSourceKind.YAMLDEFS,AIcAlgitesNamingProfiles_1.python_profile()))
     assert model.properties[0].value_kind is AInValueKind.INTEGER
     assert model.properties[0].constraints.minimum == '1'
     assert model.properties[1].reference.logical_name == 'leaf'
@@ -182,6 +182,6 @@ def test_scalar_root_preserves_type_and_facets(tmp_path):
     for kind, folder, suffix in FORMATS:
         path = tmp_path / f'scalar_1.{suffix}'
         path.write_text('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:simpleType name="Value"><xs:restriction base="xs:decimal"><xs:minInclusive value="0.1234567890123456789"/></xs:restriction></xs:simpleType></xs:schema>' if kind is AInDefinitionSourceKind.XMLDEFS else '{"type":"number","minimum":0.1234567890123456789}')
-        model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles.python_profile()))
+        model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles_1.python_profile()))
         assert model.properties[0].value_kind is AInValueKind.NUMBER
         assert model.properties[0].constraints.minimum == '0.1234567890123456789'

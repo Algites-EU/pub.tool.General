@@ -21,3 +21,6 @@ build/*
 **/src/product/*.gen/
 **/src/develop/*.gen/
 
+
+# JetBrains IDE project files
+.idea/

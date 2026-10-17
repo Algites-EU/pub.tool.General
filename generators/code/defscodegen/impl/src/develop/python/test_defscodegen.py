@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from eu.algites.lib.naming.convention.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
@@ -13,7 +13,7 @@ def test_json_enum_and_yamldefs_object_generation():
     """Verify enum and object generation across jsondefs and yamldefs."""
     examples = Path(__file__).parents[1] / "examples"
     service = AIcDefaultDefsCodegenService()
-    profile = AIcAlgitesNamingProfiles.python_profile()
+    profile = AIcAlgitesNamingProfiles_1.python_profile()
     enum_def = service.load(AIcdDefinitionLoadRequest(examples / "resource-endpoint-action_1.jsondef.schema.json", AInDefinitionSourceKind.JSONDEFS, profile))
     assert enum_def.kind is AInDefinitionKind.ENUM
     assert enum_def.logical_name == "resource-endpoint-action"
@@ -37,7 +37,7 @@ def test_json_enum_and_yamldefs_object_generation():
     assert "def from_mapping(cls, value: Mapping[str, object]):" in obj_src.source
     assert "def to_mapping(self) -> Mapping[str, object]:" in obj_src.source
 
-    java_profile = AIcAlgitesNamingProfiles.java_profile()
+    java_profile = AIcAlgitesNamingProfiles_1.java_profile()
     java_src = service.generate(AIcdCodeGenerationRequest(obj_def, AInCodeGenerationTarget.JAVA, "example.generated", java_profile))
     assert "Example canonical object definition for a resource endpoint." in java_src.source
     assert "@param id Stable example resource-endpoint identifier." in java_src.source

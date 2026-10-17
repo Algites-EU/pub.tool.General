@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 import pytest
-from eu.algites.tool.codegen.defs.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 
 
 def _fixture(root):

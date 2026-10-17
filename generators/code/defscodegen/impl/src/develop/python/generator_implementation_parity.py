@@ -17,7 +17,7 @@ import sys
 import tempfile
 import unittest
 
-from eu.algites.tool.codegen.defs.aic_schema_object_bindings_generator import AIcSchemaObjectBindingsGenerator
+from eu.algites.tool.codegen.defs.impl.standard.aic_schema_object_bindings_generator import AIcSchemaObjectBindingsGenerator
 
 
 def create_fixture(root):
@@ -201,9 +201,9 @@ else: raise AssertionError('Invalid referenced scalar value accepted')
                 '-d', str(classes), *java], check=True)
 
     def test_paired_api_all_frontends_and_targets(self):
-        from eu.algites.lib.naming.convention.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-        from eu.algites.tool.codegen.defs.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-        from eu.algites.tool.codegen.defs.aic_schema_interface_generator import AIcSchemaInterfaceGenerator
+        from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+        from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+        from eu.algites.tool.codegen.defs.impl.standard.aic_schema_interface_generator import AIcSchemaInterfaceGenerator
         from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
         from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
         from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
@@ -212,7 +212,7 @@ else: raise AssertionError('Invalid referenced scalar value accepted')
         for kind, suffix in ((AInDefinitionSourceKind.JSONDEFS,'jsondef.schema.json'),
                 (AInDefinitionSourceKind.YAMLDEFS,'yamldef.schema.json'),(AInDefinitionSourceKind.XMLDEFS,'xsd')):
             for target in AInCodeGenerationTarget:
-                profile = AIcAlgitesNamingProfiles.python_profile() if target is AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles.java_profile()
+                profile = AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles_1.java_profile()
                 for stem in ('parity-root','parity-child','parity-leaf','parity-status','parity-builtins'):
                     with self.subTest(kind=kind, target=target, stem=stem):
                         source = resources / kind.value / (stem + '_1.' + suffix)

@@ -11,7 +11,7 @@ The `intf` artifact exposes the generation API, `impl` generates mutable contrac
 Java:
 
 ```sh
-java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.AIcSdoCodegenCli \
+java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli \
     example.contracts.AIigRoot_1 /path/to/intf/src/product/java.gen \
     /path/to/impl/src/product/java.gen d
 ```
@@ -19,7 +19,7 @@ java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.AIcSdoCodegenCli \
 Python:
 
 ```sh
-python -m eu.algites.tool.codegen.sdo.aic_sdo_codegen_cli \
+python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli \
     example.contracts.aiig_root_1:AIigRoot_1 \
     /path/to/intf/src/product/python.gen \
     /path/to/impl/src/product/python.gen --marker d

@@ -1,0 +1,217 @@
+package eu.algites.tool.codegen.defs.impl.standard;
+
+
+import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
+import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
+import eu.algites.tool.codegen.defs.AIcdEnumValueDefinition;
+import eu.algites.tool.codegen.defs.AIcdGeneratedSource;
+import eu.algites.tool.codegen.defs.AIcdGeneratedTypeIdentity;
+import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
+import eu.algites.tool.codegen.defs.AIiCodeGenerationBackend;
+import eu.algites.tool.codegen.defs.AInCodeGenerationTarget;
+import eu.algites.tool.codegen.defs.AInDefinitionKind;
+import eu.algites.tool.codegen.defs.AInDefsNameRole;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/** Generates Java records and enums from normalized canonical definitions. */
+public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBackend {
+    /** Creates the default Java code-generation backend. */
+    public AIcJavaCodeGenerationBackend() {
+    }
+    private final AIcGenerationNames names = new AIcGenerationNames();
+
+    /**
+     * Returns the target technology handled by this backend.
+     *
+     * @return the Java target
+     */
+    @Override
+    public AInCodeGenerationTarget target() {
+        return AInCodeGenerationTarget.JAVA;
+    }
+
+    /**
+     * Generates one Java source file from a canonical definition.
+     *
+     * @param request normalized definition and output policy
+     * @return generated Java source
+     */
+    @Override
+    public AIcdGeneratedSource generate(AIcdCodeGenerationRequest request) {
+        boolean enumDefinition = request.definition().kind() == AInDefinitionKind.ENUM;
+        String typeName = names.typeName(request.definition(), request.namingProfile(), enumDefinition ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
+        String source = enumDefinition ? enumSource(request, typeName) : dataSource(request, typeName);
+        String relative = request.packageName().replace('.', '/') + "/" + typeName + ".java";
+        return new AIcdGeneratedSource(typeName, relative, source,
+                List.of(AIcdGeneratedTypeIdentity.fromRequest(request, typeName, relative, enumDefinition ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE)));
+    }
+
+    /**
+     * Generates a Java enum preserving each canonical serialized value.
+     *
+     * @param request generation request
+     * @param typeName generated enum name
+     * @return complete Java source
+     */
+    private String enumSource(AIcdCodeGenerationRequest request, String typeName) {
+        List<String> constants = request.definition().enumValues().stream()
+                .map(value -> enumConstantSource(value, request))
+                .toList();
+        return "package " + request.packageName() + ";\n\n" +
+                typeJavadoc(request.definition(), List.of()) +
+                "public enum " + typeName + " {\n" + String.join(",\n", constants) + ";\n\n" +
+                "    public static final String CANONICAL_SOURCE_ID = " + quote(request.definition().identity()) + ";\n" +
+                "    public static final Integer CANONICAL_SOURCE_VERSION = " + request.definition().version() + ";\n" +
+                "    public static final String CANONICAL_SOURCE_RESOURCE = " + quote(request.definition().sourceResource()) + ";\n\n" +
+                "    private final String wireValue;\n\n" +
+                "    " + typeName + "(String aWireValue) {\n        wireValue = aWireValue;\n    }\n\n" +
+                "    /**\n" +
+                "     * Returns the exact serialized value declared by the canonical definition.\n" +
+                "     *\n" +
+                "     * @return canonical wire value\n" +
+                "     */\n" +
+                "    public String wireValue() {\n        return wireValue;\n    }\n" +
+                "}\n";
+    }
+
+    /**
+     * Generates one documented Java enum constant.
+     *
+     * @param value canonical enum value
+     * @param request generation request
+     * @return documented Java enum-constant source
+     */
+    private String enumConstantSource(AIcdEnumValueDefinition value, AIcdCodeGenerationRequest request) {
+        String constantName = names.enumConstant(value.value(), request.namingProfile());
+        String description = documentation(value.description(), "Canonical enum value " + value.value() + ".");
+        return "    /**\n" +
+                "     * " + description + "\n" +
+                "     */\n" +
+                "    " + constantName + "(" + quote(value.value()) + ")";
+    }
+
+    /**
+     * Generates a Java record and documents its record components from source property descriptions.
+     *
+     * @param request generation request
+     * @param typeName generated record name
+     * @return complete Java source
+     */
+    private String dataSource(AIcdCodeGenerationRequest request, String typeName) {
+        List<String> components = new ArrayList<>();
+        List<String> parameterDocs = new ArrayList<>();
+        for (AIcdPropertyDefinition property : request.definition().properties()) {
+            String propertyName = javaIdentifier(names.propertyName(property.sourceName(), request.namingProfile()));
+            components.add(AIcScalarGeneration.javaType(property, request, names) + " " + propertyName);
+            parameterDocs.add(" * @param " + propertyName + " " + documentation(property.description(), "Value of canonical property " + property.sourceName() + "."));
+        }
+        return "package " + request.packageName() + ";\n\n" +
+                typeJavadoc(request.definition(), parameterDocs) +
+                "public record " + typeName + "(\n        " + String.join(",\n        ", components) + ") {\n" +
+                "    public static final String CANONICAL_SOURCE_ID = " + quote(request.definition().identity()) + ";\n" +
+                "    public static final Integer CANONICAL_SOURCE_VERSION = " + request.definition().version() + ";\n" +
+                "    public static final String CANONICAL_SOURCE_RESOURCE = " + quote(request.definition().sourceResource()) + ";\n\n" +
+                schemaFieldConstants(request) +
+                "    /** Validates the scalar constraints retained from the canonical schema. */\n" +
+                "    public " + typeName + " {\n" + request.definition().properties().stream()
+                    .map(property -> AIcScalarGeneration.javaValidation(property, javaIdentifier(names.propertyName(property.sourceName(), request.namingProfile()))))
+                    .collect(java.util.stream.Collectors.joining()) + "    }\n" +
+                "}\n";
+    }
+
+    /**
+     * Generates stable constants that expose the canonical source name of every schema-backed field.
+     *
+     * @param request generation request
+     * @return complete field-name constant declarations
+     */
+    private String schemaFieldConstants(AIcdCodeGenerationRequest request) {
+        StringBuilder result = new StringBuilder();
+        for (AIcdPropertyDefinition property : request.definition().properties()) {
+            result.append("    /**\n");
+            result.append("     * <strong>Field Name:</strong> {@code ")
+                    .append(escapeJavadocHtml(property.sourceName())).append("}");
+            if (property.description() != null && !property.description().isBlank()) {
+                result.append("<br/>\n");
+                result.append("     * <strong>Field Description:</strong> ")
+                        .append(documentation(property.description(), "")).append("\n");
+            } else {
+                result.append("\n");
+            }
+            result.append("     */\n");
+            result.append("    public static final String ")
+                    .append(names.schemaFieldNameConstant(property.sourceName(), request.namingProfile()))
+                    .append(" = ").append(quote(property.sourceName())).append(";\n\n");
+        }
+        return result.toString();
+    }
+
+    /**
+     * Builds Javadoc shared by generated records and enums.
+     *
+     * @param definition canonical definition
+     * @param parameterDocs optional record-component documentation lines
+     * @return complete Javadoc block
+     */
+    private static String typeJavadoc(AIcdCanonicalDefinition definition, List<String> parameterDocs) {
+        StringBuilder result = new StringBuilder();
+        result.append("/**\n * ").append(documentation(definition.description(), "Generated representation of canonical definition " + definition.logicalName() + "."));
+        result.append("\n *\n * <p>Generated from canonical definition ").append(escapeJavadoc(definition.identity())).append('/').append(definition.version());
+        result.append(". Source: ").append(escapeJavadoc(definition.sourceResource())).append(". Do not edit manually.</p>\n");
+        for (String parameterDoc : parameterDocs) result.append(parameterDoc).append('\n');
+        result.append(" */\n");
+        return result.toString();
+    }
+
+    private static final java.util.Set<String> JAVA_RESERVED = java.util.Set.of(
+            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue",
+            "default", "do", "double", "else", "enum", "extends", "final", "finally", "float", "for", "goto", "if",
+            "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "package", "private",
+            "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this",
+            "throw", "throws", "transient", "try", "void", "volatile", "while", "true", "false", "null", "_", "record",
+            "yield", "var", "sealed", "permits", "non-sealed", "clone", "finalize", "getClass", "hashCode", "notify",
+            "notifyAll", "toString", "wait");
+
+    private static String javaIdentifier(String name) {
+        return JAVA_RESERVED.contains(name) ? name + "_" : name;
+    }
+
+    /**
+     * Selects and normalizes documentation text for generated source.
+     *
+     * @param value canonical description
+     * @param fallback fallback description
+     * @return safe one-line documentation text
+     */
+    private static String documentation(String value, String fallback) {
+        String selected = value == null || value.isBlank() ? fallback : value.strip();
+        return escapeJavadocHtml(selected.replaceAll("\\s+", " "));
+    }
+
+    /**
+     * Escapes the Javadoc terminator sequence.
+     *
+     * @param value source documentation text
+     * @return Javadoc-safe text
+     */
+    private static String escapeJavadoc(String value) {
+        return value.replace("*/", "* /");
+    }
+
+    /** Escapes canonical text embedded as ordinary HTML text in Javadoc. */
+    private static String escapeJavadocHtml(String value) {
+        return escapeJavadoc(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    /**
+     * Quotes one Java string literal.
+     *
+     * @param value raw string value
+     * @return quoted Java literal
+     */
+    private static String quote(String value) {
+        return AIcScalarGeneration.jquote(value);
+    }
+}

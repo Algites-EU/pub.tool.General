@@ -31,7 +31,7 @@ The repository name `General` is a repository classification only. It is intenti
 
 ### Naming validator CLI
 
-The naming validator CLI validates names directly with the YAML-backed `pub.lib.General_naming.convention.impl` catalog.
+The naming validator CLI validates names directly with the YAML-backed `pub.lib.General_naming.convention.algites` catalog.
 
 - GroupId: `eu.algites.tool.naming`
 - package namespace: `eu.algites.tool.naming.validator`
@@ -164,9 +164,8 @@ optionally selects the Gradle executable.
 1. `pub.lib.General` stays unchanged at `1.1-SNAPSHOT` and must already be published.
 2. Build and publish both tool generators (`defscodegen` and `sdocodegen`) at `1.1-SNAPSHOT`.
 3. Only after successful publication, migrate `pub.gov.Algites` Builder bootstrap
-   and consumer repositories to the new coordinates. Never change the
-   currently published `gradleinit:1.0-SNAPSHOT` bootstrap coordinate as part
-   of this tool-only migration.
+   and consumer repositories to the new coordinates. The 1.1-wide migration uses the `gradleinit:1.1-SNAPSHOT` bootstrap coordinate;
+   ensure that Builder 1.1 has been published before running downstream builds.
 4. Migrate existing AAC/Builder schema-binding integrations from the legacy
    paired generator to the separate contract and SDO stages.
 

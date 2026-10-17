@@ -8,5 +8,5 @@ Dependencies:
     Items:
       - GroupId: eu.algites.lib.data
         ArtifactId: pub.lib.General_data.dataobject.intf
-        Usages: [product_api]
+        ArtifactId: pub.lib.General_data.dataobject.intf
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }

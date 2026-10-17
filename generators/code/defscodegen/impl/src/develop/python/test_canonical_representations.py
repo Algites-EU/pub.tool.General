@@ -4,9 +4,9 @@ import pytest
 import sys
 import types
 
-from eu.algites.lib.naming.convention.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-from eu.algites.tool.codegen.defs.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
+from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
@@ -18,13 +18,13 @@ def test_common_metadata_representations():
     """Retain both definitions' documentation while rejecting an incompatible wire type."""
     root = Path(__file__).parents[1]
     service = AIcDefaultDefsCodegenService()
-    profile = AIcAlgitesNamingProfiles.python_profile()
+    profile = AIcAlgitesNamingProfiles_1.python_profile()
     yaml = service.load(AIcdDefinitionLoadRequest(root / "yamldefs/document-common-metadata_1.yamldef.schema.json", AInDefinitionSourceKind.YAMLDEFS, profile))
     json = service.load(AIcdDefinitionLoadRequest(root / "jsondefs/document-common-metadata_1.jsondef.schema.json", AInDefinitionSourceKind.JSONDEFS, profile))
     assert yaml.properties == json.properties
     merged = AIcCanonicalDefinitionMerger.merge((yaml, json))
     for target in AInCodeGenerationTarget:
-        profile = AIcAlgitesNamingProfiles.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles.python_profile()
+        profile = AIcAlgitesNamingProfiles_1.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles_1.python_profile()
         source = service.generate(AIcdCodeGenerationRequest(merged, target, "example.generated", profile)).source
         assert yaml.identity in source and json.identity in source
         assert yaml.description in source and json.description in source
@@ -46,20 +46,20 @@ def test_local_pointer_and_anchor(tmp_path):
     """Resolve chained local pointers and anchors without versioned-file parsing."""
     path = tmp_path / "local_1.jsondef.schema.json"
     path.write_text('{"type":"object","$defs":{"text":{"type":"string","description":"Inline text"},"list":{"$anchor":"Items","type":"array","items":{"type":"integer"}},"alias":{"$ref":"#/$defs/text"}},"properties":{"text":{"$ref":"#/$defs/alias"},"items":{"$ref":"#Items"}}}')
-    definition = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles.python_profile()))
+    definition = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles_1.python_profile()))
     assert definition.properties[0].value_kind is AInValueKind.STRING
     assert definition.properties[0].description == "Inline text"
     assert definition.properties[1].value_kind is AInValueKind.ARRAY
     assert definition.properties[1].item_value_kind is AInValueKind.INTEGER
     path.write_text('{"type":"object","properties":{"bad":{"$ref":"#/$defs/missing"}}}')
     with pytest.raises(ValueError, match="Undefined"):
-        AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles.python_profile()))
+        AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles_1.python_profile()))
 
 
 def test_composition_and_xml_identity(tmp_path):
     """Retain composed fields and distinguish canonical files with generic XSD type names."""
     service = AIcDefaultDefsCodegenService()
-    profile = AIcAlgitesNamingProfiles.python_profile()
+    profile = AIcAlgitesNamingProfiles_1.python_profile()
     path = tmp_path / "composed_1.jsondef.schema.json"
     path.write_text('{"$defs":{"content":{"type":"object","properties":{"Name":{"type":"string"}},"required":["Name"]}},"allOf":[{"$ref":"#/$defs/content"}]}')
     definition = service.load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, profile))

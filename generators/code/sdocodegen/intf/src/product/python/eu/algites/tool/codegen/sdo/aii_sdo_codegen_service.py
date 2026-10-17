@@ -1,6 +1,6 @@
 """Schema-independent SmartDataObject generator contract."""
 from abc import ABC, abstractmethod
-from .aicd_sdo_generation_result import AIcdSdoGenerationResult
+from eu.algites.tool.codegen.sdo.aicd_sdo_generation_result import AIcdSdoGenerationResult
 
 class AIiSdoCodegenService(ABC):
     @abstractmethod

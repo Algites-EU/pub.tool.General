@@ -32,24 +32,24 @@ removes standard `src/product/java.gen`, `src/product/python.gen`,
 Java entry point:
 
 ```text
-eu.algites.tool.codegen.defs.AIcDefsCodegenCli
+eu.algites.tool.codegen.defs.impl.cli.AIcDefsCodegenCli
 ```
 
 Python entry point:
 
 ```sh
-python -m eu.algites.tool.codegen.defs.aic_defs_codegen_cli
+python -m eu.algites.tool.codegen.defs.impl.cli.aic_defs_codegen_cli
 ```
 
 The examples below use `defs-codegen` as shorthand for **either** native entry
 point. This is a documentation placeholder, not a shell command installed by
 this repository. For Java invoke `java -cp <runtime-classpath>
- eu.algites.tool.codegen.defs.AIcDefsCodegenCli ...` on one command line.
+ eu.algites.tool.codegen.defs.impl.cli.AIcDefsCodegenCli ...` on one command line.
 
 ### 2.1 Complete batch example
 
 ```sh
-python -m eu.algites.tool.codegen.defs.aic_defs_codegen_cli \
+python -m eu.algites.tool.codegen.defs.impl.cli.aic_defs_codegen_cli \
   --repository-root=. \
   --schema-input-dir=yamldefs:src/product/yamldefs \
   --schema-input-dir=jsondefs:src/product/jsondefs \
@@ -149,7 +149,7 @@ leave partial output. `--check` performs no mutations. `--clean-only` performs
 step 3 alone and needs only output directories/catalogs, for example:
 
 ```sh
-python -m eu.algites.tool.codegen.defs.aic_defs_codegen_cli \
+python -m eu.algites.tool.codegen.defs.impl.cli.aic_defs_codegen_cli \
   --technology-dointf-output-dir=python:src/product/python.gen \
   --technology-dointf-output-naming-profile=python:config/algites-python-name-conventions.yml \
   --clean-only
@@ -178,19 +178,19 @@ consumers and is not the recommended new first-stage integration.
 Java entry point:
 
 ```text
-eu.algites.tool.codegen.sdo.AIcSdoCodegenCli
+eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli
 ```
 
 Python entry point:
 
 ```sh
-python -m eu.algites.tool.codegen.sdo.aic_sdo_codegen_cli
+python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli
 ```
 
 ### 3.1 Native Python example
 
 ```sh
-python -m eu.algites.tool.codegen.sdo.aic_sdo_codegen_cli \
+python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli \
   --technology-dointf-input-dir=python:src/product/python.gen \
   --technology-dointf-input-naming-profile=python:config/algites-python-name-conventions.yml \
   --technology-sdointf-output-dir=python:src/product/python.gen \
@@ -238,14 +238,14 @@ fix for transactional behavior of the separate SDO tool.
 Java:
 
 ```sh
-java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.AIcSdoCodegenCli \
+java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli \
   example.contracts.AIigCustomer_1 path/to/mutable.gen path/to/impl.gen d
 ```
 
 Python:
 
 ```sh
-python -m eu.algites.tool.codegen.sdo.aic_sdo_codegen_cli \
+python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli \
   example.contracts.aiig_customer_1:AIigCustomer_1 path/to/mutable.gen path/to/impl.gen \
   --marker d
 ```
@@ -367,7 +367,7 @@ JVM/Gradle integration tests in CI with published `pub.lib.General` 1.1-SNAPSHOT
 ### User-defined naming variables example
 
 The `pub.lib.General` naming catalog contains a tested pair of files,
-`naming/convention/impl/src/product/config/eu/algites/lib/naming/convention/example-input.yml`
+`naming/convention/algites/src/product/config/eu/algites/lib/naming/convention/example-input.yml`
 and `example-output.yml`. They illustrate the native YAML engine's `variable`
 segments and the nested `(?<version>(?<major>...)\.(?<minor>...))` captures.
 For example, `customer_address--eu_west--beta--2.7.demo.schema` can be

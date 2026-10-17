@@ -1,9 +1,9 @@
 """Qualified type identities from General are independent of AAC binding formatting."""
 from pathlib import Path
 
-from eu.algites.lib.naming.convention.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.aic_json_schema_reader import AIcJsonSchemaReader
-from eu.algites.tool.codegen.defs.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.tool.codegen.defs.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
+from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
@@ -18,8 +18,8 @@ def test_python_java_schema_contract_identities():
     }
     reader=AIcJsonSchemaReader()
     for target, ext in ((AInCodeGenerationTarget.PYTHON,'.py'),(AInCodeGenerationTarget.JAVA,'.java')):
-        profile=(AIcAlgitesNamingProfiles.python_profile() if target is AInCodeGenerationTarget.PYTHON
-                 else AIcAlgitesNamingProfiles.java_profile())
+        profile=(AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON
+                 else AIcAlgitesNamingProfiles_1.java_profile())
         load=AIcdDefinitionLoadRequest(Path('example_2.json'),AInDefinitionSourceKind.JSONDEFS,profile)
         definition=reader.read(schema,load,AInDefinitionSourceKind.JSONDEFS,
                                'x-aac-schema-id','x-aac-schema-version','x-jsondefs-name')

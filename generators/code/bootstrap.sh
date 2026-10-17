@@ -65,13 +65,13 @@ project(':impl') {
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.3'
         testImplementation 'org.testng:testng:7.11.0'
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.impl:1.1-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
     }
 }
 project(':cli') {
     dependencies {
         implementation project(':impl')
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.impl:1.1-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
     }
 }
 

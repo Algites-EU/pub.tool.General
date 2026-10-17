@@ -13,14 +13,12 @@ Dependencies:
       - GroupId: eu.algites.tool.codegen
         ArtifactId: pub.tool.General_generators.code.defscodegen.intf
         Usages: [product_api]
-        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.tool.codegen
         ArtifactId: pub.tool.General_generators.code.defscodegen.impl
         Usages: [product_implementation]
-        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.convention.impl
-        Usages: [product_implementation]
+        ArtifactId: pub.lib.General_naming.convention.algites
+        ArtifactId: pub.lib.General_naming.convention.algites
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
   - DependencyKind: java
     Items:

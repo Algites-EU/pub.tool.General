@@ -5,9 +5,9 @@ import types
 
 import pytest
 
-from eu.algites.lib.naming.convention.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs._json_nullability import _accepts_null
-from eu.algites.tool.codegen.defs.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.tool.codegen.defs.impl.standard._json_nullability import _accepts_null
+from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
@@ -46,7 +46,7 @@ def test_generated_nullable_dto_round_trip(tmp_path: Path):
     }
     path = tmp_path / "nullable-input_1.jsondef.schema.json"
     path.write_text(json.dumps(doc), encoding="utf-8")
-    profile = AIcAlgitesNamingProfiles.python_profile()
+    profile = AIcAlgitesNamingProfiles_1.python_profile()
     service = AIcDefaultDefsCodegenService()
     definition = service.load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, profile))
     props = {p.source_name:p for p in definition.properties}

@@ -2,11 +2,11 @@
 import importlib
 from pathlib import Path
 
-from eu.algites.tool.codegen.sdo.aic_sdo_codegen_service import AIcSdoCodegenService
+from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
-from eu.algites.lib.data.smartdataobject.ais_smart_data_object_factory import AIsSmartDataObjectFactory
+from eu.algites.lib.data.smartdataobject.impl.standard.ais_smart_data_object_factory import AIsSmartDataObjectFactory
 
 
 def test_diamond_contract_generated_and_constructed(tmp_path, monkeypatch):

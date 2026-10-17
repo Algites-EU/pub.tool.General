@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 import pytest
 
-from eu.algites.tool.codegen.sdo.aic_sdo_codegen_service import AIcSdoCodegenService
+from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 
 
@@ -102,11 +102,11 @@ def test_nested_data_object_getter_is_covariant(contracts):
     assert instance.getChild() is value and instance.get_Child() is value
 
 import json
-from eu.algites.tool.codegen.defs.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 
 def test_schema_nested_reference_passes_mutable_contract_to_sdo(tmp_path, monkeypatch):
     import importlib
-    from eu.algites.tool.codegen.sdo.aic_sdo_codegen_service import AIcSdoCodegenService
+    from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
     package = 'sdopackage_' + tmp_path.name.replace('-', '_')
     schema = tmp_path / 'intf/src/product/jsondefs' / package
     schema.mkdir(parents=True)
@@ -159,9 +159,9 @@ def test_nullable_nested_contract_uses_nullable_mutable_return(contracts):
 
 
 def test_yaml_named_sdo_setter_parameter_follows_python_profile(contracts):
-    from eu.algites.lib.naming.convention.aic_name_convention_catalog import AIcNameConventionCatalog
+    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
     _, parent, _ = contracts
-    catalog = AIcNameConventionCatalog.standard('python')
+    catalog = AIcNameConventionCatalog_1.standard('python')
     # The naming-backed path requires versioned DO contracts.
     parent.__name__ = 'AIigParent_1'
     generated = AIcSdoCodegenService().generate(parent, naming=(catalog, catalog, catalog))

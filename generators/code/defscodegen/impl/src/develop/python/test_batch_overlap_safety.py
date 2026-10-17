@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from eu.algites.tool.codegen.defs.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 
 
 def _naming_resource_bytes(name: str) -> bytes:
     """Read published naming resources without depending on another artifact's source layout."""
     providers = (
         ('eu.algites.lib.naming.convention', ()),
-        ('algites.pub.lib.general.naming.convention.impl',
+        ('algites.pub.lib.general.naming.convention.algites',
          ('eu', 'algites', 'lib', 'naming', 'convention')),
     )
     for package, subpath in providers:
