@@ -41,6 +41,6 @@ Module Contents
 
 
    .. py:attribute:: naming_profile
-      :type:  eu.algites.lib.naming.convention.aic_name_convention_catalog.AIcNameConventionCatalog
+      :type:  eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1.AIcNameConventionCatalog_1
 
 

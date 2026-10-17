@@ -1,0 +1,30 @@
+python.eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger
+=================================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger.AIcCanonicalDefinitionMerger
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcCanonicalDefinitionMerger
+
+   Merge compatible representations while retaining documentation and source provenance.
+
+
+   .. py:method:: merge(definitions)
+      :staticmethod:
+
+
+      Reject differing contracts and combine documentation for one logical type.
+
+
+

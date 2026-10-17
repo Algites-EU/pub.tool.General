@@ -29,7 +29,7 @@ Module Contents
    inheritance.
 
 
-   .. py:method:: generate(read_contract: type, marker: str = 'd') -> python.eu.algites.tool.codegen.sdo.aicd_sdo_generation_result.AIcdSdoGenerationResult
+   .. py:method:: generate(read_contract: type, marker: str = 'd') -> eu.algites.tool.codegen.sdo.aicd_sdo_generation_result.AIcdSdoGenerationResult
       :abstractmethod:
 
 

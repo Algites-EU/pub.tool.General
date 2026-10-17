@@ -1,1 +1,1 @@
-typeSearchIndex = [{"p":"eu.algites.tool.naming.validator","l":"AIcNamingValidatorCli"},{"l":"All Classes and Interfaces","u":"allclasses-index.html"}];updateSearchResults();
+typeSearchIndex = [{"p":"eu.algites.tool.naming.validator.impl.cli","l":"AIcNamingValidatorCli"},{"l":"All Classes and Interfaces","u":"allclasses-index.html"}];updateSearchResults();

@@ -1,0 +1,27 @@
+python.eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli
+===============================================================
+
+.. py:module:: python.eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli
+
+.. autoapi-nested-parse::
+
+   Generate SmartDataObject implementations from imported DO contracts.
+
+   Both the legacy single-contract CLI and the new YAML-profile-driven batch CLI
+   are supported.  The native Python CLI never invokes Java.
+
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli.main
+
+
+Module Contents
+---------------
+
+.. py:function:: main(args=None)
+

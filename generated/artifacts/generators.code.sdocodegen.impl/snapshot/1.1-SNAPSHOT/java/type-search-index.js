@@ -1,1 +1,1 @@
-typeSearchIndex = [{"p":"eu.algites.tool.codegen.sdo","l":"AIcSdoCodegenService"},{"l":"All Classes and Interfaces","u":"allclasses-index.html"}];updateSearchResults();
+typeSearchIndex = [{"p":"eu.algites.tool.codegen.sdo.impl.standard","l":"AIcSdoCodegenService"},{"l":"All Classes and Interfaces","u":"allclasses-index.html"}];updateSearchResults();

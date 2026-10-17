@@ -23,10 +23,10 @@ Module Contents
 .. py:class:: AIcdSdoGenerationResult
 
    .. py:attribute:: mutable_interface
-      :type:  python.eu.algites.tool.codegen.sdo.aicd_generated_sdo_source.AIcdGeneratedSdoSource
+      :type:  eu.algites.tool.codegen.sdo.aicd_generated_sdo_source.AIcdGeneratedSdoSource
 
 
    .. py:attribute:: implementation
-      :type:  python.eu.algites.tool.codegen.sdo.aicd_generated_sdo_source.AIcdGeneratedSdoSource
+      :type:  eu.algites.tool.codegen.sdo.aicd_generated_sdo_source.AIcdGeneratedSdoSource
 
 

@@ -1,0 +1,27 @@
+python.eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator
+=========================================================================================
+
+.. py:module:: python.eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator
+
+.. autoapi-nested-parse::
+
+   First-stage generator that emits only annotated read contracts and enums.
+
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   python.eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator.AIcSchemaContractInterfaceGenerator
+
+
+Module Contents
+---------------
+
+.. py:class:: AIcSchemaContractInterfaceGenerator
+
+   .. py:method:: generate(request, parent: tuple[str, str] | None = None) -> eu.algites.tool.codegen.defs.aicd_generated_source.AIcdGeneratedSource
+
+
