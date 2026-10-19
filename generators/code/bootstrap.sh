@@ -7,6 +7,21 @@ locCodeDirectory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 locRepositoryDirectory="$(cd -- "$locCodeDirectory/../.." && pwd -P)"
 # Every standalone Gradle project, compiled class, test result and staging file
 # belongs under the repository's single root build directory.
+# Preserve old invocations while making their intent explicit and consistent.
+if [[ -z "${MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE:-}" && "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT:-0}" == 1 ]]; then
+    export MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=source
+    echo "Legacy MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT=1 selects source mode" >&2
+fi
+# All standalone bootstraps share the same dependency precedence policy.
+# remote: published Cloudsmith snapshot first, Maven Local only as fallback;
+# local: Maven Local first; source: source-prepared Maven Local first.
+locDependencyMode="${MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE:-remote}"
+case "$locDependencyMode" in
+    remote|local|source) ;;
+    *) echo "Invalid MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE='$locDependencyMode' (remote|local|source)" >&2; exit 2 ;;
+esac
+export MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE="$locDependencyMode"
+echo "Bootstrap dependency mode: $locDependencyMode"
 locBuildRoot="$locRepositoryDirectory/build/run/codegen-bootstrap"
 mkdir -p "$locBuildRoot/work"
 locTemporaryDirectory="$(mktemp -d "$locBuildRoot/work/launcher.XXXXXXXX")"
@@ -17,7 +32,7 @@ trap 'rm -rf -- "$locTemporaryDirectory"' EXIT
 # Optionally republish the actual library contracts from a sibling checkout before
 # compiling tool generators. A stale 1.1-SNAPSHOT JAR may resolve successfully while
 # lacking newly introduced field-presence and XML-representation API types.
-if [[ "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT:-0}" == 1 ]]; then
+if [[ "$locDependencyMode" == source || "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT:-0}" == 1 ]]; then
     locGeneralDirectory="${MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR:-$(dirname -- "$locRepositoryDirectory")/pub.lib.General}"
     locGeneralDirectory="$(cd -- "$locGeneralDirectory" && pwd -P)" || {
         echo "pub.lib.General source checkout is required for the optional dependency refresh" >&2
@@ -35,16 +50,31 @@ if [[ "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT:-0}" == 1 ]]; then
             exit 2
         }
     done
+    for locRequiredModule in factory/cpdiscovery/impl common text/format data/smartdataobject/intf data/smartdataobject/impl; do
+        [[ -d "$locGeneralDirectory/$locRequiredModule/src/product/java" ]] || {
+            echo "Missing source module: $locGeneralDirectory/$locRequiredModule" >&2; exit 2;
+        }
+    done
     locGeneralBootstrapDirectory="$(mktemp -d "$locBuildRoot/work/general-dataobject.XXXXXXXX")"
     # The temporary Gradle settings/build scripts and all outputs remain in the
     # tool repository root build directory; source directories stay read-only.
     cat > "$locGeneralBootstrapDirectory/settings.gradle" <<'GENERAL_SETTINGS'
-rootProject.name = 'modustro-general-dataobject-bootstrap'
-include ':factory-intf', ':dataobject-intf', ':naming-intf', ':naming-algites'
-project(':factory-intf').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'factory/cpdiscovery/intf')
-project(':dataobject-intf').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'data/dataobject/intf')
-project(':naming-intf').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'naming/convention/intf')
-project(':naming-algites').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'naming/convention/algites')
+rootProject.name = 'modustro-general-dependencies-bootstrap'
+def modules = [
+    'factory-intf': 'factory/cpdiscovery/intf',
+    'factory-impl': 'factory/cpdiscovery/impl',
+    'common': 'common',
+    'text-format': 'text/format',
+    'dataobject-intf': 'data/dataobject/intf',
+    'smartdataobject-intf': 'data/smartdataobject/intf',
+    'smartdataobject-impl': 'data/smartdataobject/impl',
+    'naming-intf': 'naming/convention/intf',
+    'naming-algites': 'naming/convention/algites'
+]
+modules.each { name, path ->
+    include ':' + name
+    project(':' + name).projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), path)
+}
 GENERAL_SETTINGS
     cat > "$locGeneralBootstrapDirectory/build.gradle" <<'GENERAL_BUILD'
 def outputRoot = new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'gradle/general-dataobject')
@@ -62,7 +92,12 @@ subprojects {
                 from components.java
                 artifactId = [
                     'factory-intf': 'pub.lib.General_factory.cpdiscovery.intf',
+                    'factory-impl': 'pub.lib.General_factory.cpdiscovery.impl',
+                    'common': 'pub.lib.General_common',
+                    'text-format': 'pub.lib.General_text.format',
                     'dataobject-intf': 'pub.lib.General_data.dataobject.intf',
+                    'smartdataobject-intf': 'pub.lib.General_data.smartdataobject.intf',
+                    'smartdataobject-impl': 'pub.lib.General_data.smartdataobject.impl',
                     'naming-intf': 'pub.lib.General_naming.convention.intf',
                     'naming-algites': 'pub.lib.General_naming.convention.algites'
                 ][project.name]
@@ -71,7 +106,40 @@ subprojects {
     }
 }
 project(':factory-intf') { group = 'eu.algites.lib.common' }
-project(':naming-intf') { group = 'eu.algites.lib.naming' }
+project(':factory-impl') {
+    group = 'eu.algites.lib.common'
+    dependencies { api project(':factory-intf') }
+}
+project(':common') {
+    group = 'eu.algites.lib.common'
+    dependencies {
+        api project(':factory-intf')
+        implementation 'jakarta.annotation:jakarta.annotation-api:3.0.0'
+        compileOnly 'org.jetbrains:annotations:26.0.2'
+    }
+}
+project(':text-format') { group = 'eu.algites.lib.text' }
+project(':smartdataobject-intf') {
+    group = 'eu.algites.lib.data'
+    dependencies {
+        api project(':common')
+        api project(':dataobject-intf')
+        api project(':text-format')
+    }
+}
+project(':smartdataobject-impl') {
+    group = 'eu.algites.lib.data'
+    dependencies {
+        api project(':smartdataobject-intf')
+        api project(':text-format')
+        implementation project(':common')
+        implementation project(':factory-impl')
+    }
+}
+project(':naming-intf') {
+    group = 'eu.algites.lib.naming'
+    dependencies { api project(':dataobject-intf') }
+}
 project(':naming-algites') {
     group = 'eu.algites.lib.naming'
     sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/resources']
@@ -91,7 +159,7 @@ GENERAL_BUILD
     if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then
         locGeneralGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}")
     fi
-    echo "Refreshing pub.lib.General factory.cpdiscovery.intf, data.dataobject.intf and naming convention contracts/catalogs from $locGeneralDirectory"
+    echo "Refreshing pub.lib.General bootstrap dependency graph (9 artifacts including common and smartdataobject) from $locGeneralDirectory"
     MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR="$locGeneralDirectory" \
     MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" \
         "${locGeneralGradleCommand[@]}" --no-daemon --project-dir "$locGeneralBootstrapDirectory" publishToMavenLocal
@@ -126,9 +194,14 @@ subprojects {
     group = 'eu.algites.tool.codegen'
     version = providers.gradleProperty('modustro.defscodegen.version').getOrElse('1.1-SNAPSHOT')
     repositories {
-        mavenLocal()
+        def bootstrapMode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'
+        if (bootstrapMode != 'remote') mavenLocal()
+        maven {
+            url = uri('https://dl.cloudsmith.io/public/algites/java-snapshots-pub/maven/')
+            content { includeGroupByRegex('eu\\.algites\\..*') }
+        }
         mavenCentral()
-        maven { url = 'https://dl.cloudsmith.io/public/algites/java-snapshots-pub/maven/' }
+        if (bootstrapMode == 'remote') mavenLocal()
     }
     java { toolchain { languageVersion = JavaLanguageVersion.of(17) }; withSourcesJar() }
     sourceSets {
@@ -202,7 +275,7 @@ def verifyDataObjectDependency = tasks.register('verifyDataObjectDependency') {
             throw new GradleException("Incompatible pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT: "
                 + "${archive} is missing ${missing}. Republish current pub.lib.General data/dataobject/intf "
                 + "to Maven Local, or rerun generators/code/bootstrap.sh with "
-                + "MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT=1 and a sibling pub.lib.General checkout.")
+                + "MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=source and a sibling pub.lib.General checkout.")
         }
         logger.lifecycle("Bootstrap data-object API verified: ${archive}")
     }
@@ -247,7 +320,7 @@ def verifyNamingCatalog = tasks.register('verifyNamingCatalog') {
                 if (entry == null || !zip.getInputStream(entry).getText('UTF-8').contains('algites-' +
                         (path.contains('java') ? 'java' : 'python') + '-gen-xml-element-intf-versioned:')) {
                     throw new GradleException("Outdated pub.lib.General naming catalog in ${archive}: missing XML element profile ${path}. " +
-                        "Set MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT=1 with current pub.lib.General sources.")
+                        "Use MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=source with current pub.lib.General sources.")
                 }
             }
         }
@@ -300,9 +373,14 @@ subprojects {
     group = 'eu.algites.tool.codegen'
     version = providers.gradleProperty('modustro.sdocodegen.version').getOrElse('1.1-SNAPSHOT')
     repositories {
-        mavenLocal()
+        def bootstrapMode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'
+        if (bootstrapMode != 'remote') mavenLocal()
+        maven {
+            url = uri('https://dl.cloudsmith.io/public/algites/java-snapshots-pub/maven/')
+            content { includeGroupByRegex('eu\\.algites\\..*') }
+        }
         mavenCentral()
-        maven { url = 'https://dl.cloudsmith.io/public/algites/java-snapshots-pub/maven/' }
+        if (bootstrapMode == 'remote') mavenLocal()
     }
     java { toolchain { languageVersion = JavaLanguageVersion.of(17) }; withSourcesJar() }
     sourceSets {
