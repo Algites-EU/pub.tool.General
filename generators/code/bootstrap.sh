@@ -5,9 +5,78 @@ set -euo pipefail
 # The generated Gradle projects deliberately do not apply Modustro conventions.
 locCodeDirectory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 locRepositoryDirectory="$(cd -- "$locCodeDirectory/../.." && pwd -P)"
-locTemporaryDirectory="$(mktemp -d "${TMPDIR:-/tmp}/modustro-codegen-bootstrap.XXXXXXXX")"
+# Every standalone Gradle project, compiled class, test result and staging file
+# belongs under the repository's single root build directory.
+locBuildRoot="$locRepositoryDirectory/build/run/codegen-bootstrap"
+mkdir -p "$locBuildRoot/work"
+locTemporaryDirectory="$(mktemp -d "$locBuildRoot/work/launcher.XXXXXXXX")"
+# Keep Python bytecode and pytest caches out of the checked-out source tree.
+export PYTHONDONTWRITEBYTECODE=1
+export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:+${PYTEST_ADDOPTS} }-p no:cacheprovider"
 trap 'rm -rf -- "$locTemporaryDirectory"' EXIT
-command -v algites-cloudsmith >/dev/null || { echo "algites-cloudsmith is required for bootstrap upload" >&2; exit 2; }
+# Optionally republish the actual library contracts from a sibling checkout before
+# compiling tool generators. A stale 1.1-SNAPSHOT JAR may resolve successfully while
+# lacking newly introduced field-presence and XML-representation API types.
+if [[ "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT:-0}" == 1 ]]; then
+    locGeneralDirectory="${MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR:-$(dirname -- "$locRepositoryDirectory")/pub.lib.General}"
+    locGeneralDirectory="$(cd -- "$locGeneralDirectory" && pwd -P)" || {
+        echo "pub.lib.General source checkout is required for the optional dependency refresh" >&2
+        exit 2
+    }
+    for locRequiredSource in \
+        'factory/cpdiscovery/intf/src/product/java/eu/algites/lib/factory/cpdiscovery/AIiCategoryProviderFactory.java' \
+        'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/AInFieldPresenceKind.java' \
+        'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.java'; do
+        [[ -f "$locGeneralDirectory/$locRequiredSource" ]] || {
+            echo "Required current pub.lib.General source is missing: $locGeneralDirectory/$locRequiredSource" >&2
+            exit 2
+        }
+    done
+    locGeneralBootstrapDirectory="$(mktemp -d "$locBuildRoot/work/general-dataobject.XXXXXXXX")"
+    # The temporary Gradle settings/build scripts and all outputs remain in the
+    # tool repository root build directory; source directories stay read-only.
+    cat > "$locGeneralBootstrapDirectory/settings.gradle" <<'GENERAL_SETTINGS'
+rootProject.name = 'modustro-general-dataobject-bootstrap'
+include ':factory-intf', ':dataobject-intf'
+project(':factory-intf').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'factory/cpdiscovery/intf')
+project(':dataobject-intf').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'data/dataobject/intf')
+GENERAL_SETTINGS
+    cat > "$locGeneralBootstrapDirectory/build.gradle" <<'GENERAL_BUILD'
+def outputRoot = new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'gradle/general-dataobject')
+layout.buildDirectory.set(new File(outputRoot, 'root'))
+subprojects {
+    layout.buildDirectory.set(new File(outputRoot, 'modules/' + project.name))
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+    version = '1.1-SNAPSHOT'
+    java { toolchain { languageVersion = JavaLanguageVersion.of(17) }; withSourcesJar() }
+    sourceSets.main.java.srcDirs = ['src/product/java']
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+                artifactId = project.name == 'factory-intf' ?
+                    'pub.lib.General_factory.cpdiscovery.intf' : 'pub.lib.General_data.dataobject.intf'
+            }
+        }
+    }
+}
+project(':factory-intf') { group = 'eu.algites.lib.common' }
+project(':dataobject-intf') {
+    group = 'eu.algites.lib.data'
+    dependencies { api project(':factory-intf') }
+}
+GENERAL_BUILD
+    locGeneralGradleCommand=(bash "$locRepositoryDirectory/gradlew")
+    if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then
+        locGeneralGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}")
+    fi
+    echo "Refreshing pub.lib.General factory.cpdiscovery.intf and data.dataobject.intf from $locGeneralDirectory"
+    MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR="$locGeneralDirectory" \
+    MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" \
+        "${locGeneralGradleCommand[@]}" --no-daemon --project-dir "$locGeneralBootstrapDirectory" publishToMavenLocal
+    rm -rf -- "$locGeneralBootstrapDirectory"
+fi
 
 cat > "$locTemporaryDirectory/defs.sh" <<'MODUSTRO_DEFS_BOOTSTRAP'
 #!/usr/bin/env bash
@@ -15,7 +84,8 @@ set -euo pipefail
 
 locModuleDir="${MODUSTRO_BOOTSTRAP_MODULE_DIRECTORY:?}"
 locRepositoryDir="${MODUSTRO_BOOTSTRAP_REPOSITORY_DIRECTORY:?}"
-locBootstrapDir="$(mktemp -d "${TMPDIR:-/tmp}/modustro-defscodegen-bootstrap.XXXXXXXX")"
+locBuildRoot="${MODUSTRO_BOOTSTRAP_BUILD_ROOT:?}"
+locBootstrapDir="$(mktemp -d "$locBuildRoot/work/defscodegen.XXXXXXXX")"
 trap 'rm -rf -- "${locBootstrapDir}"' EXIT
 
 # Break the self-hosting dependency: build the generator without loading repository conventions that use it.
@@ -27,7 +97,10 @@ include 'intf', 'impl', 'cli'
 }
 GRADLE
 cat > "${locBootstrapDir}/build.gradle" <<'GRADLE'
+def locBootstrapOutput = new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'gradle/defscodegen')
+layout.buildDirectory.set(new File(locBootstrapOutput, 'root'))
 subprojects {
+    layout.buildDirectory.set(new File(locBootstrapOutput, 'modules/' + project.name))
     apply plugin: 'java-library'
     apply plugin: 'maven-publish'
     group = 'eu.algites.tool.codegen'
@@ -86,6 +159,36 @@ project(':cli') {
     }
 }
 
+// Fail before Java compilation when a resolvable snapshot lacks required 1.1 API.
+// This checks the actual resolved artifact, not merely its Maven version string.
+def verifyDataObjectDependency = tasks.register('verifyDataObjectDependency') {
+    doLast {
+        def artifact = project(':intf').configurations.compileClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
+            it.moduleVersion.id.name == 'pub.lib.General_data.dataobject.intf'
+        }
+        if (artifact.size() != 1) {
+            throw new GradleException("Expected one pub.lib.General_data.dataobject.intf artifact on bootstrap classpath; found ${artifact.size()}")
+        }
+        def archive = artifact[0].file
+        def requiredClasses = [
+            'eu/algites/lib/data/dataobject/AInFieldPresenceKind.class',
+            'eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.class'
+        ]
+        def missing = []
+        new java.util.zip.ZipFile(archive).withCloseable { zip ->
+            missing = requiredClasses.findAll { zip.getEntry(it) == null }
+        }
+        if (!missing.isEmpty()) {
+            throw new GradleException("Incompatible pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT: "
+                + "${archive} is missing ${missing}. Republish current pub.lib.General data/dataobject/intf "
+                + "to Maven Local, or rerun generators/code/bootstrap.sh with "
+                + "MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT=1 and a sibling pub.lib.General checkout.")
+        }
+        logger.lifecycle("Bootstrap data-object API verified: ${archive}")
+    }
+}
+project(':intf').tasks.named('compileJava') { dependsOn verifyDataObjectDependency }
+
 // Bootstrap mirrors the native naming dependencies while bypassing generated project metadata.
 def parityPython = rootProject.layout.buildDirectory.dir('generator-parity/python-dependencies')
 def module = new File(System.getenv('_TMP_MODUSTRO_DEFS_MODULE'))
@@ -121,7 +224,7 @@ GRADLE
 locGradleCommand=(bash "${locRepositoryDir}/gradlew")
 if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then locGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}"); fi
 if [[ $# -eq 0 ]]; then set -- test publishToMavenLocal; fi
-_TMP_MODUSTRO_DEFS_MODULE="${locModuleDir}" "${locGradleCommand[@]}" --no-daemon --project-dir "${locBootstrapDir}" "$@"
+_TMP_MODUSTRO_DEFS_MODULE="${locModuleDir}" MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" "${locGradleCommand[@]}" --no-daemon --project-dir "${locBootstrapDir}" "$@"
 
 MODUSTRO_DEFS_BOOTSTRAP
 cat > "$locTemporaryDirectory/sdo.sh" <<'MODUSTRO_SDO_BOOTSTRAP'
@@ -130,7 +233,8 @@ set -euo pipefail
 
 locModuleDirectory="${MODUSTRO_BOOTSTRAP_MODULE_DIRECTORY:?}"
 locRepositoryDirectory="${MODUSTRO_BOOTSTRAP_REPOSITORY_DIRECTORY:?}"
-locBootstrapDirectory="$(mktemp -d "${TMPDIR:-/tmp}/modustro-sdocodegen-bootstrap.XXXXXXXX")"
+locBuildRoot="${MODUSTRO_BOOTSTRAP_BUILD_ROOT:?}"
+locBootstrapDirectory="$(mktemp -d "$locBuildRoot/work/sdocodegen.XXXXXXXX")"
 trap 'rm -rf -- "${locBootstrapDirectory}"' EXIT
 
 # Bootstrap without loading the self-hosting Builder conventions.
@@ -142,7 +246,10 @@ include 'intf', 'impl', 'cli'
 }
 GRADLE
 cat > "${locBootstrapDirectory}/build.gradle" <<'GRADLE'
+def locBootstrapOutput = new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'gradle/sdocodegen')
+layout.buildDirectory.set(new File(locBootstrapOutput, 'root'))
 subprojects {
+    layout.buildDirectory.set(new File(locBootstrapOutput, 'modules/' + project.name))
     apply plugin: 'java-library'
     apply plugin: 'maven-publish'
     group = 'eu.algites.tool.codegen'
@@ -226,7 +333,7 @@ GRADLE
 locGradleCommand=(bash "${locRepositoryDirectory}/gradlew")
 if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then locGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}"); fi
 if [[ $# -eq 0 ]]; then set -- test publishToMavenLocal; fi
-_TMP_MODUSTRO_SDO_MODULE="${locModuleDirectory}" "${locGradleCommand[@]}" --no-daemon --project-dir "${locBootstrapDirectory}" "$@"
+_TMP_MODUSTRO_SDO_MODULE="${locModuleDirectory}" MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" "${locGradleCommand[@]}" --no-daemon --project-dir "${locBootstrapDirectory}" "$@"
 
 MODUSTRO_SDO_BOOTSTRAP
 chmod 700 "$locTemporaryDirectory/defs.sh" "$locTemporaryDirectory/sdo.sh"
@@ -239,6 +346,7 @@ for locGenerator in defs sdo; do
     fi
     MODUSTRO_BOOTSTRAP_MODULE_DIRECTORY="$locModuleDirectory" \
     MODUSTRO_BOOTSTRAP_REPOSITORY_DIRECTORY="$locRepositoryDirectory" \
+    MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" \
         bash "$locTemporaryDirectory/$locGenerator.sh" test publishToMavenLocal
 done
 
@@ -262,12 +370,14 @@ for locGenerator in defscodegen sdocodegen; do
 done
 
 if [[ "${MODUSTRO_BOOTSTRAP_PREPARE_ONLY:-0}" == 1 ]]; then
-    locOutput="${MODUSTRO_BOOTSTRAP_OUTPUT_DIR:-$locRepositoryDirectory/build/run/codegen-bootstrap}"
+    locOutput="${MODUSTRO_BOOTSTRAP_OUTPUT_DIR:-$locBuildRoot}"
     mkdir -p "$locOutput"
     cp "$locManifest" "$locOutput/packages.tsv"
     echo "Validated six Maven packages; preparation-only manifest: $locOutput/packages.tsv"
     exit 0
 fi
+
+command -v algites-cloudsmith >/dev/null || { echo "algites-cloudsmith is required for bootstrap upload" >&2; exit 2; }
 
 # The outer wrapper resolves the secret exactly once, and cloudsmith inside
 # the session inherits the credential without reconsulting Secret Service.

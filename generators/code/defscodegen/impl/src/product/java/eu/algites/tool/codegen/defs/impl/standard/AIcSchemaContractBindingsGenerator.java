@@ -223,7 +223,7 @@ public final class AIcSchemaContractBindingsGenerator {
                 if (merged.dataType().kind() != AInDataTypeKind.OBJECT || inherited.definition().dataType().kind() != AInDataTypeKind.OBJECT)
                     throw new IllegalArgumentException("allOf inheritance must connect object contracts");
                 Map<String, AIcdPropertyDefinition> inheritedFields = new LinkedHashMap<>();
-                for (var field : inherited.definition().properties()) inheritedFields.put(field.sourceName(), field);
+                for (var field : inherited.definition().dataType().properties()) inheritedFields.put(field.sourceName(), field);
                 List<AIcdPropertyDefinition> locOverrides = new ArrayList<>();
                 for (var field : merged.dataType().properties()) {
                     var previous = inheritedFields.get(field.sourceName());
@@ -260,7 +260,7 @@ public final class AIcSchemaContractBindingsGenerator {
                             || locXmlParent.definition().dataType().kind() != AInDataTypeKind.OBJECT)
                         throw new IllegalArgumentException("XML extension requires object contracts");
                     Map<String, AIcdPropertyDefinition> locInheritedFields = new LinkedHashMap<>();
-                    for (var locField : locXmlParent.definition().properties())
+                    for (var locField : locXmlParent.definition().dataType().properties())
                         locInheritedFields.put(locField.sourceName(), locField);
                     List<AIcdPropertyDefinition> locOwnFields = new ArrayList<>();
                     for (var locField : merged.dataType().properties()) {

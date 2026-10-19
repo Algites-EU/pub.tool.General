@@ -127,6 +127,13 @@ public final class AIcCanonicalDefinitionMerger {
         if (aLeft.dataType().kind() != AInDataTypeKind.OBJECT
                 || aRight.dataType().kind() != AInDataTypeKind.OBJECT)
             AIcCompareDataType(locResult, "root.dataType", null, aLeft.dataType(), aRight.dataType(), aDocs);
+        if (aLeft.dataType().kind() == AInDataTypeKind.OBJECT
+                && aRight.dataType().kind() == AInDataTypeKind.OBJECT) {
+            AIcCompare(locResult, "root.constraints.minProperties", null, "minProperties",
+                    aLeft.dataType().constraints().minProperties(), aRight.dataType().constraints().minProperties());
+            AIcCompare(locResult, "root.constraints.maxProperties", null, "maxProperties",
+                    aLeft.dataType().constraints().maxProperties(), aRight.dataType().constraints().maxProperties());
+        }
         Map<String, AIcdPropertyDefinition> locLeft = new LinkedHashMap<>();
         Map<String, AIcdPropertyDefinition> locRight = new LinkedHashMap<>();
         for (var locField : aLeft.dataType().properties()) locLeft.put(locField.sourceName(), locField);
@@ -223,6 +230,10 @@ public final class AIcCanonicalDefinitionMerger {
                             aLeft.alternatives().get(locIndex), aRight.alternatives().get(locIndex), aDocs);
             }
             case OBJECT -> {
+                AIcCompare(aDiffs, aPrefix + ".constraints.minProperties", aField, "dataType/constraints/minProperties",
+                        aLeft.constraints().minProperties(), aRight.constraints().minProperties());
+                AIcCompare(aDiffs, aPrefix + ".constraints.maxProperties", aField, "dataType/constraints/maxProperties",
+                        aLeft.constraints().maxProperties(), aRight.constraints().maxProperties());
                 Map<String, AIcdPropertyDefinition> locLeft = new LinkedHashMap<>();
                 Map<String, AIcdPropertyDefinition> locRight = new LinkedHashMap<>();
                 aLeft.properties().forEach(aItem -> locLeft.put(aItem.sourceName(), aItem));
@@ -442,7 +453,8 @@ public final class AIcCanonicalDefinitionMerger {
         AIcdValueConstraints locValue = aProperty.dataType().constraints();
         return new AIcdValueConstraints(locValue.dataType(), locValue.minimum(), locValue.maximum(),
                 locValue.exclusiveMinimum(), locValue.exclusiveMaximum(), locValue.minLength(),
-                locValue.maxLength(), locValue.pattern(), List.of());
+                locValue.maxLength(), locValue.pattern(), List.of(), locValue.minItems(), locValue.maxItems(),
+                locValue.minProperties(), locValue.maxProperties());
     }
 
     /**

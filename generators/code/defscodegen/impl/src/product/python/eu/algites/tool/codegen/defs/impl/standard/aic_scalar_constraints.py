@@ -42,4 +42,4 @@ def from_json(node, kind):
         node.get('minLength'), node.get('maxLength'), node.get('pattern'),
         tuple('true' if v is True else 'false' if v is False else str(v) for v in
               (node.get('enum', ()) if 'enum' in node else ((node['const'],) if 'const' in node else ())) if v is not None),
-        node.get('minItems'), node.get('maxItems'))
+        node.get('minItems'), node.get('maxItems'), node.get('minProperties'), node.get('maxProperties'))

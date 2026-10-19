@@ -3,7 +3,7 @@ package eu.algites.tool.codegen.defs;
 import java.util.List;
 
 /**
- * Scalar and array validation constraints retained across schema formats.
+ * Scalar, array and object validation constraints retained across schema formats.
  * Numeric boundaries are decimal strings to preserve arbitrary precision.
  *
  * @param dataType exact scalar family, including XML lexical types when necessary
@@ -17,24 +17,52 @@ import java.util.List;
  * @param enumValues allowed scalar lexical values
  * @param minItems minimum number of items in an array, if specified
  * @param maxItems maximum number of items in an array, if specified
+ * @param minProperties minimum number of properties in an object, if specified
+ * @param maxProperties maximum number of properties in an object, if specified
  */
 public record AIcdValueConstraints(String dataType, String minimum, String maximum,
         boolean exclusiveMinimum, boolean exclusiveMaximum, Integer minLength, Integer maxLength,
-        String pattern, List<String> enumValues, Integer minItems, Integer maxItems) {
+        String pattern, List<String> enumValues, Integer minItems, Integer maxItems,
+        Integer minProperties, Integer maxProperties) {
     /**
      * Freeze enumerations and reject invalid lengths or array cardinality intervals.
      * Bounds remain optional because schema formats may omit them.
      */
     public AIcdValueConstraints {
         enumValues = enumValues == null ? List.of() : List.copyOf(enumValues);
-        for (Integer locValue : new Integer[] { minItems, maxItems, minLength, maxLength }) {
+        for (Integer locValue : new Integer[] { minItems, maxItems, minLength, maxLength, minProperties, maxProperties }) {
             if (locValue != null && locValue < 0)
                 throw new IllegalArgumentException("Constraint bounds cannot be negative");
         }
         if (minItems != null && maxItems != null && minItems > maxItems)
             throw new IllegalArgumentException("minItems exceeds maxItems");
+        if (minProperties != null && maxProperties != null && minProperties > maxProperties)
+            throw new IllegalArgumentException("minProperties exceeds maxProperties");
         if (minLength != null && maxLength != null && minLength > maxLength)
             throw new IllegalArgumentException("minLength exceeds maxLength");
+    }
+
+    /**
+     * Compatibility constructor for scalar and array constraints without object bounds.
+     *
+     * @param aDataType lexical scalar family
+     * @param aMinimum numeric lower bound
+     * @param aMaximum numeric upper bound
+     * @param aExclusiveMinimum whether the lower bound is exclusive
+     * @param aExclusiveMaximum whether the upper bound is exclusive
+     * @param aMinLength minimum lexical length
+     * @param aMaxLength maximum lexical length
+     * @param aPattern lexical pattern
+     * @param aEnumValues allowed values
+     * @param aMinItems minimum array length
+     * @param aMaxItems maximum array length
+     */
+    public AIcdValueConstraints(String aDataType, String aMinimum, String aMaximum,
+            boolean aExclusiveMinimum, boolean aExclusiveMaximum, Integer aMinLength,
+            Integer aMaxLength, String aPattern, List<String> aEnumValues,
+            Integer aMinItems, Integer aMaxItems) {
+        this(aDataType, aMinimum, aMaximum, aExclusiveMinimum, aExclusiveMaximum,
+                aMinLength, aMaxLength, aPattern, aEnumValues, aMinItems, aMaxItems, null, null);
     }
 
     /**
@@ -45,7 +73,7 @@ public record AIcdValueConstraints(String dataType, String minimum, String maxim
             boolean aExclusiveMinimum, boolean aExclusiveMaximum, Integer aMinLength,
             Integer aMaxLength, String aPattern, List<String> aEnumValues) {
         this(aDataType, aMinimum, aMaximum, aExclusiveMinimum, aExclusiveMaximum,
-                aMinLength, aMaxLength, aPattern, aEnumValues, null, null);
+                aMinLength, aMaxLength, aPattern, aEnumValues, null, null, null, null);
     }
 
     /**
@@ -58,7 +86,7 @@ public record AIcdValueConstraints(String dataType, String minimum, String maxim
      */
     public AIcdValueConstraints withArrayBounds(Integer aMinItems, Integer aMaxItems) {
         return new AIcdValueConstraints(dataType, minimum, maximum, exclusiveMinimum,
-                exclusiveMaximum, minLength, maxLength, pattern, enumValues, aMinItems, aMaxItems);
+                exclusiveMaximum, minLength, maxLength, pattern, enumValues, aMinItems, aMaxItems, minProperties, maxProperties);
     }
     /** Returns a constraint set without scalar hints or validation facets. */
     public static AIcdValueConstraints empty() { return new AIcdValueConstraints(null, null, null, false, false, null, null, null, List.of()); }

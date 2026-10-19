@@ -30,7 +30,8 @@ final class AIcScalarConstraints {
                 numeric(aNode, locMinExclusive ? "exclusiveMinimum" : "minimum", locBase.minimum()),
                 numeric(aNode, locMaxExclusive ? "exclusiveMaximum" : "maximum", locBase.maximum()),
                 locMinExclusive, locMaxExclusive, integer(aNode, "minLength"), integer(aNode, "maxLength"), text(aNode, "pattern"), locEnum,
-                integer(aNode, "minItems"), integer(aNode, "maxItems"));
+                integer(aNode, "minItems"), integer(aNode, "maxItems"),
+                integer(aNode, "minProperties"), integer(aNode, "maxProperties"));
     }
     static AIcdValueConstraints defaults(String aType) {
         String locMin = null, locMax = null;

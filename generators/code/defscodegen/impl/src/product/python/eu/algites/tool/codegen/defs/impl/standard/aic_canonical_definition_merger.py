@@ -134,7 +134,7 @@ class AIcCanonicalDefinitionMerger:
 
             fields = ('presence','nullable')
             cfields = ('data_type','minimum','maximum','exclusive_minimum','exclusive_maximum',
-                       'min_length','max_length','pattern','enum_values','min_items','max_items')
+                       'min_length','max_length','pattern','enum_values','min_items','max_items','min_properties','max_properties')
             def compare_data_type(prefix, field, left, right):
                 """Compare the complete recursive shape, never its legacy one-level projection."""
                 if left is None or right is None:
@@ -154,6 +154,9 @@ class AIcCanonicalDefinitionMerger:
                     for index, (first, second) in enumerate(zip(left.alternatives, right.alternatives)):
                         compare_data_type(prefix + f'.alternatives[{index}]', field, first, second)
                 elif left.kind.name == 'OBJECT':
+                    for member in ('min_properties', 'max_properties'):
+                        compare(prefix + '.constraints.' + member, field, 'dataType/constraints/' + member,
+                                getattr(left.constraints, member), getattr(right.constraints, member))
                     left_props = {p.source_name: p for p in left.properties}
                     right_props = {p.source_name: p for p in right.properties}
                     for nested_name in sorted(left_props.keys() | right_props.keys()):
@@ -218,6 +221,10 @@ class AIcCanonicalDefinitionMerger:
                     (a.source_kind.value != 'xmldefs' and b.source_kind.value != 'xmldefs' and
                      (a.data_type.kind.name != 'OBJECT' or b.data_type.kind.name != 'OBJECT'))):
                 compare_data_type('root.dataType', None, a.data_type, b.data_type)
+            if a.data_type.kind.name == b.data_type.kind.name == 'OBJECT':
+                for member in ('min_properties', 'max_properties'):
+                    compare('root.constraints.' + member, None, member,
+                            getattr(a.data_type.constraints, member), getattr(b.data_type.constraints, member))
             for name in sorted(ap.keys() | bp.keys()):
                 x, y = ap.get(name), bp.get(name)
                 if x is None and b.source_kind.value == 'xmldefs' and self_schema(y, b):

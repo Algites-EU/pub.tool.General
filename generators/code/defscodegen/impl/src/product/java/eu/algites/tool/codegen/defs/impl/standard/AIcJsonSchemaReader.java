@@ -142,6 +142,41 @@ final class AIcJsonSchemaReader {
         return new AIcdPropertyDefinition(name, recursiveType(node, request), ((required) ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED), nullable, text(node, "description"), text(node, "title"), null);
     }
 
+    /**
+     * Recognize an exact "at least one declared property" condition on a closed object.
+     * Other anyOf expressions retain their alternatives and are never silently dropped.
+     */
+    private static boolean presenceAnyOfAsMinProperties(JsonNode aSchema) {
+        if (!aSchema.path("additionalProperties").isBoolean()
+                || aSchema.path("additionalProperties").booleanValue()) return false;
+        JsonNode locProperties = aSchema.path("properties");
+        JsonNode locBranches = aSchema.path("anyOf");
+        if (!locProperties.isObject() || locProperties.isEmpty()
+                || !locBranches.isArray() || locBranches.isEmpty()) return false;
+        Set<String> locNames = new HashSet<>();
+        for (JsonNode locBranch : locBranches) {
+            if (!locBranch.isObject() || !locBranch.path("required").isArray()
+                    || locBranch.path("required").size() != 1
+                    || !locBranch.path("required").get(0).isTextual()) return false;
+            var locFields = locBranch.fieldNames();
+            while (locFields.hasNext())
+                if (!Set.of("required", "description", "title", "$comment").contains(locFields.next())) return false;
+            locNames.add(locBranch.path("required").get(0).asText());
+        }
+        Set<String> locPropertyNames = new HashSet<>();
+        locProperties.fieldNames().forEachRemaining(locPropertyNames::add);
+        return locNames.equals(locPropertyNames);
+    }
+
+    /** Classify the actual shape of a named local definition, including union roots. */
+    private static AInDataTypeKind localDefinitionKind(JsonNode aSchema) {
+        if (aSchema.has("enum")) return AInDataTypeKind.ENUM;
+        if (aSchema.has("oneOf")) return AInDataTypeKind.ONE_OF;
+        if (aSchema.has("anyOf") && !presenceAnyOfAsMinProperties(aSchema)) return AInDataTypeKind.ANY_OF;
+        if ("object".equals(text(aSchema, "type")) || aSchema.has("properties")) return AInDataTypeKind.OBJECT;
+        return kind(text(aSchema, "type"));
+    }
+
     /** Build the recursive structural model without truncating nested array or choice types. */
     private AIcdDataType recursiveType(JsonNode aSchema, AIcdDefinitionLoadRequest aRequest) {
         if (aSchema == null || aSchema.isNull() || !aSchema.isObject())
@@ -179,6 +214,12 @@ final class AIcJsonSchemaReader {
                         AIcScalarConstraints.json(aSchema, locScalarKind));
             }
         }
+        if (presenceAnyOfAsMinProperties(aSchema)) {
+            com.fasterxml.jackson.databind.node.ObjectNode locObject = aSchema.deepCopy();
+            locObject.remove("anyOf");
+            locObject.put("minProperties", Math.max(1, aSchema.path("minProperties").asInt(0)));
+            aSchema = locObject;
+        }
         for (String locKey : List.of("oneOf", "anyOf")) {
             JsonNode locBranches = aSchema.get(locKey);
             if (locBranches != null && locBranches.isArray() && !locBranches.isEmpty()) {
@@ -213,9 +254,12 @@ final class AIcJsonSchemaReader {
                     String locKebab = locToken.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
                             .replaceAll("[^a-zA-Z0-9]+", "-").replaceAll("^-|-$", "")
                             .toLowerCase(java.util.Locale.ROOT);
-                    AInDataTypeKind locKind = locResolved.has("enum") ? AInDataTypeKind.ENUM : AInDataTypeKind.OBJECT;
+                    AInDataTypeKind locKind = localDefinitionKind(locResolved);
                     return AIcdDataType.reference(new AIcdDefinitionReference(locRef, locParsed.version(),
-                            locParsed.logicalName() + "-definition-" + locKebab, AIcdDataType.atom(locKind, null)));
+                            locParsed.logicalName() + "-definition-" + locKebab,
+                            (locKind == AInDataTypeKind.ONE_OF || locKind == AInDataTypeKind.ANY_OF)
+                                    ? recursiveType(locResolved, new AIcdDefinitionLoadRequest(locTarget, aRequest.sourceKind(),
+                                            aRequest.namingProfile())) : AIcdDataType.atom(locKind, null)));
                 }
                 return recursiveType(locResolved, new AIcdDefinitionLoadRequest(locTarget,
                         aRequest.sourceKind(), aRequest.namingProfile()));
@@ -241,7 +285,8 @@ final class AIcJsonSchemaReader {
             if (locObject.isObject()) locObject.fields().forEachRemaining(aEntry ->
                     locProperties.add(property(aEntry.getKey(), aEntry.getValue(),
                             locRequired.contains(aEntry.getKey()), aRequest)));
-            return AIcdDataType.object(locProperties);
+            return new AIcdDataType(AInDataTypeKind.OBJECT, null, locProperties, List.of(), null,
+                    AIcScalarConstraints.json(aSchema, AInDataTypeKind.OBJECT));
         }
         if (aSchema.has("enum") || aSchema.has("const"))
             return AIcdDataType.atom(locType == null ? kindFromValue(aSchema) : kind(locType),

@@ -102,6 +102,44 @@ class AIcJsonSchemaReader:
         item = self._property(name, schema['items'], True, request, set(visited or ())) if kind is AInDataTypeKind.ARRAY and isinstance(schema.get('items'), Mapping) else None
         return AIcdPropertyDefinition(str(name), self._recursive_type(schema, request), (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), nullable, schema.get('description'), schema.get("title"), None)
 
+    @staticmethod
+    def _presence_any_of_as_min_properties(schema):
+        """Recognize only the exact at-least-one-property assertion for a closed object.
+
+        In particular, do not discard arbitrary anyOf validation predicates.
+        """
+        if schema.get('additionalProperties') is not False:
+            return False
+        properties = schema.get('properties')
+        branches = schema.get('anyOf')
+        if not isinstance(properties, Mapping) or not properties or not isinstance(branches, list) or not branches:
+            return False
+        referenced = []
+        for branch in branches:
+            if (not isinstance(branch, Mapping) or set(branch) - {'required', 'description', 'title', '$comment'}
+                    or not isinstance(branch.get('required'), list) or len(branch['required']) != 1
+                    or not isinstance(branch['required'][0], str)):
+                return False
+            referenced.append(branch['required'][0])
+        return set(referenced) == set(properties)
+
+    @staticmethod
+    def _local_definition_kind(schema):
+        """Classify a named local definition without falsely assuming it is an object."""
+        if 'enum' in schema:
+            return AInDataTypeKind.ENUM
+        if 'oneOf' in schema:
+            return AInDataTypeKind.ONE_OF
+        if 'anyOf' in schema and not AIcJsonSchemaReader._presence_any_of_as_min_properties(schema):
+            return AInDataTypeKind.ANY_OF
+        if schema.get('type') == 'object' or 'properties' in schema:
+            return AInDataTypeKind.OBJECT
+        declared = schema.get('type')
+        if isinstance(declared, list):
+            non_null = [member for member in declared if member != 'null']
+            declared = non_null[0] if len(non_null) == 1 else None
+        return _value_kind(declared)
+
     def _recursive_type(self, schema, request):
         """Recursively project arrays, inline objects and exclusive/inclusive choices.
 
@@ -126,6 +164,9 @@ class AIcJsonSchemaReader:
                     == {self._wire_value(value) for value in values}):
             kind = _value_kind(schema['type'])
             return AIcdDataType(kind, constraints=from_json(schema, kind))
+        if self._presence_any_of_as_min_properties(schema):
+            schema = {**schema, 'minProperties': max(1, schema.get('minProperties', 0))}
+            schema.pop('anyOf', None)
         for keyword, kind in (('oneOf', AInDataTypeKind.ONE_OF),
                               ('anyOf', AInDataTypeKind.ANY_OF)):
             branches = schema.get(keyword)
@@ -155,9 +196,11 @@ class AIcJsonSchemaReader:
                         stem = AIcDefinitionIdentityResolver.parse_versioned_stem(_strip_extensions(target_path.name), None)
                         kebab = re.sub(r'[^a-z0-9]+', '-', re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', tokens[1]).lower()).strip('-')
                         logical = stem.logical_name + '-definition-' + kebab
-                        kind = AInDataTypeKind.ENUM if 'enum' in resolved else AInDataTypeKind.OBJECT
+                        kind = self._local_definition_kind(resolved)
                         return AIcdDataType(AInDataTypeKind.REFERENCE, reference=AIcdDefinitionReference(
-                            ref, stem.version, logical, AIcdDataType(kind)))
+                            ref, stem.version, logical, self._recursive_type(resolved,
+                            AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile))
+                            if kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF) else AIcdDataType(kind)))
                 return self._recursive_type(resolved, AIcdDefinitionLoadRequest(target_path,
                     request.source_kind, request.naming_profile))
             resolved = self._anchor(target, unescaped)
@@ -175,7 +218,8 @@ class AIcJsonSchemaReader:
             required = set(schema.get('required', ()))
             return AIcdDataType(AInDataTypeKind.OBJECT,
                 properties=tuple(self._property(name, node, name in required, request)
-                                 for name, node in (fields if isinstance(fields, Mapping) else {}).items()))
+                                 for name, node in (fields if isinstance(fields, Mapping) else {}).items()),
+                constraints=from_json(schema, AInDataTypeKind.OBJECT))
         if 'enum' in schema or 'const' in schema:
             value_kind = _value_kind(raw) if raw else _non_null_kind(schema)
             return AIcdDataType(value_kind, constraints=from_json(schema, _non_null_kind(schema)))
