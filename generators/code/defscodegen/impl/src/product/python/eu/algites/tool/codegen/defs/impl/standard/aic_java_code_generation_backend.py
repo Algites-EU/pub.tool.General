@@ -6,7 +6,7 @@ from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcG
 from eu.algites.tool.codegen.defs.aicd_generated_source import AIcdGeneratedSource
 from eu.algites.tool.codegen.defs.aicd_generated_type_identity import AIcdGeneratedTypeIdentity
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.impl.standard.aic_scalar_generation import java_validation, java_identifier
 
 
@@ -21,7 +21,7 @@ class AIcJavaCodeGenerationBackend:
 
     def generate(self, request) -> AIcdGeneratedSource:
         """Generate one Java source file from a canonical definition."""
-        is_enum = request.definition.kind is AInDefinitionKind.ENUM
+        is_enum = request.definition.data_type.kind is AInDataTypeKind.ENUM
         kind = AInDefsNameRole.ENUM_TYPE if is_enum else AInDefsNameRole.DATA_TYPE
         type_name = self.names.type_name(request.definition, request.naming_profile, kind)
         if is_enum:
@@ -49,7 +49,7 @@ class AIcJavaCodeGenerationBackend:
         else:
             field_rows = []
             parameter_docs = []
-            for prop in request.definition.properties:
+            for prop in request.definition.data_type.properties:
                 property_name = java_identifier(self.names.property_name(prop.source_name, request.naming_profile))
                 field_rows.append(f"{_java_type(prop, request, self.names)} {property_name}")
                 parameter_docs.append(
@@ -66,7 +66,7 @@ class AIcJavaCodeGenerationBackend:
                 f"{self._schema_field_constants(request)}"
                 "    /** Validates the scalar constraints retained from the canonical schema. */\n"
                 f"    public {type_name} {{\n"
-                + ''.join(java_validation(prop, java_identifier(self.names.property_name(prop.source_name, request.naming_profile))) for prop in request.definition.properties)
+                + ''.join(java_validation(prop, java_identifier(self.names.property_name(prop.source_name, request.naming_profile))) for prop in request.definition.data_type.properties)
                 + "    }\n}\n"
             )
         relative = request.package_name.replace('.', '/') + f"/{type_name}.java"
@@ -87,7 +87,7 @@ class AIcJavaCodeGenerationBackend:
     def _schema_field_constants(self, request) -> str:
         """Generate documented constants for canonical schema field names."""
         rows = []
-        for prop in request.definition.properties:
+        for prop in request.definition.data_type.properties:
             rows.extend([
                 "    /**",
                 f"     * <strong>Field Name:</strong> {{@code {self._escape_html(prop.source_name)}}}" + ("<br/>" if prop.description else ""),

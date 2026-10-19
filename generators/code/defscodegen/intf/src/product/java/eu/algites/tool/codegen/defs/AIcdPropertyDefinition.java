@@ -1,41 +1,33 @@
 package eu.algites.tool.codegen.defs;
 
+import eu.algites.lib.data.dataobject.AInFieldPresenceKind;
 import java.util.Objects;
 
 /**
- * One normalized object property.
+ * Named member of an object with exactly one recursive structural type.
+ * Presence and explicit nullability are orthogonal to the structural type.
+ * No scalar/array/reference compatibility descriptors are stored alongside the type.
  *
- * @param sourceName canonical source property name
- * @param valueKind normalized value kind
- * @param required whether the property is required
- * @param nullable whether the property accepts null
- * @param itemValueKind normalized array item kind when applicable
- * @param reference referenced canonical definition when applicable
- * @param description human-readable property description
- * @param constraints scalar semantics and validation constraints
- * @param itemConstraints array item semantics and constraints
+ * @param sourceName canonical source member name, independent of generated identifier
+ * @param dataType fully recursive member type, including all nested constraints and references
+ * @param presence whether the member must occur, may occur or has other presence semantics
+ * @param nullable whether an explicitly present null is accepted
+ * @param description optional source documentation
+ * @param title optional short source title
+ * @param xmlField XML QName and attribute/element kind, or null for non-XML members
  */
 public record AIcdPropertyDefinition(
         String sourceName,
-        AInValueKind valueKind,
-        boolean required,
+        AIcdDataType dataType,
+        AInFieldPresenceKind presence,
         boolean nullable,
-        AInValueKind itemValueKind,
-        AIcdDefinitionReference reference,
         String description,
-        AIcdValueConstraints constraints,
-        AIcdValueConstraints itemConstraints) {
-    /** Keeps the original constructor available for existing bootstrap consumers. */
-    public AIcdPropertyDefinition(String aSourceName, AInValueKind aValueKind, boolean aRequired, boolean aNullable,
-            AInValueKind aItemValueKind, AIcdDefinitionReference aReference, String aDescription) {
-        this(aSourceName, aValueKind, aRequired, aNullable, aItemValueKind, aReference, aDescription,
-                AIcdValueConstraints.empty(), AIcdValueConstraints.empty());
-    }
-    /** Validates and normalizes the supplied data-object components. */
+        String title,
+        AIcdXmlFieldRepresentation xmlField) {
+    /** Rejects missing canonical identity and type; resolves omitted presence to ALLOWED. */
     public AIcdPropertyDefinition {
         Objects.requireNonNull(sourceName, "sourceName");
-        Objects.requireNonNull(valueKind, "valueKind");
-        constraints = constraints == null ? AIcdValueConstraints.empty() : constraints;
-        itemConstraints = itemConstraints == null ? AIcdValueConstraints.empty() : itemConstraints;
+        Objects.requireNonNull(dataType, "dataType");
+        presence = presence == null ? AInFieldPresenceKind.ALLOWED : presence;
     }
 }

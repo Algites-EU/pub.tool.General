@@ -49,14 +49,14 @@ def test_generated_nullable_dto_round_trip(tmp_path: Path):
     profile = AIcAlgitesNamingProfiles_1.python_profile()
     service = AIcDefaultDefsCodegenService()
     definition = service.load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, profile))
-    props = {p.source_name:p for p in definition.properties}
+    props = {p.source_name:p for p in definition.data_type.properties}
     assert props['Outcome'].nullable
     assert props['Result'].nullable
     assert props['Parent'].nullable
     assert not props['Strict'].nullable
     assert not props['Limited'].nullable
-    assert props['Outcome'].constraints.enum_values == ('success', 'error')
-    assert props['Constant'].constraints.enum_values == ('exact',)
+    assert props['Outcome'].data_type.constraints.enum_values == ('success', 'error')
+    assert props['Constant'].data_type.constraints.enum_values == ('exact',)
     generated = service.generate(AIcdCodeGenerationRequest(definition, AInCodeGenerationTarget.PYTHON, 'test.generated', profile))
     module = types.ModuleType('test_nullable_generated')
     module.__dict__['__name__'] = 'test_nullable_generated'

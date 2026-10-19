@@ -1,3 +1,4 @@
+from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 """Cross-format contracts plus independent checks of generated runtime behavior."""
 from dataclasses import replace
 from decimal import Decimal
@@ -16,7 +17,7 @@ from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefini
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 
 STEMS = ('parity-root', 'parity-child', 'parity-leaf', 'parity-status', 'parity-builtins')
 FORMATS = ((AInDefinitionSourceKind.YAMLDEFS, 'yamldefs', 'yamldef.schema.json'),
@@ -49,22 +50,22 @@ def test_equivalent_models_and_complete_outputs(stem):
         assert outputs[0] == outputs[1] == outputs[2]
     root = models[0]
     if stem == 'parity-root':
-        props = {p.source_name: p for p in root.properties}
+        props = {p.source_name: p for p in root.data_type.properties}
         assert len(props) == 28 and 'inner' not in props
-        assert props['children'].value_kind is AInValueKind.ARRAY
-        assert props['children'].reference.logical_name == 'parity-child'
-        assert props['statuses'].reference.logical_name == 'parity-status'
-        assert props['nullableText'].required and props['nullableText'].nullable
-        assert props['boundedInteger'].constraints.minimum == '-4'
-        assert props['boundedDecimal'].constraints.exclusive_maximum
+        assert props['children'].data_type.kind is AInDataTypeKind.ARRAY
+        assert props['children'].data_type.referenced_definition().logical_name == 'parity-child'
+        assert props['statuses'].data_type.referenced_definition().logical_name == 'parity-status'
+        assert (props['nullableText'].presence is AInFieldPresenceKind.REQUIRED) and props['nullableText'].nullable
+        assert props['boundedInteger'].data_type.constraints.minimum == '-4'
+        assert props['boundedDecimal'].data_type.constraints.exclusive_maximum
     if stem == 'parity-builtins':
-        props = {p.source_name: p for p in root.properties}
+        props = {p.source_name: p for p in root.data_type.properties}
         assert len(props) == 46
-        assert props['unsignedLong'].constraints.maximum == '18446744073709551615'
-        assert props['byte'].constraints.minimum == '-128'
-        assert props['decimal'].constraints.data_type == 'decimal'
-        assert props['float'].constraints.data_type == 'float'
-        assert props['double'].constraints.data_type == 'double'
+        assert props['unsignedLong'].data_type.constraints.maximum == '18446744073709551615'
+        assert props['byte'].data_type.constraints.minimum == '-128'
+        assert props['decimal'].data_type.constraints.data_type == 'decimal'
+        assert props['float'].data_type.constraints.data_type == 'float'
+        assert props['double'].data_type.constraints.data_type == 'double'
 
 
 def test_schema_field_name_constants_across_all_definition_kinds():
@@ -153,7 +154,7 @@ def test_schema_decimal_facets_remain_exact(tmp_path, kind, suffix):
     boundary = '0.12345678901234567890123456789'
     path.write_text('{"type":"object","properties":{"value":{"type":"number","minimum":'+boundary+'}}}')
     model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles_1.python_profile()))
-    assert model.properties[0].constraints.minimum == boundary
+    assert model.data_type.properties[0].data_type.constraints.minimum == boundary
 
 
 def test_float_width_and_calendar_values():
@@ -173,9 +174,9 @@ def test_urn_subschema_and_anchor_resolution(tmp_path):
     path = definitions / 'root_1.yamldef.schema.json'
     path.write_text('{"type":"object","properties":{"inline":{"$ref":"urn:tests:leaf:1#Content"},"leaf":{"$ref":"urn:tests:leaf:1"}}}')
     model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,AInDefinitionSourceKind.YAMLDEFS,AIcAlgitesNamingProfiles_1.python_profile()))
-    assert model.properties[0].value_kind is AInValueKind.INTEGER
-    assert model.properties[0].constraints.minimum == '1'
-    assert model.properties[1].reference.logical_name == 'leaf'
+    assert model.data_type.properties[0].data_type.kind is AInDataTypeKind.INTEGER
+    assert model.data_type.properties[0].data_type.constraints.minimum == '1'
+    assert model.data_type.properties[1].data_type.referenced_definition().logical_name == 'leaf'
 
 
 def test_scalar_root_preserves_type_and_facets(tmp_path):
@@ -183,5 +184,5 @@ def test_scalar_root_preserves_type_and_facets(tmp_path):
         path = tmp_path / f'scalar_1.{suffix}'
         path.write_text('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:simpleType name="Value"><xs:restriction base="xs:decimal"><xs:minInclusive value="0.1234567890123456789"/></xs:restriction></xs:simpleType></xs:schema>' if kind is AInDefinitionSourceKind.XMLDEFS else '{"type":"number","minimum":0.1234567890123456789}')
         model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles_1.python_profile()))
-        assert model.properties[0].value_kind is AInValueKind.NUMBER
-        assert model.properties[0].constraints.minimum == '0.1234567890123456789'
+        assert model.data_type.kind is AInDataTypeKind.NUMBER
+        assert model.data_type.constraints.minimum == '0.1234567890123456789'

@@ -1,3 +1,4 @@
+from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 """Schemas generate annotated Java/Python contracts only; SDO has separate ownership."""
 import json
 from pathlib import Path
@@ -28,7 +29,7 @@ def test_contract_only_repository_two_technologies(tmp_path):
     assert 'AIcdDataObjectField' in py and 'AIcdDataObject(' in py
     assert 'AIaDataObjectField' in java and 'AIaDataObject(' in java
     assert '@abstractmethod\n    def getName' in py
-    assert 'AIiDataObject' in java and 'AIiDataObject' in py
+    assert 'AIiJsonDataObject' in java and 'AIiJsonDataObject' in py
     assert not (tmp_path/'impl').exists()
     assert generator.generate_repository(tmp_path, manifest, check=True) == outputs
     (tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').unlink()
@@ -99,7 +100,7 @@ def test_manifest_discovers_xsd_in_both_languages(tmp_path):
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python'],'bindings':[]}))
     generator=AIcSchemaContractBindingsGenerator()
     result=generator.generate_repository(tmp_path,manifest)
-    assert len(result)==2
+    assert len(result)==4
     java=(tmp_path/'intf/src/product/java.gen/example/contracts/AIigExample_1.java').read_text()
     python=(tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').read_text()
     assert ' name()' in java and ' count()' in java
@@ -132,7 +133,7 @@ def test_json_yaml_xsd_merge_the_same_logical_contract(tmp_path):
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python'],'bindings':[]}))
     generator = AIcSchemaContractBindingsGenerator()
     result = generator.generate_repository(tmp_path,manifest)
-    assert len(result) == 6
+    assert len(result) == 8
     java = (tmp_path/'intf/src/product/java.gen/example/contracts/AIigExample_1.java').read_text()
     python = (tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').read_text()
     assert java.count('public interface AIigExample_1') == 1
@@ -143,7 +144,7 @@ def test_json_yaml_xsd_merge_the_same_logical_contract(tmp_path):
 
 
 
-def test_xsd_unsupported_attribute_must_not_silently_disappear(tmp_path):
+def test_xsd_root_attribute_becomes_canonical_field(tmp_path):
     root=tmp_path/'intf/src/product/xmldefs/example/contracts'
     root.mkdir(parents=True)
     (root/'sample_1.xsd').write_text('''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1">
@@ -153,8 +154,20 @@ def test_xsd_unsupported_attribute_must_not_silently_disappear(tmp_path):
         </xs:complexType></xs:schema>''')
     manifest=tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python']}))
-    with pytest.raises(ValueError, match='XSD attributes'):
-        AIcSchemaContractBindingsGenerator().generate_repository(tmp_path,manifest)
+    generated = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
+    assert generated
+    java = (tmp_path/'intf/src/product/java.gen/example/contracts/AIigSample_1.java').read_text()
+    python = (tmp_path/'intf/src/product/python.gen/example/contracts/aiig_sample_1.py').read_text()
+    assert 'code()' in java
+    assert 'getCode' in python
+    from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+    from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
+    from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
+    from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+    path = root/'sample_1.xsd'
+    contract = AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
+        AIcAlgitesNamingProfiles_1.python_profile()))
+    assert [(p.source_name, (p.presence is AInFieldPresenceKind.REQUIRED)) for p in contract.data_type.properties] == [('Value', True), ('Code', True)]
 
 
 def test_json_yaml_inheritance_merge_keeps_one_parent(tmp_path):
@@ -185,12 +198,23 @@ def test_repository_manifest_xsd_import_graph_and_enums(tmp_path):
     fixture = Path(__file__).resolve().parents[1] / 'xmldefs'
     target = tmp_path / 'intf/src/product/xmldefs/example/contracts'
     shutil.copytree(fixture, target)
+    # The fixture intentionally reuses the local element name Value across
+    # independent XML namespaces. Put these separate declarations under unique
+    # names when flattening all source files into one business Java package.
+    for xsd in sorted(target.glob('*.xsd')):
+        unique = 'Value' + ''.join(part.title() for part in xsd.stem.replace('_1', '').split('-'))
+        text = xsd.read_text(encoding='utf-8')
+        text = text.replace('<xs:element name="Value" type=',
+                            f'<xs:element name="{unique}" type=', 1)
+        xsd.write_text(text, encoding='utf-8')
     manifest = tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python']}))
     generator = AIcSchemaContractBindingsGenerator()
     result = generator.generate_repository(tmp_path,manifest)
-    assert len(result) == 10
-    assert {'AIigParityRoot_1','AIigParityChild_1','AIigParityLeaf_1','AIngParityStatus_1'} <= {
+    # Additional named XSD simple types are now emitted independently, not discarded.
+    assert len(result) == 22
+    assert {'AIigParityRoot_1','AIigParityChild_1','AIigParityLeaf_1',
+            'AIngParityStatus_1', 'AIngNotationValue_1'} <= {
         row['type'] for row in result}
     assert not (tmp_path/'impl').exists()
     generator.generate_repository(tmp_path,manifest,check=True)

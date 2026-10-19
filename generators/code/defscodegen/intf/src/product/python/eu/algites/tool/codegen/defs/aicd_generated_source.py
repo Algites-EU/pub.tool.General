@@ -20,6 +20,7 @@ class AIcdGeneratedSource:
 
     @property
     def primary_type(self) -> AIcdGeneratedTypeIdentity:
+        """Select the primary public type identity exposed by the generated source."""
         for entry in self.generated_types:
             if entry.type_name == self.type_name:
                 return entry

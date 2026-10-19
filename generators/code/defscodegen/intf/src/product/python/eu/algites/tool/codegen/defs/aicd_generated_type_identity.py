@@ -25,6 +25,7 @@ class AIcdGeneratedTypeIdentity:
     @classmethod
     def from_request(cls, request, type_name: str, relative_path: str,
                      role: AInDefsNameRole) -> AIcdGeneratedTypeIdentity:
+        """Build a stable generated-type identity from the request and selected naming role."""
         namespace = request.package_name
         if request.target is AInCodeGenerationTarget.PYTHON:
             module_name = namespace + '.' + relative_path.rsplit('/', 1)[-1].removesuffix('.py')

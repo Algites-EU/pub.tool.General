@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.yamldef.schema.json",
+  "x-algites-schema-id": "eu.algites.tool.codegen.defs.schema-field-bindings",
+  "x-algites-schema-version": 1,
+  "title": "Algites Schema Field Bindings",
+  "description": "Generator instructions identifying canonical JSON Schema resources and optional field-binding projections.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.yamldef.schema.json",
+      "title": "$schema",
+      "description": "Specifies the $schema associated with this definition."
+    },
+    "artifact": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Artifact",
+      "description": "Specifies the artifact associated with this definition."
+    },
+    "implementation_artifact": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Implementation artifact",
+      "description": "Specifies the implementation artifact associated with this definition."
+    },
+    "languages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "java",
+          "python"
+        ],
+        "title": "Languages items",
+        "description": "Specifies the languages items associated with this definition.",
+        "oneOf": [
+          {
+            "const": "java",
+            "title": "Java",
+            "description": "Selects the java option in the corresponding enumeration."
+          },
+          {
+            "const": "python",
+            "title": "Python",
+            "description": "Selects the python option in the corresponding enumeration."
+          }
+        ]
+      },
+      "title": "Languages",
+      "description": "Specifies the languages associated with this definition."
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Schema",
+            "description": "Specifies the schema associated with this definition."
+          },
+          "pointer": {
+            "type": "string",
+            "title": "Pointer",
+            "description": "Specifies the pointer associated with this definition."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name",
+            "description": "Specifies the name associated with this definition."
+          },
+          "common_one_of_fields": {
+            "type": "boolean",
+            "title": "Common one of fields",
+            "description": "Specifies the common one of fields associated with this definition."
+          }
+        },
+        "required": [
+          "schema"
+        ],
+        "title": "Bindings items",
+        "description": "Specifies the bindings items associated with this definition."
+      },
+      "title": "Bindings",
+      "description": "Specifies the bindings associated with this definition."
+    }
+  },
+  "required": [
+    "artifact",
+    "languages",
+    "bindings"
+  ],
+  "x-yamldefs-id": "eu.algites.tool.codegen.defs.schema-field-bindings",
+  "x-yamldefs-version": 1,
+  "x-yamldefs-name": "schema-field-bindings"
+}

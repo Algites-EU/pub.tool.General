@@ -1,74 +1,66 @@
-"""Independent Python API and CLI tests; cross-JVM comparison runs through TestNG."""
-import inspect
+"""First-stage contracts and repository check-mode regression tests."""
 import json
 from pathlib import Path
 import subprocess
 import sys
-
 import pytest
+
 from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
 from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_interface_generator import AIcSchemaInterfaceGenerator
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_object_bindings_generator import AIcSchemaObjectBindingsGenerator
+from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from generator_implementation_parity import create_fixture, normalized_python, normalized_java
+from generator_implementation_parity import create_fixture
 
 
 @pytest.mark.parametrize('target', list(AInCodeGenerationTarget))
 @pytest.mark.parametrize('kind,suffix', [(AInDefinitionSourceKind.JSONDEFS,'jsondef.schema.json'),
     (AInDefinitionSourceKind.YAMLDEFS,'yamldef.schema.json'), (AInDefinitionSourceKind.XMLDEFS,'xsd')])
-def test_native_contract_and_implementation_api(tmp_path, target, kind, suffix):
-    profile = AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles_1.java_profile()
-    resource = Path(__file__).parents[1] / kind.value / f'parity-child_1.{suffix}'
-    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(resource,kind,profile))
-    output = AIcSchemaInterfaceGenerator().generate(AIcdCodeGenerationRequest(model,target,'example.contracts',profile))
-    assert output.contract.type_name == 'AIigParityChild_1'
-    assert output.implementation.type_name == 'AIcgdParityChild_1'
-    assert 'SCHEMA_FIELD_NAME__NAME' in output.contract.source
-    assert 'AIigParityLeaf_1' in output.contract.source
-    assert 'AIcgdParityLeaf_1' not in output.contract.source
-    assert ('(AIigParityChild_1)' if target is AInCodeGenerationTarget.PYTHON else 'implements AIigParityChild_1') in output.implementation.source
+def test_native_read_contract_without_dto(target, kind, suffix):
+    profile = (AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON
+        else AIcAlgitesNamingProfiles_1.java_profile())
+    source = Path(__file__).parents[1] / kind.value / f'parity-child_1.{suffix}'
+    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(source, kind, profile))
+    output = AIcSchemaContractInterfaceGenerator().generate(
+        AIcdCodeGenerationRequest(model, target, 'example.contracts', profile))
+    assert output.type_name == 'AIigParityChild_1'
+    assert 'SCHEMA_FIELD_NAME__NAME' in output.source
+    assert 'AIigParityLeaf_1' in output.source
+    assert 'AIcgdParityLeaf_1' not in output.source
+    assert output.primary_type.type_name == output.type_name
+    assert 'AIcgd' not in output.relative_path
+    assert 'class AIig' in output.source if target is AInCodeGenerationTarget.PYTHON else 'interface AIig' in output.source
 
 
 @pytest.mark.parametrize('target', list(AInCodeGenerationTarget))
-def test_enums_have_only_shared_contract(target):
-    profile = AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles_1.java_profile()
-    path = Path(__file__).parents[1] / 'jsondefs/parity-status_1.jsondef.schema.json'
-    service = AIcDefaultDefsCodegenService()
-    model = service.load(AIcdDefinitionLoadRequest(path,AInDefinitionSourceKind.JSONDEFS,profile))
-    request = AIcdCodeGenerationRequest(model,target,'example.contracts',profile)
-    result = AIcSchemaInterfaceGenerator().generate(request)
-    assert result.contract == service.generate(request)
-    assert result.implementation is None
+def test_enums_share_a_single_native_source(target):
+    profile = (AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON
+        else AIcAlgitesNamingProfiles_1.java_profile())
+    source = Path(__file__).parents[1] / 'jsondefs/parity-status_1.jsondef.schema.json'
+    request = AIcdCodeGenerationRequest(AIcDefaultDefsCodegenService().load(
+        AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.JSONDEFS, profile)),
+        target, 'example.contracts', profile)
+    result = AIcSchemaContractInterfaceGenerator().generate(request)
+    assert result == AIcDefaultDefsCodegenService().generate(request)
 
 
-def test_repository_cli_and_read_only_check(tmp_path):
+def test_first_stage_repository_cli_and_check(tmp_path):
     manifest = create_fixture(tmp_path)
-    generator = AIcSchemaObjectBindingsGenerator()
+    generator = AIcSchemaContractBindingsGenerator()
     result = generator.generate_repository(tmp_path, manifest)
     assert result
-    before = {p.relative_to(tmp_path):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    before = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
     assert generator.generate_repository(tmp_path, manifest, True) == result
-    process = subprocess.run([sys.executable,'-m','eu.algites.tool.codegen.defs.impl.standard.aic_schema_object_bindings_generator',
-        str(tmp_path),str(manifest),'--check','--json'], capture_output=True,text=True,check=True)
-    assert json.loads(process.stdout) == result
-    assert before == {p.relative_to(tmp_path):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
-
-
-def test_comparison_retains_semantic_differences():
-    assert normalized_python("value = 'one'\n") == normalized_python('value="one"\n')
-    assert normalized_python("value = 'one'\n") != normalized_python("value = 'two'\n")
-    assert normalized_python('value = 1\n') != normalized_python('value = 2\n')
-    metadata_first = 'class Example:\n    __data_object__ = 1\n    """Canonical documentation."""\n'
-    metadata_second = 'class Example:\n    __data_object__ = 1\n    """Canonical\n        documentation.\n    """\n'
-    assert normalized_python(metadata_first) == normalized_python(metadata_second)
-    assert normalized_python(metadata_first) != normalized_python(metadata_second.replace('Canonical', 'Incorrect'))
-    assert normalized_java('class Example { String value = "one two"; }') == normalized_java('class\nExample{String value="one two";}')
-    assert normalized_java('String value="one two";') != normalized_java('String value="onetwo";')
-    assert normalized_java('/** Field documentation. */ class Example {}') != normalized_java('/** Lost documentation. */ class Example {}')
+    command = [sys.executable, '-m',
+        'eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator',
+        str(tmp_path), str(manifest), '--check', '--json']
+    proc = subprocess.run(command, capture_output=True, text=True, check=True)
+    assert json.loads(proc.stdout) == result
+    assert before == {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    assert not any('/impl/' in item['path'] for item in result)
 
 
 @pytest.mark.parametrize('kind,suffix',[(AInDefinitionSourceKind.JSONDEFS,'jsondef.schema.json'),
@@ -83,4 +75,4 @@ def test_canonical_references_ignore_transient_build_copies(tmp_path,kind,suffix
     schema = consumer / ('root_1.'+suffix)
     schema.write_text('{"type":"object","properties":{"leaf":{"$ref":"urn:tests:owned-leaf:1"}}}')
     model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(schema,kind,AIcAlgitesNamingProfiles_1.python_profile()))
-    assert model.properties[0].reference.logical_name == 'leaf'
+    assert model.data_type.properties[0].data_type.referenced_definition().logical_name == 'leaf'

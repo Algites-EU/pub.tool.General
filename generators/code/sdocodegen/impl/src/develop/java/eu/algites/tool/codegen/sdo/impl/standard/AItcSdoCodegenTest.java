@@ -16,13 +16,13 @@ public final class AItcSdoCodegenTest {
     /** Handwritten read-only base contract. */
     @AIaDataObject(schemaId = "test:parent", schemaVersion = 1)
     public interface AIigParent extends AIiDataObject {
-        @AIaDataObjectField(name = "Name", presenceRequired = true)
+        @AIaDataObjectField(fieldName = "Name", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED)
         String getName();
     }
     /** Handwritten derived contract; parent metadata must remain visible. */
     @AIaDataObject(schemaId = "test:child", schemaVersion = 1)
     public interface AIigChild extends AIigParent {
-        @AIaDataObjectField(name = "Count", presenceRequired = true)
+        @AIaDataObjectField(fieldName = "Count", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED)
         Integer getCount();
     }
 
@@ -65,10 +65,54 @@ public final class AItcSdoCodegenTest {
         }
     }
 
+    /** Java sources alone are sufficient: reflection is performed on in-memory compiled contracts. */
+    @Test
+    public void AIcGenerateFromUncompiledSourcesWithInheritance() throws Exception {
+        Path locRoot = Files.createTempDirectory("sdo-uncompiled-");
+        Path locPackage = locRoot.resolve("example/contract");
+        Files.createDirectories(locPackage);
+        Path locBase = locPackage.resolve("AIigBase_1.java");
+        Path locChild = locPackage.resolve("AIigChild_1.java");
+        Files.writeString(locBase, """
+                package example.contract;
+                @eu.algites.lib.data.dataobject.AIaDataObject(schemaId = "example.base", schemaVersion = 1)
+                public interface AIigBase_1 extends eu.algites.lib.data.dataobject.AIiDataObject {
+                    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = "Name")
+                    String getName();
+                }
+                """);
+        Files.writeString(locChild, """
+                package example.contract;
+                @eu.algites.lib.data.dataobject.AIaDataObject(schemaId = "example.child", schemaVersion = 1)
+                public interface AIigChild_1 extends AIigBase_1 {
+                    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = "Count")
+                    Integer getCount();
+                }
+                """);
+        var locGenerated = new AIcSdoCodegenService().generateFromSources(locRoot,
+                java.util.List.of(locBase, locChild), "d", java.util.List.of());
+        Assert.assertEquals(locGenerated.size(), 2);
+        Assert.assertTrue(locGenerated.get(locChild.toRealPath()).mutableInterface().source()
+                .contains("AIigdBase_1"));
+        Assert.assertTrue(locGenerated.get(locChild.toRealPath()).implementation().source()
+                .contains("AIcgdBase_1"));
+    }
+
+    /** A Java compile error must fail with a useful diagnostic instead of using stale classes. */
+    @Test
+    public void AIcRejectInvalidSourceInsteadOfLoadingStaleClass() throws Exception {
+        Path locRoot = Files.createTempDirectory("sdo-invalid-source-");
+        Path locSource = locRoot.resolve("AIigBroken_1.java");
+        Files.writeString(locSource, "public interface AIigBroken_1 { this is not Java; }");
+        Assert.expectThrows(IllegalArgumentException.class,
+                () -> new AIcSdoCodegenService().generateFromSources(locRoot,
+                        java.util.List.of(locSource), "d", java.util.List.of()));
+    }
+
     /** A nested read contract is exposed covariantly as a mutable SDO contract. */
     @AIaDataObject(schemaId = "test:container", schemaVersion = 1)
     public interface AIigContainer extends AIiDataObject {
-        @AIaDataObjectField(name = "Child", presenceRequired = true)
+        @AIaDataObjectField(fieldName = "Child", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED)
         AIigChild getChild();
     }
 
@@ -125,7 +169,7 @@ public final class AItcSdoCodegenTest {
     /** Intentionally incompatible redeclaration of an inherited field. */
     public interface AIigBadChild extends AIigParent {
         @Override
-        @AIaDataObjectField(name = "Name", allowsNull = true)
+        @AIaDataObjectField(fieldName = "Name", allowsNull = true)
         String getName();
     }
 
@@ -142,7 +186,7 @@ public final class AItcSdoCodegenTest {
     /** The YAML-backed Java generation uses the selected interface/class and parameter naming conventions. */
     @AIaDataObject(schemaId = "test:catalog-customer", schemaVersion = 1)
     public interface AIigCatalogCustomer_1 extends AIiDataObject {
-        @AIaDataObjectField(name = "Name", presenceRequired = true)
+        @AIaDataObjectField(fieldName = "Name", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED)
         String getName();
     }
 
@@ -164,10 +208,10 @@ public final class AItcSdoCodegenTest {
     @AIaDataObject(schemaId = "test:read-policy", schemaVersion = 1)
     @eu.algites.lib.data.smartdataobject.AIaSmartDataObject(allowNonPresentRead = true)
     public interface AIigReadPolicy extends AIiDataObject {
-        @AIaDataObjectField(name = "Soft", presenceRequired = true)
+        @AIaDataObjectField(fieldName = "Soft", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED)
         String getSoft();
 
-        @AIaDataObjectField(name = "Strict", presenceRequired = true)
+        @AIaDataObjectField(fieldName = "Strict", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED)
         @eu.algites.lib.data.smartdataobject.AIaSmartDataObjectField(allowNonPresentRead = false)
         String getStrict();
     }
@@ -205,7 +249,7 @@ public final class AItcSdoCodegenTest {
 
     @AIaDataObject(schemaId = "test:inferred-name", schemaVersion = 1)
     public interface AIigInferredName extends AIiDataObject {
-        @AIaDataObjectField(presenceRequired = true)
+        @AIaDataObjectField(presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED)
         String getInferred();
     }
 
@@ -216,4 +260,93 @@ public final class AItcSdoCodegenTest {
         Assert.assertTrue(locGenerated.implementation().source().contains("set_RawField(\"Inferred\""));
     }
 
+
+    /** Handwritten contract with both explicit and synthesized localization metadata. */
+    @AIaDataObject(schemaId = "test:localization", schemaVersion = 1)
+    public interface AIiLocalizedDocument_1 extends AIiDataObject {
+        @eu.algites.lib.common.object.props.labels.AIaFieldLabel(
+                label = "Document title",
+                labels = {@eu.algites.lib.common.object.props.labels.AIaFieldLabel.Entry(
+                        roleCode = "field.description", label = "Displayed document title.")})
+        @AIaDataObjectField(fieldName = "DocumentTitle")
+        String getDocumentTitle();
+
+        @AIaDataObjectField(fieldName = "CertificatePrivateKey")
+        String getCertificatePrivateKey();
+
+        /** Field using a dynamically selected, discoverable label provider. */
+        @eu.algites.lib.common.object.props.labels.AIaFieldLabel(
+                labelResolver = @eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition(
+                    factoryClass = eu.algites.lib.common.object.props.labels.AIiFieldLabelResolverFactory.class,
+                    factoryCategory = "localized"))
+        @AIaDataObjectField(fieldName = "Localized")
+        String getLocalized();
+    }
+
+    /** Verify that SDO interfaces keep custom resolvers and synthesize missing field labels. */
+    @Test
+    public void AIcPreservesFieldLabelMetadata() {
+        String locSource = new AIcSdoCodegenService()
+                .generate(AIiLocalizedDocument_1.class, "d").mutableInterface().source();
+        Assert.assertTrue(locSource.contains("Document title"));
+        Assert.assertTrue(locSource.contains("factoryCategory = \"localized\""));
+        Assert.assertTrue(locSource.contains("AIiFieldLabelResolverFactory.class"));
+        Assert.assertTrue(locSource.contains("field.description"));
+        Assert.assertTrue(locSource.contains("Displayed document title."));
+        Assert.assertTrue(locSource.contains("Certificate private key"));
+    }
+
+
+    /** Read contract with an explicit JSON Schema lineage and one annotated property. */
+    @AIaDataObject(schemaId = "test:technology-json", schemaVersion = 1)
+    public interface AIigTechnologyJson_1 extends eu.algites.lib.data.dataobject.jsondefs.AIiJsonDataObject {
+        /** Read the stable JSON field identifier. */
+        @AIaDataObjectField(fieldName = "Key")
+        String getKey();
+    }
+
+    /** Read contract with an explicit YAML definition lineage. */
+    @AIaDataObject(schemaId = "test:technology-yaml", schemaVersion = 1)
+    public interface AIigTechnologyYaml_1 extends eu.algites.lib.data.dataobject.yamldefs.AIiYamlDataObject {
+        /** Read the stable YAML field identifier. */
+        @AIaDataObjectField(fieldName = "Key")
+        String getKey();
+    }
+
+    /** Global XML element contract with a separate XML QName annotation. */
+    @AIaDataObject(schemaId = "test:technology-xml", schemaVersion = 1)
+    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject(
+            definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.ELEMENT,
+            namespace = "urn:test:xml", namespaceLocalName = "test")
+    public interface AIigTechnologyXml_1 extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject {
+        /** XML element field with independent wire QName metadata. */
+        @AIaDataObjectField(fieldName = "Key")
+        @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(
+                namespace = "urn:test:xml", namespaceLocalName = "key")
+        String getKey();
+    }
+
+    /** Verify all technology markers and concrete inheritance roots survive generation. */
+    @Test
+    public void AIcPreservesTechnologySpecificSdoLineages() {
+        var locGenerator = new AIcSdoCodegenService();
+        for (var locCase : java.util.List.of(
+                new Object[] {AIigTechnologyJson_1.class, "Json"},
+                new Object[] {AIigTechnologyYaml_1.class, "Yaml"},
+                new Object[] {AIigTechnologyXml_1.class, "Xml"})) {
+            Class<?> locRead = (Class<?>) locCase[0];
+            String locTechnology = (String) locCase[1];
+            var locOutput = locGenerator.generate(locRead, "d");
+            Assert.assertTrue(locOutput.mutableInterface().source().contains(
+                    "AIi" + locTechnology + "SmartDataObject"));
+            Assert.assertTrue(locOutput.implementation().source().contains(
+                    "AIc" + locTechnology + "SmartDataObject"));
+        }
+        var locXml = locGenerator.generate(AIigTechnologyXml_1.class, "d").mutableInterface().source();
+        Assert.assertTrue(locXml.contains("AIaXmlDataObject("));
+        Assert.assertTrue(locXml.contains("namespaceLocalName = \"test\""));
+        Assert.assertTrue(locXml.contains("AIaXmlDataObjectField("));
+        Assert.assertTrue(locXml.contains("namespaceLocalName = \"key\""));
+        Assert.assertFalse(locXml.contains("AIaOpenChoice"));
+    }
 }

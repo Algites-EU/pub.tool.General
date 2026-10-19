@@ -170,8 +170,8 @@ The positional entry point remains temporarily supported:
 
 It processes **one** schema and writes **one** generated source; it does not
 perform batch discovery, structural merging, or the catalog-driven cleanup.
-The old `AIcSchemaObjectBindingsGenerator` (paired generator) remains for 1.0
-consumers and is not the recommended new first-stage integration.
+The pre-1.1 paired schema/DTO generator has been removed. The legacy
+positional CLI form still invokes the contract-only first stage.
 
 ## 3. SDO Codegen — batch CLI
 
@@ -202,8 +202,10 @@ python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli \
 The Python entry point accepts **only `python:`** mappings, and the Java entry
 point accepts **only `java:`** mappings. They are separate native executions;
 unlike Defs Codegen, an individual SDO batch invocation does not presently
-emit both technologies. Python contracts must be importable and Java contracts
-must already be compiled and discoverable through the JVM class loader.
+emit both technologies. Python contracts are imported from their source root.
+Java contracts and sibling enums are compiled **in memory** with the JDK
+compiler, then reflected over using the existing SDO implementation. Neither
+technology needs a preceding compilation or packaging task for DO contracts.
 
 ### 3.2 Options
 
@@ -215,7 +217,7 @@ must already be compiled and discoverable through the JVM class loader.
 | `--technology-sdointf-output-naming-profile=TECH:PATH` | Catalog defining `sdointf` output names. |
 | `--technology-sdoimpl-output-dir=TECH:PATH` | Destination for concrete SDO sources. |
 | `--technology-sdoimpl-output-naming-profile=TECH:PATH` | Catalog defining `sdoimpl` output names. |
-| `--dointf-classpath=PATHS` | **Java only**: OS-path-separated classpath of compiled DO contracts and dependencies. |
+| `--dointf-classpath=PATHS` | **Java only**: OS-path-separated binary dependency classpath (compiled DO contracts are optional). |
 | `--check` | Verify generated output without writing/cleaning. |
 | `--clean-only` | Remove recognized mutable/concrete output files using output catalogs only; cannot be combined with `--check`. |
 
@@ -227,11 +229,11 @@ selected in the SDO CLI. Output roots **may overlap each other and the input
 root**, because cleanup is restricted to SDO naming roles. Distinct files must
 still match unambiguous whole-file naming conventions.
 
-**Current SDO limitation:** its batch implementation performs output-role
-cleanup before loading and validating every DO input contract. Unlike the
-Defs batch preflight described above, a malformed or missing SDO contract can
-therefore leave its SDO output roles empty until rerun. Do not mistake the Defs
-fix for transactional behavior of the separate SDO tool.
+SDO batch preflights source loading and all generated filename conventions
+before cleaning output-role files. Missing or invalid input sources therefore
+do not erase previously generated SDO implementations. For Java, preflight
+compiles all generated read interfaces and enums together in memory and refuses
+to use stale precompiled classes of the same name.
 
 ### 3.3 Legacy single-contract invocation
 
@@ -340,7 +342,7 @@ roles. Prefix strings alone are never sufficient for cleanup matching.
 | `Ambiguous filename` | Multiple naming profiles accept the complete filename. Fix the YAML rules (or select only relevant roles). |
 | `Unversioned schema is not allowed` | Schema filename matched a non-versioned profile. Supply a version or opt in with `--allow-unversioned-schemas`. |
 | `Cannot resolve generated reference package` | A schema reference does not resolve to one generated contract. Include its schema/input root or repair the reference. |
-| `Compile ... DO interfaces ... --dointf-classpath` | Java SDO reflection cannot find the compiled read contract. Compile the DO generation outputs first and supply the classpath. |
+| `Cannot compile DO sources for SDO reflection` | A source file has a compilation error or an external Java dependency is absent. Supply the dependency through the JVM or `--dointf-classpath`. |
 | `Missing or outdated generated ...` | `--check` compared expected output to the filesystem; run a normal generation to update it. |
 
 ## 6. Build, tests and migration
@@ -375,3 +377,64 @@ converted into `AIigCustomerAddress__beta__7-2__eu_west.java` by reordering
 `region` and `channel`, switching `identifier` to UpperCamelCase, and reversing
 `major` and `minor`. This demonstrates the naming library's capabilities; it
 is not a separate code generator or a built-in source schema format.
+
+## 1.1 recursive and XML contract migration
+
+The current staged model, XML element naming `_xe`, closed choices, canonical field presence and explicit limitations are documented in [Defs Codegen recursive types](defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md). This replaces neither the explicit bootstrap procedure nor the existing source-ownership contracts.
+
+
+## 5. Recursive canonical contracts and XML-element naming (migration)
+
+The 1.1 canonical model uses only `AIcdDataType` / `AInDataTypeKind` for
+recursively nested objects, arrays, reference identities and distinct `ONE_OF`
+and `ANY_OF` semantics. The previous `AInDefinitionKind` and `AInValueKind`
+are removed, including their redundant canonical property and definition
+projections. Source-specific scalar/type hints are normalized inside each
+frontend. An unresolved `AIcdDefinitionReference` now carries optional
+`targetDataType` instead of a separate `targetKind` projection, with an
+unknown target remaining nullable until the reference graph is resolved. **Not every supported recursive shape is yet emitted as a full
+Java/Python contract**; unsupported nested structures must fail explicitly.
+
+A top-level finite choice emits a sealed Java contract with one separate
+public record per explicitly selected alternative. Python generates frozen
+value wrappers. Record names are disambiguated using stable reference
+identities; dependencies from other business packages retain their actual
+qualified names. Wire-format `oneOf` and `anyOf` validation is not implied by
+selecting a programming-language wrapper.
+
+Each global XSD element has its own nominal `AIig_xe...` contract in the
+existing business package, with `AIigd_xe...` / `AIcgd_xe...` generated by
+SDO Codegen. The Java marker is `_xe`, while Python filenames use an
+additional underscore: `aiig__xe_payment_1.py`. The naming catalog contains
+separate XML-element interface/class profiles; automatic pattern resolution
+must stay unambiguous across **all** active profiles. Users defining different
+conventions are responsible for the same uniqueness and reversibility.
+
+The element's XML QName, its content type and optional substitution head are
+separate canonical concepts; element interface inheritance preserves supported substitution relationships.
+There is no Open Choice annotation or runtime substitution registry.
+Named content types are not renamed or moved into artificial Java packages.
+
+The shared field annotation uses `fieldName`, `presence` (REQUIRED,
+ALLOWED, FORBIDDEN), and `allowsNull`. XML QName metadata belongs to
+`AIaXmlDataObject` and `AIaXmlDataObjectField`, not the shared field annotation.
+Java SDO contracts provide `sourceContract` metadata for reflection. For `allOf`,
+compatible field presence/nullability restrictions on derived contracts are
+kept; incompatible relaxations fail.
+
+The XSD frontend supports named `complexContent` extension with real
+Java/Python inheritance for emitted base types, including bases in the same
+XSD and local include/import files. It emits all named types, not just the
+primary declaration. A conservative flat-sequence restriction subset permits
+narrowing particle occurrence bounds and removing optional elements while
+preserving order and type. The recursive canonical model records repeated
+element cardinalities as array `minItems`/`maxItems`. Same-schema named
+`xs:group`/`xs:attributeGroup` references and `xs:element ref` resolve with
+cycle guards where applicable. Direct mandatory `xs:choice` generates a closed
+typed choice, including global element references within the same schema.
+Unsupported nested/repeated compositors, optional multi-field groups,
+imported group/element references, wildcards, unrestricted restriction,
+`xsi:type` polymorphism and complete `block`/`final` enforcement remain
+outside the supported subset and must not be treated as silently equivalent
+to valid generated contracts. See
+[the technical limits and examples](defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md).

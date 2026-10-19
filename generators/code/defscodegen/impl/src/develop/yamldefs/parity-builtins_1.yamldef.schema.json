@@ -9,139 +9,162 @@
       "description": "Canonical projection of XSD string.",
       "x-modustro-datatype": "string",
       "type": "string",
-      "x-test-xsd-type": "string"
+      "x-test-xsd-type": "string",
+      "title": "String"
     },
     "normalizedString": {
       "description": "Canonical projection of XSD normalizedString.",
       "x-modustro-datatype": "normalizedString",
       "type": "string",
-      "x-test-xsd-type": "normalizedString"
+      "x-test-xsd-type": "normalizedString",
+      "title": "Normalized string"
     },
     "token": {
       "description": "Canonical projection of XSD token.",
       "x-modustro-datatype": "token",
       "type": "string",
-      "x-test-xsd-type": "token"
+      "x-test-xsd-type": "token",
+      "title": "Token"
     },
     "language": {
       "description": "Canonical projection of XSD language.",
       "x-modustro-datatype": "language",
       "type": "string",
-      "x-test-xsd-type": "language"
+      "x-test-xsd-type": "language",
+      "title": "Language"
     },
     "Name": {
       "description": "Canonical projection of XSD Name.",
       "x-modustro-datatype": "Name",
       "type": "string",
-      "x-test-xsd-type": "Name"
+      "x-test-xsd-type": "Name",
+      "title": "Name"
     },
     "NCName": {
       "description": "Canonical projection of XSD NCName.",
       "x-modustro-datatype": "NCName",
       "type": "string",
-      "x-test-xsd-type": "NCName"
+      "x-test-xsd-type": "NCName",
+      "title": "Nc name"
     },
     "NMTOKEN": {
       "description": "Canonical projection of XSD NMTOKEN.",
       "x-modustro-datatype": "NMTOKEN",
       "type": "string",
-      "x-test-xsd-type": "NMTOKEN"
+      "x-test-xsd-type": "NMTOKEN",
+      "title": "Nmtoken"
     },
     "ID": {
       "description": "Canonical projection of XSD ID.",
       "x-modustro-datatype": "ID",
       "type": "string",
-      "x-test-xsd-type": "ID"
+      "x-test-xsd-type": "ID",
+      "title": "ID"
     },
     "IDREF": {
       "description": "Canonical projection of XSD IDREF.",
       "x-modustro-datatype": "IDREF",
       "type": "string",
-      "x-test-xsd-type": "IDREF"
+      "x-test-xsd-type": "IDREF",
+      "title": "Idref"
     },
     "ENTITY": {
       "description": "Canonical projection of XSD ENTITY.",
       "x-modustro-datatype": "ENTITY",
       "type": "string",
-      "x-test-xsd-type": "ENTITY"
+      "x-test-xsd-type": "ENTITY",
+      "title": "Entity"
     },
     "duration": {
       "description": "Canonical projection of XSD duration.",
       "x-modustro-datatype": "duration",
       "type": "string",
-      "x-test-xsd-type": "duration"
+      "x-test-xsd-type": "duration",
+      "title": "Duration"
     },
     "dateTime": {
       "description": "Canonical projection of XSD dateTime.",
       "x-modustro-datatype": "dateTime",
       "type": "string",
-      "x-test-xsd-type": "dateTime"
+      "x-test-xsd-type": "dateTime",
+      "title": "Date time"
     },
     "time": {
       "description": "Canonical projection of XSD time.",
       "x-modustro-datatype": "time",
       "type": "string",
-      "x-test-xsd-type": "time"
+      "x-test-xsd-type": "time",
+      "title": "Time"
     },
     "date": {
       "description": "Canonical projection of XSD date.",
       "x-modustro-datatype": "date",
       "type": "string",
-      "x-test-xsd-type": "date"
+      "x-test-xsd-type": "date",
+      "title": "Date"
     },
     "gYearMonth": {
       "description": "Canonical projection of XSD gYearMonth.",
       "x-modustro-datatype": "gYearMonth",
       "type": "string",
-      "x-test-xsd-type": "gYearMonth"
+      "x-test-xsd-type": "gYearMonth",
+      "title": "G year month"
     },
     "gYear": {
       "description": "Canonical projection of XSD gYear.",
       "x-modustro-datatype": "gYear",
       "type": "string",
-      "x-test-xsd-type": "gYear"
+      "x-test-xsd-type": "gYear",
+      "title": "G year"
     },
     "gMonthDay": {
       "description": "Canonical projection of XSD gMonthDay.",
       "x-modustro-datatype": "gMonthDay",
       "type": "string",
-      "x-test-xsd-type": "gMonthDay"
+      "x-test-xsd-type": "gMonthDay",
+      "title": "G month day"
     },
     "gDay": {
       "description": "Canonical projection of XSD gDay.",
       "x-modustro-datatype": "gDay",
       "type": "string",
-      "x-test-xsd-type": "gDay"
+      "x-test-xsd-type": "gDay",
+      "title": "G day"
     },
     "gMonth": {
       "description": "Canonical projection of XSD gMonth.",
       "x-modustro-datatype": "gMonth",
       "type": "string",
-      "x-test-xsd-type": "gMonth"
+      "x-test-xsd-type": "gMonth",
+      "title": "G month"
     },
     "hexBinary": {
       "description": "Canonical projection of XSD hexBinary.",
       "x-modustro-datatype": "hexBinary",
       "type": "string",
-      "x-test-xsd-type": "hexBinary"
+      "x-test-xsd-type": "hexBinary",
+      "title": "Hex binary"
     },
     "base64Binary": {
       "description": "Canonical projection of XSD base64Binary.",
       "x-modustro-datatype": "base64Binary",
       "type": "string",
-      "x-test-xsd-type": "base64Binary"
+      "x-test-xsd-type": "base64Binary",
+      "title": "Base64 binary"
     },
     "anyURI": {
       "description": "Canonical projection of XSD anyURI.",
       "x-modustro-datatype": "anyURI",
       "type": "string",
-      "x-test-xsd-type": "anyURI"
+      "x-test-xsd-type": "anyURI",
+      "title": "Any URI"
     },
     "QName": {
       "description": "Canonical projection of XSD QName.",
       "x-modustro-datatype": "QName",
       "type": "string",
-      "x-test-xsd-type": "QName"
+      "x-test-xsd-type": "QName",
+      "title": "Q name"
     },
     "NOTATION": {
       "description": "Canonical projection of XSD NOTATION.",
@@ -150,146 +173,182 @@
       "x-test-xsd-type": "NOTATION",
       "enum": [
         "tns:Demo"
+      ],
+      "title": "Notation",
+      "oneOf": [
+        {
+          "const": "tns:Demo",
+          "title": "Tns:demo",
+          "description": "Selects the tns:demo option in the corresponding enumeration."
+        }
       ]
     },
     "integer": {
       "description": "Canonical projection of XSD integer.",
       "x-modustro-datatype": "integer",
       "type": "integer",
-      "x-test-xsd-type": "integer"
+      "x-test-xsd-type": "integer",
+      "title": "Integer"
     },
     "nonPositiveInteger": {
       "description": "Canonical projection of XSD nonPositiveInteger.",
       "x-modustro-datatype": "nonPositiveInteger",
       "type": "integer",
-      "x-test-xsd-type": "nonPositiveInteger"
+      "x-test-xsd-type": "nonPositiveInteger",
+      "title": "Non positive integer"
     },
     "negativeInteger": {
       "description": "Canonical projection of XSD negativeInteger.",
       "x-modustro-datatype": "negativeInteger",
       "type": "integer",
-      "x-test-xsd-type": "negativeInteger"
+      "x-test-xsd-type": "negativeInteger",
+      "title": "Negative integer"
     },
     "long": {
       "description": "Canonical projection of XSD long.",
       "x-modustro-datatype": "long",
       "type": "integer",
-      "x-test-xsd-type": "long"
+      "x-test-xsd-type": "long",
+      "title": "Long"
     },
     "int": {
       "description": "Canonical projection of XSD int.",
       "x-modustro-datatype": "int",
       "type": "integer",
-      "x-test-xsd-type": "int"
+      "x-test-xsd-type": "int",
+      "title": "Int"
     },
     "short": {
       "description": "Canonical projection of XSD short.",
       "x-modustro-datatype": "short",
       "type": "integer",
-      "x-test-xsd-type": "short"
+      "x-test-xsd-type": "short",
+      "title": "Short"
     },
     "byte": {
       "description": "Canonical projection of XSD byte.",
       "x-modustro-datatype": "byte",
       "type": "integer",
-      "x-test-xsd-type": "byte"
+      "x-test-xsd-type": "byte",
+      "title": "Byte"
     },
     "nonNegativeInteger": {
       "description": "Canonical projection of XSD nonNegativeInteger.",
       "x-modustro-datatype": "nonNegativeInteger",
       "type": "integer",
-      "x-test-xsd-type": "nonNegativeInteger"
+      "x-test-xsd-type": "nonNegativeInteger",
+      "title": "Non negative integer"
     },
     "unsignedLong": {
       "description": "Canonical projection of XSD unsignedLong.",
       "x-modustro-datatype": "unsignedLong",
       "type": "integer",
-      "x-test-xsd-type": "unsignedLong"
+      "x-test-xsd-type": "unsignedLong",
+      "title": "Unsigned long"
     },
     "unsignedInt": {
       "description": "Canonical projection of XSD unsignedInt.",
       "x-modustro-datatype": "unsignedInt",
       "type": "integer",
-      "x-test-xsd-type": "unsignedInt"
+      "x-test-xsd-type": "unsignedInt",
+      "title": "Unsigned int"
     },
     "unsignedShort": {
       "description": "Canonical projection of XSD unsignedShort.",
       "x-modustro-datatype": "unsignedShort",
       "type": "integer",
-      "x-test-xsd-type": "unsignedShort"
+      "x-test-xsd-type": "unsignedShort",
+      "title": "Unsigned short"
     },
     "unsignedByte": {
       "description": "Canonical projection of XSD unsignedByte.",
       "x-modustro-datatype": "unsignedByte",
       "type": "integer",
-      "x-test-xsd-type": "unsignedByte"
+      "x-test-xsd-type": "unsignedByte",
+      "title": "Unsigned byte"
     },
     "positiveInteger": {
       "description": "Canonical projection of XSD positiveInteger.",
       "x-modustro-datatype": "positiveInteger",
       "type": "integer",
-      "x-test-xsd-type": "positiveInteger"
+      "x-test-xsd-type": "positiveInteger",
+      "title": "Positive integer"
     },
     "decimal": {
       "description": "Canonical projection of XSD decimal.",
       "x-modustro-datatype": "decimal",
       "type": "number",
-      "x-test-xsd-type": "decimal"
+      "x-test-xsd-type": "decimal",
+      "title": "Decimal"
     },
     "float": {
       "description": "Canonical projection of XSD float.",
       "x-modustro-datatype": "float",
       "type": "number",
-      "x-test-xsd-type": "float"
+      "x-test-xsd-type": "float",
+      "title": "Float"
     },
     "double": {
       "description": "Canonical projection of XSD double.",
       "x-modustro-datatype": "double",
       "type": "number",
-      "x-test-xsd-type": "double"
+      "x-test-xsd-type": "double",
+      "title": "Double"
     },
     "boolean": {
       "description": "Canonical projection of XSD boolean.",
       "x-modustro-datatype": "boolean",
       "type": "boolean",
-      "x-test-xsd-type": "boolean"
+      "x-test-xsd-type": "boolean",
+      "title": "Boolean"
     },
     "NMTOKENS": {
       "description": "Canonical projection of XSD NMTOKENS.",
       "x-modustro-datatype": "NMTOKENS",
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "title": "Nmtokens items",
+        "description": "Specifies the nmtokens items associated with this definition."
       },
-      "x-test-xsd-type": "NMTOKENS"
+      "x-test-xsd-type": "NMTOKENS",
+      "title": "Nmtokens"
     },
     "IDREFS": {
       "description": "Canonical projection of XSD IDREFS.",
       "x-modustro-datatype": "IDREFS",
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "title": "Idrefs items",
+        "description": "Specifies the idrefs items associated with this definition."
       },
-      "x-test-xsd-type": "IDREFS"
+      "x-test-xsd-type": "IDREFS",
+      "title": "Idrefs"
     },
     "ENTITIES": {
       "description": "Canonical projection of XSD ENTITIES.",
       "x-modustro-datatype": "ENTITIES",
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "title": "Entities items",
+        "description": "Specifies the entities items associated with this definition."
       },
-      "x-test-xsd-type": "ENTITIES"
+      "x-test-xsd-type": "ENTITIES",
+      "title": "Entities"
     },
     "anySimpleType": {
       "description": "Canonical projection of XSD anySimpleType.",
       "x-modustro-datatype": "anySimpleType",
-      "x-test-xsd-type": "anySimpleType"
+      "x-test-xsd-type": "anySimpleType",
+      "title": "Any simple type"
     },
     "anyType": {
       "description": "Canonical projection of XSD anyType.",
       "x-modustro-datatype": "anyType",
-      "x-test-xsd-type": "anyType"
+      "x-test-xsd-type": "anyType",
+      "title": "Any type"
     }
   },
   "required": [

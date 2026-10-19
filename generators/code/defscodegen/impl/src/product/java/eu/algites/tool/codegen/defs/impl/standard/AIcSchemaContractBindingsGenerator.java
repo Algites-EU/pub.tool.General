@@ -6,7 +6,7 @@ import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AInCodeGenerationTarget;
-import eu.algites.tool.codegen.defs.AInDefinitionKind;
+import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
 import eu.algites.tool.codegen.defs.AInDefsNameRole;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -67,7 +67,9 @@ public final class AIcSchemaContractBindingsGenerator {
             for (var entry : outputRoots.entrySet())
                 catalogs.get(entry.getKey()).clean(entry.getValue(), Set.of(
                         "algites-" + entry.getKey() + "-gen-intf-versioned",
-                        "algites-" + entry.getKey() + "-gen-enum-versioned"));
+                        "algites-" + entry.getKey() + "-gen-enum-versioned",
+                        "algites-" + entry.getKey() + "-gen-xml-element-intf-versioned",
+                        "algites-" + entry.getKey() + "-gen-xml-element-intf"));
             return List.of();
         }
         Map<String, Path> rootBySchema = new LinkedHashMap<>();
@@ -112,6 +114,9 @@ public final class AIcSchemaContractBindingsGenerator {
                     String base = source.getFileName().toString().substring(0, source.getFileName().toString().length() - suffix.length()).replaceFirst("_[0-9]+$", "");
                     if (kind.equals("xmldefs")) {
                         units.add(new AIcdUnit(schema, "", base, mapper.createObjectNode(), document));
+                        for (String locTypeName : new AIcXmlDefsFrontend().additionalNamedTypeNames(source))
+                            units.add(new AIcdUnit(schema, "@type/" + locTypeName, locTypeName,
+                                    mapper.createObjectNode(), document));
                     } else collect(document, "", base, schema, document, overrides, units);
                 }
             }
@@ -162,12 +167,18 @@ public final class AIcSchemaContractBindingsGenerator {
                     default -> AInDefinitionSourceKind.JSONDEFS;
                 };
                 var load = new AIcdDefinitionLoadRequest(source, sourceType, profile);
-                var loaded = sourceKind.equals("xmldefs") ? new AIcXmlDefsFrontend().load(load)
+                var loaded = sourceKind.equals("xmldefs")
+                        ? (unit.pointer().startsWith("@type/")
+                            ? new AIcXmlDefsFrontend().loadNamedType(load, unit.pointer().substring(6))
+                            : new AIcXmlDefsFrontend().load(load))
                         : reader.read(projection, load, load.sourceKind(), "x-jsondefs-id", "x-jsondefs-version", "x-jsondefs-name");
-                var definition = new AIcdCanonicalDefinition(loaded.identity(), loaded.version(), loaded.logicalName(),
-                    loaded.kind(), loaded.sourceKind(), unit.schema + (unit.pointer.isEmpty() ? "" : "#" + unit.pointer),
-                    loaded.description(), loaded.properties(), loaded.enumValues());
-                var request = new AIcdCodeGenerationRequest(definition, target, packageName, profile);
+                var definition = new AIcdCanonicalDefinition(loaded.identity(), loaded.version(), loaded.logicalName(), loaded.sourceKind(), unit.schema + (unit.pointer.isEmpty() ? "" : "#" + unit.pointer), loaded.description(), loaded.dataType(), loaded.enumValues(), loaded.title());
+                String locXmlTypeQName = sourceKind.equals("xmldefs")
+                        ? (unit.pointer().startsWith("@type/")
+                            ? "{" + new AIcXmlDefsFrontend().schemaNamespace(load) + "}" + unit.pointer().substring(6)
+                            : new AIcXmlDefsFrontend().rootTypeQName(load)) : null;
+                if (locXmlTypeQName != null && locXmlTypeQName.endsWith("}__root__")) locXmlTypeQName = null;
+                var request = new AIcdCodeGenerationRequest(definition, target, packageName, profile, locXmlTypeQName);
                 var preview = new AIcSchemaContractInterfaceGenerator().generate(request);
                 String outputKey = targetText + "#" + preview.relativePath();
                 requests.computeIfAbsent(outputKey, key -> new ArrayList<>()).add(request);
@@ -178,6 +189,18 @@ public final class AIcSchemaContractBindingsGenerator {
                         intf.resolve("src/product/" + targetText + ".gen")).resolve(preview.relativePath())))));
             }
         }
+        /* Resolve named XML extension bases against the complete emitted-type index.
+         * A base that is not emitted cannot be represented by Java/Python inheritance:
+         * silently flattening it would destroy the XSD type hierarchy. */
+        Map<String, AIcdCodeGenerationRequest> locXmlTypeRequests = new LinkedHashMap<>();
+        for (var locUnitRequest : unitRequests.entrySet()) {
+            var locCandidate = locUnitRequest.getValue();
+            if (locCandidate.xmlTypeQName() == null) continue;
+            String locKey = locCandidate.target().name() + "#" + locCandidate.xmlTypeQName();
+            var locPrevious = locXmlTypeRequests.putIfAbsent(locKey, locCandidate);
+            if (locPrevious != null && !locPrevious.packageName().equals(locCandidate.packageName()))
+                throw new IllegalArgumentException("Ambiguous XML named type " + locCandidate.xmlTypeQName());
+        }
         for (var representations : requests.values()) {
             var first = representations.get(0);
             long identityCount = representations.stream().map(r -> canonicalIdentity(
@@ -185,7 +208,7 @@ public final class AIcSchemaContractBindingsGenerator {
             if (identityCount != 1)
                 throw new IllegalArgumentException("Canonical identity collision for one generated output: "
                     + representations.stream().map(r -> r.definition().identity() + " (" + r.definition().sourceResource() + ")").toList());
-            var merged = AIcCanonicalDefinitionMerger.AIcMerge(representations.stream().map(AIcdCodeGenerationRequest::definition).toList());
+            var merged = AIcCanonicalDefinitionMerger.AIcMergeStrict(representations.stream().map(AIcdCodeGenerationRequest::definition).toList(), repository);
             String targetText = first.target() == AInCodeGenerationTarget.PYTHON ? "python" : "java";
             String outputKey = targetText + "#" + new AIcSchemaContractInterfaceGenerator().generate(first).relativePath();
             List<AIcdUnit> linked = relations.get(outputKey);
@@ -197,36 +220,153 @@ public final class AIcSchemaContractBindingsGenerator {
             String parentName = null, parentModule = null;
             if (inheritedRequests.get(0) != null) {
                 AIcdCodeGenerationRequest inherited = inheritedRequests.get(0);
-                if (merged.kind() != AInDefinitionKind.OBJECT || inherited.definition().kind() != AInDefinitionKind.OBJECT)
+                if (merged.dataType().kind() != AInDataTypeKind.OBJECT || inherited.definition().dataType().kind() != AInDataTypeKind.OBJECT)
                     throw new IllegalArgumentException("allOf inheritance must connect object contracts");
                 Map<String, AIcdPropertyDefinition> inheritedFields = new LinkedHashMap<>();
                 for (var field : inherited.definition().properties()) inheritedFields.put(field.sourceName(), field);
-                for (var field : merged.properties()) {
+                List<AIcdPropertyDefinition> locOverrides = new ArrayList<>();
+                for (var field : merged.dataType().properties()) {
                     var previous = inheritedFields.get(field.sourceName());
-                    if (previous != null && !fieldShape(previous).equals(fieldShape(field)))
-                        throw new IllegalArgumentException("Conflicting inherited field: " + field.sourceName());
+                    if (previous == null || !fieldShape(previous).equals(fieldShape(field))) {
+                        if (previous != null && !fieldNarrows(previous, field))
+                            throw new IllegalArgumentException("Conflicting inherited field: " + field.sourceName());
+                        locOverrides.add(field);
+                    }
                 }
-                merged = new AIcdCanonicalDefinition(merged.identity(), merged.version(), merged.logicalName(), merged.kind(),
-                    merged.sourceKind(), merged.sourceResource(), merged.description(), merged.properties().stream()
-                    .filter(f -> !inheritedFields.containsKey(f.sourceName())).toList(), merged.enumValues());
+                merged = new AIcdCanonicalDefinition(merged.identity(), merged.version(), merged.logicalName(), merged.sourceKind(), merged.sourceResource(), merged.description(), merged.dataType(), merged.enumValues(), merged.title());
                 var parentSource = new AIcSchemaContractInterfaceGenerator().generate(inherited);
                 parentName = parentSource.typeName();
                 parentModule = inherited.packageName();
                 if (first.target() == AInCodeGenerationTarget.PYTHON)
                     parentModule += "." + Path.of(parentSource.relativePath()).getFileName().toString().replaceFirst("\\.py$", "");
             }
-            var pair = new AIcSchemaContractInterfaceGenerator().generate(
-                new AIcdCodeGenerationRequest(merged, first.target(), first.packageName(), first.namingProfile()),
-                parentName, parentModule);
-            add(pending, outputRoots.getOrDefault(targetText, intf.resolve("src/product/" + targetText + ".gen"))
-                    .resolve(pair.relativePath()), qualifyReferences(pair.source(), first, requests, true));
+            if (first.xmlTypeQName() != null) {
+                var locXmlOrigin = unitIndex.get(first.definition().sourceResource() + "#");
+                if (locXmlOrigin == null) locXmlOrigin = unitIndex.get(first.definition().sourceResource());
+                if (locXmlOrigin == null)
+                    throw new IllegalArgumentException("Unknown XSD source " + first.definition().sourceResource());
+                var locXmlLoad = new AIcdDefinitionLoadRequest(inside(repository, locXmlOrigin.schema()),
+                        AInDefinitionSourceKind.XMLDEFS, first.namingProfile());
+                String locXmlParentQName = locXmlOrigin.pointer().startsWith("@type/")
+                        ? new AIcXmlDefsFrontend().namedTypeExtensionBaseQName(
+                                locXmlLoad, locXmlOrigin.pointer().substring(6))
+                        : new AIcXmlDefsFrontend().rootExtensionBaseQName(locXmlLoad);
+                if (locXmlParentQName != null) {
+                    var locXmlParent = locXmlTypeRequests.get(first.target().name() + "#" + locXmlParentQName);
+                    if (locXmlParent == null || locXmlParent == first)
+                        throw new IllegalArgumentException("XML extension base has no independently emitted contract: "
+                                + locXmlParentQName + " for " + first.xmlTypeQName());
+                    if (merged.dataType().kind() != AInDataTypeKind.OBJECT
+                            || locXmlParent.definition().dataType().kind() != AInDataTypeKind.OBJECT)
+                        throw new IllegalArgumentException("XML extension requires object contracts");
+                    Map<String, AIcdPropertyDefinition> locInheritedFields = new LinkedHashMap<>();
+                    for (var locField : locXmlParent.definition().properties())
+                        locInheritedFields.put(locField.sourceName(), locField);
+                    List<AIcdPropertyDefinition> locOwnFields = new ArrayList<>();
+                    for (var locField : merged.dataType().properties()) {
+                        var locInherited = locInheritedFields.get(locField.sourceName());
+                        if (locInherited == null) locOwnFields.add(locField);
+                        else if (!fieldShape(locInherited).equals(fieldShape(locField)))
+                            throw new IllegalArgumentException("Incompatible inherited XML extension field: "
+                                    + locField.sourceName());
+                    }
+                    merged = new AIcdCanonicalDefinition(merged.identity(), merged.version(), merged.logicalName(), merged.sourceKind(), merged.sourceResource(), merged.description(), eu.algites.tool.codegen.defs.AIcdDataType.object(locOwnFields), merged.enumValues(), merged.title());
+                    var locParentPreview = new AIcSchemaContractInterfaceGenerator().generate(locXmlParent);
+                    parentName = locParentPreview.typeName();
+                    parentModule = locXmlParent.packageName();
+                    if (first.target() == AInCodeGenerationTarget.PYTHON)
+                        parentModule += "." + Path.of(locParentPreview.relativePath()).getFileName().toString()
+                                .replaceFirst("\\.py$", "");
+                }
+            }
+            int locIndex = 0;
+            for (var pair : new AIcSchemaContractInterfaceGenerator().generateSources(
+                    new AIcdCodeGenerationRequest(merged, first.target(), first.packageName(),
+                            first.namingProfile(), first.xmlTypeQName()),
+                    parentName, parentModule)) {
+                eu.algites.tool.codegen.defs.AIcdDefinitionReference locChoiceReference = null;
+                if (merged.sourceKind() != AInDefinitionSourceKind.XMLDEFS
+                        && merged.dataType() != null && (merged.dataType().kind() == eu.algites.tool.codegen.defs.AInDataTypeKind.ONE_OF
+                        || merged.dataType().kind() == eu.algites.tool.codegen.defs.AInDataTypeKind.ANY_OF) && locIndex > 0) {
+                    var locAlternative = merged.dataType().alternatives().get(locIndex - 1);
+                    if (locAlternative.kind() == eu.algites.tool.codegen.defs.AInDataTypeKind.REFERENCE)
+                        locChoiceReference = locAlternative.reference();
+                }
+                add(pending, outputRoots.getOrDefault(targetText, intf.resolve("src/product/" + targetText + ".gen"))
+                        .resolve(pair.relativePath()), qualifyReferences(pair.source(), first, requests, true, locChoiceReference));
+                locIndex++;
+            }
         }
+        /* Global XML element declarations are indexed independently from named XSD
+         * content types. This preserves substitution across source files and modules. */
+        var locXmlGenerator = new AIcXmlElementContractGenerator();
+        var locXmlFrontend = new AIcXmlDefsFrontend();
+        for (JsonNode locLanguage : manifest.required("languages")) {
+            String locTarget = locLanguage.asText();
+            Map<String, String> locTypes = new LinkedHashMap<>();
+            Map<String, String> locElements = new LinkedHashMap<>();
+            Set<String> locValueTypes = new java.util.HashSet<>();
+            record AIcdElementWork(String source, AIcdCodeGenerationRequest request,
+                                   eu.algites.tool.codegen.defs.AIcdXmlElementDeclaration element) { }
+            List<AIcdElementWork> locWork = new ArrayList<>();
+            for (AIcdUnit locUnit : units) {
+                if (!kindBySchema.get(locUnit.schema()).equals("xmldefs")) continue;
+                AIcdCodeGenerationRequest locRequest = unitRequests.get(
+                        locTarget + "#" + locUnit.schema() + "#" + locUnit.pointer());
+                if (locRequest == null) continue;
+                var locLoad = new AIcdDefinitionLoadRequest(inside(repository, locUnit.schema()),
+                        AInDefinitionSourceKind.XMLDEFS, locRequest.namingProfile());
+                String locRootQName = locRequest.xmlTypeQName() == null
+                        ? locXmlFrontend.rootTypeQName(locLoad) : locRequest.xmlTypeQName();
+                if (locRequest.definition().dataType().kind() == AInDataTypeKind.OBJECT
+                        || locRequest.definition().dataType().kind() == AInDataTypeKind.ENUM
+                        || locRequest.definition().dataType().kind() == AInDataTypeKind.ONE_OF
+                        || locRequest.definition().dataType().kind() == AInDataTypeKind.ANY_OF) {
+                    if (locRequest.definition().dataType().kind() == AInDataTypeKind.ENUM
+                            || locRequest.definition().dataType().kind() == AInDataTypeKind.ONE_OF
+                            || locRequest.definition().dataType().kind() == AInDataTypeKind.ANY_OF)
+                        locValueTypes.add(locRootQName);
+                    var locPreview = new AIcSchemaContractInterfaceGenerator().generate(locRequest);
+                    String locQualified = locRequest.packageName() + "."
+                            + (locTarget.equals("python")
+                                ? Path.of(locPreview.relativePath()).getFileName().toString().replaceFirst("\\.py$", "") + "."
+                                : "") + locPreview.typeName();
+                    String locPrevious = locTypes.putIfAbsent(locRootQName, locQualified);
+                    if (locPrevious != null && !locPrevious.equals(locQualified))
+                        throw new IllegalArgumentException("Duplicate XML content type " + locRootQName);
+                }
+                if (!locUnit.pointer().isEmpty()) continue;
+                for (var locElement : locXmlFrontend.globalElementDeclarations(locLoad)) {
+                    var locNames = new AIcGenerationNames();
+                    String locName = locNames.referenceTypeName(AIcXmlElementContractGenerator.xmlIdentifier(locElement.localName()), locRequest.definition().version(),
+                            locRequest.namingProfile(), AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE);
+                    String locStem = locNames.referenceTypeName(AIcXmlElementContractGenerator.xmlIdentifier(locElement.localName()), locRequest.definition().version(),
+                            locRequest.namingProfile(), AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM);
+                    String locQualified = locRequest.packageName() + "."
+                            + (locTarget.equals("python") ? locStem + "." : "") + locName;
+                    if (locElements.putIfAbsent(locElement.qName(), locQualified) != null)
+                        throw new IllegalArgumentException("Duplicate XML global element " + locElement.qName());
+                    locWork.add(new AIcdElementWork(locUnit.schema(), locRequest, locElement));
+                }
+            }
+            for (AIcdElementWork locEntry : locWork) {
+                var locGenerated = locXmlGenerator.generate(locEntry.request(), locEntry.element(), locTypes, locElements, locValueTypes);
+                Path locOutputRoot = outputRoots.getOrDefault(locTarget, intf.resolve("src/product/" + locTarget + ".gen"));
+                add(pending, locOutputRoot.resolve(locGenerated.relativePath()), locGenerated.source());
+                result.add(Map.of("schema", locEntry.source(), "pointer", "@element/" + locEntry.element().localName(),
+                        "language", locTarget, "type", locGenerated.typeName(),
+                        "path", portable(repository.relativize(locOutputRoot.resolve(locGenerated.relativePath())))));
+            }
+        }
+
         /* Validate the complete batch before cleaning any previously generated source. */
         if (explicit && !check) {
             for (var entry : outputRoots.entrySet())
                 catalogs.get(entry.getKey()).clean(entry.getValue(), Set.of(
                         "algites-" + entry.getKey() + "-gen-intf-versioned",
-                        "algites-" + entry.getKey() + "-gen-enum-versioned"));
+                        "algites-" + entry.getKey() + "-gen-enum-versioned",
+                        "algites-" + entry.getKey() + "-gen-xml-element-intf-versioned",
+                        "algites-" + entry.getKey() + "-gen-xml-element-intf"));
         }
         Path state = repository.resolve("build/run/schema-contract-bindings/generated-files.json");
         List<String> previous = explicit ? List.of() : Files.isRegularFile(state)
@@ -281,8 +421,21 @@ public final class AIcSchemaContractBindingsGenerator {
 
     /** Keep canonical inherited field compatibility independent of documentation. */
     private static List<Object> fieldShape(AIcdPropertyDefinition aField) {
-        return java.util.Arrays.asList(aField.sourceName(), aField.valueKind(), aField.required(),
-            aField.nullable(), aField.itemValueKind(), aField.reference(), aField.constraints(), aField.itemConstraints());
+        return java.util.Arrays.asList(aField.sourceName(), aField.dataType(), aField.presence(),
+            aField.nullable(), aField.xmlField());
+    }
+
+    /** Inherited redeclarations must narrow presence or nullability without changing the value shape. */
+    private static boolean fieldNarrows(AIcdPropertyDefinition aParent, AIcdPropertyDefinition aChild) {
+        if (!java.util.Objects.equals(aParent.sourceName(), aChild.sourceName())
+                || !java.util.Objects.equals(aParent.dataType(), aChild.dataType())
+                || !java.util.Objects.equals(aParent.xmlField(), aChild.xmlField())) return false;
+        if (aParent.presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED
+                && aChild.presence() != eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED) return false;
+        if (aParent.presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.FORBIDDEN
+                && aChild.presence() != eu.algites.lib.data.dataobject.AInFieldPresenceKind.FORBIDDEN) return false;
+        return (aParent.nullable() || !aChild.nullable())
+                && (aParent.presence() != aChild.presence() || aParent.nullable() != aChild.nullable());
     }
 
     /** Resolve exactly one local or canonical-identity allOf parent into an emitted contract. */
@@ -316,21 +469,24 @@ public final class AIcSchemaContractBindingsGenerator {
     }
 
     private static String qualifyReferences(String source, AIcdCodeGenerationRequest request,
-            Map<String, List<AIcdCodeGenerationRequest>> requests, boolean contract) {
+            Map<String, List<AIcdCodeGenerationRequest>> requests, boolean contract,
+            eu.algites.tool.codegen.defs.AIcdDefinitionReference aChoiceReference) {
         var names = new AIcGenerationNames();
-        for (var property : request.definition().properties()) {
-            var ref = property.reference();
-            if (ref == null) continue;
+        List<eu.algites.tool.codegen.defs.AIcdDefinitionReference> locReferences = new ArrayList<>();
+        for (var property : request.definition().dataType().properties())
+            if (property.dataType().referencedDefinition() != null) locReferences.add(property.dataType().referencedDefinition());
+        if (aChoiceReference != null) locReferences.add(aChoiceReference);
+        for (var ref : locReferences) {
             String resource = ref.identity().split("#", 2)[0];
             String owner = request.definition().sourceResource().split("#", 2)[0];
-            String local = java.net.URI.create(resource).isAbsolute() ? null : portable(Path.of(owner).getParent().resolve(resource).normalize());
+            String local = java.net.URI.create(resource).isAbsolute() ? null : resource.isEmpty() ? owner : portable(Path.of(owner).getParent().resolve(resource).normalize());
             var candidates = requests.values().stream().flatMap(List::stream).filter(candidate ->
                 candidate.target() == request.target() && (candidate.definition().sourceResource().equals(local)
                     || candidate.definition().identity().equals(resource))).map(AIcdCodeGenerationRequest::packageName).distinct().toList();
             if (candidates.size() != 1) throw new IllegalArgumentException("Cannot resolve generated reference package: " + ref.identity() + " in " + owner);
             String packageName = candidates.get(0);
             if (packageName.equals(request.packageName())) continue;
-            boolean isEnum = ref.targetKind() == AInDefinitionKind.ENUM;
+            boolean isEnum = ref.targetsEnum();
             var typeKind = isEnum ? eu.algites.tool.codegen.defs.AInDefsNameRole.ENUM_TYPE : contract
                 ? eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE : eu.algites.tool.codegen.defs.AInDefsNameRole.DATA_TYPE;
             var fileKind = isEnum ? eu.algites.tool.codegen.defs.AInDefsNameRole.ENUM_TYPE_FILE_STEM : contract
@@ -349,7 +505,7 @@ public final class AIcSchemaContractBindingsGenerator {
         if (!node.isObject()) return;
         JsonNode override = overrides.get(schema + "#" + pointer);
         if (override != null && override.path("common_one_of_fields").asBoolean()) node = commonFields(node, document);
-        if (pointer.isEmpty() || node.path("type").asText().equals("object") || node.has("properties") || node.has("enum")) {
+        if (pointer.isEmpty() || node.path("type").asText().equals("object") || node.has("properties") || node.has("enum") || node.has("oneOf") || node.has("anyOf")) {
             result.add(new AIcdUnit(schema, pointer, override == null ? name : override.required("name").asText(), node, document));
         }
         /* Visit schema-bearing keywords; examples, defaults and documentation are not definitions. */

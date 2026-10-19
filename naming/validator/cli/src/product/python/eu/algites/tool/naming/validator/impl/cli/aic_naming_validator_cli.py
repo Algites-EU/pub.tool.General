@@ -10,6 +10,7 @@ class AIcNamingValidatorCli:
 
     @staticmethod
     def main(args: list[str] | None = None) -> int:
+        """Validate a naming document against the selected naming conventions."""
         arguments = list(sys.argv[1:] if args is None else args)
         if len(arguments) != 4:
             raise SystemExit('Usage: <catalog.yml> <name-convention> <source-structure-kind> <name>')

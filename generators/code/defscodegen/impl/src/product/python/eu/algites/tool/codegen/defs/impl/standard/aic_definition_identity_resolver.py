@@ -10,6 +10,7 @@ class AIcDefinitionIdentityResolver:
 
     @staticmethod
     def parse_versioned_stem(stem: str, explicit_version: int | None):
+        """Separate the source logical name from its trailing version identifier."""
         found = re.fullmatch(r'(.*)_([0-9]+)', stem)
         file_version = int(found.group(2)) if found else None
         logical_name = found.group(1) if found else stem
@@ -21,4 +22,5 @@ class AIcDefinitionIdentityResolver:
         return AIcdParsedVersionedName(logical_name, version)
 
     def from_file(self, request, explicit_version: int | None):
+        """Determine canonical identity and version from the definition source."""
         return self.parse_versioned_stem(_strip_extensions(request.path.name), explicit_version)

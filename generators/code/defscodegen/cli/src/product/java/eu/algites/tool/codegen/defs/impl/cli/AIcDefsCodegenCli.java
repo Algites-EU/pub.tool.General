@@ -39,12 +39,13 @@ public final class AIcDefsCodegenCli {
         var profile = target == AInCodeGenerationTarget.JAVA ? AIcAlgitesNamingProfiles_1.javaProfile() : AIcAlgitesNamingProfiles_1.pythonProfile();
         var service = new AIcDefaultDefsCodegenService();
         var definition = service.load(new AIcdDefinitionLoadRequest(Path.of(args[2]), sourceKind, profile));
-        AIcdGeneratedSource generated = new AIcSchemaContractInterfaceGenerator().generate(
-                new AIcdCodeGenerationRequest(definition, target, args[3], profile));
-        Path output = Path.of(args[4]).resolve(generated.relativePath());
-        Files.createDirectories(output.getParent());
-        Files.writeString(output, generated.source(), StandardCharsets.UTF_8);
-        System.out.println(output);
+        for (AIcdGeneratedSource generated : new AIcSchemaContractInterfaceGenerator().generateSources(
+                new AIcdCodeGenerationRequest(definition, target, args[3], profile), null, null)) {
+            Path output = Path.of(args[4]).resolve(generated.relativePath());
+            Files.createDirectories(output.getParent());
+            Files.writeString(output, generated.source(), StandardCharsets.UTF_8);
+            System.out.println(output);
+        }
     }
 
     private static void batch(String[] args) throws Exception {

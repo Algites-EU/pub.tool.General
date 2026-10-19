@@ -12,19 +12,23 @@
   "oneOf": [
     {
       "const": "download",
-      "description": "Reads resources from the example YAML-defined endpoint."
+      "description": "Reads resources from the example YAML-defined endpoint.",
+      "title": "Download"
     },
     {
       "const": "upload",
-      "description": "Publishes resources to the example YAML-defined endpoint."
+      "description": "Publishes resources to the example YAML-defined endpoint.",
+      "title": "Upload"
     },
     {
       "const": "manage",
-      "description": "Performs management operations on the example YAML-defined endpoint."
+      "description": "Performs management operations on the example YAML-defined endpoint.",
+      "title": "Manage"
     }
   ],
   "description": "Example YAML canonical enum definition for a resource-endpoint action.",
   "$id": "urn:algites:development:resource-endpoint-action_1.yamldef",
   "x-algites-schema-id": "example.resource-endpoint-action",
-  "x-algites-schema-version": 1
+  "x-algites-schema-version": 1,
+  "title": "Resource endpoint action"
 }

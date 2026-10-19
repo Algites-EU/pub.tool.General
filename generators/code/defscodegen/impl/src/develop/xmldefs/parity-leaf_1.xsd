@@ -1,11 +1,19 @@
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-leaf:1"  targetNamespace="urn:parity:xmldefs:parity-leaf:1" version="1" elementFormDefault="qualified">
-<xs:annotation><xs:documentation>Deeply nested details shared by all representations.</xs:documentation></xs:annotation>
-<xs:element name="Value" type="tns:Contract"/>
+<?xml version='1.0' encoding='utf-8'?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-leaf:1" xmlns:algdoc="urn:eu:algites:documentation:1" targetNamespace="urn:parity:xmldefs:parity-leaf:1" version="1" elementFormDefault="qualified">
+<xs:annotation><xs:appinfo><algdoc:title>Parity leaf</algdoc:title></xs:appinfo>
+    <xs:documentation>Deeply nested details shared by all representations.</xs:documentation></xs:annotation>
+<xs:import namespace="urn:eu:algites:documentation:1" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd"/>
+  <xs:element name="Value" type="tns:Contract"><xs:annotation><xs:appinfo><algdoc:title>Value</algdoc:title></xs:appinfo>
+      <xs:documentation>Specifies the value associated with this definition.</xs:documentation></xs:annotation>
+    </xs:element>
 <xs:complexType name="Contract">
-<xs:annotation><xs:documentation>Deeply nested details shared by all representations.</xs:documentation></xs:annotation>
+<xs:annotation><xs:appinfo><algdoc:title>Contract</algdoc:title></xs:appinfo>
+      <xs:documentation>Deeply nested details shared by all representations.</xs:documentation></xs:annotation>
 <xs:sequence>
-<xs:element name="label" minOccurs="1" type="xs:string"><xs:annotation><xs:documentation>Human-readable detail label.</xs:documentation></xs:annotation></xs:element>
-<xs:element name="quantity" minOccurs="1" type="xs:integer"><xs:annotation><xs:documentation>Number of detail items.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="label" minOccurs="1" type="xs:string"><xs:annotation><xs:appinfo><algdoc:title>Label</algdoc:title></xs:appinfo>
+      <xs:documentation>Human-readable detail label.</xs:documentation></xs:annotation></xs:element>
+<xs:element name="quantity" minOccurs="1" type="xs:integer"><xs:annotation><xs:appinfo><algdoc:title>Quantity</algdoc:title></xs:appinfo>
+      <xs:documentation>Number of detail items.</xs:documentation></xs:annotation></xs:element>
 </xs:sequence>
 </xs:complexType>
 </xs:schema>

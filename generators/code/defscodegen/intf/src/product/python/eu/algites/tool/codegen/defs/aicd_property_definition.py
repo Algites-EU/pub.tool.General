@@ -1,30 +1,21 @@
+"""Immutable canonical properties with one recursive structural type."""
 from __future__ import annotations
-
 from dataclasses import dataclass
-from eu.algites.tool.codegen.defs.aicd_definition_reference import AIcdDefinitionReference
-from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
-from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
+from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
+from eu.algites.tool.codegen.defs.aicd_xml_field_representation import AIcdXmlFieldRepresentation
+from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 
 @dataclass(frozen=True, slots=True)
 class AIcdPropertyDefinition:
-    """Carries immutable property definition data.
-
-    Attributes:
-        source_name: Canonical property name.
-        value_kind: Normalized property value kind.
-        required: Whether the property is required.
-        nullable: Whether null is accepted.
-        item_value_kind: Normalized array item value kind.
-        reference: Referenced canonical definition.
-        description: Human-readable description.
-    """
+    """One field: a recursive type, a presence policy, nullability, and wire metadata."""
     source_name: str
-    value_kind: AInValueKind
-    required: bool = False
+    data_type: AIcdDataType
+    presence: AInFieldPresenceKind = AInFieldPresenceKind.ALLOWED
     nullable: bool = False
-    item_value_kind: AInValueKind | None = None
-    reference: AIcdDefinitionReference | None = None
     description: str | None = None
+    title: str | None = None
+    xml_field: AIcdXmlFieldRepresentation | None = None
 
-    constraints: AIcdValueConstraints = AIcdValueConstraints()
-    item_constraints: AIcdValueConstraints = AIcdValueConstraints()
+    def __post_init__(self):
+        if not self.source_name or self.data_type is None:
+            raise ValueError('Canonical member name and recursive type are required')

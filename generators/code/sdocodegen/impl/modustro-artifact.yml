@@ -6,20 +6,24 @@ Artifact:
 Dependencies:
   - DependencyKind: modustro
     Items:
+      - GroupId: eu.algites.lib.common
+        ArtifactId: pub.lib.General_common
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.tool.codegen
         ArtifactId: pub.tool.General_generators.code.sdocodegen.intf
         Usages: [product_api]
       - GroupId: eu.algites.lib.data
         ArtifactId: pub.lib.General_data.dataobject.intf
-        ArtifactId: pub.lib.General_data.dataobject.intf
+        Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.data
         ArtifactId: pub.lib.General_data.smartdataobject.impl
-        ArtifactId: pub.lib.General_data.smartdataobject.impl
+        Usages: [product_implementation]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.naming
         ArtifactId: pub.lib.General_naming.convention.algites
-        ArtifactId: pub.lib.General_naming.convention.algites
+        Usages: [product_implementation]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       # The Defs generator is used only by SDO's Python integration tests.
       - GroupId: eu.algites.tool.codegen

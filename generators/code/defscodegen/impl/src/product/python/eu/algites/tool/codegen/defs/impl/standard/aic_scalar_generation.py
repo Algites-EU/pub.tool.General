@@ -1,6 +1,6 @@
+from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from pathlib import Path
-from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
-from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 
 TEMPORAL = {'date', 'time', 'dateTime', 'dateTimeStamp', 'gYearMonth', 'gYear', 'gMonthDay', 'gDay', 'gMonth'}
@@ -9,28 +9,31 @@ BINARY = {'hexBinary', 'base64Binary'}
 
 
 def scalar_type(kind, constraints, java=False):
+    """Choose the native scalar representation of a canonical value kind."""
     dtype = constraints.data_type
     if dtype in BINARY: return 'byte[]' if java else 'bytes'
     if dtype in TEMPORAL: return 'javax.xml.datatype.XMLGregorianCalendar' if java else 'AIcSchemaTemporalValue'
     if dtype in DURATION: return 'javax.xml.datatype.Duration' if java else 'AIcSchemaDuration'
-    if kind is AInValueKind.INTEGER: return 'java.math.BigInteger' if java else 'int'
-    if kind is AInValueKind.NUMBER:
+    if kind is AInDataTypeKind.INTEGER: return 'java.math.BigInteger' if java else 'int'
+    if kind is AInDataTypeKind.NUMBER:
         if dtype in ('float', 'double'): return ('Float' if dtype == 'float' else 'Double') if java else 'float'
         return 'java.math.BigDecimal' if java else 'Decimal'
-    return {AInValueKind.STRING: 'String' if java else 'str', AInValueKind.BOOLEAN: 'Boolean' if java else 'bool',
-            AInValueKind.OBJECT: 'java.util.Map<String, Object>' if java else 'Mapping[str, Any]'}.get(kind, 'Object' if java else 'Any')
+    return {AInDataTypeKind.STRING: 'String' if java else 'str', AInDataTypeKind.BOOLEAN: 'Boolean' if java else 'bool',
+            AInDataTypeKind.OBJECT: 'java.util.Map<String, Object>' if java else 'Mapping[str, Any]'}.get(kind, 'Object' if java else 'Any')
 
 
 def constraint_tuple(constraints):
+    """Normalize scalar validation constraints for the generated runtime."""
     return (constraints.data_type, constraints.minimum, constraints.maximum, constraints.exclusive_minimum,
             constraints.exclusive_maximum, constraints.min_length, constraints.max_length, constraints.pattern, constraints.enum_values)
 
 
 def python_data_source(request, names, type_name, docstring):
+    """Emit Python dataclass source and validators from a canonical definition."""
     import keyword, re
     imports, fields, docs, arguments, validations, wire_entries, schema_field_constants = set(), [], [], [], [], [], []
     used = set()
-    props = sorted(request.definition.properties, key=lambda p: not p.required)
+    props = sorted(request.definition.data_type.properties, key=lambda p: not (p.presence is AInFieldPresenceKind.REQUIRED))
     for prop in props:
         name = re.sub(r'[^a-zA-Z0-9_]', '_', names.property_name(prop.source_name, request.naming_profile))
         if not name or name[0].isdigit(): name = '_'+name
@@ -38,24 +41,24 @@ def python_data_source(request, names, type_name, docstring):
         if name in used: raise ValueError(f'Duplicate Python property name {name}')
         used.add(name)
         ref = None
-        if prop.reference:
-            enum = prop.reference.target_kind is AInDefinitionKind.ENUM
-            ref = names.render(prop.reference.logical_name, prop.reference.version, request.naming_profile, AInDefsNameRole.ENUM_TYPE if enum else AInDefsNameRole.DATA_TYPE)
-            file = names.render(prop.reference.logical_name, prop.reference.version, request.naming_profile, AInDefsNameRole.ENUM_TYPE_FILE_STEM if enum else AInDefsNameRole.DATA_TYPE_FILE_STEM)
+        if prop.data_type.referenced_definition():
+            enum = prop.data_type.referenced_definition().targets_enum
+            ref = names.render(prop.data_type.referenced_definition().logical_name, prop.data_type.referenced_definition().version, request.naming_profile, AInDefsNameRole.ENUM_TYPE if enum else AInDefsNameRole.DATA_TYPE)
+            file = names.render(prop.data_type.referenced_definition().logical_name, prop.data_type.referenced_definition().version, request.naming_profile, AInDefsNameRole.ENUM_TYPE_FILE_STEM if enum else AInDefsNameRole.DATA_TYPE_FILE_STEM)
             imports.add(f'from .{file} import {ref}')
-        array = prop.value_kind is AInValueKind.ARRAY
-        kind = (prop.item_value_kind or AInValueKind.ANY) if array else prop.value_kind
-        constraints = prop.item_constraints if array else prop.constraints
+        array = prop.data_type.kind is AInDataTypeKind.ARRAY
+        kind = (prop.data_type.element_type.kind or AInDataTypeKind.ANY) if array else prop.data_type.kind
+        constraints = prop.data_type.element_type.constraints if array else prop.data_type.constraints
         typ = ref or scalar_type(kind, constraints)
         if array: typ = f'tuple[{typ}, ...]'
         if prop.nullable: typ += ' | None'
-        fields.append(f'    {name}: {typ}'+('' if prop.required else ' = _AI_UNSET'))
+        fields.append(f'    {name}: {typ}'+('' if (prop.presence is AInFieldPresenceKind.REQUIRED) else ' = _AI_UNSET'))
         docs.append(f'{name}: '+(' '.join((prop.description or f'Value of canonical property {prop.source_name}.').split())))
         schema_field_constants.append(_python_schema_field_constant(prop, request, names))
-        raw = f'value[{prop.source_name!r}]' if prop.required else f'value.get({prop.source_name!r}, _AI_UNSET)'
+        raw = f'value[{prop.source_name!r}]' if (prop.presence is AInFieldPresenceKind.REQUIRED) else f'value.get({prop.source_name!r}, _AI_UNSET)'
         def convert(expr):
             if ref:
-                return f'({expr} if isinstance({expr}, {ref}) else {ref}({expr}))' if prop.reference.target_kind is AInDefinitionKind.ENUM else f'({expr} if isinstance({expr}, {ref}) else {ref}.from_mapping({expr}))'
+                return f'({expr} if isinstance({expr}, {ref}) else {ref}({expr}))' if prop.data_type.referenced_definition().targets_enum else f'({expr} if isinstance({expr}, {ref}) else {ref}.from_mapping({expr}))'
             return f'_ai_convert({expr}, {constraints.data_type!r}, {kind.name!r})'
         converted = f'tuple({convert("item")} for item in {raw})' if array else convert(raw)
         arguments.append(f'{name}=({raw} if {raw} is _AI_UNSET or {raw} is None else {converted})')
@@ -70,7 +73,7 @@ def python_data_source(request, names, type_name, docstring):
         else: value, indent = f'self.{name}', '                '
         if ref: validations.append(f'{indent}if not isinstance({value}, {ref}): raise TypeError({prop.source_name!r} + ": incorrect referenced type")')
         else: validations.append(f'{indent}_ai_validate({value}, {kind.name!r}, {constraint_tuple(constraints)!r}, {prop.source_name!r})')
-        if prop.required: validations.append(f'        else: raise ValueError({prop.source_name!r} + ": value is required")')
+        if (prop.presence is AInFieldPresenceKind.REQUIRED): validations.append(f'        else: raise ValueError({prop.source_name!r} + ": value is required")')
         dtype = constraints.data_type
         wire_entries.append(f'            {prop.source_name!r}: _ai_wire(self.{name}, {dtype!r}),')
     runtime = Path(__file__).with_name('_schema_runtime.py').read_text()
@@ -96,15 +99,16 @@ def _python_schema_field_constant(prop, request, names):
 
 
 def java_validation(prop, name):
+    """Generate Java statements enforcing the supported scalar restrictions."""
     from eu.algites.tool.codegen.defs.impl.standard._support import _java_quote
     rows = []
-    if prop.required and not prop.nullable: rows.append(f'        java.util.Objects.requireNonNull({name}, {_java_quote(prop.source_name)});')
+    if (prop.presence is AInFieldPresenceKind.REQUIRED) and not prop.nullable: rows.append(f'        java.util.Objects.requireNonNull({name}, {_java_quote(prop.source_name)});')
     rows.append(f'        if ({name} != null) {{')
-    array = prop.value_kind is AInValueKind.ARRAY
+    array = prop.data_type.kind is AInDataTypeKind.ARRAY
     if array:
         rows.extend([f'            for (var locItem : {name}) {{', '                java.util.Objects.requireNonNull(locItem, "Array item");'])
     value, indent = ('locItem', '                ') if array else (name, '            ')
-    c = prop.item_constraints if array else prop.constraints
+    c = prop.data_type.element_type.constraints if array else prop.data_type.constraints
     def check(condition): rows.append(indent+f'if ({condition}) throw new IllegalArgumentException("Schema value violates its constraints.");')
     if c.data_type in TEMPORAL:
         expected = 'dateTime' if c.data_type == 'dateTimeStamp' else c.data_type
@@ -125,4 +129,5 @@ def java_validation(prop, name):
 _JAVA_RESERVED = frozenset("abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while true false null _ record yield var sealed permits non-sealed clone finalize getClass hashCode notify notifyAll toString wait".split())
 
 def java_identifier(name):
+    """Normalize a field name into a legal Java identifier."""
     return name + '_' if name in _JAVA_RESERVED else name

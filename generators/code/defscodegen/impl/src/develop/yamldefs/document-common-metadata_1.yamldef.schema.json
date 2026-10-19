@@ -9,6 +9,7 @@
     "$schema": {
       "type": "string",
       "format": "uri",
+      "title": "Document schema URI",
       "description": "Optional absolute URI of the schema describing this root document."
     }
   },

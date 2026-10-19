@@ -18,6 +18,7 @@ final class AIcGenerationNames {
         return switch (aRole) {
             case ENUM_TYPE, ENUM_TYPE_FILE_STEM -> "enum";
             case INTERFACE_TYPE, INTERFACE_TYPE_FILE_STEM -> "intf";
+            case XML_ELEMENT_INTERFACE_TYPE, XML_ELEMENT_INTERFACE_TYPE_FILE_STEM -> "xml-element-intf";
             case DATA_TYPE, DATA_TYPE_FILE_STEM -> "data-class";
             default -> throw new IllegalArgumentException("Not a generated type role: " + aRole);
         };

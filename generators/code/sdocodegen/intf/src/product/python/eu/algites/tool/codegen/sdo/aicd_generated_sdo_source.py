@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class AIcdGeneratedSdoSource:
+    """Describes a generated SDO source unit and its importable type identity."""
     type_name: str
     relative_path: str
     source: str
@@ -16,6 +17,7 @@ class AIcdGeneratedSdoSource:
 
     @property
     def primary_type(self):
+        """Return the source identity, rejecting absent fully qualified type information."""
         if not self.fully_qualified_type_name:
             raise ValueError('Generated SDO type identity is missing')
         return self

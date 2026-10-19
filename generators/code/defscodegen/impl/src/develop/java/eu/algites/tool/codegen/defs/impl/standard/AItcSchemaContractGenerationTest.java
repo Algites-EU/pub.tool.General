@@ -34,7 +34,17 @@ public final class AItcSchemaContractGenerationTest {
         var locStarted = locProcess.start();
         String locOutput = new String(locStarted.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8);
-        Assert.assertEquals(locStarted.waitFor(), 0, locOutput);
+        int locExitCode = locStarted.waitFor();
+        if (locExitCode != 0) {
+            String locFailure = "Native Python contract generation tests failed (exit code " + locExitCode + ")"
+                    + "\nWorking directory: " + locArtifact
+                    + "\nPython executable: " + locPython
+                    + "\nPython test path: " + locProcess.environment().getOrDefault("PYTHONPATH", "<unset>")
+                    + "\nTest suite: " + locSuite
+                    + "\n--- Python output / traceback ---\n" + locOutput;
+            System.err.println(locFailure);
+            Assert.fail(locFailure);
+        }
     }
 
     /** Manifest enumeration includes XSD and preserves Java/Python equivalence of field contracts. */
@@ -67,6 +77,36 @@ public final class AItcSchemaContractGenerationTest {
         Assert.assertTrue(Files.readString(locPython).contains("def getName"));
         Assert.assertFalse(Files.exists(locRoot.resolve("impl")));
         locGenerator.generateRepository(locRoot, locManifest, true);
+    }
+
+    /** Root XSD attributes are ordinary typed canonical fields, never silently dropped. */
+    @Test
+    public void AIcXsdRootAttributeProjection() throws Exception {
+        Path locRoot = Files.createTempDirectory("defs-xsd-attributes-");
+        Path locSource = locRoot.resolve("example_1.xsd");
+        Files.writeString(locSource, """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1">
+              <xs:complexType name="ExampleType">
+                <xs:sequence><xs:element name="Value" type="xs:string"/></xs:sequence>
+                <xs:attribute name="Code" type="xs:int" use="required">
+                  <xs:annotation><xs:documentation>Numeric attribute code.</xs:documentation></xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="Optional" type="xs:string"/>
+              </xs:complexType>
+            </xs:schema>
+            """);
+        var locDefinition = new AIcXmlDefsFrontend().load(
+                new eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest(
+                        locSource, eu.algites.tool.codegen.defs.AInDefinitionSourceKind.XMLDEFS,
+                        eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1.javaProfile()));
+        Assert.assertEquals(locDefinition.dataType().properties().size(), 3);
+        Assert.assertEquals(locDefinition.dataType().properties().get(1).sourceName(), "Code");
+        Assert.assertEquals(locDefinition.dataType().properties().get(1).dataType().kind(),
+                eu.algites.tool.codegen.defs.AInDataTypeKind.INTEGER);
+        Assert.assertTrue(locDefinition.dataType().properties().get(1).presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED);
+        Assert.assertEquals(locDefinition.dataType().properties().get(1).description(), "Numeric attribute code.");
+        Assert.assertEquals(locDefinition.dataType().properties().get(2).sourceName(), "Optional");
+        Assert.assertFalse(locDefinition.dataType().properties().get(2).presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED);
     }
 
     /** Local allOf inheritance becomes real Java/Python interface inheritance. */

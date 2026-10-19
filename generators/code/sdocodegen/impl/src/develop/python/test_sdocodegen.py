@@ -1,3 +1,4 @@
+from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 """Generated Python SmartDataObject types are independent of schema formats."""
 import importlib
 import sys
@@ -14,8 +15,8 @@ def contracts(tmp_path, monkeypatch):
     loc = tmp_path / package
     loc.mkdir()
     (loc / '__init__.py').write_text('')
-    (loc / 'aiig_parent.py').write_text("from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\nfrom eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\nfrom eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\nclass AIigParent(AIiDataObject):\n    __data_object__ = AIcdDataObject(schema_id='tests.parent', schema_version=1)\n    __data_object_fields__ = (AIcdDataObjectField('Name', presence_required=True, getter_name='getName'),)\n    def getName(self): raise NotImplementedError\n")
-    (loc / 'aiig_child.py').write_text("from .aiig_parent import AIigParent\nfrom eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\nfrom eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\nclass AIigChild(AIigParent):\n    __data_object__ = AIcdDataObject(schema_id='tests.child', schema_version=1)\n    __data_object_fields__ = (AIcdDataObjectField('Amount', getter_name='getAmount'),)\n    def getAmount(self): raise NotImplementedError\n")
+    (loc / 'aiig_parent.py').write_text("from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\nfrom eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\nfrom eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\nfrom eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\nclass AIigParent(AIiDataObject):\n    __data_object__ = AIcdDataObject(schema_id='tests.parent', schema_version=1)\n    __data_object_fields__ = (AIcdDataObjectField('Name', presence=AInFieldPresenceKind.REQUIRED, getter_name='getName'),)\n    def getName(self): raise NotImplementedError\n")
+    (loc / 'aiig_child.py').write_text("from .aiig_parent import AIigParent\nfrom eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\nfrom eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\nfrom eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\nclass AIigChild(AIigParent):\n    __data_object__ = AIcdDataObject(schema_id='tests.child', schema_version=1)\n    __data_object_fields__ = (AIcdDataObjectField('Amount', getter_name='getAmount'),)\n    def getAmount(self): raise NotImplementedError\n")
     monkeypatch.syspath_prepend(str(tmp_path))
     return tmp_path, importlib.import_module(package + '.aiig_parent').AIigParent, importlib.import_module(package + '.aiig_child').AIigChild
 
@@ -71,7 +72,7 @@ def test_conflicting_inherited_fields(contracts):
     class AIigBad(parent):
         __data_object_fields__ = (AIcdDataObjectField('Name', allows_null=True),)
     AIigBad.__module__ = parent.__module__
-    with pytest.raises(ValueError, match='Conflicting'):
+    with pytest.raises(ValueError, match='Invalid inherited field relaxation'):
         AIcSdoCodegenService().generate(AIigBad)
 
 
@@ -183,12 +184,12 @@ def test_generated_smartdo_policy_on_interface_and_getter(tmp_path, monkeypatch)
     (folder / 'aiig_policy.py').write_text(
         "from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\n"
         "from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\n"
-        "from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n"
+        "from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\nfrom eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\n"
         "from eu.algites.lib.data.smartdataobject.smart_data_object_policy import smart_data_object, smart_data_object_field\n"
         "@smart_data_object(allow_non_present_read=True)\n"
         "class AIigPolicy(AIiDataObject):\n"
         "    __data_object__ = AIcdDataObject(schema_id='tests.policy', schema_version=1)\n"
-        "    __data_object_fields__ = (AIcdDataObjectField('Soft', presence_required=True, getter_name='getSoft'), AIcdDataObjectField('Strict', presence_required=True, getter_name='getStrict'))\n"
+        "    __data_object_fields__ = (AIcdDataObjectField('Soft', presence=AInFieldPresenceKind.REQUIRED, getter_name='getSoft'), AIcdDataObjectField('Strict', presence=AInFieldPresenceKind.REQUIRED, getter_name='getStrict'))\n"
         "    def getSoft(self): raise NotImplementedError\n"
         "    @smart_data_object_field(allow_non_present_read=False)\n"
         "    def getStrict(self): raise NotImplementedError\n")
@@ -202,3 +203,23 @@ def test_generated_smartdo_policy_on_interface_and_getter(tmp_path, monkeypatch)
     assert not generated.is_ByRawValuesValid()
     with pytest.raises(ValueError, match='Required property is absent'):
         generated.getStrict()
+
+
+def test_generate_from_uncompiled_source_tree(contracts):
+    root, parent, child = contracts
+    package = parent.__module__.split('.')[0]
+    src_base = root / package / 'aiig_parent.py'
+    src_child = root / package / 'aiig_child.py'
+    output = AIcSdoCodegenService().generate_from_sources(root, {
+        src_base: 'AIigParent', src_child: 'AIigChild'})
+    assert output[src_base.resolve()].mutable_interface.type_name == 'AIigdParent'
+    assert 'AIigdParent' in output[src_child.resolve()].mutable_interface.source
+    assert 'AIcgdParent' in output[src_child.resolve()].implementation.source
+
+
+def test_source_loader_rejects_path_escape(contracts, tmp_path):
+    root, _, _ = contracts
+    outside = root.parent / 'outside_contract.py'
+    outside.write_text('class AIigOutside: pass')
+    with pytest.raises(ValueError, match='Invalid DO contract source'):
+        AIcSdoCodegenService().generate_from_sources(root, {outside: 'AIigOutside'})

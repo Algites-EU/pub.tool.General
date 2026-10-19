@@ -7,15 +7,18 @@
   "properties": {
     "Id": {
       "type": "string",
-      "description": "Stable example resource-endpoint identifier."
+      "description": "Stable example resource-endpoint identifier.",
+      "title": "ID"
     },
     "Action": {
       "$ref": "resource-endpoint-action_1.jsondef.schema.json",
-      "description": "Action performed through the resource endpoint."
+      "description": "Action performed through the resource endpoint.",
+      "title": "Action"
     },
     "Enabled": {
       "type": "boolean",
-      "description": "Controls whether the example resource endpoint is enabled."
+      "description": "Controls whether the example resource endpoint is enabled.",
+      "title": "Enabled"
     }
   },
   "required": [
@@ -25,5 +28,6 @@
   "description": "Example canonical object definition for a resource endpoint.",
   "$id": "urn:algites:development:resource-endpoint_1.yamldef",
   "x-algites-schema-id": "example.resource-endpoint",
-  "x-algites-schema-version": 1
+  "x-algites-schema-version": 1,
+  "title": "Resource endpoint"
 }

@@ -10,15 +10,21 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "const": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.jsondef.schema.json"
+      "const": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.jsondef.schema.json",
+      "title": "$schema",
+      "description": "Specifies the $schema associated with this definition."
     },
     "artifact": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "title": "Artifact",
+      "description": "Specifies the artifact associated with this definition."
     },
     "implementation_artifact": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "title": "Implementation artifact",
+      "description": "Specifies the implementation artifact associated with this definition."
     },
     "languages": {
       "type": "array",
@@ -27,8 +33,24 @@
         "enum": [
           "java",
           "python"
+        ],
+        "title": "Languages items",
+        "description": "Specifies the languages items associated with this definition.",
+        "oneOf": [
+          {
+            "const": "java",
+            "title": "Java",
+            "description": "Selects the java option in the corresponding enumeration."
+          },
+          {
+            "const": "python",
+            "title": "Python",
+            "description": "Selects the python option in the corresponding enumeration."
+          }
         ]
-      }
+      },
+      "title": "Languages",
+      "description": "Specifies the languages associated with this definition."
     },
     "bindings": {
       "type": "array",
@@ -38,23 +60,35 @@
         "properties": {
           "schema": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "title": "Schema",
+            "description": "Specifies the schema associated with this definition."
           },
           "pointer": {
-            "type": "string"
+            "type": "string",
+            "title": "Pointer",
+            "description": "Specifies the pointer associated with this definition."
           },
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "title": "Name",
+            "description": "Specifies the name associated with this definition."
           },
           "common_one_of_fields": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Common one of fields",
+            "description": "Specifies the common one of fields associated with this definition."
           }
         },
         "required": [
           "schema"
-        ]
-      }
+        ],
+        "title": "Bindings items",
+        "description": "Specifies the bindings items associated with this definition."
+      },
+      "title": "Bindings",
+      "description": "Specifies the bindings associated with this definition."
     }
   },
   "required": [

@@ -2,7 +2,19 @@ package eu.algites.tool.codegen.sdo;
 
 import java.util.Objects;
 
-/** Generated SDO source with its importable type and canonical origin. */
+/**
+ * Generated SDO source with its importable type and canonical origin.
+ *
+ * @param typeName name of the generated public type
+ * @param relativePath path relative to the output source root
+ * @param source generated source text
+ * @param namespace logical namespace or Java package
+ * @param moduleName importable module identifier
+ * @param fullyQualifiedTypeName fully qualified generated type identity
+ * @param typeRole generation role of the source type
+ * @param sourceDefinitionId canonical identity of its source definition
+ * @param sourceDefinitionVersion version of its source definition, when available
+ */
 public record AIcdGeneratedSdoSource(
         String typeName, String relativePath, String source,
         String namespace, String moduleName, String fullyQualifiedTypeName,

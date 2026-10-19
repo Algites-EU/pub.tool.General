@@ -2,7 +2,18 @@ package eu.algites.tool.codegen.defs;
 
 import java.util.Objects;
 
-/** Importable identity of one generated type, with its canonical source and generation role. */
+/**
+ * Importable identity of one generated type, with its canonical source and generation role.
+ *
+ * @param typeName simple name of the generated public type
+ * @param namespace target namespace or package
+ * @param moduleName source module that exposes the generated type
+ * @param fullyQualifiedTypeName fully qualified importable type name
+ * @param typeRole role of the generated type
+ * @param technologyKind programming language of the generated source
+ * @param sourceDefinitionId canonical originating definition identity
+ * @param sourceDefinitionVersion originating definition version, when available
+ */
 public record AIcdGeneratedTypeIdentity(
         String typeName,
         String namespace,

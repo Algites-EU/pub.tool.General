@@ -9,7 +9,7 @@ from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcG
 from eu.algites.tool.codegen.defs.aicd_generated_source import AIcdGeneratedSource
 from eu.algites.tool.codegen.defs.aicd_generated_type_identity import AIcdGeneratedTypeIdentity
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 
 
 class AIcPythonCodeGenerationBackend:
@@ -23,7 +23,7 @@ class AIcPythonCodeGenerationBackend:
 
     def generate(self, request) -> AIcdGeneratedSource:
         """Generate one Python module from a canonical definition."""
-        is_enum = request.definition.kind is AInDefinitionKind.ENUM
+        is_enum = request.definition.data_type.kind is AInDataTypeKind.ENUM
         type_kind = AInDefsNameRole.ENUM_TYPE if is_enum else AInDefsNameRole.DATA_TYPE
         file_kind = AInDefsNameRole.ENUM_TYPE_FILE_STEM if is_enum else AInDefsNameRole.DATA_TYPE_FILE_STEM
         type_name = self.names.type_name(request.definition, request.naming_profile, type_kind)

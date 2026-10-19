@@ -7,11 +7,13 @@
   "properties": {
     "label": {
       "type": "string",
-      "description": "Human-readable detail label."
+      "description": "Human-readable detail label.",
+      "title": "Label"
     },
     "quantity": {
       "type": "integer",
-      "description": "Number of detail items."
+      "description": "Number of detail items.",
+      "title": "Quantity"
     }
   },
   "required": [

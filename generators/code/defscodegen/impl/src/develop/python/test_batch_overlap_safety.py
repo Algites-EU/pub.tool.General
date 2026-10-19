@@ -65,11 +65,11 @@ def test_same_format_duplicate_roots_merge_when_identity_and_contract_match(prep
     first = _schema(prepared, 'a', 'yamldefs', description='alpha documentation')
     second = _schema(prepared, 'b', 'yamldefs', description='beta documentation')
     generator = AIcSchemaContractBindingsGenerator()
-    result = generator.generate_manifest(prepared, _manifest(prepared, [('yamldefs', first), ('yamldefs', second)]))
-    assert len(result) == 2
-    text = _output(prepared).read_text(encoding='utf-8')
-    assert 'alpha documentation' in text and 'beta documentation' in text
-    assert generator.generate_manifest(prepared, _manifest(prepared, [('yamldefs', first), ('yamldefs', second)]), check=True) == result
+    # Publication parity requires identical documentation, even for two copies
+    # of the same source format: distinct descriptions are not interchangeable.
+    with pytest.raises(ValueError, match='Incompatible canonical definitions'):
+        generator.generate_manifest(prepared, _manifest(prepared, [('yamldefs', first), ('yamldefs', second)]))
+    assert not _output(prepared).exists()
 
 
 def test_different_canonical_id_same_output_fails_without_erasing_old_source(prepared):
@@ -89,7 +89,7 @@ def test_structurally_incompatible_identical_identity_preserves_old_source(prepa
     generator.generate_manifest(prepared, _manifest(prepared, [('yamldefs', first)]))
     before = _output(prepared).read_bytes()
     second = _schema(prepared, 'b', 'yamldefs', field_type='integer')
-    with pytest.raises(ValueError, match='Incompatible canonical representations'):
+    with pytest.raises(ValueError, match='Incompatible canonical definitions'):
         generator.generate_manifest(prepared, _manifest(prepared, [('yamldefs', first), ('yamldefs', second)]))
     assert _output(prepared).read_bytes() == before
 
@@ -141,8 +141,9 @@ def test_xsd_without_namespace_can_merge_with_implicit_json_identity(prepared):
     xml_source = xsd / 'customer_1.xsd'
     xml_source.write_text('''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1">
       <xs:element name="customer" type="CustomerType"/>
-      <xs:complexType name="CustomerType"><xs:sequence>
-        <xs:element name="Name" type="xs:string"/>
+      <xs:complexType name="CustomerType">
+        <xs:annotation><xs:documentation>a description</xs:documentation></xs:annotation>
+        <xs:sequence><xs:element name="Name" type="xs:string"/>
       </xs:sequence></xs:complexType>
     </xs:schema>''', encoding='utf-8')
     # Reuse the shipped XSD catalog and the same relative example package.
@@ -150,5 +151,6 @@ def test_xsd_without_namespace_can_merge_with_implicit_json_identity(prepared):
         _naming_resource_bytes('algites-xmldef-name-conventions.yml'))
     result = AIcSchemaContractBindingsGenerator().generate_manifest(
         prepared, _manifest(prepared, [('jsondefs', json_source), ('xmldefs', xml_source)]))
-    assert len(result) == 2
+    assert len(result) == 3
     assert _output(prepared).is_file()
+    assert (prepared / 'src/product/python.gen/example/aiig__xe_customer_1.py').exists()

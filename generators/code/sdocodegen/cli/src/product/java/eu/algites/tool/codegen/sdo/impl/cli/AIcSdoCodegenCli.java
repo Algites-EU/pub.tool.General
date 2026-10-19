@@ -8,8 +8,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -91,46 +89,42 @@ public final class AIcSdoCodegenCli {
         AIcNameConventionCatalog_1 locConcreteNames = AIcNameConventionCatalog_1.load(locProfiles.get(locConcrete + "-naming-profile"));
         Set<String> locMutableRole = Set.of("algites-java-gen-data-intf-versioned");
         Set<String> locConcreteRole = Set.of("algites-java-gen-data-class-versioned");
-        if (!locCheck) {
+        if (locClean) {
             locMutableNames.clean(locMutableRoot, locMutableRole);
             locConcreteNames.clean(locConcreteRoot, locConcreteRole);
+            return;
         }
-        if (locClean) return;
         Path locInputRoot = locDirectories.get(locInput + "-dir");
         AIcNameConventionCatalog_1 locInputNames = AIcNameConventionCatalog_1.load(locProfiles.get(locInput + "-naming-profile"));
         if (!Files.isDirectory(locInputRoot))
             throw new IllegalArgumentException("DO source root does not exist: " + locInputRoot);
-        List<URL> locUrls = new ArrayList<>();
-        for (Path locPath : locClassPaths) locUrls.add(locPath.toUri().toURL());
-        try (URLClassLoader locLoader = new URLClassLoader(locUrls.toArray(URL[]::new),
-                AIcSdoCodegenCli.class.getClassLoader()); var locFiles = Files.walk(locInputRoot)) {
-            for (Path locSource : locFiles.filter(Files::isRegularFile).sorted().toList()) {
-                var locMatch = locInputNames.recognizeFilename(locSource.getFileName().toString(),
-                        Set.of("algites-java-gen-intf-versioned"));
-                if (locMatch == null) continue;
-                String locName = locInputNames.format(locMatch.conventionName(), "main_container_name",
-                        locMatch.variables(), "upper_camel_case");
-                Path locRelative = locInputRoot.relativize(locSource.getParent());
-                String locQualified = locRelative.toString().replace('/', '.').replace('\\', '.');
-                if (!locQualified.isEmpty()) locQualified += ".";
-                locQualified += locName;
-                Class<?> locContract;
-                try {
-                    locContract = Class.forName(locQualified, false, locLoader);
-                } catch (ClassNotFoundException locError) {
-                    throw new IllegalArgumentException("Compile the generated DO interfaces before running Java SDO codegen, "
-                            + "and supply their classes via --dointf-classpath: " + locQualified, locError);
-                }
-                var locGenerated = new AIcSdoCodegenService().generate(locContract, "d",
-                        locInputNames, locMutableNames, locConcreteNames);
-                if (locMutableNames.recognizeFilename(Path.of(locGenerated.mutableInterface().relativePath())
-                        .getFileName().toString(), locMutableRole) == null
-                        || locConcreteNames.recognizeFilename(Path.of(locGenerated.implementation().relativePath())
-                        .getFileName().toString(), locConcreteRole) == null)
-                    throw new IllegalArgumentException("SDO output violates YAML naming profile: " + locQualified);
-                write(locMutableRoot, locGenerated.mutableInterface(), locCheck);
-                write(locConcreteRoot, locGenerated.implementation(), locCheck);
-            }
+        List<Path> locContracts;
+        try (var locFiles = Files.walk(locInputRoot)) {
+            locContracts = locFiles.filter(Files::isRegularFile).sorted()
+                    .filter(aSource -> locInputNames.recognizeFilename(aSource.getFileName().toString(),
+                            Set.of("algites-java-gen-intf-versioned")) != null).toList();
+        }
+        /* Compile the whole generated source tree in memory (including sibling enums
+         * and inherited interfaces). The SDO generator then uses ordinary reflection. */
+        var locResults = new AIcSdoCodegenService().generateFromSources(locInputRoot, locContracts,
+                "d", locClassPaths, locInputNames, locMutableNames, locConcreteNames);
+        /* Validate every result before mutating either output tree. */
+        for (Path locSource : locContracts) {
+            var locGenerated = locResults.get(locSource.toRealPath());
+            if (locMutableNames.recognizeFilename(Path.of(locGenerated.mutableInterface().relativePath())
+                    .getFileName().toString(), locMutableRole) == null
+                    || locConcreteNames.recognizeFilename(Path.of(locGenerated.implementation().relativePath())
+                    .getFileName().toString(), locConcreteRole) == null)
+                throw new IllegalArgumentException("SDO output violates YAML naming profile: " + locSource);
+        }
+        if (!locCheck) {
+            locMutableNames.clean(locMutableRoot, locMutableRole);
+            locConcreteNames.clean(locConcreteRoot, locConcreteRole);
+        }
+        for (Path locSource : locContracts) {
+            var locGenerated = locResults.get(locSource.toRealPath());
+            write(locMutableRoot, locGenerated.mutableInterface(), locCheck);
+            write(locConcreteRoot, locGenerated.implementation(), locCheck);
         }
     }
 

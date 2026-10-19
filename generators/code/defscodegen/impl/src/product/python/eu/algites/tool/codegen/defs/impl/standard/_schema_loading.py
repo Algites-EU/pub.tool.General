@@ -18,5 +18,6 @@ def _decimal(loader, node):
 _ExactSchemaLoader.add_constructor('tag:yaml.org,2002:float', _decimal)
 
 def load_schema(path):
+    """Load a JSON or YAML definition without losing exact scalar representations."""
     text = path.read_text(encoding='utf-8')
     return json.loads(text, parse_float=Decimal) if path.suffix.lower() == '.json' else yaml.load(text, Loader=_ExactSchemaLoader)

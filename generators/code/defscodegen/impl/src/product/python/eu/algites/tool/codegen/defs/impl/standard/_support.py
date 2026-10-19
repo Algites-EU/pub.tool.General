@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 
 def _strip_extensions(name: str) -> str:
     """Remove recognized definition and serialization extensions from a resource name."""
@@ -16,26 +16,26 @@ def _strip_extensions(name: str) -> str:
 def _value_kind(raw_type):
     """Map a schema value declaration to the normalized value kind."""
     return {
-        "string": AInValueKind.STRING,
-        "integer": AInValueKind.INTEGER,
-        "number": AInValueKind.NUMBER,
-        "boolean": AInValueKind.BOOLEAN,
-        "array": AInValueKind.ARRAY,
-        "object": AInValueKind.OBJECT,
-    }.get(raw_type, AInValueKind.ANY)
+        "string": AInDataTypeKind.STRING,
+        "integer": AInDataTypeKind.INTEGER,
+        "number": AInDataTypeKind.NUMBER,
+        "boolean": AInDataTypeKind.BOOLEAN,
+        "array": AInDataTypeKind.ARRAY,
+        "object": AInDataTypeKind.OBJECT,
+    }.get(raw_type, AInDataTypeKind.ANY)
 
 
 def _xsd_kind(value):
     """Map an XSD type declaration to the normalized value kind."""
     local = value.split(":")[-1]
     return {
-        "string": AInValueKind.STRING,
-        "integer": AInValueKind.INTEGER,
-        "int": AInValueKind.INTEGER,
-        "decimal": AInValueKind.NUMBER,
-        "double": AInValueKind.NUMBER,
-        "boolean": AInValueKind.BOOLEAN,
-    }.get(local, AInValueKind.REFERENCE)
+        "string": AInDataTypeKind.STRING,
+        "integer": AInDataTypeKind.INTEGER,
+        "int": AInDataTypeKind.INTEGER,
+        "decimal": AInDataTypeKind.NUMBER,
+        "double": AInDataTypeKind.NUMBER,
+        "boolean": AInDataTypeKind.BOOLEAN,
+    }.get(local, AInDataTypeKind.REFERENCE)
 
 
 def _java_quote(value):
@@ -51,32 +51,32 @@ def _java_integer(value):
 def _java_type(prop, request, names):
     """Preserve exact scalar types and referenced collection item types."""
     from eu.algites.tool.codegen.defs.impl.standard.aic_scalar_generation import scalar_type
-    array = prop.value_kind is AInValueKind.ARRAY
-    item = names.reference_type(prop.reference, request.naming_profile) if prop.reference else scalar_type(
-        prop.item_value_kind if array else prop.value_kind, prop.item_constraints if array else prop.constraints, True)
+    array = prop.data_type.kind is AInDataTypeKind.ARRAY
+    item = names.reference_type(prop.data_type.referenced_definition(), request.naming_profile) if prop.data_type.referenced_definition() else scalar_type(
+        prop.data_type.element_type.kind if array else prop.data_type.kind, prop.data_type.element_type.constraints if array else prop.data_type.constraints, True)
     return f"java.util.List<{item}>" if array else item
 
 
 def _java_scalar_type(kind):
     """Map a normalized scalar kind to its Java source type."""
-    return {AInValueKind.STRING: "String", AInValueKind.INTEGER: "Long", AInValueKind.NUMBER: "Double", AInValueKind.BOOLEAN: "Boolean"}.get(kind, "Object")
+    return {AInDataTypeKind.STRING: "String", AInDataTypeKind.INTEGER: "Long", AInDataTypeKind.NUMBER: "Double", AInDataTypeKind.BOOLEAN: "Boolean"}.get(kind, "Object")
 
 
 def _python_type(prop, request, names):
     """Map a normalized property to its Python type annotation."""
-    if prop.reference:
-        return names.reference_type(prop.reference, request.naming_profile)
-    if prop.value_kind is AInValueKind.ARRAY:
-        return f"tuple[{_python_scalar_type(prop.item_value_kind)}, ...]"
+    if prop.data_type.referenced_definition():
+        return names.reference_type(prop.data_type.referenced_definition(), request.naming_profile)
+    if prop.data_type.kind is AInDataTypeKind.ARRAY:
+        return f"tuple[{_python_scalar_type(prop.data_type.element_type.kind)}, ...]"
     return {
-        AInValueKind.STRING: "str",
-        AInValueKind.INTEGER: "int",
-        AInValueKind.NUMBER: "float",
-        AInValueKind.BOOLEAN: "bool",
-        AInValueKind.OBJECT: "Mapping[str, Any]",
-    }.get(prop.value_kind, "Any")
+        AInDataTypeKind.STRING: "str",
+        AInDataTypeKind.INTEGER: "int",
+        AInDataTypeKind.NUMBER: "float",
+        AInDataTypeKind.BOOLEAN: "bool",
+        AInDataTypeKind.OBJECT: "Mapping[str, Any]",
+    }.get(prop.data_type.kind, "Any")
 
 
 def _python_scalar_type(kind):
     """Map a normalized scalar kind to its Python type annotation."""
-    return {AInValueKind.STRING: "str", AInValueKind.INTEGER: "int", AInValueKind.NUMBER: "float", AInValueKind.BOOLEAN: "bool"}.get(kind, "Any")
+    return {AInDataTypeKind.STRING: "str", AInDataTypeKind.INTEGER: "int", AInDataTypeKind.NUMBER: "float", AInDataTypeKind.BOOLEAN: "bool"}.get(kind, "Any")

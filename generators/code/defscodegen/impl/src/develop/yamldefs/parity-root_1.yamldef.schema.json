@@ -7,91 +7,115 @@
   "properties": {
     "text": {
       "type": "string",
-      "description": "Required text value."
+      "description": "Required text value.",
+      "title": "Text"
     },
     "count": {
       "type": "integer",
-      "description": "Required integer value."
+      "description": "Required integer value.",
+      "title": "Count"
     },
     "amount": {
       "type": "number",
-      "description": "Required floating-point value."
+      "description": "Required floating-point value.",
+      "title": "Amount"
     },
     "enabled": {
       "type": "boolean",
-      "description": "Required boolean value."
+      "description": "Required boolean value.",
+      "title": "Enabled"
     },
     "optionalText": {
       "type": "string",
-      "description": "Optional text value."
+      "description": "Optional text value.",
+      "title": "Optional text"
     },
     "nullableText": {
       "type": [
         "string",
         "null"
       ],
-      "description": "Required nullable text value."
+      "description": "Required nullable text value.",
+      "title": "Nullable text"
     },
     "optionalNullableText": {
       "type": [
         "string",
         "null"
       ],
-      "description": "Optional nullable text value."
+      "description": "Optional nullable text value.",
+      "title": "Optional nullable text"
     },
     "child": {
       "$ref": "parity-child_1.yamldef.schema.json",
-      "description": "Child object from a subschema."
+      "description": "Child object from a subschema.",
+      "title": "Child"
     },
     "children": {
       "type": "array",
       "description": "Collection of child objects.",
       "items": {
         "$ref": "parity-child_1.yamldef.schema.json"
-      }
+      },
+      "title": "Children"
     },
     "status": {
       "$ref": "parity-status_1.yamldef.schema.json",
-      "description": "State from an enum subschema."
+      "description": "State from an enum subschema.",
+      "title": "Status"
     },
     "statuses": {
       "type": "array",
       "description": "Collection of enum values.",
       "items": {
         "$ref": "parity-status_1.yamldef.schema.json"
-      }
+      },
+      "title": "Statuses"
     },
     "texts": {
       "type": "array",
       "description": "Collection of strings.",
       "items": {
-        "type": "string"
-      }
+        "type": "string",
+        "title": "Texts items",
+        "description": "Specifies the texts items associated with this definition."
+      },
+      "title": "Texts"
     },
     "counts": {
       "type": "array",
       "description": "Collection of integers.",
       "items": {
-        "type": "integer"
-      }
+        "type": "integer",
+        "title": "Counts items",
+        "description": "Specifies the counts items associated with this definition."
+      },
+      "title": "Counts"
     },
     "amounts": {
       "type": "array",
       "description": "Collection of numbers.",
       "items": {
-        "type": "number"
-      }
+        "type": "number",
+        "title": "Amounts items",
+        "description": "Specifies the amounts items associated with this definition."
+      },
+      "title": "Amounts"
     },
     "flags": {
       "type": "array",
       "description": "Collection of booleans.",
       "items": {
-        "type": "boolean"
-      }
+        "type": "boolean",
+        "title": "Flags items",
+        "description": "Specifies the flags items associated with this definition."
+      },
+      "title": "Flags"
     },
     "freeObject": {
       "type": "object",
-      "description": "Unconstrained object value."
+      "description": "Unconstrained object value.",
+      "title": "Free object"
     },
     "inlineObject": {
       "type": "object",
@@ -99,64 +123,76 @@
       "properties": {
         "inner": {
           "type": "string",
-          "description": "An inner string."
+          "description": "An inner string.",
+          "title": "Inner"
         }
       },
       "required": [
         "inner"
-      ]
+      ],
+      "title": "Inline object"
     },
     "anything": {
-      "description": "Unconstrained value."
+      "description": "Unconstrained value.",
+      "title": "Anything"
     },
     "dateValue": {
       "type": "string",
       "description": "Calendar date with preserved timezone and year range.",
-      "x-modustro-datatype": "date"
+      "x-modustro-datatype": "date",
+      "title": "Date value"
     },
     "timeValue": {
       "type": "string",
       "description": "Time with preserved fractional precision.",
-      "x-modustro-datatype": "time"
+      "x-modustro-datatype": "time",
+      "title": "Time value"
     },
     "timestamp": {
       "type": "string",
       "description": "Timestamp with preserved timezone.",
-      "x-modustro-datatype": "dateTime"
+      "x-modustro-datatype": "dateTime",
+      "title": "Timestamp"
     },
     "durationValue": {
       "type": "string",
       "description": "Calendar duration with months and exact seconds.",
-      "x-modustro-datatype": "duration"
+      "x-modustro-datatype": "duration",
+      "title": "Duration value"
     },
     "binaryHex": {
       "type": "string",
       "description": "Hexadecimal binary content.",
-      "contentEncoding": "base16"
+      "contentEncoding": "base16",
+      "title": "Binary hex"
     },
     "binaryBase64": {
       "type": "string",
       "description": "Base64 binary content.",
-      "contentEncoding": "base64"
+      "contentEncoding": "base64",
+      "title": "Binary base64"
     },
     "boundedText": {
       "type": "string",
       "description": "Text constrained by length and pattern.",
       "minLength": 2,
       "maxLength": 5,
-      "pattern": "[A-Z]+"
+      "pattern": "[A-Z]+",
+      "title": "Bounded text"
     },
     "boundedInteger": {
       "type": "integer",
       "description": "Integer constrained by exact boundaries.",
       "minimum": -4,
-      "maximum": 8
+      "maximum": 8,
+      "title": "Bounded integer"
     },
     "boundedDecimal": {
       "type": "number",
       "description": "Decimal constrained by an exclusive upper boundary.",
       "minimum": 0,
-      "exclusiveMaximum": 2.5
+      "exclusiveMaximum": 2.5,
+      "title": "Bounded decimal"
     },
     "inlineState": {
       "type": "string",
@@ -164,6 +200,19 @@
       "enum": [
         "first",
         "second"
+      ],
+      "title": "Inline state",
+      "oneOf": [
+        {
+          "const": "first",
+          "title": "First",
+          "description": "Selects the first option in the corresponding enumeration."
+        },
+        {
+          "const": "second",
+          "title": "Second",
+          "description": "Selects the second option in the corresponding enumeration."
+        }
       ]
     }
   },

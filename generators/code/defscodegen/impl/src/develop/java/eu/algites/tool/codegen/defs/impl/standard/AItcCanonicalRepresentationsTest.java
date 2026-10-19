@@ -2,14 +2,15 @@ package eu.algites.tool.codegen.defs.impl.standard;
 
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
+import eu.algites.tool.codegen.defs.AIcdDataType;
+import eu.algites.tool.codegen.defs.AIcdValueConstraints;
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
 import eu.algites.tool.codegen.defs.AIcdGeneratedSource;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AInCodeGenerationTarget;
-import eu.algites.tool.codegen.defs.AInDefinitionKind;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
-import eu.algites.tool.codegen.defs.AInValueKind;
+import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,7 +32,7 @@ public final class AItcCanonicalRepresentationsTest {
     public void AIcCommonMetadataRepresentations() throws Exception {
         AIcdCanonicalDefinition locYaml = AIcLoad("document-common-metadata_1.yamldef.schema.json", AInDefinitionSourceKind.YAMLDEFS);
         AIcdCanonicalDefinition locJson = AIcLoad("document-common-metadata_1.jsondef.schema.json", AInDefinitionSourceKind.JSONDEFS);
-        Assert.assertEquals(locYaml.properties(), locJson.properties());
+        Assert.assertEquals(locYaml.dataType().properties(), locJson.dataType().properties());
         Assert.assertNotEquals(locYaml.identity(), locJson.identity());
         AIcdCanonicalDefinition locMerged = AIcCanonicalDefinitionMerger.AIcMerge(List.of(locYaml, locJson));
         Assert.assertTrue(locMerged.description().contains(locYaml.description()));
@@ -62,10 +63,8 @@ public final class AItcCanonicalRepresentationsTest {
                         "-d", locRoot.toString(), locFile.toString()), 0);
             }
         }
-        AIcdPropertyDefinition locChanged = new AIcdPropertyDefinition("$schema", AInValueKind.INTEGER, false, false, null, null, "Different type");
-        AIcdCanonicalDefinition locIncompatible = new AIcdCanonicalDefinition(locJson.identity(), locJson.version(),
-                locJson.logicalName(), locJson.kind(), locJson.sourceKind(), locJson.sourceResource(),
-                locJson.description(), List.of(locChanged), List.of());
+        AIcdPropertyDefinition locChanged = new AIcdPropertyDefinition("$schema", AIcSourceDataType.fromSourceHints(AInDataTypeKind.INTEGER, null, null, AIcdValueConstraints.empty(), AIcdValueConstraints.empty()), ((false) ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED), false, "Different type", null, null);
+        AIcdCanonicalDefinition locIncompatible = new AIcdCanonicalDefinition(locJson.identity(), locJson.version(), locJson.logicalName(), locJson.sourceKind(), locJson.sourceResource(), locJson.description(), locJson.dataType().withProperties(List.of(locChanged)), List.of(), null);
         Assert.expectThrows(IllegalArgumentException.class,
                 () -> AIcCanonicalDefinitionMerger.AIcMerge(List.of(locYaml, locIncompatible)));
     }
@@ -82,10 +81,10 @@ public final class AItcCanonicalRepresentationsTest {
                 """);
         AIcdCanonicalDefinition locDefinition = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(
                 locPath, AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles_1.javaProfile()));
-        Assert.assertEquals(locDefinition.properties().get(0).valueKind(), AInValueKind.STRING);
-        Assert.assertEquals(locDefinition.properties().get(0).description(), "Inline text");
-        Assert.assertEquals(locDefinition.properties().get(1).valueKind(), AInValueKind.ARRAY);
-        Assert.assertEquals(locDefinition.properties().get(1).itemValueKind(), AInValueKind.INTEGER);
+        Assert.assertEquals(locDefinition.dataType().properties().get(0).dataType().kind(), AInDataTypeKind.STRING);
+        Assert.assertEquals(locDefinition.dataType().properties().get(0).description(), "Inline text");
+        Assert.assertEquals(locDefinition.dataType().properties().get(1).dataType().kind(), AInDataTypeKind.ARRAY);
+        Assert.assertEquals(locDefinition.dataType().properties().get(1).dataType().elementType().kind(), AInDataTypeKind.INTEGER);
         Files.writeString(locPath, "{\"type\":\"object\",\"properties\":{\"bad\":{\"$ref\":\"#/$defs/missing\"}}}");
         Assert.expectThrows(IllegalArgumentException.class, () -> new AIcDefaultDefsCodegenService().load(
                 new AIcdDefinitionLoadRequest(locPath, AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles_1.javaProfile())));
@@ -102,9 +101,9 @@ public final class AItcCanonicalRepresentationsTest {
         var locService = new AIcDefaultDefsCodegenService();
         var locProfile = AIcAlgitesNamingProfiles_1.javaProfile();
         var locDefinition = locService.load(new AIcdDefinitionLoadRequest(locJson, AInDefinitionSourceKind.JSONDEFS, locProfile));
-        Assert.assertEquals(locDefinition.kind(), AInDefinitionKind.OBJECT);
-        Assert.assertEquals(locDefinition.properties().size(), 1);
-        Assert.assertTrue(locDefinition.properties().get(0).required());
+        Assert.assertEquals(locDefinition.dataType().kind(), AInDataTypeKind.OBJECT);
+        Assert.assertEquals(locDefinition.dataType().properties().size(), 1);
+        Assert.assertTrue(locDefinition.dataType().properties().get(0).required());
         Path locXml = locRoot.resolve("xml-contract_1.xsd");
         Files.writeString(locXml, """
                 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
@@ -115,8 +114,8 @@ public final class AItcCanonicalRepresentationsTest {
                 """);
         locDefinition = locService.load(new AIcdDefinitionLoadRequest(locXml, AInDefinitionSourceKind.XMLDEFS, locProfile));
         Assert.assertEquals(locDefinition.logicalName(), "xml-contract");
-        Assert.assertEquals(locDefinition.properties().get(0).valueKind(), AInValueKind.ARRAY);
-        Assert.assertEquals(locDefinition.properties().get(0).itemValueKind(), AInValueKind.STRING);
+        Assert.assertEquals(locDefinition.dataType().properties().get(0).dataType().kind(), AInDataTypeKind.ARRAY);
+        Assert.assertEquals(locDefinition.dataType().properties().get(0).dataType().elementType().kind(), AInDataTypeKind.STRING);
     }
 
 }

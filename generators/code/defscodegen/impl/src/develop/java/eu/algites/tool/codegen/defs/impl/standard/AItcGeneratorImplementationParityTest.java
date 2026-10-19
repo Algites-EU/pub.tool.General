@@ -30,7 +30,7 @@ public final class AItcGeneratorImplementationParityTest {
         locClasspath.add(System.getProperty("java.class.path"));
         for (String locClass : new String[]{
                 "eu.algites.tool.codegen.defs.impl.standard.AItcGeneratorImplementationParityTest",
-                "eu.algites.tool.codegen.defs.impl.standard.AIcSchemaObjectBindingsGenerator",
+                "eu.algites.tool.codegen.defs.impl.standard.AIcSchemaContractBindingsGenerator",
                 "eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest",
                 "eu.algites.lib.naming.convention.AIiNameConventionCatalog",
                 "eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1",
@@ -53,10 +53,20 @@ public final class AItcGeneratorImplementationParityTest {
         locProcess.environment().put("PYTHONPYCACHEPREFIX", locArtifact.resolve("run/pycache").toString());
         var locStarted = locProcess.start();
         String locOutput = new String(locStarted.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        Assert.assertEquals(locStarted.waitFor(), 0, locOutput);
+        int locExitCode = locStarted.waitFor();
+        if (locExitCode != 0) {
+            String locFailure = "Native Java/Python parity subprocess failed (exit code " + locExitCode + ")"
+                    + "\nWorking directory: " + locArtifact
+                    + "\nPython executable: " + locPython
+                    + "\nPython test path: " + locProcess.environment().getOrDefault("PYTHONPATH", "<unset>")
+                    + "\nParity suite: " + locSuite
+                    + "\n--- Python output / traceback ---\n" + locOutput;
+            System.err.println(locFailure);
+            Assert.fail(locFailure);
+        }
     }
 
-    /** Test-only entry point used to compare the paired API across all three source frontends. */
+    /** Test-only entry point comparing direct canonical contracts across all frontends. */
     public static void main(String[] aArgs) throws Exception {
         if (aArgs.length != 5) throw new IllegalArgumentException("Usage: <source-kind> <target> <source> <package> <output>");
         var locTarget = AInCodeGenerationTarget.valueOf(aArgs[1]);
@@ -65,13 +75,10 @@ public final class AItcGeneratorImplementationParityTest {
                 : eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1.javaProfile();
         var locDefinition = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(
                 Path.of(aArgs[2]), AInDefinitionSourceKind.valueOf(aArgs[0]), locProfile));
-        var locPair = new AIcSchemaInterfaceGenerator().generate(new AIcdCodeGenerationRequest(
+        var locSource = new AIcSchemaContractInterfaceGenerator().generate(new AIcdCodeGenerationRequest(
                 locDefinition, locTarget, aArgs[3], locProfile));
-        for (var locSource : new AIcdGeneratedSource[]{locPair.contract(), locPair.implementation()}) {
-            if (locSource == null) continue;
-            Path locPath = Path.of(aArgs[4]).resolve(locSource.relativePath());
-            Files.createDirectories(locPath.getParent());
-            Files.writeString(locPath, locSource.source());
-        }
+        Path locPath = Path.of(aArgs[4]).resolve(locSource.relativePath());
+        Files.createDirectories(locPath.getParent());
+        Files.writeString(locPath, locSource.source());
     }
 }

@@ -11,11 +11,13 @@
   "oneOf": [
     {
       "const": "pending",
-      "description": "Work remains pending."
+      "description": "Work remains pending.",
+      "title": "Pending"
     },
     {
       "const": "complete",
-      "description": "Work is complete."
+      "description": "Work is complete.",
+      "title": "Complete"
     }
   ],
   "x-algites-schema-version": 1

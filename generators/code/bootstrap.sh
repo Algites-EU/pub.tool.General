@@ -45,7 +45,13 @@ subprojects {
             resources.srcDirs = ['src/develop/yamldefs', 'src/develop/jsondefs', 'src/develop/xmldefs', 'src/develop/examples']
         }
     }
-    tasks.withType(Test).configureEach { useTestNG() }
+    tasks.withType(Test).configureEach {
+        useTestNG()
+        testLogging {
+            exceptionFormat = 'full'
+            events 'failed', 'standardError'
+        }
+    }
     publishing {
         publications {
             mavenJava(MavenPublication) {
@@ -56,12 +62,16 @@ subprojects {
     }
 }
 project(':intf') {
-    dependencies { api 'eu.algites.lib.naming:pub.lib.General_naming.convention.intf:1.1-SNAPSHOT' }
+    dependencies {
+        api 'eu.algites.lib.naming:pub.lib.General_naming.convention.intf:1.1-SNAPSHOT'
+        api 'eu.algites.lib.data:pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT'
+    }
 }
 project(':impl') {
     dependencies {
         api project(':intf')
-        api 'eu.algites.lib.data:pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT' 
+        api 'eu.algites.lib.data:pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT'
+        api 'eu.algites.lib.common:pub.lib.General_common:1.1-SNAPSHOT'
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.3'
         testImplementation 'org.testng:testng:7.11.0'
@@ -71,6 +81,7 @@ project(':impl') {
 project(':cli') {
     dependencies {
         implementation project(':impl')
+        implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
     }
 }
@@ -84,10 +95,15 @@ def prepareParityPython = tasks.register('prepareGeneratorParityPython', Exec) {
         '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
         '--requirement', 'pyyaml>=6,<7',
         '--requirement', 'pytest>=8,<10',
-        '--requirement', 'eu-algites-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0']
-    ['convention.intf', 'convention.impl'].each { artifact ->
+        '--requirement', 'eu-algites-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0',
+        '--requirement', 'eu-algites-pub-lib-general-common>=1.1.dev0,<1.1a0']
+    // The Algites naming profiles/catalog live in naming.convention.algites,
+    // not naming.convention.impl (despite their Java/Python package names).
+    ['convention.intf', 'convention.impl', 'convention.algites'].each { artifact ->
         command += ['--requirement', 'eu-algites-pub-lib-general-naming-' + artifact.replace('.', '-') + '>=1.1.dev0,<1.1a0']
     }
+    command += ['--verify-import', 'eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1',
+                '--verify-import', 'eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1']
     commandLine(command)
 }
 project(':impl').tasks.withType(Test).configureEach {
@@ -141,7 +157,13 @@ subprojects {
         main { java.srcDirs = ['src/product/java'] }
         test { java.srcDirs = ['src/develop/java'] }
     }
-    tasks.withType(Test).configureEach { useTestNG() }
+    tasks.withType(Test).configureEach {
+        useTestNG()
+        testLogging {
+            exceptionFormat = 'full'
+            events 'failed', 'standardError'
+        }
+    }
     publishing {
         publications {
             mavenJava(MavenPublication) {
@@ -157,11 +179,18 @@ project(':intf') {
 project(':impl') {
     dependencies {
         api project(':intf')
-        api 'eu.algites.lib.data:pub.lib.General_data.smartdataobject.impl:1.1-SNAPSHOT'
+        api 'eu.algites.lib.common:pub.lib.General_common:1.1-SNAPSHOT'
+        implementation 'eu.algites.lib.data:pub.lib.General_data.smartdataobject.impl:1.1-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
         testImplementation 'org.testng:testng:7.11.0'
     }
 }
-project(':cli') { dependencies { implementation project(':impl') } }
+project(':cli') {
+    dependencies {
+        implementation project(':impl')
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+    }
+}
 
 /* SDO native Python regressions also run when bootstrapped outside the repository build. */
 def module = new File(System.getenv('_TMP_MODUSTRO_SDO_MODULE'))
@@ -173,8 +202,11 @@ def prepareSdoPython = tasks.register('prepareSdoPython', Exec) {
         '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
         '--requirement', 'pytest>=8,<10',
         '--requirement', 'eu-algites-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0',
+        '--requirement', 'eu-algites-pub-lib-general-common>=1.1.dev0,<1.1a0',
         '--requirement', 'eu-algites-pub-lib-general-data-smartdataobject-impl>=1.1.dev0,<1.1a0',
-        '--requirement', 'eu-algites-pub-lib-general-naming-convention-impl>=1.1.dev0,<1.1a0')
+        '--requirement', 'eu-algites-pub-lib-general-naming-convention-impl>=1.1.dev0,<1.1a0',
+        '--requirement', 'eu-algites-pub-lib-general-naming-convention-algites>=1.1.dev0,<1.1a0',
+        '--verify-import', 'eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1')
 }
 def runSdoPython = tasks.register('testSdoPython', Exec) {
     dependsOn prepareSdoPython

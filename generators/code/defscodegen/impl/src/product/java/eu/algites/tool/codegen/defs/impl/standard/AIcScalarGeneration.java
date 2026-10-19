@@ -3,9 +3,9 @@ package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
+import eu.algites.tool.codegen.defs.AIcdDataType;
 import eu.algites.tool.codegen.defs.AIcdValueConstraints;
-import eu.algites.tool.codegen.defs.AInDefinitionKind;
-import eu.algites.tool.codegen.defs.AInValueKind;
+import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import eu.algites.tool.codegen.defs.AInDefsNameRole;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -19,40 +19,60 @@ final class AIcScalarGeneration {
     private static final Set<String> TEMPORAL = Set.of("date", "time", "dateTime", "dateTimeStamp", "gYearMonth", "gYear", "gMonthDay", "gDay", "gMonth");
     private static final Set<String> DURATION = Set.of("duration", "yearMonthDuration", "dayTimeDuration");
     private static final Set<String> BINARY = Set.of("hexBinary", "base64Binary");
-    static String scalar(AInValueKind aKind, AIcdValueConstraints aConstraints, boolean aJava) {
+    static String scalar(AInDataTypeKind aKind, AIcdValueConstraints aConstraints, boolean aJava) {
         String locType = aConstraints.dataType() == null ? "" : aConstraints.dataType();
         if (BINARY.contains(locType)) return aJava ? "byte[]" : "bytes";
         if (TEMPORAL.contains(locType)) return aJava ? "javax.xml.datatype.XMLGregorianCalendar" : "AIcSchemaTemporalValue";
         if (DURATION.contains(locType)) return aJava ? "javax.xml.datatype.Duration" : "AIcSchemaDuration";
-        if (aKind == AInValueKind.INTEGER) return aJava ? "java.math.BigInteger" : "int";
-        if (aKind == AInValueKind.NUMBER) {
+        if (aKind == AInDataTypeKind.INTEGER) return aJava ? "java.math.BigInteger" : "int";
+        if (aKind == AInDataTypeKind.NUMBER) {
             if (Set.of("float", "double").contains(locType)) return aJava ? ("float".equals(locType) ? "Float" : "Double") : "float";
             return aJava ? "java.math.BigDecimal" : "Decimal";
         }
-        if (aKind == AInValueKind.STRING) return aJava ? "String" : "str";
-        if (aKind == AInValueKind.BOOLEAN) return aJava ? "Boolean" : "bool";
-        if (aKind == AInValueKind.OBJECT) return aJava ? "java.util.Map<String, Object>" : "Mapping[str, Any]";
+        if (aKind == AInDataTypeKind.STRING) return aJava ? "String" : "str";
+        if (aKind == AInDataTypeKind.BOOLEAN) return aJava ? "Boolean" : "bool";
+        if (aKind == AInDataTypeKind.OBJECT) return aJava ? "java.util.Map<String, Object>" : "Mapping[str, Any]";
         return aJava ? "Object" : "Any";
     }
+    /** Render arbitrarily nested array member types directly from their recursive DataType nodes. */
+    static String recursiveArrayType(AIcdDataType aType, boolean aJava) {
+        if (aType.kind() == AInDataTypeKind.ARRAY)
+            return (aJava ? "java.util.List<" : "tuple[")
+                    + recursiveArrayType(aType.elementType(), aJava) + (aJava ? ">" : ", ...]");
+        AInDataTypeKind locLeaf = switch (aType.kind()) {
+            case STRING -> AInDataTypeKind.STRING;
+            case INTEGER -> AInDataTypeKind.INTEGER;
+            case NUMBER -> AInDataTypeKind.NUMBER;
+            case BOOLEAN -> AInDataTypeKind.BOOLEAN;
+            case ANY -> AInDataTypeKind.ANY;
+            default -> throw new IllegalArgumentException("Nested " + aType.kind()
+                    + " requires a generated named contract and cannot be flattened to Object/Any");
+        };
+        return scalar(locLeaf, aType.constraints(), aJava);
+    }
+
     static String javaType(AIcdPropertyDefinition aProperty, AIcdCodeGenerationRequest aRequest, AIcGenerationNames aNames) {
-        boolean locArray = aProperty.valueKind() == AInValueKind.ARRAY;
-        String locItem = aProperty.reference() != null ? reference(aProperty, aRequest, aNames, false)
-                : scalar(locArray ? aProperty.itemValueKind() : aProperty.valueKind(), locArray ? aProperty.itemConstraints() : aProperty.constraints(), true);
+        boolean locArray = aProperty.dataType().kind() == AInDataTypeKind.ARRAY;
+        if (locArray && aProperty.dataType().kind() == AInDataTypeKind.ARRAY
+                && aProperty.dataType().elementType().kind() == AInDataTypeKind.ARRAY)
+            return recursiveArrayType(aProperty.dataType(), true);
+        String locItem = aProperty.dataType().referencedDefinition() != null ? reference(aProperty, aRequest, aNames, false)
+                : scalar(locArray ? aProperty.dataType().elementType().kind() : aProperty.dataType().kind(), locArray ? aProperty.dataType().elementType().constraints() : aProperty.dataType().constraints(), true);
         return locArray ? "java.util.List<" + locItem + ">" : locItem;
     }
     static String javaValidation(AIcdPropertyDefinition aProperty, String aName) {
         StringBuilder locCode = new StringBuilder();
-        if (aProperty.required() && !aProperty.nullable()) locCode.append("        java.util.Objects.requireNonNull(").append(aName).append(", ").append(jquote(aProperty.sourceName())).append(");\n");
+        if ((aProperty.presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED) && !aProperty.nullable()) locCode.append("        java.util.Objects.requireNonNull(").append(aName).append(", ").append(jquote(aProperty.sourceName())).append(");\n");
         locCode.append("        if (").append(aName).append(" != null) {\n");
-        if (aProperty.valueKind() == AInValueKind.ARRAY) {
+        if (aProperty.dataType().kind() == AInDataTypeKind.ARRAY) {
             locCode.append("            for (var locItem : ").append(aName).append(") {\n                java.util.Objects.requireNonNull(locItem, \"Array item\");\n");
-            locCode.append(javaFacets(aProperty.itemValueKind(), aProperty.itemConstraints(), "locItem", "                "));
+            locCode.append(javaFacets(aProperty.dataType().elementType().kind(), aProperty.dataType().elementType().constraints(), "locItem", "                "));
             locCode.append("            }\n");
-        } else locCode.append(javaFacets(aProperty.valueKind(), aProperty.constraints(), aName, "            "));
+        } else locCode.append(javaFacets(aProperty.dataType().kind(), aProperty.dataType().constraints(), aName, "            "));
         locCode.append("        }\n");
         return locCode.toString();
     }
-    private static String javaFacets(AInValueKind aKind, AIcdValueConstraints aConstraints, String aValue, String aIndent) {
+    private static String javaFacets(AInDataTypeKind aKind, AIcdValueConstraints aConstraints, String aValue, String aIndent) {
         StringBuilder locCode = new StringBuilder();
         String locType = aConstraints.dataType() == null ? "" : aConstraints.dataType();
         if (TEMPORAL.contains(locType)) {
@@ -71,32 +91,32 @@ final class AIcScalarGeneration {
     }
     private static String check(String aCondition, String aIndent) { return aIndent + "if (" + aCondition + ") throw new IllegalArgumentException(\"Schema value violates its constraints.\");\n"; }
     private static String reference(AIcdPropertyDefinition aProperty, AIcdCodeGenerationRequest aRequest, AIcGenerationNames aNames, boolean aFile) {
-        boolean locEnum = aProperty.reference().targetKind() == AInDefinitionKind.ENUM;
-        return aNames.referenceTypeName(aProperty.reference().logicalName(), aProperty.reference().version(), aRequest.namingProfile(),
+        boolean locEnum = aProperty.dataType().referencedDefinition().targetsEnum();
+        return aNames.referenceTypeName(aProperty.dataType().referencedDefinition().logicalName(), aProperty.dataType().referencedDefinition().version(), aRequest.namingProfile(),
                 aFile ? (locEnum ? AInDefsNameRole.ENUM_TYPE_FILE_STEM : AInDefsNameRole.DATA_TYPE_FILE_STEM) : (locEnum ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE));
     }
     static String pythonData(AIcdCodeGenerationRequest aRequest, String aTypeName, AIcGenerationNames aNames, java.util.function.Function<List<String>, String> aDocumentation) {
         List<String> locImports = new ArrayList<>(), locFields = new ArrayList<>(), locDocs = new ArrayList<>(), locArguments = new ArrayList<>(), locValidations = new ArrayList<>(), locEntries = new ArrayList<>(), locSchemaFieldConstants = new ArrayList<>();
-        var locProperties = new ArrayList<>(aRequest.definition().properties());
-        locProperties.sort(java.util.Comparator.comparing(AIcdPropertyDefinition::required).reversed());
+        var locProperties = new ArrayList<>(aRequest.definition().dataType().properties());
+        locProperties.sort(java.util.Comparator.comparing((AIcdPropertyDefinition aProperty) -> aProperty.presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED).reversed());
         Set<String> locUsed = new java.util.HashSet<>();
         for (AIcdPropertyDefinition locProperty : locProperties) {
             String locName = aNames.propertyName(locProperty.sourceName(), aRequest.namingProfile()).replaceAll("[^a-zA-Z0-9_]", "_");
             if (locName.isEmpty() || Character.isDigit(locName.charAt(0))) locName = "_" + locName;
             if (Set.of("False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield").contains(locName)) locName += "_";
             if (!locUsed.add(locName)) throw new IllegalArgumentException("Duplicate Python property name " + locName);
-            boolean locArray = locProperty.valueKind() == AInValueKind.ARRAY;
-            AInValueKind locKind = locArray ? locProperty.itemValueKind() : locProperty.valueKind();
-            AIcdValueConstraints locConstraints = locArray ? locProperty.itemConstraints() : locProperty.constraints();
-            String locRef = locProperty.reference() == null ? null : reference(locProperty, aRequest, aNames, false);
+            boolean locArray = locProperty.dataType().kind() == AInDataTypeKind.ARRAY;
+            AInDataTypeKind locKind = locArray ? locProperty.dataType().elementType().kind() : locProperty.dataType().kind();
+            AIcdValueConstraints locConstraints = locArray ? locProperty.dataType().elementType().constraints() : locProperty.dataType().constraints();
+            String locRef = locProperty.dataType().referencedDefinition() == null ? null : reference(locProperty, aRequest, aNames, false);
             if (locRef != null) locImports.add("from ." + reference(locProperty, aRequest, aNames, true) + " import " + locRef);
             String locType = locRef == null ? scalar(locKind, locConstraints, false) : locRef;
             if (locArray) locType = "tuple[" + locType + ", ...]";
             if (locProperty.nullable()) locType += " | None";
-            locFields.add("    " + locName + ": " + locType + (locProperty.required() ? "" : " = _AI_UNSET"));
+            locFields.add("    " + locName + ": " + locType + ((locProperty.presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED) ? "" : " = _AI_UNSET"));
             locDocs.add(locName + ": " + (locProperty.description() == null ? "Value of canonical property " + locProperty.sourceName() + "." : locProperty.description()).strip().replaceAll("\\s+", " "));
             locSchemaFieldConstants.add(pythonSchemaFieldConstant(locProperty, aRequest, aNames));
-            String locRaw = locProperty.required() ? "value[" + pyquote(locProperty.sourceName()) + "]" : "value.get(" + pyquote(locProperty.sourceName()) + ", _AI_UNSET)";
+            String locRaw = (locProperty.presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED) ? "value[" + pyquote(locProperty.sourceName()) + "]" : "value.get(" + pyquote(locProperty.sourceName()) + ", _AI_UNSET)";
             String locConvert = pythonConvert(locProperty, locArray ? "item" : locRaw, locKind, locConstraints, locRef);
             if (locArray) locConvert = "tuple(" + locConvert + " for item in " + locRaw + ")";
             locArguments.add(locName + "=(" + locRaw + " if " + locRaw + " is _AI_UNSET or " + locRaw + " is None else " + locConvert + ")");
@@ -112,7 +132,7 @@ final class AIcScalarGeneration {
             }
             locValidations.add(locIndent + (locRef == null ? "_ai_validate(" + locValue + ", " + pyquote(locKind == null ? "ANY" : locKind.name()) + ", " + pythonConstraints(locConstraints) + ", " + pyquote(locProperty.sourceName()) + ")"
                     : "if not isinstance(" + locValue + ", " + locRef + "): raise TypeError(" + pyquote(locProperty.sourceName()) + " + \": incorrect referenced type\")"));
-            if (locProperty.required()) locValidations.add("        else: raise ValueError(" + pyquote(locProperty.sourceName()) + " + \": value is required\")");
+            if ((locProperty.presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED)) locValidations.add("        else: raise ValueError(" + pyquote(locProperty.sourceName()) + " + \": value is required\")");
             locEntries.add("            " + pyquote(locProperty.sourceName()) + ": _ai_wire(self." + locName + ", " + pyquote(locConstraints.dataType()) + "),");
         }
         String locRuntime;
@@ -146,8 +166,8 @@ final class AIcScalarGeneration {
         return aValue.replace("\\", "\\\\").replace("\"\"\"", "\\\"\\\"\\\"");
     }
 
-    private static String pythonConvert(AIcdPropertyDefinition aProperty, String aValue, AInValueKind aKind, AIcdValueConstraints aConstraints, String aRef) {
-        if (aRef != null) return "(" + aValue + " if isinstance(" + aValue + ", " + aRef + ") else " + aRef + (aProperty.reference().targetKind() == AInDefinitionKind.ENUM ? "(" : ".from_mapping(") + aValue + "))";
+    private static String pythonConvert(AIcdPropertyDefinition aProperty, String aValue, AInDataTypeKind aKind, AIcdValueConstraints aConstraints, String aRef) {
+        if (aRef != null) return "(" + aValue + " if isinstance(" + aValue + ", " + aRef + ") else " + aRef + (aProperty.dataType().referencedDefinition().targetsEnum() ? "(" : ".from_mapping(") + aValue + "))";
         return "_ai_convert(" + aValue + ", " + pyquote(aConstraints.dataType()) + ", " + pyquote(aKind == null ? "ANY" : aKind.name()) + ")";
     }
     private static String pythonConstraints(AIcdValueConstraints aValue) {

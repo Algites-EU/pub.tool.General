@@ -134,6 +134,11 @@ to one identity; unrelated IDs mapping to the same source file are rejected. The
 all descriptions and origins in generated Javadoc/docstrings while retaining
 the first representation's primary identity. Different required fields, types,
 nullability, references or enum values fail with an incompatibility error.
+Recursive JSON/YAML types are now compared beyond the legacy flat fields,
+including nested choices and array members; full structural parity with XSD
+still requires a richer XML projection. XSD supports a limited same-file
+`complexContent` extension and attribute-presence restriction subset; see
+[the Defs Codegen limitations](generators/code/defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md).
 Pointers and anchors refer to nodes inside a schema; their fragments are never
 parsed as versioned filenames. `allOf` compositions contribute object fields
 and requiredness. Canonical URL references are resolved from checked-out
@@ -170,8 +175,10 @@ optionally selects the Gradle executable.
    paired generator to the separate contract and SDO stages.
 
 The descriptor/directory rename helper is
-`pub.tool.General-git-mv-1.1-codegen.sh`. No changes in `pub.lib.General` are
-necessary for the independent Java/Python generators implemented here.
+`pub.tool.General-git-mv-1.1-codegen.sh`. The current recursive typing,
+XML-element naming and field-presence migration requires the updated
+`pub.lib.General(5)` API. Do not build this generator against the older
+`pub.lib.General` contracts.
 
 ### Native Python verification (Modustro Phase 0)
 
@@ -185,3 +192,7 @@ removed, and their verification is now part of the standard `check` lifecycle.
 
 Upgrade the bootstrap Builder before using this change: the old Builder does
 not provide this Python test environment.
+
+## Defs/SDO 1.1 in progress
+
+See [recursive canonical types and XML element contracts](generators/code/defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md) for the new model, `OpenChoice`/`ClosedChoice` code-generation behavior, schema naming roles, compatibility requirements, and current unsupported XSD features.

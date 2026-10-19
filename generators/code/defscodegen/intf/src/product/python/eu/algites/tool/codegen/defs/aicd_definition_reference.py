@@ -1,19 +1,18 @@
+"""Reference identity and optional recursive target type, without a duplicate kind projection."""
 from __future__ import annotations
-
 from dataclasses import dataclass
-from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
+from .aicd_data_type import AIcdDataType
+from .ain_data_type_kind import AInDataTypeKind
 
 @dataclass(frozen=True, slots=True)
 class AIcdDefinitionReference:
-    """Carries immutable definition reference data.
-
-    Attributes:
-        identity: Canonical definition identity.
-        version: Canonical definition version.
-        logical_name: Logical name without its version suffix.
-        target_kind: Referenced definition kind.
-    """
+    """Identity of a target; its DataType may initially describe only the known root kind."""
     identity: str
     version: int | None
     logical_name: str
-    target_kind: AInDefinitionKind | None = None
+    target_data_type: AIcdDataType | None = None
+
+    @property
+    def targets_enum(self) -> bool:
+        """Return whether the target's currently known recursive root type is ENUM."""
+        return self.target_data_type is not None and self.target_data_type.kind is AInDataTypeKind.ENUM

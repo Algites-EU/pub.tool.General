@@ -8,8 +8,7 @@ import eu.algites.tool.codegen.defs.AIcdGeneratedTypeIdentity;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AIiCodeGenerationBackend;
 import eu.algites.tool.codegen.defs.AInCodeGenerationTarget;
-import eu.algites.tool.codegen.defs.AInDefinitionKind;
-import eu.algites.tool.codegen.defs.AInValueKind;
+import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import eu.algites.tool.codegen.defs.AInDefsNameRole;
 
 import java.util.ArrayList;
@@ -40,7 +39,7 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
      */
     @Override
     public AIcdGeneratedSource generate(AIcdCodeGenerationRequest request) {
-        boolean enumDefinition = request.definition().kind() == AInDefinitionKind.ENUM;
+        boolean enumDefinition = request.definition().dataType().kind() == AInDataTypeKind.ENUM;
         String typeName = names.typeName(request.definition(), request.namingProfile(), enumDefinition ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
         String source = enumDefinition ? enumSource(request, typeName) : dataSource(request, typeName);
         String fileStem = names.fileStem(request.definition(), request.namingProfile(), enumDefinition ? AInDefsNameRole.ENUM_TYPE_FILE_STEM : AInDefsNameRole.DATA_TYPE_FILE_STEM);
@@ -127,13 +126,13 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
      * @return Python type annotation
      */
     private String pythonType(AIcdPropertyDefinition property, AIcdCodeGenerationRequest request) {
-        if (property.reference() != null) return names.referenceTypeName(property.reference().logicalName(), property.reference().version(), request.namingProfile(), property.reference().targetKind() == AInDefinitionKind.ENUM ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
-        return switch (property.valueKind()) {
+        if (property.dataType().referencedDefinition() != null) return names.referenceTypeName(property.dataType().referencedDefinition().logicalName(), property.dataType().referencedDefinition().version(), request.namingProfile(), property.dataType().referencedDefinition().targetsEnum() ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
+        return switch (property.dataType().kind()) {
             case STRING -> "str";
             case INTEGER -> "int";
             case NUMBER -> "float";
             case BOOLEAN -> "bool";
-            case ARRAY -> "tuple[" + scalarPythonType(property.itemValueKind()) + ", ...]";
+            case ARRAY -> "tuple[" + scalarPythonType(property.dataType().elementType().kind()) + ", ...]";
             case OBJECT -> "Mapping[str, Any]";
             default -> "Any";
         };
@@ -145,7 +144,7 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
      * @param kind normalized item kind
      * @return Python scalar type annotation
      */
-    private static String scalarPythonType(AInValueKind kind) {
+    private static String scalarPythonType(AInDataTypeKind kind) {
         if (kind == null) return "Any";
         return switch (kind) {
             case STRING -> "str";

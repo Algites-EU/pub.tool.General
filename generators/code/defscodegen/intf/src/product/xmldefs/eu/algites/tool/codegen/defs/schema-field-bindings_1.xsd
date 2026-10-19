@@ -1,0 +1,138 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:eu:algites:tool:codegen:defs:schema-field-bindings:1" xmlns:algdoc="urn:eu:algites:documentation:1" targetNamespace="urn:eu:algites:tool:codegen:defs:schema-field-bindings:1" version="1" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:appinfo>
+      <algdoc:title>Algites Schema Field Bindings</algdoc:title>
+    </xs:appinfo>
+    <xs:documentation>Defines canonical schema resources and their optional field binding projections.</xs:documentation>
+  </xs:annotation>
+  <xs:import namespace="urn:eu:algites:documentation:1" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd"/>
+  <xs:simpleType name="LanguageType">
+    <xs:annotation>
+      <xs:appinfo>
+        <algdoc:title>Generation language</algdoc:title>
+      </xs:appinfo>
+      <xs:documentation>One supported output programming language.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="java">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Java</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Generate Java source code.</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="python">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Python</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Generate Python source code.</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="FieldBindingType">
+    <xs:annotation>
+      <xs:appinfo>
+        <algdoc:title>Field binding</algdoc:title>
+      </xs:appinfo>
+      <xs:documentation>Maps a schema resource and JSON pointer to an optional generated field binding.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="schema" type="xs:string" minOccurs="1">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Schema</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Canonical URI or path identifying the source schema.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="pointer" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Pointer</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Optional JSON Pointer identifying a particular position within the schema.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="name" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Name</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Optional override of the generated binding name.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="common_one_of_fields" type="xs:boolean" minOccurs="0">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Common one of fields</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Whether shared fields from oneOf branches are retained in bindings.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SchemaFieldBindingsType">
+    <xs:annotation>
+      <xs:appinfo>
+        <algdoc:title>Algites Schema Field Bindings</algdoc:title>
+      </xs:appinfo>
+      <xs:documentation>Generator instructions identifying canonical JSON Schema resources and optional field-binding projections.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="artifact" minOccurs="1" maxOccurs="1">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Artifact</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Specifies the artifact associated with this definition.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="implementation_artifact" minOccurs="0" maxOccurs="1">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Implementation artifact</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Specifies the implementation artifact associated with this definition.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="languages" type="tns:LanguageType" minOccurs="1" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Languages</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Specifies the languages associated with this definition.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="bindings" type="tns:FieldBindingType" minOccurs="1" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Bindings</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Specifies the bindings associated with this definition.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="schema-field-bindings" type="tns:SchemaFieldBindingsType">
+    <xs:annotation>
+      <xs:appinfo>
+        <algdoc:title>Algites Schema Field Bindings</algdoc:title>
+      </xs:appinfo>
+      <xs:documentation>Root document selecting schemas and generation targets.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+</xs:schema>

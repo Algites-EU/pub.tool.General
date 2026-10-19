@@ -2,11 +2,12 @@ package eu.algites.tool.codegen.defs.impl.standard;
 
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
+import eu.algites.tool.codegen.defs.AIcdDataType;
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
 import eu.algites.tool.codegen.defs.AInCodeGenerationTarget;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
-import eu.algites.tool.codegen.defs.AInValueKind;
+import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -37,9 +38,7 @@ public final class AItcSchemaParityTest {
     }
 
     private AIcdCanonicalDefinition normalized(AIcdCanonicalDefinition model) {
-        return new AIcdCanonicalDefinition("urn:parity:" + model.logicalName() + ":1", model.version(),
-                model.logicalName(), model.kind(), AInDefinitionSourceKind.JSONDEFS, model.logicalName() + "_1.schema",
-                model.description(), model.properties(), model.enumValues());
+        return new AIcdCanonicalDefinition("urn:parity:" + model.logicalName() + ":1", model.version(), model.logicalName(), AInDefinitionSourceKind.JSONDEFS, model.logicalName() + "_1.schema", model.description(), model.dataType(), model.enumValues(), null);
     }
 
     /** Compares full generated sources, retaining comments and constraints; only provenance differs. */
@@ -60,15 +59,15 @@ public final class AItcSchemaParityTest {
             SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI).newSchema(resource(stem + "_1.xsd").toFile());
         }
         var builtins = load("parity-builtins", 2);
-        Assert.assertEquals(builtins.properties().size(), 46);
-        var unsigned = builtins.properties().stream().filter(p -> p.sourceName().equals("unsignedLong")).findFirst().orElseThrow();
-        Assert.assertEquals(unsigned.constraints().maximum(), "18446744073709551615");
+        Assert.assertEquals(builtins.dataType().properties().size(), 46);
+        var unsigned = builtins.dataType().properties().stream().filter(p -> p.sourceName().equals("unsignedLong")).findFirst().orElseThrow();
+        Assert.assertEquals(unsigned.dataType().constraints().maximum(), "18446744073709551615");
         var root = load("parity-root", 2);
-        Assert.assertEquals(root.properties().size(), 28);
-        Assert.assertFalse(root.properties().stream().anyMatch(p -> p.sourceName().equals("inner")));
-        var children = root.properties().stream().filter(p -> p.sourceName().equals("children")).findFirst().orElseThrow();
-        Assert.assertEquals(children.itemValueKind(), AInValueKind.REFERENCE);
-        Assert.assertEquals(children.reference().logicalName(), "parity-child");
+        Assert.assertEquals(root.dataType().properties().size(), 28);
+        Assert.assertFalse(root.dataType().properties().stream().anyMatch(p -> p.sourceName().equals("inner")));
+        var children = root.dataType().properties().stream().filter(p -> p.sourceName().equals("children")).findFirst().orElseThrow();
+        Assert.assertEquals(children.dataType().elementType().kind(), AInDataTypeKind.REFERENCE);
+        Assert.assertEquals(children.dataType().referencedDefinition().logicalName(), "parity-child");
     }
 
     /** Confirms that every frontend produces the same documented schema-field-name constants. */
@@ -176,8 +175,8 @@ public final class AItcSchemaParityTest {
                 """);
         var model = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(schema,
                 AInDefinitionSourceKind.YAMLDEFS, AIcAlgitesNamingProfiles_1.javaProfile()));
-        Assert.assertEquals(model.properties().get(0).constraints().minimum(), "0.12345678901234567890123456789");
-        Assert.assertEquals(model.properties().get(1).reference().logicalName(), "leaf");
+        Assert.assertEquals(model.dataType().properties().get(0).dataType().constraints().minimum(), "0.12345678901234567890123456789");
+        Assert.assertEquals(model.dataType().properties().get(1).reference().logicalName(), "leaf");
     }
 
     /** Excludes transient generated/build copies while retaining legitimate devops/build source directories. */
@@ -199,7 +198,7 @@ public final class AItcSchemaParityTest {
             var locModel = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(locRoot,
                 locKind.equals("yamldefs") ? AInDefinitionSourceKind.YAMLDEFS : AInDefinitionSourceKind.JSONDEFS,
                 AIcAlgitesNamingProfiles_1.javaProfile()));
-            Assert.assertEquals(locModel.properties().get(0).reference().logicalName(), "leaf");
+            Assert.assertEquals(locModel.dataType().properties().get(0).reference().logicalName(), "leaf");
             String locUrn = "urn:tests:owned-leaf:1";
             Files.writeString(locOwner.resolve("leaf_1" + locSuffix), locLeaf.replace(locId, locUrn));
             Files.writeString(locRoot, "{\"type\":\"object\",\"properties\":{\"leaf\":{\"$ref\":\"" + locUrn + "\"}}}");
@@ -207,7 +206,7 @@ public final class AItcSchemaParityTest {
             locModel = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(locRoot,
                 locKind.equals("yamldefs") ? AInDefinitionSourceKind.YAMLDEFS : AInDefinitionSourceKind.JSONDEFS,
                 AIcAlgitesNamingProfiles_1.javaProfile()));
-            Assert.assertEquals(locModel.properties().get(0).reference().logicalName(), "leaf");
+            Assert.assertEquals(locModel.dataType().properties().get(0).reference().logicalName(), "leaf");
         }
     }
 

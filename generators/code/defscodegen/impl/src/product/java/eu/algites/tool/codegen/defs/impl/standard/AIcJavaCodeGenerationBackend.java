@@ -9,7 +9,7 @@ import eu.algites.tool.codegen.defs.AIcdGeneratedTypeIdentity;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AIiCodeGenerationBackend;
 import eu.algites.tool.codegen.defs.AInCodeGenerationTarget;
-import eu.algites.tool.codegen.defs.AInDefinitionKind;
+import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import eu.algites.tool.codegen.defs.AInDefsNameRole;
 
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
      */
     @Override
     public AIcdGeneratedSource generate(AIcdCodeGenerationRequest request) {
-        boolean enumDefinition = request.definition().kind() == AInDefinitionKind.ENUM;
+        boolean enumDefinition = request.definition().dataType().kind() == AInDataTypeKind.ENUM;
         String typeName = names.typeName(request.definition(), request.namingProfile(), enumDefinition ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.DATA_TYPE);
         String source = enumDefinition ? enumSource(request, typeName) : dataSource(request, typeName);
         String relative = request.packageName().replace('.', '/') + "/" + typeName + ".java";
@@ -102,7 +102,7 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
     private String dataSource(AIcdCodeGenerationRequest request, String typeName) {
         List<String> components = new ArrayList<>();
         List<String> parameterDocs = new ArrayList<>();
-        for (AIcdPropertyDefinition property : request.definition().properties()) {
+        for (AIcdPropertyDefinition property : request.definition().dataType().properties()) {
             String propertyName = javaIdentifier(names.propertyName(property.sourceName(), request.namingProfile()));
             components.add(AIcScalarGeneration.javaType(property, request, names) + " " + propertyName);
             parameterDocs.add(" * @param " + propertyName + " " + documentation(property.description(), "Value of canonical property " + property.sourceName() + "."));
@@ -115,7 +115,7 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
                 "    public static final String CANONICAL_SOURCE_RESOURCE = " + quote(request.definition().sourceResource()) + ";\n\n" +
                 schemaFieldConstants(request) +
                 "    /** Validates the scalar constraints retained from the canonical schema. */\n" +
-                "    public " + typeName + " {\n" + request.definition().properties().stream()
+                "    public " + typeName + " {\n" + request.definition().dataType().properties().stream()
                     .map(property -> AIcScalarGeneration.javaValidation(property, javaIdentifier(names.propertyName(property.sourceName(), request.namingProfile()))))
                     .collect(java.util.stream.Collectors.joining()) + "    }\n" +
                 "}\n";
@@ -129,7 +129,7 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
      */
     private String schemaFieldConstants(AIcdCodeGenerationRequest request) {
         StringBuilder result = new StringBuilder();
-        for (AIcdPropertyDefinition property : request.definition().properties()) {
+        for (AIcdPropertyDefinition property : request.definition().dataType().properties()) {
             result.append("    /**\n");
             result.append("     * <strong>Field Name:</strong> {@code ")
                     .append(escapeJavadocHtml(property.sourceName())).append("}");

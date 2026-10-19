@@ -1,6 +1,6 @@
 """JSON Schema null semantics shared by the native Python definition frontend."""
 from collections.abc import Mapping
-from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 
 
 def _accepts_null(schema):
@@ -35,11 +35,11 @@ def _non_null_kind(schema):
     """Infer the primitive value kind of an untyped enum/const without treating null as text."""
     non_null = next((value for value in schema.get("enum", ()) if value is not None), schema.get("const"))
     if isinstance(non_null, bool):
-        return AInValueKind.BOOLEAN
+        return AInDataTypeKind.BOOLEAN
     if isinstance(non_null, int):
-        return AInValueKind.INTEGER
+        return AInDataTypeKind.INTEGER
     if isinstance(non_null, float):
-        return AInValueKind.NUMBER
+        return AInDataTypeKind.NUMBER
     if isinstance(non_null, str):
-        return AInValueKind.STRING
-    return AInValueKind.ANY
+        return AInDataTypeKind.STRING
+    return AInDataTypeKind.ANY

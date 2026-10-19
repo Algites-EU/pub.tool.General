@@ -4,5 +4,6 @@ from eu.algites.tool.codegen.sdo.aicd_generated_sdo_source import AIcdGeneratedS
 
 @dataclass(frozen=True)
 class AIcdSdoGenerationResult:
+    """Groups generated mutable-interface and concrete-implementation source units."""
     mutable_interface: AIcdGeneratedSdoSource
     implementation: AIcdGeneratedSdoSource

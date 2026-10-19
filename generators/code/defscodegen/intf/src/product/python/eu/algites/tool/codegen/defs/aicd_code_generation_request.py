@@ -14,8 +14,19 @@ class AIcdCodeGenerationRequest:
         target: Target programming technology.
         package_name: Target package/module namespace.
         naming_profile: Naming/version profile.
+        xml_type_qname: Optional expanded QName of a named XSD type, distinct
+            from any global element name and omitted for other schema families.
     """
     definition: AIcdCanonicalDefinition
     target: AInCodeGenerationTarget
     package_name: str
     naming_profile: AIcNameConventionCatalog_1
+    xml_type_qname: str | None = None
+
+    def __post_init__(self):
+        """Reject inconsistent XML identity instead of emitting misleading metadata."""
+        from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
+        if self.xml_type_qname is not None and (self.definition.source_kind is not AInDefinitionSourceKind.XMLDEFS
+                or not self.xml_type_qname.startswith('{') or '}' not in self.xml_type_qname[1:]
+                or self.xml_type_qname.endswith('}')):
+            raise ValueError('Expected expanded QName of a named XML Schema type')

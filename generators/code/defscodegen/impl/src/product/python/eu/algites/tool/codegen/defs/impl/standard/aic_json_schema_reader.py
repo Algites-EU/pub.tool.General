@@ -1,7 +1,10 @@
 from __future__ import annotations
+from eu.algites.tool.codegen.defs.impl.standard._source_data_type import from_source_hints
+from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from eu.algites.tool.codegen.defs.impl.standard._schema_loading import load_schema
 
 import json
+import re
 import os
 import yaml
 from pathlib import Path
@@ -13,13 +16,13 @@ from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefini
 from eu.algites.tool.codegen.defs.aicd_definition_reference import AIcdDefinitionReference
 from eu.algites.tool.codegen.defs.aicd_enum_value_definition import AIcdEnumValueDefinition
 from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
-from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
-from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.impl.standard._support import _strip_extensions
 from eu.algites.tool.codegen.defs.impl.standard._support import _value_kind
 from eu.algites.tool.codegen.defs.impl.standard.aic_scalar_constraints import from_json
 from eu.algites.tool.codegen.defs.impl.standard._json_nullability import _accepts_null, _non_null_kind
 from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
+from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
 
 class AIcJsonSchemaReader:
     """Provides json schema reader functionality."""
@@ -35,21 +38,22 @@ class AIcJsonSchemaReader:
         identity = str(root.get("x-algites-schema-id") or root.get(id_extension) or root.get("$id") or parsed.logical_name)
         version = explicit_version if explicit_version is not None else parsed.version
         description = root.get("description") if isinstance(root.get("description"), str) else None
+        title = root.get("title") if isinstance(root.get("title"), str) else None
         root = self._structural(root, request, set())
         enum_values = self._enum_values(root)
         if enum_values:
-            return AIcdCanonicalDefinition(identity, version, logical_name, AInDefinitionKind.ENUM, source_kind, str(request.path), description, (), enum_values)
+            return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, AIcdDataType(AInDataTypeKind.ENUM), enum_values, title)
         properties = root.get("properties")
         if root.get("type") == "object" or isinstance(properties, Mapping):
             required = set(root.get("required", ()))
             result = tuple(self._property(name, schema, name in required, request) for name, schema in (properties or {}).items())
-            return AIcdCanonicalDefinition(identity, version, logical_name, AInDefinitionKind.OBJECT, source_kind, str(request.path), description, result, ())
-        return AIcdCanonicalDefinition(identity, version, logical_name, AInDefinitionKind.SCALAR, source_kind, str(request.path), description, (self._property("value", root, True, request),))
+            return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, self._recursive_type(root, request), (), title)
+        return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, self._recursive_type(root, request), (), title)
 
     def _property(self, name, schema, required, request, visited=None):
         """Normalize one source property definition."""
         if not isinstance(schema, Mapping):
-            return AIcdPropertyDefinition(str(name), AInValueKind.ANY, required)
+            return AIcdPropertyDefinition(str(name), from_source_hints(AInDataTypeKind.ANY, None, None, AIcdValueConstraints(), AIcdValueConstraints()), (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), False, None, None, None)
         raw_type = schema.get("type")
         nullable = _accepts_null(schema)
         if isinstance(raw_type, list):
@@ -83,29 +87,101 @@ class AIcJsonSchemaReader:
                     referenced = self._structural(referenced, AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), set())
                 normalized = self._property(name, referenced, required,
                     AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), visited)
-                return AIcdPropertyDefinition(str(name), normalized.value_kind, required, nullable and normalized.nullable,
-                    normalized.item_value_kind, normalized.reference,
-                    schema.get("description", normalized.description), normalized.constraints, normalized.item_constraints)
+                canonical_type = self._recursive_type(schema, request)
+                named = canonical_type.kind is AInDataTypeKind.REFERENCE
+                return AIcdPropertyDefinition(str(name), canonical_type if named else normalized.data_type, (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), nullable and normalized.nullable, schema.get("description", normalized.description), schema.get("title", normalized.title), None)
             target_path = self._reference_path(resource, request)
             parsed = AIcDefinitionIdentityResolver.parse_versioned_stem(_strip_extensions(target_path.name), None)
             target_kind = self._detect_referenced_kind(target_path)
             nullable = nullable and _accepts_null(load_schema(target_path))
-            return AIcdPropertyDefinition(
-                str(name),
-                AInValueKind.REFERENCE,
-                required,
-                nullable,
-                reference=AIcdDefinitionReference(ref, parsed.version, parsed.logical_name, target_kind),
-                description=schema.get("description"),
-            )
+            return AIcdPropertyDefinition(str(name), from_source_hints(AInDataTypeKind.REFERENCE, None, AIcdDefinitionReference(ref, parsed.version, parsed.logical_name, AIcdDataType(target_kind) if target_kind else None), AIcdValueConstraints(), AIcdValueConstraints()), (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), nullable, schema.get("description"), schema.get("title"), None)
         if raw_type is None and (self._enum_values(schema) or "const" in schema):
             kind = _non_null_kind(schema)
         else:
             kind = _value_kind(raw_type)
-        item = self._property(name, schema['items'], True, request, set(visited or ())) if kind is AInValueKind.ARRAY and isinstance(schema.get('items'), Mapping) else None
-        return AIcdPropertyDefinition(str(name), kind, required, nullable,
-            item.value_kind if item else None, item.reference if item else None, schema.get('description'),
-            from_json(schema, kind), item.constraints if item else AIcdValueConstraints())
+        item = self._property(name, schema['items'], True, request, set(visited or ())) if kind is AInDataTypeKind.ARRAY and isinstance(schema.get('items'), Mapping) else None
+        return AIcdPropertyDefinition(str(name), self._recursive_type(schema, request), (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), nullable, schema.get('description'), schema.get("title"), None)
+
+    def _recursive_type(self, schema, request):
+        """Recursively project arrays, inline objects and exclusive/inclusive choices.
+
+        References deliberately remain reference nodes: they do not recursively inline
+        external schemas and thus preserve identity and permit graph cycles.
+        """
+        if not isinstance(schema, Mapping):
+            return AIcdDataType(AInDataTypeKind.ANY)
+        # A typed enum can use oneOf solely to document individual const values.
+        # Only collapse such a presentation when every alternative is exactly one
+        # listed scalar enum member and imposes no additional schema semantics.
+        branches = schema.get('oneOf')
+        values = schema.get('enum')
+        if (isinstance(branches, list) and isinstance(values, list) and values
+                and schema.get('type') in ('string', 'integer', 'number', 'boolean')
+                and len(branches) == len(values)
+                and all(isinstance(branch, Mapping) and 'const' in branch
+                        and set(branch).issubset({'const', 'title', 'description'})
+                        for branch in branches)
+                and len({self._wire_value(branch['const']) for branch in branches}) == len(branches)
+                and {self._wire_value(branch['const']) for branch in branches}
+                    == {self._wire_value(value) for value in values}):
+            kind = _value_kind(schema['type'])
+            return AIcdDataType(kind, constraints=from_json(schema, kind))
+        for keyword, kind in (('oneOf', AInDataTypeKind.ONE_OF),
+                              ('anyOf', AInDataTypeKind.ANY_OF)):
+            branches = schema.get(keyword)
+            if isinstance(branches, list) and branches:
+                return AIcdDataType.choice(kind,
+                    (self._recursive_type(branch, request) for branch in branches))
+        if '$ref' in schema:
+            # References to emitted named objects/enums remain nominal. Expanding
+            # them inline would lose their identity and produce nonexistent branch contracts.
+            ref = str(schema['$ref'])
+            resource, _, fragment = ref.partition('#')
+            if not fragment:
+                return self._property('reference', schema, False, request).data_type
+            target_path = self._reference_path(resource, request)
+            target = load_schema(target_path)
+            unescaped = unquote(fragment)
+            if unescaped.startswith('/'):
+                tokens = [token.replace('~1', '/').replace('~0', '~') for token in unescaped[1:].split('/')]
+                resolved = target
+                try:
+                    for token in tokens:
+                        resolved = resolved[int(token)] if isinstance(resolved, list) else resolved[token]
+                except (KeyError, IndexError, TypeError, ValueError) as error:
+                    raise ValueError(f"Undefined schema reference '{ref}' in {request.path}") from error
+                if len(tokens) == 2 and tokens[0] in ('$defs', 'definitions') and isinstance(resolved, Mapping):
+                    if 'properties' in resolved or resolved.get('type') == 'object' or 'enum' in resolved or 'oneOf' in resolved or 'anyOf' in resolved:
+                        stem = AIcDefinitionIdentityResolver.parse_versioned_stem(_strip_extensions(target_path.name), None)
+                        kebab = re.sub(r'[^a-z0-9]+', '-', re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', tokens[1]).lower()).strip('-')
+                        logical = stem.logical_name + '-definition-' + kebab
+                        kind = AInDataTypeKind.ENUM if 'enum' in resolved else AInDataTypeKind.OBJECT
+                        return AIcdDataType(AInDataTypeKind.REFERENCE, reference=AIcdDefinitionReference(
+                            ref, stem.version, logical, AIcdDataType(kind)))
+                return self._recursive_type(resolved, AIcdDefinitionLoadRequest(target_path,
+                    request.source_kind, request.naming_profile))
+            resolved = self._anchor(target, unescaped)
+            return self._recursive_type(resolved, AIcdDefinitionLoadRequest(target_path,
+                request.source_kind, request.naming_profile))
+        raw = schema.get('type')
+        if isinstance(raw, list):
+            raw = next((kind for kind in raw if kind != 'null'), None)
+        if raw == 'array' or 'items' in schema:
+            return AIcdDataType(AInDataTypeKind.ARRAY,
+                element_type=self._recursive_type(schema.get('items', {}), request),
+                constraints=from_json(schema, AInDataTypeKind.ARRAY))
+        if raw == 'object' or 'properties' in schema:
+            fields = schema.get('properties', {})
+            required = set(schema.get('required', ()))
+            return AIcdDataType(AInDataTypeKind.OBJECT,
+                properties=tuple(self._property(name, node, name in required, request)
+                                 for name, node in (fields if isinstance(fields, Mapping) else {}).items()))
+        if 'enum' in schema or 'const' in schema:
+            value_kind = _value_kind(raw) if raw else _non_null_kind(schema)
+            return AIcdDataType(value_kind, constraints=from_json(schema, _non_null_kind(schema)))
+        kind = _value_kind(raw)
+        name = kind.value if kind.value in AInDataTypeKind.__members__ else 'ANY'
+        return AIcdDataType(AInDataTypeKind[name], constraints=from_json(schema, kind))
 
     @staticmethod
     def _reference_path(resource, request):
@@ -200,7 +276,13 @@ class AIcJsonSchemaReader:
         branches.append(node)
         properties, required = {}, set()
         for branch in branches:
-            properties.update(branch.get("properties", {}))
+            branch_properties = branch.get("properties", {})
+            if not isinstance(branch_properties, Mapping):
+                raise ValueError(f'allOf properties must be a schema object in {request.path}')
+            for name, schema in branch_properties.items():
+                if name in properties and properties[name] != schema:
+                    raise ValueError(f"Conflicting allOf property schema {name!r} in {request.path}")
+                properties[name] = schema
             required.update(branch.get("required", ()))
             if "type" in branch and "type" not in result:
                 result["type"] = branch["type"]
@@ -231,6 +313,7 @@ class AIcJsonSchemaReader:
     def _enum_values(root: Mapping[str, Any]) -> tuple[AIcdEnumValueDefinition, ...]:
         """Normalize enum values and per-value descriptions from JSON-Schema-shaped input."""
         descriptions: dict[str, str | None] = {}
+        titles: dict[str, str | None] = {}
         one_of_values: list[AIcdEnumValueDefinition] = []
         one_of = root.get("oneOf")
         if isinstance(one_of, list):
@@ -240,10 +323,11 @@ class AIcJsonSchemaReader:
                 value = AIcJsonSchemaReader._wire_value(branch.get("const"))
                 description = branch.get("description") if isinstance(branch.get("description"), str) else None
                 descriptions[value] = description
-                one_of_values.append(AIcdEnumValueDefinition(value, description))
+                titles[value] = branch.get("title") if isinstance(branch.get("title"), str) else None
+                one_of_values.append(AIcdEnumValueDefinition(value, description, titles[value]))
         enum_values = root.get("enum")
         if isinstance(enum_values, list):
-            return tuple(AIcdEnumValueDefinition(AIcJsonSchemaReader._wire_value(value), descriptions.get(AIcJsonSchemaReader._wire_value(value)))
+            return tuple(AIcdEnumValueDefinition(AIcJsonSchemaReader._wire_value(value), descriptions.get(AIcJsonSchemaReader._wire_value(value)), titles.get(AIcJsonSchemaReader._wire_value(value)))
                          for value in enum_values if value is not None)
         return tuple(one_of_values)
 
@@ -259,7 +343,7 @@ class AIcJsonSchemaReader:
         return str(value)
 
     @staticmethod
-    def _detect_referenced_kind(path: Path) -> AInDefinitionKind | None:
+    def _detect_referenced_kind(path: Path) -> AInDataTypeKind | None:
         """Determine whether a referenced canonical definition is an enum or data object."""
         if not path.is_file():
             return None
@@ -273,7 +357,8 @@ class AIcJsonSchemaReader:
         if not isinstance(root, Mapping):
             return None
         if AIcJsonSchemaReader._enum_values(root):
-            return AInDefinitionKind.ENUM
-        if root.get("type") == "object" or isinstance(root.get("properties"), Mapping):
-            return AInDefinitionKind.OBJECT
-        return AInDefinitionKind.SCALAR
+            return AInDataTypeKind.ENUM
+        if (root.get("type") == "object" or isinstance(root.get("properties"), Mapping)
+                or 'oneOf' in root or 'anyOf' in root):
+            return AInDataTypeKind.OBJECT
+        return AInDataTypeKind.ANY

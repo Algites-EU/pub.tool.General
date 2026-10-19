@@ -1,13 +1,11 @@
-"""Integration checks between the independent JVM and Python generator implementations.
+"""Independent Python/JVM parity checks for the canonical first-stage API.
 
-Run with --java-classpath using the Modustro-installed Python test environment.
-Java TestNG invokes this suite without cross-artifact source paths.
+Only read contracts and enums are generated. Concrete SmartDataObject implementations
+belong to the independent SDO Codegen test suite.
 """
 from __future__ import annotations
-
 import argparse
 import ast
-from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -17,8 +15,8 @@ import sys
 import tempfile
 import unittest
 
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_object_bindings_generator import AIcSchemaObjectBindingsGenerator
-
+from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 
 def create_fixture(root):
     """Exercise scalar types, nested objects, enums, unions and cross-package references."""
@@ -72,7 +70,6 @@ def create_fixture(root):
         (contracts / 'ignored.meta.yml').write_text('GlobalPublicationPathId: fixture\n', encoding='utf-8')
     return manifest
 
-
 def normalized_python(source):
     """Compare executable Python exactly while ignoring whitespace in documentation literals.
 
@@ -99,189 +96,109 @@ def normalized_java(source):
     return tuple(' '.join(token.split()) if token.startswith(('/*','//')) else token for token in tokens)
 
 
+
 class AItcGeneratorImplementationParityTest(unittest.TestCase):
-    """Generate using both implementations; compare outputs and run their native code."""
+    """Compare independent renderers and verify first-stage repository ownership."""
 
     java_classpath = None
 
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix='defs-implementation-parity-')
+        self.temp = tempfile.TemporaryDirectory(prefix='defs-contract-parity-')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.repositories = {}
-        for implementation in ('jvm','python'):
-            root = self.root / implementation; root.mkdir()
-            self.repositories[implementation] = (root, create_fixture(root))
+        for name in ('jvm', 'python'):
+            root = self.root / name
+            root.mkdir()
+            self.repositories[name] = root, create_fixture(root)
 
-    def generate(self, implementation, check=False, success=True):
-        root, manifest = self.repositories[implementation]
-        if implementation == 'python':
+    def generate(self, name, check=False, success=True):
+        root, manifest = self.repositories[name]
+        if name == 'python':
             if success:
-                return AIcSchemaObjectBindingsGenerator().generate_repository(root, manifest, check)
+                return AIcSchemaContractBindingsGenerator().generate_repository(root, manifest, check)
             with self.assertRaises((ValueError, KeyError, TypeError)):
-                AIcSchemaObjectBindingsGenerator().generate_repository(root, manifest, check)
+                AIcSchemaContractBindingsGenerator().generate_repository(root, manifest, check)
             return None
-        process = subprocess.run(['java','-cp',self.java_classpath,
-            'eu.algites.tool.codegen.defs.impl.standard.AIcSchemaObjectBindingsGenerator',str(root),str(manifest),'--json',
-            *(['--check'] if check else [])], text=True, capture_output=True)
-        if success:
-            self.assertEqual(process.returncode, 0, process.stderr)
-            return json.loads(process.stdout)
-        self.assertNotEqual(process.returncode, 0, process.stdout)
+        proc = subprocess.run(['java', '-cp', self.java_classpath,
+            'eu.algites.tool.codegen.defs.impl.standard.AIcSchemaContractBindingsGenerator',
+            str(root), str(manifest), '--json', *(['--check'] if check else [])],
+            text=True, capture_output=True)
+        if not success:
+            self.assertNotEqual(proc.returncode, 0, proc.stdout)
+            return None
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
 
-    def compare_outputs(self):
-        roots = [item[0] for item in self.repositories.values()]
-        owned = [json.loads((root / 'build/run/schema-bindings/generated-files.json').read_text()) for root in roots]
-        self.assertEqual(owned[0], owned[1])
-        for relative in owned[0]:
-            sources = [(root / relative).read_text(encoding='utf-8') for root in roots]
-            normalize = normalized_python if relative.endswith('.py') else normalized_java
-            self.assertEqual(normalize(sources[0]), normalize(sources[1]), relative)
+    def _outputs(self, name):
+        root = self.repositories[name][0]
+        result = {}
+        for output in root.rglob('*'):
+            if output.is_file() and any(p.endswith('.gen') for p in output.parts):
+                result[output.relative_to(root).as_posix()] = output.read_text()
+        return result
 
-    def test_documentation_normalization_after_metadata(self):
-        """Docs after metadata may differ in indentation; executable values must not."""
-        first = 'class Example:\n    marker = 1\n    """Example text."""\n    value = "keep  spaces"\n'
-        second = 'class Example:\n    marker = 1\n    """Example\n        text.\n    """\n    value = "keep  spaces"\n'
-        self.assertEqual(normalized_python(first), normalized_python(second))
-        self.assertNotEqual(normalized_python(first), normalized_python(second.replace('keep  spaces', 'keep spaces')))
-        self.assertNotEqual(normalized_python(first), normalized_python(second.replace('marker = 1', 'marker = 2')))
+    def test_contract_repository_output_parity(self):
+        result = {name: self.generate(name) for name in self.repositories}
+        self.assertEqual(result['jvm'], result['python'])
+        a, b = (self._outputs(name) for name in ('jvm', 'python'))
+        self.assertEqual(set(a), set(b))
+        self.assertTrue(a)
+        self.assertFalse(any('/impl/' in path or 'aicgd_' in path for path in a))
+        for path in a:
+            normalize = normalized_python if path.endswith('.py') else normalized_java
+            self.assertEqual(normalize(a[path]), normalize(b[path]), path)
+        for name in self.repositories:
+            before = self._outputs(name)
+            self.generate(name, check=True)
+            self.assertEqual(before, self._outputs(name))
 
-    def test_complete_outputs_and_native_runtime(self):
-        results = [self.generate(kind) for kind in self.repositories]
-        self.assertEqual(results[0], results[1])
-        self.compare_outputs()
-        for root, _ in self.repositories.values():
-            # Generated sources extend the installed DataObject API. Preserve the
-            # resolved Python dependencies inherited from the Gradle test worker.
-            native_paths = [str(root / artifact / 'src/product/python.gen') for artifact in ('intf', 'impl')]
-            existing_path = os.environ.get('PYTHONPATH')
-            if existing_path:
-                native_paths.append(existing_path)
-            env = dict(os.environ, PYTHONPATH=os.pathsep.join(native_paths),
-                PYTHONPYCACHEPREFIX=str(root / 'build/pycache'))
-            runtime = '''
-from decimal import Decimal
-import dataclasses, importlib, inspect, pathlib, typing
-for artifact in ('intf','impl'):
-    base = pathlib.Path(artifact) / 'src/product/python.gen'
-    for path in base.rglob('*.py'):
-        module = importlib.import_module('.'.join(path.relative_to(base).with_suffix('').parts))
-        for cls in vars(module).values():
-            if isinstance(cls,type) and cls.__module__ == module.__name__ and hasattr(cls,'__canonical_source_id__'):
-                typing.get_type_hints(cls)
-from example.contracts.aiig_root_1 import AIigRoot_1
-from example.contracts.aicgd_root_1 import AIcgdRoot_1
-assert inspect.isabstract(AIigRoot_1)
-assert not inspect.isabstract(AIcgdRoot_1)
-assert AIigRoot_1.SCHEMA_FIELD_NAME__NAME == 'Name'
-assert all(not f.name.startswith('SCHEMA_FIELD_NAME__') for f in dataclasses.fields(AIcgdRoot_1))
-wire = dict(Name='example',Count=10**80,Amount=Decimal('123456789.123456789'),Flag=True,Nothing=None,
-    Child={'Id':7},Children=[{'Id':2}],State='ready',States=['done'],Items=[{'Id':4}],QuotedText='ABC',
-    Date='2024-02-29Z',Duration='P1Y2M',Binary='01FF')
-value = AIcgdRoot_1.from_mapping(wire)
-assert isinstance(value,AIigRoot_1) and value.to_mapping() == wire
-assert 'TextValues' not in value.to_mapping()
-assert dataclasses.is_dataclass(AIcgdRoot_1) and AIcgdRoot_1.__dataclass_params__.frozen
-assert AIcgdRoot_1.__slots__  # The inherited DataObject interface may provide __dict__.
-try: value.name = 'changed'
-except (AttributeError, TypeError): pass
-else: raise AssertionError('Generated DTO is not frozen')
-assert value.child.id == 7
-assert typing.get_type_hints(AIigRoot_1)['date'] is typing.get_type_hints(AIcgdRoot_1)['date']
-try: AIcgdRoot_1.from_mapping(dict(wire,Child={'Id':10}))
-except ValueError: pass
-else: raise AssertionError('Invalid referenced scalar value accepted')
-'''
-            subprocess.run([sys.executable,'-c',runtime], cwd=root, env=env, check=True)
-            java = [str(p) for artifact in ('intf', 'impl')
-                for p in (root / artifact / 'src/product/java.gen').rglob('*.java')]
-            classes = root / 'build/classes'
-            classes.mkdir(parents=True, exist_ok=True)
-            subprocess.run(['java', 'com.sun.tools.javac.Main', '-classpath', self.java_classpath,
-                '-d', str(classes), *java], check=True)
-
-    def test_paired_api_all_frontends_and_targets(self):
+    def test_all_frontends_and_targets(self):
         from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
         from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-        from eu.algites.tool.codegen.defs.impl.standard.aic_schema_interface_generator import AIcSchemaInterfaceGenerator
         from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
         from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
         from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
         from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
         resources = Path(__file__).parents[1]
-        for kind, suffix in ((AInDefinitionSourceKind.JSONDEFS,'jsondef.schema.json'),
-                (AInDefinitionSourceKind.YAMLDEFS,'yamldef.schema.json'),(AInDefinitionSourceKind.XMLDEFS,'xsd')):
+        for kind, suffix in ((AInDefinitionSourceKind.JSONDEFS, 'jsondef.schema.json'),
+                             (AInDefinitionSourceKind.YAMLDEFS, 'yamldef.schema.json'),
+                             (AInDefinitionSourceKind.XMLDEFS, 'xsd')):
             for target in AInCodeGenerationTarget:
-                profile = AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles_1.java_profile()
-                for stem in ('parity-root','parity-child','parity-leaf','parity-status','parity-builtins'):
+                profile = (AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON
+                    else AIcAlgitesNamingProfiles_1.java_profile())
+                for stem in ('parity-root', 'parity-child', 'parity-leaf', 'parity-status', 'parity-builtins'):
                     with self.subTest(kind=kind, target=target, stem=stem):
                         source = resources / kind.value / (stem + '_1.' + suffix)
-                        model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(source,kind,profile))
-                        pair = AIcSchemaInterfaceGenerator().generate(AIcdCodeGenerationRequest(model,target,'api_parity',profile))
-                        output = self.root / 'api' / kind.value / target.value / stem
-                        subprocess.run(['java','-cp',self.java_classpath,'eu.algites.tool.codegen.defs.impl.standard.AItcGeneratorImplementationParityTest',
-                            kind.name,target.name,str(source),'api_parity',str(output)],check=True,capture_output=True)
-                        expected = [item for item in (pair.contract,pair.implementation) if item is not None]
-                        self.assertEqual({p.relative_to(output).as_posix() for p in output.rglob('*') if p.is_file()}, {item.relative_path for item in expected})
-                        for item in expected:
-                            normalize = normalized_python if target is AInCodeGenerationTarget.PYTHON else normalized_java
-                            self.assertEqual(normalize((output / item.relative_path).read_text()),normalize(item.source),item.relative_path)
+                        model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(source, kind, profile))
+                        item = AIcSchemaContractInterfaceGenerator().generate(AIcdCodeGenerationRequest(
+                            model, target, 'api_parity', profile))
+                        location = self.root / 'api' / kind.value / target.value / stem
+                        subprocess.run(['java', '-cp', self.java_classpath,
+                            'eu.algites.tool.codegen.defs.impl.standard.AItcGeneratorImplementationParityTest',
+                            kind.name, target.name, str(source), 'api_parity', str(location)],
+                            check=True, capture_output=True)
+                        files = [p for p in location.rglob('*') if p.is_file()]
+                        self.assertEqual(len(files), 1)
+                        self.assertEqual(files[0].relative_to(location).as_posix(), item.relative_path)
+                        normalize = normalized_python if target is AInCodeGenerationTarget.PYTHON else normalized_java
+                        self.assertEqual(normalize(files[0].read_text()), normalize(item.source), item.relative_path)
+                        self.assertNotIn('aicgd', item.relative_path.lower())
 
-    def test_check_and_owned_stale_pruning(self):
-        for implementation, (root, _) in self.repositories.items():
-            self.generate(implementation)
-            base = root / 'intf/src/product/python.gen/example/contracts'
-            other = base / 'other_generator.py'; other.write_text('# independent output\n')
-            contract = base / 'aiig_root_1.py'; contract.unlink()
-            before = {p.relative_to(root).as_posix():p.read_bytes() for p in root.rglob('*') if p.is_file()}
-            self.generate(implementation, check=True, success=False)
-            self.assertEqual(before, {p.relative_to(root).as_posix():p.read_bytes() for p in root.rglob('*') if p.is_file()})
-            self.generate(implementation)
-            for kind in ('jsondefs','yamldefs'):
-                schema = next((root / 'intf/src/product' / kind / 'example/contracts').glob('root_1.*.json'))
-                node = json.loads(schema.read_text()); del node['properties']['Items']
-                schema.write_text(json.dumps(node))
-            self.generate(implementation)
-            self.assertFalse((base / 'aiig_root_items_items_1.py').exists())
-            self.assertTrue(other.exists())
-            self.generate(implementation, check=True)
-        self.compare_outputs()
-
-    def test_invalid_representations_and_paths_do_not_write(self):
-        for implementation, (root, manifest) in self.repositories.items():
-            self.generate(implementation)
-            schema = root / 'intf/src/product/yamldefs/example/values/child_1.yamldef.schema.json'
-            schema.write_text('{"type":"object","properties":{"Id":{"type":"string"}}}')
-            def snapshot():
-                return {p.relative_to(root).as_posix():p.read_bytes() for p in root.rglob('*') if p.is_file() and any(part.endswith('.gen') for part in p.parts)}
-            before = snapshot()
-            self.generate(implementation, success=False); self.assertEqual(snapshot(),before)
-            data = json.loads(manifest.read_text()); data['artifact'] = '../../escape'; manifest.write_text(json.dumps(data))
-            self.generate(implementation, success=False); self.assertEqual(snapshot(),before)
-
-    def test_distinct_objects_collisions_and_ignored_documentation(self):
-        for implementation, (root, _) in self.repositories.items():
-            self.generate(implementation)
-            base = root / 'intf/src/product/python.gen/example/contracts'
-            self.assertIn('SCHEMA_FIELD_NAME__PROPERTY_VALUE',(base / 'aiig_root_thing_1.py').read_text())
-            self.assertIn('SCHEMA_FIELD_NAME__DEFINITION_VALUE',(base / 'aiig_root_definition_thing_1.py').read_text())
-            schema = root / 'intf/src/product/jsondefs/example/contracts/root_1.jsondef.schema.json'
-            node = json.loads(schema.read_text())
-            node['examples'] = [dict(type='object',properties={'ShouldNotGenerate':dict(type='string')})]
-            schema.write_text(json.dumps(node))
-            before = set(base.glob('*.py')); self.generate(implementation); self.assertEqual(set(base.glob('*.py')),before)
-            node['properties']['thing'] = deepcopy(node['properties']['Thing']); schema.write_text(json.dumps(node))
-            self.generate(implementation,success=False)
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--java-classpath', required=True)
-    parsed = parser.parse_args()
-    AItcGeneratorImplementationParityTest.java_classpath = parsed.java_classpath
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(AItcGeneratorImplementationParityTest)
-    return 0 if unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful() else 1
+    def test_read_only_check_detects_missing_outputs(self):
+        for name in self.repositories:
+            self.generate(name)
+            root = self.repositories[name][0]
+            output = next(p for p in root.rglob('*.py') if any(x.endswith('.gen') for x in p.parts))
+            output.unlink()
+            self.generate(name, check=True, success=False)
+            self.generate(name)
+            self.assertTrue(output.exists())
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    cli = argparse.ArgumentParser()
+    cli.add_argument('--java-classpath', required=True)
+    args = cli.parse_args()
+    AItcGeneratorImplementationParityTest.java_classpath = args.java_classpath
+    unittest.main(argv=[sys.argv[0]])

@@ -7,11 +7,13 @@
   "properties": {
     "name": {
       "type": "string",
-      "description": "Human-readable child name."
+      "description": "Human-readable child name.",
+      "title": "Name"
     },
     "detail": {
       "$ref": "parity-leaf_1.jsondef.schema.json",
-      "description": "Details from the leaf subschema."
+      "description": "Details from the leaf subschema.",
+      "title": "Detail"
     }
   },
   "required": [

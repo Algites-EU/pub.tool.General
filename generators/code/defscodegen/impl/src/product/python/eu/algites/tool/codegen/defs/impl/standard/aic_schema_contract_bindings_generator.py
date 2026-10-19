@@ -16,11 +16,12 @@ from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger 
 from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
 from eu.algites.tool.codegen.defs.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.impl.standard.aic_xml_element_contract_generator import AIcXmlElementContractGenerator, xml_identifier
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 
 
@@ -58,7 +59,9 @@ class AIcSchemaContractBindingsGenerator:
                     raise ValueError('Missing target naming catalog: ' + technology)
         if manifest.get('clean_only'):
             for technology, target_root in output_roots.items():
-                roles = {f'algites-{technology}-gen-intf-versioned', f'algites-{technology}-gen-enum-versioned'}
+                roles = {f'algites-{technology}-gen-intf-versioned', f'algites-{technology}-gen-enum-versioned',
+                    f'algites-{technology}-gen-xml-element-intf-versioned',
+                    f'algites-{technology}-gen-xml-element-intf'}
                 catalogs[technology].clean(target_root, roles)
             return []
         overrides = {entry['schema'] + '#' + entry.get('pointer', ''): entry for entry in manifest.get('bindings', ())}
@@ -98,6 +101,8 @@ class AIcSchemaContractBindingsGenerator:
                 base = re.sub(r'_[0-9]+$', '', source.name[:-len(suffix)])
                 if kind == 'xmldefs':
                     units.append(self.AIcdUnit(schema, '', base, {}, {}))
+                    for name in AIcXmlDefsFrontend().additional_named_type_names(source):
+                        units.append(self.AIcdUnit(schema, '@type/' + name, name, {}, {}))
                 else:
                     self._collect(document, '', base, schema, document, overrides, units)
         discovered = {unit.schema + '#' + unit.pointer for unit in units}
@@ -132,11 +137,16 @@ class AIcSchemaContractBindingsGenerator:
                     {'yamldefs': AInDefinitionSourceKind.YAMLDEFS, 'jsondefs': AInDefinitionSourceKind.JSONDEFS,
                      'xmldefs': AInDefinitionSourceKind.XMLDEFS}[kind], profile)
                 if kind == 'xmldefs':
-                    definition = AIcXmlDefsFrontend().load(load)
+                    definition = (AIcXmlDefsFrontend().load_named_type(load, unit.pointer[6:])
+                                  if unit.pointer.startswith('@type/') else AIcXmlDefsFrontend().load(load))
                 else:
                     definition = reader.read(projection, load, load.source_kind, 'x-jsondefs-id', 'x-jsondefs-version', 'x-jsondefs-name')
                 definition = replace(definition, source_resource=unit.schema + ('#' + unit.pointer if unit.pointer else ''))
-                request = AIcdCodeGenerationRequest(definition, target, package, profile)
+                xml_type_qname = (('{' + AIcXmlDefsFrontend().schema_namespace(load) + '}' + unit.pointer[6:])
+                    if unit.pointer.startswith('@type/') else AIcXmlDefsFrontend().root_type_qname(load)) if kind == 'xmldefs' else None
+                if xml_type_qname is not None and xml_type_qname.endswith('}__root__'):
+                    xml_type_qname = None
+                request = AIcdCodeGenerationRequest(definition, target, package, profile, xml_type_qname)
                 preview = generator.generate(request)
                 key = language + '#' + preview.relative_path
                 requests.setdefault(key, []).append(request)
@@ -147,6 +157,16 @@ class AIcSchemaContractBindingsGenerator:
 
         units_by_resource = {unit.schema + ('#' + unit.pointer if unit.pointer else ''): unit
                              for unit in units}
+        # Source-format-specific inheritance must bind to an independently emitted
+        # XML type, not the global element or an invented base name.
+        xml_type_requests = {}
+        for candidate in unit_requests.values():
+            if candidate.xml_type_qname is None:
+                continue
+            key = (candidate.target, candidate.xml_type_qname)
+            previous = xml_type_requests.setdefault(key, candidate)
+            if previous.package_name != candidate.package_name:
+                raise ValueError(f'Ambiguous XML named type {candidate.xml_type_qname}')
         for representations in requests.values():
             first = representations[0]
             identities = {self._canonical_identity(r.definition, r.package_name, units_by_resource)
@@ -154,7 +174,7 @@ class AIcSchemaContractBindingsGenerator:
             if len(identities) != 1:
                 raise ValueError('Canonical identity collision for one generated output: ' +
                     str([(r.definition.identity, r.definition.source_resource) for r in representations]))
-            merged = AIcCanonicalDefinitionMerger.merge(r.definition for r in representations)
+            merged = AIcCanonicalDefinitionMerger.merge_strict((r.definition for r in representations), repository)
             parent_relations = relations[first.target.value + '#' + generator.generate(first).relative_path]
             parent_requests = [None if value is None else unit_requests.get(
                 (first.target.value, value.schema, value.pointer)) for _, value in parent_relations]
@@ -165,30 +185,115 @@ class AIcSchemaContractBindingsGenerator:
             parent = None
             if parent_requests[0] is not None:
                 inherited = parent_requests[0]
-                if inherited.definition.kind is not AInDefinitionKind.OBJECT or merged.kind is not AInDefinitionKind.OBJECT:
+                if inherited.definition.data_type.kind is not AInDataTypeKind.OBJECT or merged.data_type.kind is not AInDataTypeKind.OBJECT:
                     raise ValueError('allOf inheritance must connect object contracts')
-                inherited_fields = {field.source_name: field for field in inherited.definition.properties}
-                for field in merged.properties:
-                    if field.source_name in inherited_fields:
-                        parent_field = inherited_fields[field.source_name]
-                        if self._field_shape(field) != self._field_shape(parent_field):
+                inherited_fields = {field.source_name: field for field in inherited.definition.data_type.properties}
+                overrides = []
+                for field in merged.data_type.properties:
+                    parent_field = inherited_fields.get(field.source_name)
+                    if parent_field is None or self._field_shape(field) != self._field_shape(parent_field):
+                        if parent_field is not None and not self._field_narrows(parent_field, field):
                             raise ValueError('Conflicting inherited field: ' + field.source_name)
-                merged = replace(merged, properties=tuple(
-                    field for field in merged.properties if field.source_name not in inherited_fields))
+                        overrides.append(field)
+                merged = replace(merged, data_type=merged.data_type.with_properties(tuple(overrides)))
                 parent_type = generator.generate(inherited).type_name
                 parent_module = inherited.package_name
                 if first.target is AInCodeGenerationTarget.PYTHON:
                     parent_module += '.' + generator.generate(inherited).relative_path.rsplit('/', 1)[-1][:-3]
                 parent = (parent_type, parent_module)
-            pair = generator.generate(replace(first, definition=merged), parent)
+            if first.xml_type_qname is not None:
+                xml_origin = units_by_resource.get(first.definition.source_resource)
+                if xml_origin is None:
+                    raise ValueError(f'Unknown XSD source {first.definition.source_resource}')
+                load = AIcdDefinitionLoadRequest(self._inside(repository, xml_origin.schema),
+                    AInDefinitionSourceKind.XMLDEFS, first.naming_profile)
+                parent_qname = (AIcXmlDefsFrontend().named_type_extension_base_qname(load, xml_origin.pointer[6:])
+                    if xml_origin.pointer.startswith('@type/')
+                    else AIcXmlDefsFrontend().root_extension_base_qname(load))
+                if parent_qname is not None:
+                    inherited = xml_type_requests.get((first.target, parent_qname))
+                    if inherited is None or inherited == first:
+                        raise ValueError('XML extension base has no independently emitted contract: '
+                            + parent_qname + ' for ' + first.xml_type_qname)
+                    if merged.data_type.kind is not AInDataTypeKind.OBJECT or inherited.definition.data_type.kind is not AInDataTypeKind.OBJECT:
+                        raise ValueError('XML extension requires object contracts')
+                    inherited_fields = {field.source_name: field for field in inherited.definition.data_type.properties}
+                    own_fields = []
+                    for field in merged.data_type.properties:
+                        base_field = inherited_fields.get(field.source_name)
+                        if base_field is None:
+                            own_fields.append(field)
+                        elif self._field_shape(base_field) != self._field_shape(field):
+                            raise ValueError(f'Incompatible inherited XML extension field: {field.source_name}')
+                    from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
+                    merged = replace(merged, data_type=merged.data_type.with_properties(tuple(own_fields)))
+                    preview = generator.generate(inherited)
+                    parent_module = inherited.package_name
+                    if first.target is AInCodeGenerationTarget.PYTHON:
+                        parent_module += '.' + preview.relative_path.rsplit('/', 1)[-1][:-3]
+                    parent = (preview.type_name, parent_module)
             language = first.target.value
-            self._add(pending, output_roots.get(language, intf / 'src/product' / (language + '.gen')) / pair.relative_path,
-                self._qualify_references(pair.source, first, requests, True))
+            for index, pair in enumerate(generator.generate_sources(replace(first, definition=merged), parent)):
+                alternative = None
+                if (merged.source_kind is not AInDefinitionSourceKind.XMLDEFS
+                        and merged.data_type is not None and merged.data_type.kind in
+                        (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF) and index > 0):
+                    alternative = merged.data_type.alternatives[index - 1]
+                choice_reference = alternative.reference if alternative is not None and alternative.kind is AInDataTypeKind.REFERENCE else None
+                self._add(pending, output_roots.get(language, intf / 'src/product' / (language + '.gen')) / pair.relative_path,
+                    self._qualify_references(pair.source, first, requests, True, choice_reference))
+
+        # Global XSD element declarations occupy a separate QName symbol space from
+        # content types. Build complete target-specific indexes before emitting any
+        # element so forward and cross-file substitution references are supported.
+        xml_generator = AIcXmlElementContractGenerator()
+        xml_frontend = AIcXmlDefsFrontend()
+        for language in manifest['languages']:
+            xml_requests = [(schema, pointer, req) for (target, schema, pointer), req in unit_requests.items()
+                            if target == language and kind_by_source[schema] == 'xmldefs']
+            type_index, element_index, declarations, value_types = {}, {}, [], set()
+            for schema, pointer, req in xml_requests:
+                loaded = AIcdDefinitionLoadRequest(self._inside(repository, schema),
+                    AInDefinitionSourceKind.XMLDEFS, req.naming_profile)
+                root_qname = req.xml_type_qname or xml_frontend.root_type_qname(loaded)
+                if req.definition.data_type.kind in (AInDataTypeKind.OBJECT, AInDataTypeKind.ENUM,
+                        AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
+                    if req.definition.data_type.kind in (AInDataTypeKind.ENUM,
+                            AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
+                        value_types.add(root_qname)
+                    preview = generator.generate(req)
+                    qualified = req.package_name + '.' + (preview.relative_path.rsplit('/', 1)[-1][:-3] + '.'
+                        if language == 'python' else '') + preview.type_name
+                    if root_qname in type_index and type_index[root_qname] != qualified:
+                        raise ValueError('Duplicate XML global content type: ' + root_qname)
+                    type_index[root_qname] = qualified
+                if pointer:
+                    continue
+                for element in xml_frontend.global_element_declarations(loaded):
+                    element_name = generator.names.render(
+                        xml_identifier(element.local_name), req.definition.version, req.naming_profile,
+                        AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE)
+                    stem = generator.names.render(xml_identifier(element.local_name), req.definition.version,
+                        req.naming_profile, AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)
+                    qualified = req.package_name + '.' + (stem + '.' if language == 'python' else '') + element_name
+                    if element.qname in element_index:
+                        raise ValueError('Duplicate XML global element: ' + element.qname)
+                    element_index[element.qname] = qualified
+                    declarations.append((schema, req, element))
+            for schema, req, element in declarations:
+                generated = xml_generator.generate(req, element, type_index, element_index, value_types)
+                output_root = output_roots.get(language, intf / 'src/product' / (language + '.gen'))
+                self._add(pending, output_root / generated.relative_path, generated.source)
+                result.append(dict(schema=schema, pointer='@element/' + element.local_name,
+                    language=language, type=generated.type_name,
+                    path=(output_root / generated.relative_path).relative_to(repository).as_posix()))
 
         # Only clean after all inputs, identities, inheritance and output paths validate.
         if explicit and not check:
             for technology, target_root in output_roots.items():
-                roles = {f'algites-{technology}-gen-intf-versioned', f'algites-{technology}-gen-enum-versioned'}
+                roles = {f'algites-{technology}-gen-intf-versioned', f'algites-{technology}-gen-enum-versioned',
+                    f'algites-{technology}-gen-xml-element-intf-versioned',
+                    f'algites-{technology}-gen-xml-element-intf'}
                 catalogs[technology].clean(target_root, roles)
 
         state = repository / 'build/run/schema-contract-bindings/generated-files.json'
@@ -232,8 +337,23 @@ class AIcSchemaContractBindingsGenerator:
 
     @staticmethod
     def _field_shape(field):
-        return (field.source_name, field.value_kind, field.required, field.nullable,
-            field.item_value_kind, field.reference, field.constraints, field.item_constraints)
+        return (field.source_name, field.data_type, field.presence, field.nullable,
+            field.xml_field)
+
+    @classmethod
+    def _field_narrows(cls, parent, child):
+        """Permit only provable presence/nullability narrowing in an inherited property."""
+        from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
+        if (parent.source_name != child.source_name or parent.data_type != child.data_type
+                or parent.xml_field != child.xml_field):
+            return False
+        if parent.presence is AInFieldPresenceKind.REQUIRED and child.presence is not AInFieldPresenceKind.REQUIRED:
+            return False
+        if parent.presence is AInFieldPresenceKind.FORBIDDEN and child.presence is not AInFieldPresenceKind.FORBIDDEN:
+            return False
+        if not parent.nullable and child.nullable:
+            return False
+        return parent.presence != child.presence or parent.nullable != child.nullable
 
     @staticmethod
     def _parent_unit(unit, index, repository):
@@ -267,15 +387,15 @@ class AIcSchemaContractBindingsGenerator:
         return parent
 
     @staticmethod
-    def _qualify_references(source, request, requests, contract):
+    def _qualify_references(source, request, requests, contract, choice_reference=None):
         names = AIcGenerationNames()
-        for prop in request.definition.properties:
-            ref = prop.reference
-            if ref is None:
-                continue
+        references = [prop.data_type.referenced_definition() for prop in request.definition.data_type.properties if prop.data_type.referenced_definition() is not None]
+        if choice_reference is not None:
+            references.append(choice_reference)
+        for ref in references:
             resource = ref.identity.split('#', 1)[0]
             owner = request.definition.source_resource.split('#', 1)[0]
-            local = None if urlsplit(resource).scheme else Path(os.path.normpath(str(Path(owner).parent / resource))).as_posix()
+            local = None if urlsplit(resource).scheme else (owner if not resource else Path(os.path.normpath(str(Path(owner).parent / resource))).as_posix())
             candidates = {r.package_name for representations in requests.values() for r in representations
                 if r.target is request.target and (r.definition.source_resource == local or r.definition.identity == resource)}
             if len(candidates) != 1:
@@ -283,7 +403,7 @@ class AIcSchemaContractBindingsGenerator:
             package = next(iter(candidates))
             if package == request.package_name:
                 continue
-            is_enum = ref.target_kind is AInDefinitionKind.ENUM
+            is_enum = ref.targets_enum
             type_kind = AInDefsNameRole.ENUM_TYPE if is_enum else (AInDefsNameRole.INTERFACE_TYPE if contract else AInDefsNameRole.DATA_TYPE)
             file_kind = AInDefsNameRole.ENUM_TYPE_FILE_STEM if is_enum else (AInDefsNameRole.INTERFACE_TYPE_FILE_STEM if contract else AInDefsNameRole.DATA_TYPE_FILE_STEM)
             typ = names.render(ref.logical_name, ref.version, request.naming_profile, type_kind)
@@ -300,7 +420,7 @@ class AIcSchemaContractBindingsGenerator:
         override = overrides.get(schema + '#' + pointer)
         if override is not None and override.get('common_one_of_fields', False):
             node = self._common_fields(node, document)
-        if not pointer or node.get('type') == 'object' or 'properties' in node or 'enum' in node:
+        if not pointer or node.get('type') == 'object' or 'properties' in node or 'enum' in node or 'oneOf' in node or 'anyOf' in node:
             result.append(self.AIcdUnit(schema, pointer, override['name'] if override is not None else name, node, document))
         for keyword in ('properties', '$defs', 'definitions', 'patternProperties'):
             for key, value in node.get(keyword, {}).items():

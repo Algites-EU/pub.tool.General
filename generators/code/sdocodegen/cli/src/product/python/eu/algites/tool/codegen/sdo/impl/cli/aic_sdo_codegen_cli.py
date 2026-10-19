@@ -29,6 +29,7 @@ def _write(root, item, check):
 
 
 def main(args=None):
+    """Parse command-line arguments and execute the requested code-generation action."""
     arguments = list(args) if args is not None else sys.argv[1:]
     if any(arg.startswith('--technology-') or arg == '--clean-only' for arg in arguments):
         return _batch(arguments)
@@ -94,32 +95,32 @@ def _batch(arguments: list[str]) -> int:
     concrete_cat = AIcNameConventionCatalog_1.load(implementation_profiles['python'])
     role_mut = 'algites-python-gen-data-intf-versioned'
     role_impl = 'algites-python-gen-data-class-versioned'
-    if not options.check:
+    if options.clean_only:
         mutable_cat.clean(mutable_root, {role_mut})
         concrete_cat.clean(concrete_root, {role_impl})
-    if options.clean_only:
         return 0
     do_root = input_roots['python']
     input_cat = AIcNameConventionCatalog_1.load(input_profiles['python'])
     input_role = 'algites-python-gen-intf-versioned'
     if not do_root.is_dir():
         raise ValueError('DO input directory does not exist: ' + str(do_root))
-    if str(do_root) not in sys.path:
-        sys.path.insert(0, str(do_root))
+    contracts = {}
     for source in sorted(do_root.rglob('*.py')):
         found = input_cat.recognize_filename(source.name, {input_role})
-        if found is None:
-            continue
-        rel = source.relative_to(do_root).with_suffix('')
-        module_name = '.'.join(rel.parts)
-        module = importlib.import_module(module_name)
-        class_name = input_cat.format(input_role, 'main_container_name', found.variables, 'lower_snake_case')
-        read_contract = getattr(module, class_name)
-        generated = AIcSdoCodegenService().generate(read_contract, naming=(input_cat, mutable_cat, concrete_cat))
+        if found is not None:
+            contracts[source] = input_cat.format(input_role, 'main_container_name',
+                                                 found.variables, 'lower_snake_case')
+    results = AIcSdoCodegenService().generate_from_sources(
+        do_root, contracts, naming=(input_cat, mutable_cat, concrete_cat))
+    for source, generated in results.items():
         if mutable_cat.recognize_filename(Path(generated.mutable_interface.relative_path).name, {role_mut}) is None:
             raise ValueError('Generated mutable type violates output naming convention: ' + generated.mutable_interface.relative_path)
         if concrete_cat.recognize_filename(Path(generated.implementation.relative_path).name, {role_impl}) is None:
             raise ValueError('Generated concrete type violates output naming convention: ' + generated.implementation.relative_path)
+    if not options.check:
+        mutable_cat.clean(mutable_root, {role_mut})
+        concrete_cat.clean(concrete_root, {role_impl})
+    for generated in results.values():
         _write(mutable_root, generated.mutable_interface, options.check)
         _write(concrete_root, generated.implementation, options.check)
     return 0

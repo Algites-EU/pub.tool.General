@@ -12,7 +12,15 @@ sdo-codegen \
   --technology-sdoimpl-output-naming-profile=python:config/algites-python-name-conventions.yml
 ```
 
-The Java native CLI takes `java:` values and can be given `--dointf-classpath=<compiled-classes-and-runtime-classpath>`. Java contracts must be compiled before Java SDO generation because the existing implementation uses reflection. Python imports its `AIig` modules and does not invoke Java. Both native CLIs validate generated names against the loaded `sdointf`/`sdoimpl` output profiles, and restrict cleanup to those role names. Input and output directories may overlap. `--clean-only` needs only output root/catalog pairs; regular generation deletes recognized old outputs first. `--check` performs no writes.
+The Java native CLI takes `java:` values and accepts optional
+`--dointf-classpath=<binary-dependencies>`. It compiles the generated AIig
+sources and sibling enums in memory, then uses reflection; no prior contract
+compilation is required. Python imports its `AIig` modules directly from the
+source root and does not invoke Java. Both native CLIs validate generated names
+against the loaded `sdointf`/`sdoimpl` output profiles, and restrict cleanup to
+those role names. Input and output directories may overlap. `--clean-only`
+needs only output root/catalog pairs. Normal generation validates all contracts
+**before** deleting recognized stale output; `--check` performs no writes.
 
 The native SDO source renderers now obtain generated primary type names and filenames through the selected YAML catalog compositions (including version captures), including inherited and nested contracts. Their recognition of input `AIig` contracts, the semantic relationships among read/mutable/concrete types, and the setter/getter generation logic remain specific to the Algites SDO model. Arbitrary unrelated container kinds and custom code templates remain outside this migration.
 

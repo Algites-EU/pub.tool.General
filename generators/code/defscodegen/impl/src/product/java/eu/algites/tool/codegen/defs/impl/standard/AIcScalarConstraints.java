@@ -2,7 +2,7 @@ package eu.algites.tool.codegen.defs.impl.standard;
 
 
 import eu.algites.tool.codegen.defs.AIcdValueConstraints;
-import eu.algites.tool.codegen.defs.AInValueKind;
+import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -11,7 +11,7 @@ import java.util.List;
 /** Retains scalar families and basic facets without narrowing numeric boundaries. */
 final class AIcScalarConstraints {
     private AIcScalarConstraints() { }
-    static AIcdValueConstraints json(JsonNode aNode, AInValueKind aKind) {
+    static AIcdValueConstraints json(JsonNode aNode, AInDataTypeKind aKind) {
         String locType = text(aNode, "x-modustro-datatype");
         if (locType == null) {
             String locEncoding = text(aNode, "contentEncoding");
@@ -29,7 +29,8 @@ final class AIcScalarConstraints {
         return new AIcdValueConstraints(locType,
                 numeric(aNode, locMinExclusive ? "exclusiveMinimum" : "minimum", locBase.minimum()),
                 numeric(aNode, locMaxExclusive ? "exclusiveMaximum" : "maximum", locBase.maximum()),
-                locMinExclusive, locMaxExclusive, integer(aNode, "minLength"), integer(aNode, "maxLength"), text(aNode, "pattern"), locEnum);
+                locMinExclusive, locMaxExclusive, integer(aNode, "minLength"), integer(aNode, "maxLength"), text(aNode, "pattern"), locEnum,
+                integer(aNode, "minItems"), integer(aNode, "maxItems"));
     }
     static AIcdValueConstraints defaults(String aType) {
         String locMin = null, locMax = null;
@@ -49,5 +50,12 @@ final class AIcScalarConstraints {
     static String decimal(String aValue) { return new BigDecimal(aValue).stripTrailingZeros().toPlainString(); }
     private static String numeric(JsonNode aNode, String aName, String aDefault) { return aNode.has(aName) ? decimal(aNode.get(aName).asText()) : aDefault; }
     private static String text(JsonNode aNode, String aName) { return aNode.hasNonNull(aName) ? aNode.get(aName).asText() : null; }
-    private static Integer integer(JsonNode aNode, String aName) { return aNode.has(aName) ? aNode.get(aName).intValue() : null; }
+    /** Reject nonintegral, negative and out-of-range JSON Schema length or array bounds. */
+    private static Integer integer(JsonNode aNode, String aName) {
+        if (!aNode.has(aName)) return null;
+        JsonNode locValue = aNode.get(aName);
+        if (!locValue.isIntegralNumber() || !locValue.canConvertToInt() || locValue.intValue() < 0)
+            throw new IllegalArgumentException(aName + " must be a non-negative 32-bit integer");
+        return locValue.intValue();
+    }
 }

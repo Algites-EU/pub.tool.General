@@ -12,5 +12,9 @@ Dependencies:
     Items:
       - GroupId: eu.algites.lib.naming
         ArtifactId: pub.lib.General_naming.convention.intf
-        ArtifactId: pub.lib.General_naming.convention.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.dataobject.intf
+        Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }

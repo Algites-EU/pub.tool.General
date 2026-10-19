@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
-from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 
 
 class AIcGenerationNames:
@@ -17,7 +17,9 @@ class AIcGenerationNames:
         raise ValueError('Missing Java/Python naming roles in catalog')
 
     def render(self, logical_name, version, profile, kind):
+        """Render a canonical type or file name using the requested naming role."""
         role = ('enum' if kind in (AInDefsNameRole.ENUM_TYPE, AInDefsNameRole.ENUM_TYPE_FILE_STEM)
+                else 'xml-element-intf' if kind in (AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE, AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)
                 else 'intf' if kind in (AInDefsNameRole.INTERFACE_TYPE, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
                 else 'data-class' if kind in (AInDefsNameRole.DATA_TYPE, AInDefsNameRole.DATA_TYPE_FILE_STEM)
                 else None)
@@ -25,7 +27,8 @@ class AIcGenerationNames:
             raise ValueError(f'Unsupported type-name role: {kind}')
         profile_name = f'algites-{self._technology(profile)}-gen-{role}' + ('-versioned' if version is not None else '')
         structure = 'file_name_stem' if kind in (AInDefsNameRole.DATA_TYPE_FILE_STEM,
-            AInDefsNameRole.ENUM_TYPE_FILE_STEM, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM) else 'main_container_name'
+            AInDefsNameRole.ENUM_TYPE_FILE_STEM, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
+            AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM) else 'main_container_name'
         values = {'identifier': logical_name}
         if version is not None:
             values['version'] = str(version)
@@ -35,9 +38,11 @@ class AIcGenerationNames:
         return profile.format(profile_name, structure, values, 'lower_kebab_case')
 
     def type_name(self, definition, profile, kind):
+        """Return the generated type name for the requested definition."""
         return self.render(definition.logical_name, definition.version, profile, kind)
 
     def file_stem(self, definition, profile, kind):
+        """Return the generated source-file stem according to the naming profile."""
         return self.render(definition.logical_name, definition.version, profile, kind)
 
     def _field(self, source_name, profile, structure, source_convention):
@@ -53,15 +58,19 @@ class AIcGenerationNames:
             return profile.format(role, structure, {'identifier': normalized}, 'lower_kebab_case')
 
     def property_name(self, source_name, profile):
+        """Convert a canonical field name into a target-language identifier."""
         return self._field(source_name, profile, 'field_name', 'upper_camel_case')
 
     def enum_constant(self, source_name, profile):
+        """Convert a wire-level enum value into its generated constant name."""
         return self._field(source_name, profile, 'enum_item_name', 'lower_snake_case')
 
     def schema_field_name_constant(self, source_name, profile):
+        """Build the stable constant exposing a field's canonical source name."""
         name = self._field(source_name, profile, 'constant_name', 'upper_camel_case')
         return 'SCHEMA_FIELD_NAME__' + (re.sub(r'_+', '_', re.sub(r'[^A-Za-z0-9_]', '_', name)).strip('_') or 'FIELD')
 
     def reference_type(self, ref, profile):
-        kind = AInDefsNameRole.ENUM_TYPE if ref.target_kind is AInDefinitionKind.ENUM else AInDefsNameRole.DATA_TYPE
+        """Compute the generated type name for a referenced definition."""
+        kind = AInDefsNameRole.ENUM_TYPE if ref.targets_enum else AInDefsNameRole.DATA_TYPE
         return self.render(ref.logical_name, ref.version, profile, kind)

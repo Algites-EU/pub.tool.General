@@ -1,6 +1,6 @@
 from decimal import Decimal
 from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
-from eu.algites.tool.codegen.defs.ain_value_kind import AInValueKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 
 
 def decimal_text(value):
@@ -32,7 +32,7 @@ def from_json(node, kind):
         encoding, format_name = node.get('contentEncoding'), node.get('format')
         if encoding in ('base64', 'base16'): data_type = 'base64Binary' if encoding == 'base64' else 'hexBinary'
         elif format_name in ('date', 'time', 'date-time', 'duration'): data_type = 'dateTime' if format_name == 'date-time' else format_name
-        else: data_type = {AInValueKind.STRING: 'string', AInValueKind.INTEGER: 'integer', AInValueKind.NUMBER: 'decimal', AInValueKind.BOOLEAN: 'boolean'}.get(kind)
+        else: data_type = {AInDataTypeKind.STRING: 'string', AInDataTypeKind.INTEGER: 'integer', AInDataTypeKind.NUMBER: 'decimal', AInDataTypeKind.BOOLEAN: 'boolean'}.get(kind)
     if data_type == "anyType": data_type = None
     base = defaults(data_type)
     return AIcdValueConstraints(data_type,
@@ -41,4 +41,5 @@ def from_json(node, kind):
         'exclusiveMinimum' in node, 'exclusiveMaximum' in node,
         node.get('minLength'), node.get('maxLength'), node.get('pattern'),
         tuple('true' if v is True else 'false' if v is False else str(v) for v in
-              (node.get('enum', ()) if 'enum' in node else ((node['const'],) if 'const' in node else ())) if v is not None))
+              (node.get('enum', ()) if 'enum' in node else ((node['const'],) if 'const' in node else ())) if v is not None),
+        node.get('minItems'), node.get('maxItems'))

@@ -19,6 +19,7 @@ class AIcDefsCodegenCli:
 
     @staticmethod
     def main(args: list[str] | None = None) -> int:
+        """Load requested source definitions and write the generated outputs."""
         args = list(args) if args is not None else None
         if args is not None and any(arg.startswith('--schema-input-dir=') or
                 arg.startswith('--technology-dointf-output-dir=') or arg == '--clean-only' for arg in args):
@@ -40,11 +41,12 @@ class AIcDefsCodegenCli:
         profile = AIcAlgitesNamingProfiles_1.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles_1.python_profile()
         service = AIcDefaultDefsCodegenService()
         definition = service.load(AIcdDefinitionLoadRequest(parsed.input, source_kind, profile))
-        generated = AIcSchemaContractInterfaceGenerator().generate(AIcdCodeGenerationRequest(definition, target, parsed.package, profile))
-        output = parsed.output_root / generated.relative_path
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(generated.source, encoding='utf-8')
-        print(output)
+        request = AIcdCodeGenerationRequest(definition, target, parsed.package, profile)
+        for generated in AIcSchemaContractInterfaceGenerator().generate_sources(request):
+            output = parsed.output_root / generated.relative_path
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(generated.source, encoding='utf-8')
+            print(output)
         return 0
 
     @staticmethod

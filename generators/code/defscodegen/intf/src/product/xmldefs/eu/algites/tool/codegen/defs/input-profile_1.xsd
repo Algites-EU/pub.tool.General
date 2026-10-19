@@ -1,0 +1,94 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:eu:algites:tool:codegen:defs:input-profile:1" xmlns:algdoc="urn:eu:algites:documentation:1" targetNamespace="urn:eu:algites:tool:codegen:defs:input-profile:1" version="1" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:appinfo>
+      <algdoc:title>Input profile</algdoc:title>
+    </xs:appinfo>
+    <xs:documentation>Defines how Defs Codegen interprets a source-definition family.</xs:documentation>
+  </xs:annotation>
+  <xs:import namespace="urn:eu:algites:documentation:1" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd"/>
+  <xs:simpleType name="SourceKindType">
+    <xs:annotation>
+      <xs:appinfo>
+        <algdoc:title>Source kind</algdoc:title>
+      </xs:appinfo>
+      <xs:documentation>Selects the family of input definitions supported by the generator.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="yamldefs">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>YAMLDEFS</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Selects the YAML-based definition frontend.</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="jsondefs">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>JSONDEFS</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Selects the JSON Schema definition frontend.</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="xmldefs">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>XMLDEFS</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Selects the XML Schema definition frontend.</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="InputProfileType">
+    <xs:annotation>
+      <xs:appinfo>
+        <algdoc:title>Input profile</algdoc:title>
+      </xs:appinfo>
+      <xs:documentation>Defines how defs-codegen interprets one supported source-definition family.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="SourceKind" type="tns:SourceKindType" minOccurs="1">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Source kind</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Selects the source-definition family handled by the frontend.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="NamingProfile" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Naming profile</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Names the naming profile applied while interpreting and generating identifiers.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="RequireCanonicalIdentity" type="xs:boolean" minOccurs="0">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Require canonical identity</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Requires every loaded definition to expose a canonical identity.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="RequireDefinitionVersion" type="xs:boolean" minOccurs="0">
+        <xs:annotation>
+          <xs:appinfo>
+            <algdoc:title>Require definition version</algdoc:title>
+          </xs:appinfo>
+          <xs:documentation>Requires every loaded definition to expose a semantic version.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="InputProfile" type="tns:InputProfileType">
+    <xs:annotation>
+      <xs:appinfo>
+        <algdoc:title>Input profile</algdoc:title>
+      </xs:appinfo>
+      <xs:documentation>Root document configuring one input-definition family.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+</xs:schema>
