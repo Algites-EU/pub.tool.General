@@ -176,7 +176,7 @@ public final class AItcSchemaParityTest {
         var model = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(schema,
                 AInDefinitionSourceKind.YAMLDEFS, AIcAlgitesNamingProfiles_1.javaProfile()));
         Assert.assertEquals(model.dataType().properties().get(0).dataType().constraints().minimum(), "0.12345678901234567890123456789");
-        Assert.assertEquals(model.dataType().properties().get(1).reference().logicalName(), "leaf");
+        Assert.assertEquals(model.dataType().properties().get(1).dataType().referencedDefinition().logicalName(), "leaf");
     }
 
     /** Excludes transient generated/build copies while retaining legitimate devops/build source directories. */
@@ -198,7 +198,7 @@ public final class AItcSchemaParityTest {
             var locModel = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(locRoot,
                 locKind.equals("yamldefs") ? AInDefinitionSourceKind.YAMLDEFS : AInDefinitionSourceKind.JSONDEFS,
                 AIcAlgitesNamingProfiles_1.javaProfile()));
-            Assert.assertEquals(locModel.dataType().properties().get(0).reference().logicalName(), "leaf");
+            Assert.assertEquals(locModel.dataType().properties().get(0).dataType().referencedDefinition().logicalName(), "leaf");
             String locUrn = "urn:tests:owned-leaf:1";
             Files.writeString(locOwner.resolve("leaf_1" + locSuffix), locLeaf.replace(locId, locUrn));
             Files.writeString(locRoot, "{\"type\":\"object\",\"properties\":{\"leaf\":{\"$ref\":\"" + locUrn + "\"}}}");
@@ -206,7 +206,7 @@ public final class AItcSchemaParityTest {
             locModel = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(locRoot,
                 locKind.equals("yamldefs") ? AInDefinitionSourceKind.YAMLDEFS : AInDefinitionSourceKind.JSONDEFS,
                 AIcAlgitesNamingProfiles_1.javaProfile()));
-            Assert.assertEquals(locModel.dataType().properties().get(0).reference().logicalName(), "leaf");
+            Assert.assertEquals(locModel.dataType().properties().get(0).dataType().referencedDefinition().logicalName(), "leaf");
         }
     }
 

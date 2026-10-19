@@ -1,6 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
+import eu.algites.tool.codegen.defs.AIcdDataType;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AIcdValueConstraints;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
@@ -36,7 +37,7 @@ public final class AItcFormatSpecificSchemaPublicationTest {
         var locRootRelative = new AIcdCanonicalDefinition(locYaml.identity(), locYaml.version(), locYaml.logicalName(), locYaml.sourceKind(), locYaml.sourceResource().substring("artifact/".length()), locYaml.description(), locYaml.dataType(), locYaml.enumValues(), locYaml.title());
         var locRootJson = new AIcdCanonicalDefinition(locJson.identity(), locJson.version(), locJson.logicalName(), locJson.sourceKind(), locJson.sourceResource().substring("artifact/".length()), locJson.description(), locJson.dataType(), locJson.enumValues(), locJson.title());
         Assert.assertTrue(AIcCanonicalDefinitionMerger.AIcMerge(List.of(locRootJson, locRootRelative))
-                .properties().get(0).dataType().constraints().enumValues().isEmpty());
+                .dataType().properties().get(0).dataType().constraints().enumValues().isEmpty());
     }
 
     /** A genuine const mismatch or changed data field must still be rejected. */

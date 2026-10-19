@@ -103,7 +103,7 @@ public final class AItcCanonicalRepresentationsTest {
         var locDefinition = locService.load(new AIcdDefinitionLoadRequest(locJson, AInDefinitionSourceKind.JSONDEFS, locProfile));
         Assert.assertEquals(locDefinition.dataType().kind(), AInDataTypeKind.OBJECT);
         Assert.assertEquals(locDefinition.dataType().properties().size(), 1);
-        Assert.assertTrue(locDefinition.dataType().properties().get(0).required());
+        Assert.assertTrue(locDefinition.dataType().properties().get(0).presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED);
         Path locXml = locRoot.resolve("xml-contract_1.xsd");
         Files.writeString(locXml, """
                 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
