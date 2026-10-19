@@ -85,3 +85,37 @@ reflection/import requirements and error semantics are described in
 The 2026-10-04 validation figures above are historical for that migration;
 they are **not** a statement that the new 1.1 snapshot has passed a full JVM or
 remote deployment test.
+
+## 1.1 canonical merge versus stale self-hosted Gradle generator (2026-10-19)
+
+A build reporting `Incompatible canonical representations` for
+`schema-field-bindings_1.yamldef.schema.json` and
+`schema-field-bindings_1.jsondef.schema.json`, while the invocation identifies
+`pub.tool.General_generators.code.defscodegen.coreimpl:1.0-SNAPSHOT` as its
+`source-generator`, has selected the **obsolete bootstrap generator**. The
+current module is `pub.tool.General_generators.code.defscodegen.impl:1.1-SNAPSHOT`
+and its merger reports the individual conflicting fields if a contract is
+incompatible. Merely changing the sources in this repository does not replace
+an already resolved generator JAR inside the Gradle initialization/bootstrap
+classpath of `pub.gov.Algites`.
+
+The two input schemas intentionally publish different `$id` and `$schema`
+self-publication URLs. These are representation-specific transport identifiers,
+not a mismatch of the shared contract. The current merger validates that each
+self-link is the genuine publication URL of its own source before normalizing
+it; unrelated string constants, document properties, facets and other schema
+constraints continue to be compared strictly. The normalized merged contract
+must not retain either format's private `$schema` constant; the original
+published JSON/YAML schemas retain their own constants.
+
+To fix the affected CI invocation, bootstrap/publish matching 1.1 `intf`,
+`impl` and `cli` source-generator modules, then change the actual source-generator
+bootstrap coordinate in **`pub.gov.Algites`** to `...defscodegen.impl:1.1-SNAPSHOT`
+(and update its dependent Builder/Gradleinit artifacts as required). Confirm
+that the `Modustro invocation` reports the new coordinate and SHA-256 before
+retrying `:generators:code:defscodegen:intf:generateModustroDefinitionSources`.
+The local repository's `generators/code/bootstrap.sh` already builds and
+publishes the 1.1 split. Do **not** remove either `$schema` constant to make
+an outdated generator pass; that would weaken validation of each individual
+published format. This is a **cross-repository bootstrap prerequisite**, not a
+claim that the `pub.gov.Algites` build was executed here.

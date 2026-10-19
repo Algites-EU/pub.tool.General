@@ -40,3 +40,22 @@ def test_published_formats_compatible_and_documentation_edits_detected(stem):
     changed_type = replace(first, data_type=AIcdDataType(AInDataTypeKind.INTEGER))
     with pytest.raises(ValueError, match='kind'):
         AIcCanonicalDefinitionMerger.merge_strict((models[0], replace(original, data_type=original.data_type.with_properties((changed_type, *original.data_type.properties[1:]))), models[2]))
+
+
+def test_schema_field_bindings_multi_format_merges_without_leaking_source_schema_uri():
+    """A published JSON/YAML self link must not poison the merged canonical contract."""
+    definitions = []
+    for folder, extension, frontend, kind in FORMATS:
+        source = ROOT / folder / 'eu/algites/tool/codegen/defs' / f'schema-field-bindings_1.{extension}'
+        definitions.append(frontend().load(AIcdDefinitionLoadRequest(source, kind, None)))
+    assert definitions[0].data_type.properties[0].data_type.constraints.enum_values
+    assert definitions[1].data_type.properties[0].data_type.constraints.enum_values
+    merged = AIcCanonicalDefinitionMerger.merge_strict(definitions, ROOT)
+    source_schema = next(field for field in merged.data_type.properties if field.source_name == '$schema')
+    assert source_schema.data_type.kind == AInDataTypeKind.STRING
+    assert source_schema.data_type.constraints.enum_values == ()
+    assert all(definition.data_type.properties[0].data_type.constraints.enum_values
+               for definition in definitions[:2])
+    # Ordinary schema constraints, such as the language enumeration, remain intact.
+    languages = next(field for field in merged.data_type.properties if field.source_name == 'languages')
+    assert tuple(part.constraints.enum_values[0] for part in languages.data_type.element_type.alternatives) == ('java', 'python')

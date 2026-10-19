@@ -118,7 +118,8 @@ class AIcSchemaContractInterfaceGenerator:
                 wire = prop.xml_field
                 xml_field_rows.append(f'        {prop.source_name!r}: AIaXmlDataObjectField('
                     f'namespace={wire.namespace!r}, namespace_local_name={wire.namespace_local_name!r}, '
-                    f'value_kind=AInXmlValueKind.{wire.value_kind.name}, order={field_order}),')
+                    f'value_kind=AInXmlValueKind.{wire.value_kind.name}, order={field_order}, '
+                    f'min_occurs={wire.min_occurs}, max_occurs={wire.max_occurs}),')
             label_rows.append(f'        {prop.source_name!r}: AIaFieldLabel(label={title!r}, labels={entries}),')
             metadata_rows.append('        AIcdDataObjectField(field_name=' + repr(prop.source_name)
                 + ', presence=AInFieldPresenceKind.' + prop.presence.name
@@ -223,7 +224,8 @@ class AIcSchemaContractInterfaceGenerator:
                     + 'namespace = ' + _java_quote(wire.namespace)
                     + ', namespaceLocalName = ' + _java_quote(wire.namespace_local_name)
                     + ', valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.'
-                    + wire.value_kind.name + ', order = ' + str(field_order) + ')')
+                    + wire.value_kind.name + ', order = ' + str(field_order)
+                    + ', minOccurs = ' + str(wire.min_occurs) + ', maxOccurs = ' + str(wire.max_occurs) + ')')
             rows.append(f'    {typ} {name}();')
         rows.append('}')
         return AIcdGeneratedSource(interface, path, '\n'.join(rows) + '\n',

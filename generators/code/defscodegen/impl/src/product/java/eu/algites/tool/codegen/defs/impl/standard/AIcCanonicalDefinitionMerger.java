@@ -37,7 +37,7 @@ public final class AIcCanonicalDefinitionMerger {
         AIcdCanonicalDefinition locFirst = aDefinitions.get(0);
         if (aDefinitions.size() == 1) return locFirst;
         List<AIcdPropertyDefinition> locProperties = locFirst.dataType().properties().stream().map(aProperty ->
-                new AIcdPropertyDefinition(aProperty.sourceName(), aProperty.dataType(), aProperty.presence(), aProperty.nullable(), AIcDocumentation(aDefinitions.stream().flatMap(aDefinition -> aDefinition.dataType().properties().stream())
+                new AIcdPropertyDefinition(aProperty.sourceName(), AIcNormalizedMergedPropertyType(aProperty, aDefinitions), aProperty.presence(), aProperty.nullable(), AIcDocumentation(aDefinitions.stream().flatMap(aDefinition -> aDefinition.dataType().properties().stream())
                                 .filter(aCandidate -> aCandidate.sourceName().equals(aProperty.sourceName()))
                                 .map(AIcdPropertyDefinition::description).toList()), AIcFirstTitle(aProperty.title(), aDefinitions.stream().flatMap(aDefinition -> aDefinition.dataType().properties().stream())
                                 .filter(aCandidate -> aCandidate.sourceName().equals(aProperty.sourceName()))
@@ -443,6 +443,25 @@ public final class AIcCanonicalDefinitionMerger {
         return new AIcdValueConstraints(locValue.dataType(), locValue.minimum(), locValue.maximum(),
                 locValue.exclusiveMinimum(), locValue.exclusiveMaximum(), locValue.minLength(),
                 locValue.maxLength(), locValue.pattern(), List.of());
+    }
+
+    /**
+     * Preserve structural metadata while removing a serialization-specific
+     * publication self-link from the merged canonical representation. The
+     * individual YAML/JSON source models retain their real, format-specific
+     * {@code $schema} constants for validation and publication.
+     *
+     * @param aProperty property in the primary source representation
+     * @param aDefinitions compatible source representations in merge order
+     * @return normalized recursive property type for the merged contract
+     */
+    private static AIcdDataType AIcNormalizedMergedPropertyType(AIcdPropertyDefinition aProperty,
+            List<AIcdCanonicalDefinition> aDefinitions) {
+        AIcdValueConstraints locConstraints = AIcMergeConstraints(aProperty, aDefinitions);
+        AIcdDataType locType = aProperty.dataType();
+        if (locConstraints.equals(locType.constraints())) return locType;
+        return new AIcdDataType(locType.kind(), locType.elementType(), locType.properties(),
+                locType.alternatives(), locType.reference(), locConstraints);
     }
 
     private static AIcdValueConstraints AIcMergeConstraints(AIcdPropertyDefinition aProperty,

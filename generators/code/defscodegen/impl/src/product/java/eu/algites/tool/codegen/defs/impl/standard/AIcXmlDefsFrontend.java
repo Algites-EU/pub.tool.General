@@ -399,17 +399,25 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             var locPrevious = locByName.get(locField.sourceName());
             if (locPrevious == null)
                 throw new IOException("XSD restriction introduces new field '" + locField.sourceName() + "' in " + aRequest.path());
-            if (!Objects.equals(locPrevious.xmlField(), locField.xmlField()))
+            if (!sameXmlIdentity(locPrevious.xmlField(), locField.xmlField()))
                 throw new IOException("XSD restriction changes attribute/element QName of '"
                         + locField.sourceName() + "' in " + aRequest.path());
             if (locField.presence() == AInFieldPresenceKind.FORBIDDEN && locField.dataType().kind() == AInDataTypeKind.ANY
                     && locField.dataType().referencedDefinition() == null) {
                 /* An untyped prohibited attribute retains its base type, but cannot be present. */
-                locField = new AIcdPropertyDefinition(locPrevious.sourceName(), locPrevious.dataType(), AInFieldPresenceKind.FORBIDDEN, locPrevious.nullable(), locPrevious.description(), locPrevious.title(), locPrevious.xmlField());
+                locField = new AIcdPropertyDefinition(locPrevious.sourceName(), locPrevious.dataType(), AInFieldPresenceKind.FORBIDDEN, locPrevious.nullable(), locPrevious.description(), locPrevious.title(), forbiddenXmlField(locPrevious.xmlField()));
             }
-            if (!Objects.equals(locPrevious.xmlField(), locField.xmlField()))
+            if (!sameXmlIdentity(locPrevious.xmlField(), locField.xmlField()))
                 throw new IOException("XSD restriction changes attribute/element QName of '"
                         + locField.sourceName() + "' in " + aRequest.path());
+            if (locPrevious.xmlField() != null) {
+                var locOld = locPrevious.xmlField();
+                var locNew = locField.xmlField();
+                if (locOld.minOccurs() >= 0 && (locNew.minOccurs() < 0 || locNew.minOccurs() < locOld.minOccurs())
+                        || locOld.maxOccurs() >= 0 && (locNew.maxOccurs() < 0 || locNew.maxOccurs() > locOld.maxOccurs()))
+                    throw new IOException("XSD restriction relaxes minOccurs/maxOccurs of '"
+                            + locField.sourceName() + "' in " + aRequest.path());
+            }
             if (!sameTypeShape(locPrevious.dataType(), locField.dataType()))
                 throw new IOException("XSD restriction changes field type '" + locField.sourceName() + "' in " + aRequest.path());
             if (!Objects.equals(locPrevious.dataType().constraints().dataType(), locField.dataType().constraints().dataType()))
@@ -430,6 +438,32 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             locByName.put(locPrevious.sourceName(), new AIcdPropertyDefinition(locPrevious.sourceName(), locPrevious.dataType(), AInFieldPresenceKind.FORBIDDEN, locPrevious.nullable(), locPrevious.description(), locPrevious.title(), locPrevious.xmlField()));
         }
         return List.copyOf(locByName.values());
+    }
+
+    /**
+     * Compare identity independently of wire cardinality, which may narrow.
+     *
+     * @param aLeft inherited XML field representation
+     * @param aRight restricted XML field representation
+     * @return whether both declarations denote the same XML wire name and kind
+     */
+    private static boolean sameXmlIdentity(AIcdXmlFieldRepresentation aLeft,
+            AIcdXmlFieldRepresentation aRight) {
+        if (aLeft == null || aRight == null) return aLeft == aRight;
+        return aLeft.namespace().equals(aRight.namespace())
+                && aLeft.namespaceLocalName().equals(aRight.namespaceLocalName())
+                && aLeft.valueKind() == aRight.valueKind();
+    }
+
+    /**
+     * Preserve an omitted or prohibited inherited field's QName with zero occurrences.
+     *
+     * @param aField inherited XML representation, or null for schema-neutral fields
+     * @return forbidden wire representation retaining the XML QName
+     */
+    private static AIcdXmlFieldRepresentation forbiddenXmlField(AIcdXmlFieldRepresentation aField) {
+        return aField == null ? null : new AIcdXmlFieldRepresentation(aField.namespace(),
+                aField.namespaceLocalName(), aField.valueKind(), 0, 0);
     }
 
     /**
@@ -602,9 +636,17 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
         var locType = locMaximum == null || locMaximum > 1
                 ? AIcdDataType.array(locField.dataType(), aOptional ? 0 : locMinimum, locMaximum)
                 : locField.dataType();
+        AIcdXmlFieldRepresentation locXml = locField.xmlField();
+        if (locXml != null) {
+            int locLower = locXml.minOccurs() < 0 ? 0 : locXml.minOccurs();
+            int locUpper = locXml.maxOccurs() < 0 || locMaximum == null
+                    ? -1 : locXml.maxOccurs() * locMaximum;
+            locXml = new AIcdXmlFieldRepresentation(locXml.namespace(), locXml.namespaceLocalName(),
+                    locXml.valueKind(), aOptional ? 0 : locLower * locMinimum, locUpper);
+        }
         aOutput.add(new AIcdPropertyDefinition(locField.sourceName(), locType,
                 aOptional || locMinimum == 0 ? AInFieldPresenceKind.ALLOWED : AInFieldPresenceKind.REQUIRED,
-                locField.nullable(), locField.description(), locField.title(), locField.xmlField()));
+                locField.nullable(), locField.description(), locField.title(), locXml));
     }
 
     private void elements(Element aParent, boolean aOptional, AIcdDefinitionLoadRequest aRequest,
@@ -670,7 +712,8 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                         title(locElement) != null ? title(locElement) : title(locDeclaration),
                         new AIcdXmlFieldRepresentation(locGlobalField ? locDeclarationSchema.getAttribute("targetNamespace")
                                 : fieldNamespace(locElement, aSchema, false),
-                                locName, AInXmlValueKind.ELEMENT)));
+                                locName, AInXmlValueKind.ELEMENT, locMinimum,
+                                locMaximum == null ? -1 : locMaximum)));
             } else if ("group".equals(locKind)) {
                 validateOccurs(locElement, true, aRequest.path());
                 String locReference = locElement.getAttribute("ref");
@@ -771,7 +814,9 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                     new AIcdXmlFieldRepresentation(locReference.isBlank()
                             ? fieldNamespace(locAttribute, aSchema, true)
                             : locDeclarationSchema.getAttribute("targetNamespace"),
-                            locName, AInXmlValueKind.ATTRIBUTE)));
+                            locName, AInXmlValueKind.ATTRIBUTE,
+                            "required".equals(locUse) ? 1 : 0,
+                            "prohibited".equals(locUse) ? 0 : 1)));
         }
     }
 

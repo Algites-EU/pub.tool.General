@@ -191,9 +191,10 @@ serialization independent of reflection method ordering (Python retains the
 same ordinal in `__xml_data_object_fields__`). Canonical XML writing
 emits repeated elements as adjacent siblings sharing their declared QName,
 never as an artificial `Item` wrapper; an empty array emits no element.
-A future tolerant XML reader must bind by expanded QName irrespective of
-input order. **The runtime does not yet provide that decoder**. This intended
-behavior differs from **strict XSD validation**, which must still enforce the
+The XML reader in `pub.lib.General` checkpoint 19 binds by expanded QName
+regardless of input order, constructs nested typed SDO objects with generated
+class bindings, and enforces known `minOccurs`/`maxOccurs` occurrence bounds.
+This intended behavior differs from **strict XSD validation**, which must still enforce the
 original order of `xs:sequence`. No hidden canonical flag
 for `all` versus `sequence` is introduced. Optional/repeated multi-field
 compositors are still rejected when flattening would change group cardinality.
@@ -213,3 +214,30 @@ canonical `AIcdDataType` hierarchy now replaces the old flat `DefinitionKind`/
 Normalization of source-language primitive hints is private to the frontends.
 Full repository-level Gradle/JPMS verification remains a separate integration
 requirement.
+
+### XML wire cardinalities and cross-format publication (checkpoint 20)
+
+`AIcdXmlFieldRepresentation` carries the source element/attribute QName together
+with an independent XML occurrence interval. This interval is propagated to
+`@AIaXmlDataObjectField(minOccurs, maxOccurs)` and Python
+`AIaXmlDataObjectField(min_occurs, max_occurs)`. A finite XSD maximum and
+minimum are checked by the XML reader against the actual count of QName
+occurrences, even when the caller provides elements in a different order.
+An unspecified or unbounded maximum remains `-1`. The recursive array's
+`minItems` and `maxItems` are independent of XML sibling cardinalities:
+`xs:list` constraints apply to list items, not the count of surrounding XML
+elements. Complex multi-field repeated particles and wildcard content models
+are still rejected rather than projected into unrelated flat fields.
+
+When several schemas describe one canonical contract, `$schema` publication
+self-links are format-specific, not shared scalar enum restrictions. The merger
+checks that a self-link matches the declaring source format and path, excludes
+only that publication constant from cross-format comparison, and excludes it
+from the merged canonical `DataType`. Original per-format definitions keep
+their own `$schema` constraint. Incompatible fields and unrelated enum or
+lexical constraints continue to fail the strict merge.
+
+This source-level fix requires the matching `defscodegen.impl:1.1-SNAPSHOT` to
+be bootstrapped into `pub.gov.Algites`: a CI invocation resolving legacy
+`defscodegen.coreimpl:1.0-SNAPSHOT` runs older merger bytecode and cannot be
+repaired by changes to this repository's unbuilt sources alone.

@@ -1,6 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
+import eu.algites.tool.codegen.defs.AIcdDataType;
 import eu.algites.tool.codegen.defs.AIcdDefinitionReference;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AIcdValueConstraints;
@@ -35,7 +36,13 @@ public final class AItcCanonicalConflictDiagnosticsTest {
         var locYamlDef = new AIcdCanonicalDefinition("urn:test", 1, "test", AInDefinitionSourceKind.YAMLDEFS, locYaml.toString(), "Doc", AIcdDataType.object(List.of(locYamlSchema)), List.of(), "Test");
         var locJsonDef = new AIcdCanonicalDefinition("urn:test", 1, "test", AInDefinitionSourceKind.JSONDEFS, locJson.toString(), "Doc", AIcdDataType.object(List.of(locJsonSchema)), List.of(), "Test");
         var locXmlDef = new AIcdCanonicalDefinition("urn:test", 1, "test", AInDefinitionSourceKind.XMLDEFS, locXml.toString(), "Doc", AIcdDataType.object(List.of()), List.of(), "Test");
-        AIcCanonicalDefinitionMerger.AIcMergeStrict(List.of(locYamlDef, locJsonDef, locXmlDef), locRoot);
+        var locMerged = AIcCanonicalDefinitionMerger.AIcMergeStrict(
+                List.of(locYamlDef, locJsonDef, locXmlDef), locRoot);
+        Assert.assertTrue(locMerged.dataType().properties().get(0).dataType().constraints().enumValues().isEmpty(),
+                "Format-specific $schema URI must not leak into the merged canonical contract");
+        Assert.assertEquals(locYamlDef.dataType().properties().get(0).dataType().constraints().enumValues(),
+                List.of("https://defs.dev.algites.eu/api/yamldefs/demo/test_1.yamldef.schema.json"),
+                "The original YAML publication URI must remain unchanged");
         var locForeign = new AIcdPropertyDefinition("$schema", AIcSourceDataType.fromSourceHints(AInDataTypeKind.STRING, null, null, new AIcdValueConstraints("string", null, null,
                 false, false, null, null, null, List.of("https://unrelated.test/schema")), AIcdValueConstraints.empty()), ((false) ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED), false, "Source schema URL", "Schema", null);
         String locMessage = Assert.expectThrows(IllegalArgumentException.class,

@@ -258,7 +258,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             for name, metadata in xml_fields.items():
                 mutable_lines.append(f'        {name!r}: AIaXmlDataObjectField(namespace={metadata.namespace!r}, '
                     f'namespace_local_name={metadata.namespace_local_name!r}, '
-                    f'value_kind=AInXmlValueKind.{metadata.value_kind.name}, order={metadata.order}),')
+                    f'value_kind=AInXmlValueKind.{metadata.value_kind.name}, order={metadata.order}, '
+                    f'min_occurs={metadata.min_occurs}, max_occurs={metadata.max_occurs}),')
             mutable_lines.append('    }')
         if labels:
             # A new mapping would shadow the read contract's mapping.  Start with

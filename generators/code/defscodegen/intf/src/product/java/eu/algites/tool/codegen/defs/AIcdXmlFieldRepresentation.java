@@ -12,9 +12,11 @@ import java.util.Objects;
  * @param namespace expanded XML namespace URI, possibly empty
  * @param namespaceLocalName required local part of the XML QName
  * @param valueKind XML element or attribute representation
+ * @param minOccurs minimum XML occurrence count, or -1 when unknown
+ * @param maxOccurs maximum XML occurrence count, or -1 when unbounded or unknown
  */
 public record AIcdXmlFieldRepresentation(
-        String namespace, String namespaceLocalName, AInXmlValueKind valueKind) {
+        String namespace, String namespaceLocalName, AInXmlValueKind valueKind, int minOccurs, int maxOccurs) {
     /**
      * Validates that every represented field has a complete QName and wire kind.
      *
@@ -26,5 +28,18 @@ public record AIcdXmlFieldRepresentation(
         Objects.requireNonNull(namespaceLocalName, "namespaceLocalName");
         Objects.requireNonNull(valueKind, "valueKind");
         if (namespaceLocalName.isBlank()) throw new IllegalArgumentException("XML field local name is blank");
+        if (minOccurs < -1 || maxOccurs < -1 || (minOccurs >= 0 && maxOccurs >= 0 && minOccurs > maxOccurs))
+            throw new IllegalArgumentException("Invalid XML wire occurrence interval");
+    }
+
+    /**
+     * Construct XML field identity without explicit wire occurrence constraints.
+     *
+     * @param aNamespace XML namespace URI
+     * @param aLocalName XML QName local part
+     * @param aValueKind element or attribute kind
+     */
+    public AIcdXmlFieldRepresentation(String aNamespace, String aLocalName, AInXmlValueKind aValueKind) {
+        this(aNamespace, aLocalName, aValueKind, -1, -1);
     }
 }

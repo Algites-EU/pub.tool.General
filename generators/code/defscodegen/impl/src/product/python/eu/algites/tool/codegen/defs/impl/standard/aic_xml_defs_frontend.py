@@ -308,14 +308,27 @@ class AIcXmlDefsFrontend:
             previous = result.get(field.source_name)
             if previous is None:
                 raise ValueError(f'XSD restriction introduces a new field {field.source_name!r} in {request.path}')
-            if previous.xml_field != field.xml_field:
+            if (previous.xml_field is None) != (field.xml_field is None) or (
+                    previous.xml_field is not None and
+                    (previous.xml_field.namespace, previous.xml_field.namespace_local_name, previous.xml_field.value_kind) !=
+                    (field.xml_field.namespace, field.xml_field.namespace_local_name, field.xml_field.value_kind)):
                 raise ValueError(f'XSD restriction changes XML attribute/element QName of {field.source_name!r} in {request.path}')
             if field.presence is AInFieldPresenceKind.FORBIDDEN and field.data_type.kind is AInDataTypeKind.ANY and field.data_type.referenced_definition() is None:
                 # XSD permits use=prohibited without repeating the base attribute type.
                 # Keep the inherited contract and change only its presence restriction.
-                field = replace(previous, presence=AInFieldPresenceKind.FORBIDDEN)
-            if previous.xml_field != field.xml_field:
+                field = replace(previous, presence=AInFieldPresenceKind.FORBIDDEN,
+                    xml_field=replace(previous.xml_field, min_occurs=0, max_occurs=0)
+                    if previous.xml_field is not None else None)
+            if (previous.xml_field is None) != (field.xml_field is None) or (
+                    previous.xml_field is not None and
+                    (previous.xml_field.namespace, previous.xml_field.namespace_local_name, previous.xml_field.value_kind) !=
+                    (field.xml_field.namespace, field.xml_field.namespace_local_name, field.xml_field.value_kind)):
                 raise ValueError(f'XSD restriction changes XML attribute/element QName of {field.source_name!r} in {request.path}')
+            if previous.xml_field is not None:
+                old, new = previous.xml_field, field.xml_field
+                if (old.min_occurs >= 0 and (new.min_occurs < 0 or new.min_occurs < old.min_occurs)
+                        or old.max_occurs >= 0 and (new.max_occurs < 0 or new.max_occurs > old.max_occurs)):
+                    raise ValueError(f'XSD restriction relaxes minOccurs/maxOccurs of {field.source_name!r} in {request.path}')
             if not self._same_type_shape(previous.data_type, field.data_type):
                 raise ValueError(f'XSD restriction changes the type of {field.source_name!r} in {request.path}')
             if previous.data_type.constraints.data_type != field.data_type.constraints.data_type:
@@ -334,7 +347,9 @@ class AIcXmlDefsFrontend:
             if name not in {field.source_name for field in local_fields}:
                 if previous.presence is AInFieldPresenceKind.REQUIRED:
                     raise ValueError(f'XSD restriction omits a required attribute {name!r} in {request.path}')
-                result[name] = replace(previous, presence=AInFieldPresenceKind.FORBIDDEN)
+                result[name] = replace(previous, presence=AInFieldPresenceKind.FORBIDDEN,
+                    xml_field=replace(previous.xml_field, min_occurs=0, max_occurs=0)
+                    if previous.xml_field is not None else None)
         return tuple(result.values())
 
     @classmethod
@@ -446,6 +461,17 @@ class AIcXmlDefsFrontend:
                 raise ValueError(f'Optional XSD compositor cannot be flattened without losing group cardinality in {path}')
             raise ValueError(f'XSD compositor cannot be flattened without losing group cardinality in {path}')
         field = fields[0]
+        if field.xml_field is not None:
+            # The wire occurrence count belongs to the leaf's QName, not to its
+            # possibly nested XSD list item cardinality.
+            base_min = max(0, field.xml_field.min_occurs)
+            base_max = field.xml_field.max_occurs
+            if maximum is None or base_max < 0:
+                result_max = -1
+            else:
+                result_max = base_max * maximum
+            field = replace(field, xml_field=replace(field.xml_field,
+                min_occurs=0 if inherited_optional else base_min * minimum, max_occurs=result_max))
         if maximum is None or maximum > 1:
             data_type = AIcdDataType(AInDataTypeKind.ARRAY, element_type=field.data_type,
                 constraints=AIcdValueConstraints(min_items=0 if inherited_optional else minimum,
@@ -501,7 +527,7 @@ class AIcXmlDefsFrontend:
                     self._title(node) or self._title(declaration),
                     AIcdXmlFieldRepresentation(declaration_resource[0].get('targetNamespace', '') if global_field
                         else self._field_namespace(node, resource[0], False),
-                        local_name, AInXmlValueKind.ELEMENT))
+                        local_name, AInXmlValueKind.ELEMENT, minimum, maximum if maximum is not None else -1))
             elif kind == 'group':
                 minimum, maximum = self._validate_occurs(node, True, request.path)
                 reference = node.get('ref', '')
@@ -568,7 +594,7 @@ class AIcXmlDefsFrontend:
                 False, self._documentation(attribute) or self._documentation(declaration),
                 self._title(attribute) or self._title(declaration),
                 AIcdXmlFieldRepresentation(declaration_resource[0].get('targetNamespace', '') if reference
-                    else self._field_namespace(attribute, resource[0], True), name, AInXmlValueKind.ATTRIBUTE))
+                    else self._field_namespace(attribute, resource[0], True), name, AInXmlValueKind.ATTRIBUTE, 1 if use == 'required' else 0, 0 if use == 'prohibited' else 1))
 
     @staticmethod
     def _field_namespace(field, schema, is_attribute):

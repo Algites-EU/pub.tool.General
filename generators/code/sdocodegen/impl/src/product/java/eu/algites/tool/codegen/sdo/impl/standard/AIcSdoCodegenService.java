@@ -361,7 +361,9 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 + escape(locXml.namespace()) + "\", namespaceLocalName = \""
                 + escape(locXml.namespaceLocalName()) + "\", valueKind = "
                 + "eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind."
-                + locXml.valueKind().name() + ", order = " + locXml.order() + ")\n";
+                + locXml.valueKind().name() + ", order = " + locXml.order()
+                + ", minOccurs = " + locXml.minOccurs()
+                + ", maxOccurs = " + locXml.maxOccurs() + ")\n";
     }
 
     /** Retain a field default factory selection on the mutable getter. */

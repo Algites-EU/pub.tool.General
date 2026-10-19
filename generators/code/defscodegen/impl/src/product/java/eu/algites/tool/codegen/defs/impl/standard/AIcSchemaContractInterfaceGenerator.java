@@ -107,7 +107,9 @@ public final class AIcSchemaContractInterfaceGenerator {
                         + AIcScalarGeneration.jquote(locXml.namespace()) + ", namespaceLocalName = "
                         + AIcScalarGeneration.jquote(locXml.namespaceLocalName())
                         + ", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind."
-                        + locXml.valueKind().name() + ", order = " + locXmlOrder + ")");
+                         + locXml.valueKind().name() + ", order = " + locXmlOrder
+                        + ", minOccurs = " + locXml.minOccurs()
+                        + ", maxOccurs = " + locXml.maxOccurs() + ")");
             }
             rows.add("    " + propertyType + " " + name + "();");
             locXmlOrder++;

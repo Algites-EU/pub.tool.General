@@ -68,9 +68,10 @@ expanded XML QName metadata; they do not infer XML namespaces from Python
 attribute names or Java getters.
 
 The generated `fromXml`/`from_xml` methods parse structural fields and known
-scalar lexicals; strict XSD validation, all min/max occurrence bounds, wildcard
-materialization and correlated choices remain the responsibility of the
-separate schema-validation layer. Unknown XML members fail explicitly rather
+scalar lexicals; strict XSD validation, wildcard materialization and correlated
+choices remain the responsibility of the separate schema-validation layer.
+The XML runtime does enforce known field-level `minOccurs`/`maxOccurs` wire
+intervals; those do not substitute for the full XSD content-model grammar. Unknown XML members fail explicitly rather
 than being dropped. The generated XML wrapper is not an XSD validator.
 
 
