@@ -11,7 +11,7 @@ def from_source_hints(kind, item_kind=None, reference=None, constraints=None, it
     if kind is AInDataTypeKind.ARRAY:
         member = AIcdDataType(AInDataTypeKind.REFERENCE, reference=reference) if reference is not None else AIcdDataType(
             item_kind or AInDataTypeKind.ANY, constraints=item_constraints or AIcdValueConstraints())
-        return AIcdDataType(AInDataTypeKind.ARRAY, element_type=member)
+        return AIcdDataType(AInDataTypeKind.ARRAY, element_type=member, constraints=constraints or AIcdValueConstraints())
     if kind is AInDataTypeKind.REFERENCE:
         if reference is None:
             raise ValueError('Reference kind requires a canonical target')

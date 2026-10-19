@@ -192,11 +192,11 @@ class AIcSchemaContractInterfaceGenerator:
             + ', title = ' + _java_quote(_visible_title(model.title, model.logical_name))
             + ', description = ' + _java_quote(model.description or '') + ')',
             f'public interface {interface} extends {extends} {{',
-            '    /** Canonical schema ID, not a representation-specific publication URL. */',
+            '    /** Canonical schema ID independent of any representation-specific publication URL. */',
             f'    String CANONICAL_SOURCE_ID = {_java_quote(model.identity)};',
-            '    /** Canonical schema definition version. */',
+            '    /** Version identifying the canonical schema definition. */',
             f'    Integer CANONICAL_SOURCE_VERSION = {_java_integer(model.version)};',
-            '    /** Definition resource retained for source provenance and diagnostics. */',
+            '    /** Definition source resource retained for provenance and diagnostics. */',
             f'    String CANONICAL_SOURCE_RESOURCE = {_java_quote(model.source_resource)};']
         if request.xml_type_qname is not None:
             namespace, local = request.xml_type_qname[1:].split('}', 1)

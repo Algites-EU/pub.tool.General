@@ -63,13 +63,13 @@ public final class AItcXmlImportedInheritanceTest {
     }
 
     /**
-     * Ensures that a repeated group is rejected instead of being flattened into
-     * unrelated element arrays, which would misrepresent its semantics.
+     * Ensures that a repeated compositor containing one mandatory element is
+     * preserved as a bounded array instead of being rejected or flattened incorrectly.
      *
      * @throws Exception if the test schema cannot be created or parsed
      */
     @Test
-    public void AIcRejectRepeatedSequence() throws Exception {
+    public void AIcProjectRepeatedSingleElementSequence() throws Exception {
         Path locSchema = Files.createTempFile("algites-group-", "_1.xsd");
         try {
             Files.writeString(locSchema, """
@@ -79,13 +79,16 @@ public final class AItcXmlImportedInheritanceTest {
                       </xs:sequence></xs:complexType>
                     </xs:schema>
                     """);
-            try {
-                new AIcXmlDefsFrontend().load(new AIcdDefinitionLoadRequest(
-                        locSchema, AInDefinitionSourceKind.XMLDEFS, naming()));
-                throw new AssertionError("Repeated group must be rejected");
-            } catch (java.io.IOException locExpected) {
-                Assert.assertTrue(locExpected.getMessage().contains("compositor"));
-            }
+            var locDefinition = new AIcXmlDefsFrontend().load(new AIcdDefinitionLoadRequest(
+                    locSchema, AInDefinitionSourceKind.XMLDEFS, naming()));
+            var locField = locDefinition.dataType().properties().get(0);
+            Assert.assertEquals(locDefinition.dataType().properties().size(), 1);
+            Assert.assertEquals(locField.sourceName(), "code");
+            Assert.assertEquals(locField.dataType().kind(), eu.algites.tool.codegen.defs.AInDataTypeKind.ARRAY);
+            Assert.assertEquals(locField.dataType().constraints().minItems(), Integer.valueOf(1));
+            Assert.assertEquals(locField.dataType().constraints().maxItems(), Integer.valueOf(2));
+            Assert.assertEquals(locField.xmlField().minOccurs(), 1);
+            Assert.assertEquals(locField.xmlField().maxOccurs(), 2);
         } finally {
             Files.deleteIfExists(locSchema);
         }

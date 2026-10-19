@@ -233,7 +233,7 @@ public final class AIcSchemaContractBindingsGenerator {
                         locOverrides.add(field);
                     }
                 }
-                merged = new AIcdCanonicalDefinition(merged.identity(), merged.version(), merged.logicalName(), merged.sourceKind(), merged.sourceResource(), merged.description(), merged.dataType(), merged.enumValues(), merged.title());
+                merged = new AIcdCanonicalDefinition(merged.identity(), merged.version(), merged.logicalName(), merged.sourceKind(), merged.sourceResource(), merged.description(), merged.dataType().withProperties(locOverrides), merged.enumValues(), merged.title());
                 var parentSource = new AIcSchemaContractInterfaceGenerator().generate(inherited);
                 parentName = parentSource.typeName();
                 parentModule = inherited.packageName();

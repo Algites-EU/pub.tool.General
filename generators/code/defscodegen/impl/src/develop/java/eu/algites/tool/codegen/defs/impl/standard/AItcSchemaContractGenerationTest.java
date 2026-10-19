@@ -68,7 +68,24 @@ public final class AItcSchemaContractGenerationTest {
             {"artifact":"intf","languages":["java","python"],"bindings":[]}
             """);
         var locGenerator = new AIcSchemaContractBindingsGenerator();
-        Assert.assertEquals(locGenerator.generateRepository(locRoot, locManifest, false).size(), 2);
+        var locGenerated = locGenerator.generateRepository(locRoot, locManifest, false);
+        Assert.assertEquals(locGenerated.size(), 4,
+                "Both technologies must emit the named XML content type and global element contract");
+        for (String locLanguage : java.util.List.of("java", "python")) {
+            var locEntries = locGenerated.stream()
+                    .filter(aEntry -> locLanguage.equals(aEntry.get("language"))).toList();
+            Assert.assertEquals(locEntries.size(), 2);
+            Assert.assertEquals(locEntries.stream()
+                    .filter(aEntry -> "@element/example".equals(aEntry.get("pointer"))).count(), 1L);
+            for (var locEntry : locEntries) {
+                Path locOutput = locRoot.resolve(locEntry.get("path"));
+                Assert.assertTrue(Files.isRegularFile(locOutput), locOutput.toString());
+                if ("@element/example".equals(locEntry.get("pointer"))) {
+                    Assert.assertTrue(Files.readString(locOutput).contains("AInXmlObjectDefinitionKind.ELEMENT"),
+                            "The XML element contract must retain its nominal identity: " + locOutput);
+                }
+            }
+        }
         Path locJava = locRoot.resolve("intf/src/product/java.gen/example/contracts/AIigExample_1.java");
         Path locPython = locRoot.resolve("intf/src/product/python.gen/example/contracts/aiig_example_1.py");
         Assert.assertTrue(Files.readString(locJava).contains("AIaDataObjectField"));

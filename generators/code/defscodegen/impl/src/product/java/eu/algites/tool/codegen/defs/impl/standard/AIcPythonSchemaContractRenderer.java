@@ -60,7 +60,9 @@ final class AIcPythonSchemaContractRenderer {
                         + ": AIaXmlDataObjectField(namespace=" + quote(locXml.namespace())
                         + ", namespace_local_name=" + quote(locXml.namespaceLocalName())
                         + ", value_kind=AInXmlValueKind." + locXml.valueKind().name()
-                        + ", order=" + locDefinition.dataType().properties().indexOf(locProperty) + "),");
+                        + ", order=" + locDefinition.dataType().properties().indexOf(locProperty)
+                        + ", min_occurs=" + locXml.minOccurs()
+                        + ", max_occurs=" + locXml.maxOccurs() + "),");
             }
             locLabels.add("        " + quote(locProperty.sourceName()) + ": AIaFieldLabel(label=" + quote(locTitle)
                     + ", labels=" + locEntries + "),");

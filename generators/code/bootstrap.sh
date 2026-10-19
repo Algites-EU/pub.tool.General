@@ -26,7 +26,10 @@ if [[ "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT:-0}" == 1 ]]; then
     for locRequiredSource in \
         'factory/cpdiscovery/intf/src/product/java/eu/algites/lib/factory/cpdiscovery/AIiCategoryProviderFactory.java' \
         'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/AInFieldPresenceKind.java' \
-        'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.java'; do
+        'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.java' \
+        'naming/convention/intf/src/product/java/eu/algites/lib/naming/convention/AIiNameConventionCatalog.java' \
+        'naming/convention/algites/src/product/java/eu/algites/lib/naming/convention/impl/algites/AIcNameConventionCatalog_1.java' \
+        'naming/convention/algites/src/product/config/eu/algites/lib/naming/convention/algites-java-name-conventions.yml'; do
         [[ -f "$locGeneralDirectory/$locRequiredSource" ]] || {
             echo "Required current pub.lib.General source is missing: $locGeneralDirectory/$locRequiredSource" >&2
             exit 2
@@ -37,9 +40,11 @@ if [[ "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT:-0}" == 1 ]]; then
     # tool repository root build directory; source directories stay read-only.
     cat > "$locGeneralBootstrapDirectory/settings.gradle" <<'GENERAL_SETTINGS'
 rootProject.name = 'modustro-general-dataobject-bootstrap'
-include ':factory-intf', ':dataobject-intf'
+include ':factory-intf', ':dataobject-intf', ':naming-intf', ':naming-algites'
 project(':factory-intf').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'factory/cpdiscovery/intf')
 project(':dataobject-intf').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'data/dataobject/intf')
+project(':naming-intf').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'naming/convention/intf')
+project(':naming-algites').projectDir = new File(System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'), 'naming/convention/algites')
 GENERAL_SETTINGS
     cat > "$locGeneralBootstrapDirectory/build.gradle" <<'GENERAL_BUILD'
 def outputRoot = new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'gradle/general-dataobject')
@@ -55,13 +60,28 @@ subprojects {
         publications {
             mavenJava(MavenPublication) {
                 from components.java
-                artifactId = project.name == 'factory-intf' ?
-                    'pub.lib.General_factory.cpdiscovery.intf' : 'pub.lib.General_data.dataobject.intf'
+                artifactId = [
+                    'factory-intf': 'pub.lib.General_factory.cpdiscovery.intf',
+                    'dataobject-intf': 'pub.lib.General_data.dataobject.intf',
+                    'naming-intf': 'pub.lib.General_naming.convention.intf',
+                    'naming-algites': 'pub.lib.General_naming.convention.algites'
+                ][project.name]
             }
         }
     }
 }
 project(':factory-intf') { group = 'eu.algites.lib.common' }
+project(':naming-intf') { group = 'eu.algites.lib.naming' }
+project(':naming-algites') {
+    group = 'eu.algites.lib.naming'
+    sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/resources']
+    repositories { mavenCentral() }
+    dependencies {
+        api project(':naming-intf')
+        implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
+        implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.3'
+    }
+}
 project(':dataobject-intf') {
     group = 'eu.algites.lib.data'
     dependencies { api project(':factory-intf') }
@@ -71,7 +91,7 @@ GENERAL_BUILD
     if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then
         locGeneralGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}")
     fi
-    echo "Refreshing pub.lib.General factory.cpdiscovery.intf and data.dataobject.intf from $locGeneralDirectory"
+    echo "Refreshing pub.lib.General factory.cpdiscovery.intf, data.dataobject.intf and naming convention contracts/catalogs from $locGeneralDirectory"
     MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR="$locGeneralDirectory" \
     MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" \
         "${locGeneralGradleCommand[@]}" --no-daemon --project-dir "$locGeneralBootstrapDirectory" publishToMavenLocal
@@ -209,8 +229,33 @@ def prepareParityPython = tasks.register('prepareGeneratorParityPython', Exec) {
                 '--verify-import', 'eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1']
     commandLine(command)
 }
+// Fail explicitly when resolved Maven Local naming snapshots predate XML element contracts.
+def verifyNamingCatalog = tasks.register('verifyNamingCatalog') {
+    doLast {
+        def artifact = project(':impl').configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
+            it.moduleVersion.id.name == 'pub.lib.General_naming.convention.algites'
+        }
+        if (artifact.size() != 1) {
+            throw new GradleException("Expected precisely one Algites naming catalog artifact on the generator runtime classpath; found ${artifact.size()}")
+        }
+        def archive = artifact[0].file
+        def entries = ['eu/algites/lib/naming/convention/algites-java-name-conventions.yml',
+                       'eu/algites/lib/naming/convention/algites-python-name-conventions.yml']
+        new java.util.zip.ZipFile(archive).withCloseable { zip ->
+            entries.each { path ->
+                def entry = zip.getEntry(path)
+                if (entry == null || !zip.getInputStream(entry).getText('UTF-8').contains('algites-' +
+                        (path.contains('java') ? 'java' : 'python') + '-gen-xml-element-intf-versioned:')) {
+                    throw new GradleException("Outdated pub.lib.General naming catalog in ${archive}: missing XML element profile ${path}. " +
+                        "Set MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT=1 with current pub.lib.General sources.")
+                }
+            }
+        }
+        logger.lifecycle("Bootstrap Algites naming catalogs verified: ${archive}")
+    }
+}
 project(':impl').tasks.withType(Test).configureEach {
-    dependsOn prepareParityPython
+    dependsOn prepareParityPython, verifyNamingCatalog
     environment 'MODUSTRO_ARTIFACT_DIRECTORY', new File(module, 'impl').absolutePath
     environment 'MODUSTRO_PYTHON_TEST_EXECUTABLE', System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3'
     environment 'MODUSTRO_PYTHON_TEST_PATH', [

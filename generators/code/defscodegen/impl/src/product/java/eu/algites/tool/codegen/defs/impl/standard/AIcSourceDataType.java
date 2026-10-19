@@ -26,7 +26,7 @@ final class AIcSourceDataType {
             AIcdDataType locItem = aReference == null
                     ? AIcdDataType.atom(aItemKind == null ? AInDataTypeKind.ANY : aItemKind, aItemConstraints)
                     : AIcdDataType.reference(aReference);
-            return AIcdDataType.array(locItem);
+            return new AIcdDataType(AInDataTypeKind.ARRAY, locItem, List.of(), List.of(), null, aConstraints);
         }
         if (aKind == AInDataTypeKind.REFERENCE) return AIcdDataType.reference(Objects.requireNonNull(aReference));
         if (aKind == AInDataTypeKind.OBJECT) return AIcdDataType.object(List.of());

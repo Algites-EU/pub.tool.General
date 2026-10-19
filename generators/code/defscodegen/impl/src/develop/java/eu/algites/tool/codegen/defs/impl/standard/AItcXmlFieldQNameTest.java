@@ -36,13 +36,13 @@ public final class AItcXmlFieldQNameTest {
             Map<String, AIcdXmlFieldRepresentation> locFields = new java.util.LinkedHashMap<>();
             for (var locField : locDefinition.dataType().properties()) locFields.put(locField.sourceName(), locField.xmlField());
             Assert.assertEquals(locFields.get("amount"), new AIcdXmlFieldRepresentation(
-                    "urn:ledger", "amount", AInXmlValueKind.ELEMENT));
+                    "urn:ledger", "amount", AInXmlValueKind.ELEMENT, 1, 1));
             Assert.assertEquals(locFields.get("note"), new AIcdXmlFieldRepresentation(
-                    "", "note", AInXmlValueKind.ELEMENT));
+                    "", "note", AInXmlValueKind.ELEMENT, 1, 1));
             Assert.assertEquals(locFields.get("currency"), new AIcdXmlFieldRepresentation(
-                    "", "currency", AInXmlValueKind.ATTRIBUTE));
+                    "", "currency", AInXmlValueKind.ATTRIBUTE, 0, 1));
             Assert.assertEquals(locFields.get("ref"), new AIcdXmlFieldRepresentation(
-                    "urn:ledger", "ref", AInXmlValueKind.ATTRIBUTE));
+                    "urn:ledger", "ref", AInXmlValueKind.ATTRIBUTE, 0, 1));
             var locGenerated = new AIcSchemaContractInterfaceGenerator().generate(
                     new AIcdCodeGenerationRequest(locDefinition, AInCodeGenerationTarget.JAVA,
                             "example.ledger", naming(), locFrontend.rootTypeQName(locRequest)));

@@ -628,7 +628,9 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             return;
         }
         if (aProjected.size() != 1) throw new IOException(
-                "XSD compositor cannot be flattened without losing group cardinality in " + aPath);
+                (locMinimum == 0 && Integer.valueOf(1).equals(locMaximum)
+                        ? "Optional XSD compositor" : "XSD compositor")
+                        + " cannot be flattened without losing group cardinality in " + aPath);
         var locField = aProjected.get(0);
         if (locField.presence() != AInFieldPresenceKind.REQUIRED
                 || locField.dataType().kind() == AInDataTypeKind.ARRAY)
