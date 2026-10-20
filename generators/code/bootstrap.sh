@@ -497,6 +497,7 @@ def runSdoPython = tasks.register('testSdoPython', Exec) {
         (System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_PYTHON_PATH') ?: '').tokenize(File.pathSeparator) + [
             new File(module, 'intf/src/product/python').absolutePath,
             new File(module, 'impl/src/product/python').absolutePath,
+            new File(module, 'cli/src/product/python').absolutePath,
             new File(defsModule, 'intf/src/product/python').absolutePath,
             new File(defsModule, 'impl/src/product/python').absolutePath,
             sdoPython.get().asFile.absolutePath

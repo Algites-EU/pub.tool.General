@@ -190,18 +190,55 @@ public final class AItcSdoCodegenTest {
         String getName();
     }
 
-    /** A naming configuration affects generated names, file suffixes and setter argument identifiers. */
+    /** A YAML naming catalog configures the common read-contract role independently of schema technology. */
     @Test
     public void AIcYamlNamingControlsGeneratedSdo() throws Exception {
         var locCatalog = eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1.standard("java");
+        var locInputNames = locCatalog.withRoles(java.util.Map.of(
+                "common", "algites-java-gen-intf-versioned_1"));
+        var locMutableNames = locCatalog.withRoles(java.util.Map.of(
+                "common", "algites-java-gen-data-intf-versioned_1"));
+        var locConcreteNames = locCatalog.withRoles(java.util.Map.of(
+                "common", "algites-java-gen-data-class-versioned_1"));
         var locResult = new AIcSdoCodegenService().generate(AIigCatalogCustomer_1.class, "d",
-                locCatalog, locCatalog, locCatalog);
+                locInputNames, locMutableNames, locConcreteNames);
         Assert.assertEquals(locResult.mutableInterface().typeName(), "AIigdCatalogCustomer_1");
         Assert.assertEquals(locResult.implementation().typeName(), "AIcgdCatalogCustomer_1");
         Assert.assertTrue(locResult.mutableInterface().relativePath().endsWith("AIigdCatalogCustomer_1.java"));
         Assert.assertTrue(locResult.implementation().relativePath().endsWith("AIcgdCatalogCustomer_1.java"));
         Assert.assertTrue(locResult.mutableInterface().source().contains("setName(java.lang.String aName)"));
         Assert.assertTrue(locResult.implementation().source().contains("setName(java.lang.String aName)"));
+    }
+
+    /** A technology-only YAML DataObject generates its SDO types without any common role binding. */
+    @AIaDataObject(schemaId = "test:yaml-customer", schemaVersion = 1,
+            namingConvention = "algites-java-gen-yaml-intf-versioned_1")
+    public interface AIig_yCatalogCustomer_1
+            extends eu.algites.lib.data.dataobject.yamldefs.AIiYamlDataObject {
+        /** Returns the customer name described by the handwritten YAML contract. */
+        @AIaDataObjectField(fieldName = "Name",
+                presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED)
+        String getName();
+    }
+
+    /** Technology-specific output role selection must not implicitly require a common interface. */
+    @Test
+    public void AIcYamlTechnologyRoleDoesNotRequireCommon() throws Exception {
+        var locCatalog = eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1.standard("java");
+        var locInputNames = locCatalog.withRoles(java.util.Map.of(
+                "yamldefs", "algites-java-gen-yaml-intf-versioned_1"));
+        var locMutableNames = locCatalog.withRoles(java.util.Map.of(
+                "yamldefs", "algites-java-gen-data-yaml-intf-versioned_1"));
+        var locConcreteNames = locCatalog.withRoles(java.util.Map.of(
+                "yamldefs", "algites-java-gen-data-yaml-class-versioned_1"));
+        var locResult = new AIcSdoCodegenService().generate(AIig_yCatalogCustomer_1.class, "d",
+                locInputNames, locMutableNames, locConcreteNames);
+        Assert.assertEquals(locResult.mutableInterface().typeName(), "AIigd_yCatalogCustomer_1");
+        Assert.assertEquals(locResult.implementation().typeName(), "AIcgd_yCatalogCustomer_1");
+        Assert.assertTrue(locResult.mutableInterface().source().contains(
+                "namingConvention = \"algites-java-gen-data-yaml-intf-versioned_1\""));
+        Assert.assertTrue(locResult.implementation().source().contains(
+                "namingConvention = \"algites-java-gen-data-yaml-class-versioned_1\""));
     }
 
     /** Generated Java SmartDOs honor interface defaults and explicit getter overrides. */
