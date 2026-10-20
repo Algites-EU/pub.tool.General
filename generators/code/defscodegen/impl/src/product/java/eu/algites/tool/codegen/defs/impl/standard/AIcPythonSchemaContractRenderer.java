@@ -109,7 +109,8 @@ final class AIcPythonSchemaContractRenderer {
                 + "    __data_object__ = AIcdDataObject(schema_id=" + quote(locDefinition.identity())
                 + ", schema_version=" + (locDefinition.version() == null ? -1 : locDefinition.version())
                 + ", title=" + quote(title(locDefinition.title(), locDefinition.logicalName()))
-                + ", description=" + quote(locDefinition.description() == null ? "" : locDefinition.description()) + ")\n"
+                + ", description=" + quote(locDefinition.description() == null ? "" : locDefinition.description())
+                + ", naming_convention=" + quote(aRequest.namingConvention()) + ")\n"
                 + locXmlMetadata + locXmlFieldMetadata
                 + "    __data_object_fields__ = (\n" + String.join("\n", locMetadata)
                 + "\n    )\n\n    __field_labels__ = {\n" + String.join("\n", locLabels)
