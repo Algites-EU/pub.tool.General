@@ -1,0 +1,24 @@
+# Algites default PYTHON target configuration.
+# The target artifact must declare this technology in TechnologyKinds.
+# Naming IDs are supplied by the library catalog, not by the generator.
+--repository-root=.
+--technology-dointf-input-dir=python:src/product/python.gen
+--technology-sdointf-output-dir=python:src/product/python.gen
+--technology-sdoimpl-output-dir=python:src/product/python.gen
+--sdointf-subpackage=impl.intf
+--sdoclass-subpackage=impl
+--input-technology-naming-convention=python:common:defsintf=algites-python-gen-intf-versioned_1
+--output-technology-naming-convention=python:common:sdointf=algites-python-gen-data-intf-versioned_1,sdoclass=algites-python-gen-data-class-versioned_1
+--input-technology-naming-convention=python:xmldefs_type:defsintf=algites-python-gen-xml-type-intf-versioned_1
+--output-technology-naming-convention=python:xmldefs_type:sdointf=algites-python-gen-data-xml-type-intf-versioned_1,sdoclass=algites-python-gen-data-xml-type-class-versioned_1
+--input-technology-naming-convention=python:xmldefs_element:defsintf=algites-python-gen-xml-element-intf-versioned_1
+--output-technology-naming-convention=python:xmldefs_element:sdointf=algites-python-gen-data-xml-element-intf-versioned_1,sdoclass=algites-python-gen-data-xml-element-class-versioned_1
+--input-technology-naming-convention=python:yamldefs:defsintf=algites-python-gen-yaml-intf-versioned_1
+--output-technology-naming-convention=python:yamldefs:sdointf=algites-python-gen-data-yaml-intf-versioned_1,sdoclass=algites-python-gen-data-yaml-class-versioned_1
+--input-technology-naming-convention=python:jsondefs:defsintf=algites-python-gen-json-intf-versioned_1
+--output-technology-naming-convention=python:jsondefs:sdointf=algites-python-gen-data-json-intf-versioned_1,sdoclass=algites-python-gen-data-json-class-versioned_1
+--naming-conventions-file=resource:standard-conventions.yml
+--naming-conventions-file=resource:algites-python-name-conventions.yml
+--naming-conventions-file=resource:algites-xmldef-name-conventions.yml
+--naming-conventions-file=resource:algites-yamldef-name-conventions.yml
+--naming-conventions-file=resource:algites-jsondef-name-conventions.yml

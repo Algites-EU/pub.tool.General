@@ -5,7 +5,7 @@ from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_definition_kind import AInDefinitionKind
+from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 
 
@@ -15,7 +15,7 @@ def test_json_enum_and_yamldefs_object_generation():
     service = AIcDefaultDefsCodegenService()
     profile = AIcAlgitesNamingProfiles_1.python_profile()
     enum_def = service.load(AIcdDefinitionLoadRequest(examples / "resource-endpoint-action_1.jsondef.schema.json", AInDefinitionSourceKind.JSONDEFS, profile))
-    assert enum_def.kind is AInDefinitionKind.ENUM
+    assert enum_def.data_type.kind is AInDataTypeKind.ENUM
     assert enum_def.logical_name == "resource-endpoint-action"
     assert enum_def.version == 1
     assert enum_def.enum_values[0].value == "download"
@@ -27,7 +27,7 @@ def test_json_enum_and_yamldefs_object_generation():
     assert "DOWNLOAD: Reads resources from the example endpoint." in enum_src.source
 
     obj_def = service.load(AIcdDefinitionLoadRequest(examples / "resource-endpoint_1.yamldef.schema.json", AInDefinitionSourceKind.YAMLDEFS, profile))
-    assert obj_def.properties[1].reference.target_kind is AInDefinitionKind.ENUM
+    assert obj_def.data_type.properties[1].data_type.referenced_definition().targets_enum
     obj_src = service.generate(AIcdCodeGenerationRequest(obj_def, AInCodeGenerationTarget.PYTHON, "example.generated", profile))
     assert obj_src.type_name == "AIcgdResourceEndpoint_1"
     assert "action: AIngResourceEndpointAction_1" in obj_src.source

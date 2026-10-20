@@ -1,27 +1,63 @@
-# Defs Codegen — YAML naming catalog batch CLI
+# Defs Codegen — semantic-role naming CLI (1.1)
 
-The native Java and Python CLIs accept their existing single-definition positional syntax, plus the new explicit batch syntax:
+The Java and Python native CLIs accept the same **kebab-case** batch options.
+Without arguments, the Java CLI loads `algites-defscodegen-java-default.settings`
+and the Python CLI loads `algites-defscodegen-python-default.settings` from
+the repository checkout or the packaged generator resources. A custom file is
+selected with `--settings-file=PATH`; further CLI mappings override settings
+mappings for the same technology/role.
+
+## Input and output mapping
 
 ```sh
-defs-codegen \
-  --schema-input-dir=yamldefs:src/product/yamldefs \
+python -m eu.algites.tool.codegen.defs.impl.cli.aic_defs_codegen_cli \
+  --repository-root=. \
   --schema-input-dir=jsondefs:src/product/jsondefs \
-  --schema-input-dir=xmldefs:src/product/xmldefs \
-  --schema-input-naming-profile=yamldefs:config/algites-yamldef-name-conventions.yml \
-  --schema-input-naming-profile=jsondefs:config/algites-jsondef-name-conventions.yml \
-  --schema-input-naming-profile=xmldefs:config/algites-xmldef-name-conventions.yml \
-  --technology-dointf-output-dir=java:src/product/java.gen \
+  --input-schema-naming-convention=jsondefs:my-schema-naming \
   --technology-dointf-output-dir=python:src/product/python.gen \
-  --technology-dointf-output-naming-profile=java:config/algites-java-name-conventions.yml \
-  --technology-dointf-output-naming-profile=python:config/algites-python-name-conventions.yml
+  --output-interface-technology-naming-convention=python:jsondefs:defsintf=my-contract-naming \
+  --output-enum-technology-naming-convention=python:my-enum-naming \
+  --naming-conventions-file=config/standard.yml \
+  --naming-conventions-file=config/project.yml
 ```
 
-Add `--repository-root=<root>` when paths are relative to another source-repository root. Multiple input roots of the same schema kind are permitted. The output must have exactly one directory and catalog for each selected technology. `--check` verifies outputs without writing. `--clean-only` requires only output root/catalog pairs and removes only recognized generated `dointf` and enum source files. Standard generation validates all input definitions, canonical identities, inherited references and target collisions **before** cleaning the owned output files. Therefore invalid input or a semantic collision leaves prior outputs intact; disk I/O failures during writing are not transactional. `--allow-unversioned-schemas` permits the unversioned schema naming profiles; otherwise the versioned profile is required when input catalogs are provided.
+`--schema-input-dir` accepts `xmldefs`, `yamldefs` and `jsondefs` input roots.
+`--input-schema-naming-convention=KIND:ID` chooses the profile for an input
+schema kind. `--output-interface-technology-naming-convention=TECH:ROLE:defsintf=ID`
+chooses a generated getter-interface profile for each target technology
+(`java`, `python`) and semantic role (`common`, `xmldefs_type`,
+`xmldefs_element`, `yamldefs`, `jsondefs`). `--output-enum-technology-naming-convention=TECH:ID`
+configures enums independently.
 
-The current repository generation engine still reuses its established canonical-schema readers, equivalence merger, reference resolution, and direct contract renderer. Output type and file prefixes are taken from YAML via the transitional adapter. Java and Python implementations are native, independent. The adaptor currently assumes versioned standard Algites compositions and simple identifiers; arbitrary custom version-variable remapping in the rendering backend remains future work.
+`--naming-conventions-file` is repeatable and provides **one combined catalog**.
+It accepts filesystem paths and packaged `resource:NAME` entries. Each ID is
+looked up in that catalog. File locations and naming IDs are independent.
+Conflicting definitions of one ID are rejected; identical repeated definitions
+can be merged. No generator requires a particular syntax for user-defined IDs;
+Algites chooses `_1` in its supplied catalog as a library-versioning policy.
 
-Full reference: [Code Generators Reference Guide](../CODEGEN-REFERENCE.md), particularly sections 2.3–2.5.
+**A missing output-role naming ID means that role is not generated.** If two
+configured roles would create the same relative output path, generation must
+fail instead of overwriting a different contract. The input-schema ID and
+required dependency roles still have to resolve. If a common getter and a
+technology-specific getter are both enabled, the latter can extend the common
+contract and its technology marker interface.
 
-## XML element naming and choice compilation units
+Outputs embed the exact selected naming ID in `@AIaDataObject.namingConvention()`
+(Java) or `AIcdDataObject.naming_convention` (Python). The generated sources
+remain owned by the generator; their directory trees must not be manually
+patched. Generated-file ownership state protects unrelated files during
+regeneration and `--clean-only`. `--check` compares without writing.
 
-The 1.1 XML element role uses the `_xe` marker in Java types, and the additional underscore in Python file names (`aiig__xe_payment_1.py`). Both CLI and repository batch generation must emit all closed-choice wrapper compilation units. See [RECURSIVE-TYPES-AND-XML-ELEMENTS.md](RECURSIVE-TYPES-AND-XML-ELEMENTS.md).
+## Defaults
+
+`generators/code/defscodegen/intf/src/product/config/eu/algites/tool/codegen/defs/`
+contains **two distinct settings files**: `algites-defscodegen-java-default.settings`
+and `algites-defscodegen-python-default.settings`. Each enables only the matching
+target technology, while reading the same schema kinds. It references packaged
+naming catalogs (`resource:...`) rather than a neighboring library checkout.
+Invoking either native CLI with no parameters uses its own technology defaults; explicitly
+supplying options without `--settings-file` uses only the supplied options.
+
+Positional legacy CLI invocations are not accepted. Use explicit role mappings
+or `--settings-file`; programmatic generation uses the corresponding service API.

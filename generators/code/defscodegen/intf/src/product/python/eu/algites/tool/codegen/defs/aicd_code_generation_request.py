@@ -16,12 +16,16 @@ class AIcdCodeGenerationRequest:
         naming_profile: Naming/version profile.
         xml_type_qname: Optional expanded QName of a named XSD type, distinct
             from any global element name and omitted for other schema families.
+        naming_convention: Exact selected naming catalog identifier, independent of its syntax.
+        contract_role: Semantic role of the generated contract.
     """
     definition: AIcdCanonicalDefinition
     target: AInCodeGenerationTarget
     package_name: str
     naming_profile: AIcNameConventionCatalog_1
     xml_type_qname: str | None = None
+    naming_convention: str = ''
+    contract_role: str = ''
 
     def __post_init__(self):
         """Reject inconsistent XML identity instead of emitting misleading metadata."""

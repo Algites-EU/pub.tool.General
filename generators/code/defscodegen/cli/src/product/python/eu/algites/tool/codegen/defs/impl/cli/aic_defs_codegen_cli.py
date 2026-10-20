@@ -3,15 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
 from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
-from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
-from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 
 
 class AIcDefsCodegenCli:
@@ -19,83 +12,119 @@ class AIcDefsCodegenCli:
 
     @staticmethod
     def main(args: list[str] | None = None) -> int:
-        """Load requested source definitions and write the generated outputs."""
-        args = list(args) if args is not None else None
-        if args is not None and any(arg.startswith('--schema-input-dir=') or
-                arg.startswith('--technology-dointf-output-dir=') or arg == '--clean-only' for arg in args):
-            return AIcDefsCodegenCli._batch(args)
-        if args is None:
-            import sys
-            if any(arg.startswith('--schema-input-dir=') or arg.startswith('--technology-dointf-output-dir=')
-                   or arg == '--clean-only' for arg in sys.argv[1:]):
-                return AIcDefsCodegenCli._batch(sys.argv[1:])
-        parser = argparse.ArgumentParser(description='Generate Java or Python program types from one canonical definition')
-        parser.add_argument('source_kind', choices=[kind.value for kind in AInDefinitionSourceKind])
-        parser.add_argument('target', choices=[target.value for target in AInCodeGenerationTarget])
-        parser.add_argument('input', type=Path)
-        parser.add_argument('package')
-        parser.add_argument('output_root', type=Path)
-        parsed = parser.parse_args(args)
-        source_kind = AInDefinitionSourceKind(parsed.source_kind)
-        target = AInCodeGenerationTarget(parsed.target)
-        profile = AIcAlgitesNamingProfiles_1.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles_1.python_profile()
-        service = AIcDefaultDefsCodegenService()
-        definition = service.load(AIcdDefinitionLoadRequest(parsed.input, source_kind, profile))
-        request = AIcdCodeGenerationRequest(definition, target, parsed.package, profile)
-        for generated in AIcSchemaContractInterfaceGenerator().generate_sources(request):
-            output = parsed.output_root / generated.relative_path
-            output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_text(generated.source, encoding='utf-8')
-            print(output)
-        return 0
+        """Generate from a named settings file or from explicit semantic-role arguments."""
+        import sys
+        args = list(sys.argv[1:] if args is None else args)
+        if not args or any(arg.startswith('--settings-file') for arg in args):
+            args = AIcDefsCodegenCli._expand_settings(args)
+        return AIcDefsCodegenCli._batch(args)
+
+    @staticmethod
+    def _expand_settings(args: list[str]) -> list[str]:
+        """Expand line-oriented --settings-file; explicit CLI mappings override file mappings."""
+        import shlex
+        path = None
+        rest = []
+        for value in args:
+            if value.startswith('--settings-file='):
+                if path is not None:
+                    raise ValueError('--settings-file may be specified only once')
+                path = Path(value.partition('=')[2])
+            else:
+                rest.append(value)
+        if path is None and not rest:
+            name = 'algites-defscodegen-python-default.settings'
+            path = Path.cwd() / 'generators/code/defscodegen/intf/src/product/config/eu/algites/tool/codegen/defs' / name
+            if not path.is_file():
+                from importlib import resources
+                content = None
+                for provider in ('eu.algites.tool.codegen.defs',
+                                 'algites.pub.tool.general.generators.code.defscodegen.intf'):
+                    try:
+                        candidate = resources.files(provider).joinpath(
+                            *(['eu', 'algites', 'tool', 'codegen', 'defs', name]
+                              if provider.startswith('algites.') else [name]))
+                        if candidate.is_file():
+                            content = candidate.read_text(encoding='utf-8')
+                            break
+                    except (ModuleNotFoundError, FileNotFoundError, TypeError):
+                        continue
+                if content is None:
+                    raise FileNotFoundError('Packaged default Defs settings are unavailable: ' + name)
+            else:
+                content = path.read_text(encoding='utf-8')
+        elif path is not None:
+            content = path.read_text(encoding='utf-8')
+        else:
+            return rest
+        settings = []
+        for number, line in enumerate(content.splitlines(), 1):
+            parts = shlex.split(line, comments=True)
+            if not parts:
+                continue
+            if len(parts) != 1 or not parts[0].startswith('--') or parts[0].startswith('--settings-file'):
+                raise ValueError(f'Invalid settings option at line {number}: {line}')
+            settings.append(parts[0])
+        return settings + rest
 
     @staticmethod
     def _batch(args: list[str]) -> int:
-        parser = argparse.ArgumentParser(description='Generate all canonical contracts with explicit per-kind YAML name profiles')
+        """Bind source and output roles independently of the catalog file locations."""
+        parser = argparse.ArgumentParser(description='Defs Codegen with explicit semantic naming roles')
         parser.add_argument('--repository-root', type=Path, default=Path.cwd())
         parser.add_argument('--schema-input-dir', action='append', default=[])
-        parser.add_argument('--schema-input-naming-profile', action='append', default=[])
+        parser.add_argument('--input-schema-naming-convention', action='append', default=[])
         parser.add_argument('--technology-dointf-output-dir', action='append', default=[])
-        parser.add_argument('--technology-dointf-output-naming-profile', action='append', default=[])
-        parser.add_argument('--clean-only', action='store_true')
+        parser.add_argument('--output-interface-technology-naming-convention', action='append', default=[])
+        parser.add_argument('--output-enum-technology-naming-convention', action='append', default=[])
+        parser.add_argument('--naming-conventions-file', action='append', default=[])
         parser.add_argument('--check', action='store_true')
+        parser.add_argument('--clean-only', action='store_true')
         parser.add_argument('--allow-unversioned-schemas', action='store_true')
         options = parser.parse_args(args)
+        valid_inputs = {'xmldefs', 'yamldefs', 'jsondefs'}
+        valid_targets = {'java', 'python'}
+        valid_roles = {'common', 'xmldefs_type', 'xmldefs_element', 'yamldefs', 'jsondefs'}
 
-        def mapping(entries: list[str], label: str, repeated: bool = False):
-            result = {} if not repeated else []
-            for entry in entries:
-                if ':' not in entry:
-                    parser.error(f'{label} requires kind:path, got {entry!r}')
-                kind, path = entry.split(':', 1)
-                if kind not in (('yamldefs', 'jsondefs', 'xmldefs') if label.startswith('schema') else ('java', 'python')):
-                    parser.error(f'Unknown kind in {label}: {kind}')
-                if not path:
-                    parser.error(f'Empty path in {label}')
-                if repeated:
-                    result.append(dict(kind=kind, directory=path))
-                else:
-                    if kind in result:
-                        parser.error(f'Duplicate {label} mapping for {kind}')
-                    result[kind] = path
+        def split_map(values, kinds, label):
+            result = {}
+            for value in values:
+                key, sep, name = value.partition(':')
+                if sep != ':' or key not in kinds or not name:
+                    parser.error(f'Invalid {label}: {value!r}')
+                result[key] = name
             return result
 
-        output_dirs = mapping(options.technology_dointf_output_dir, 'technology-dointf-output-dir')
-        output_profiles = mapping(options.technology_dointf_output_naming_profile, 'technology-dointf-output-naming-profile')
-        if not output_dirs or set(output_dirs) != set(output_profiles):
-            parser.error('Every target technology requires an output directory and naming profile')
-        if not options.clean_only and not options.schema_input_dir:
-            parser.error('At least one --schema-input-dir is required')
-        if options.clean_only and options.check:
-            parser.error('--clean-only conflicts with --check')
-        input_dirs = mapping(options.schema_input_dir, 'schema-input-dir', repeated=True)
-        input_profiles = mapping(options.schema_input_naming_profile, 'schema-input-naming-profile')
-        if not options.clean_only and {entry['kind'] for entry in input_dirs} != set(input_profiles):
-            parser.error('Each selected schema kind requires exactly one input naming profile')
-        manifest = dict(artifact='.', languages=list(output_dirs),
-            schema_inputs=input_dirs, schema_input_naming_profiles=input_profiles,
-            technology_outputs=output_dirs, technology_naming_profiles=output_profiles,
-            clean_only=options.clean_only, allow_unversioned_schemas=options.allow_unversioned_schemas)
+        inputs = split_map(options.input_schema_naming_convention, valid_inputs, 'source convention')
+        output_dirs = split_map(options.technology_dointf_output_dir, valid_targets, 'output directory')
+        enumerations = split_map(options.output_enum_technology_naming_convention, valid_targets, 'enum convention')
+        roots = [dict(kind=kind, directory=name) for kind, name in
+            (entry.split(':', 1) for entry in options.schema_input_dir)]
+        if any(item['kind'] not in valid_inputs or not item['directory'] for item in roots):
+            parser.error('Each --schema-input-dir requires xmldefs|yamldefs|jsondefs:path')
+        roles = {}
+        for value in options.output_interface_technology_naming_convention:
+            parts = value.split(':', 2)
+            if (len(parts) != 3 or parts[0] not in valid_targets or parts[1] not in valid_roles
+                    or not parts[2].startswith('defsintf=') or not parts[2][len('defsintf='):]):
+                parser.error('Expected technology:role:defsintf=<naming-convention-id>')
+            roles.setdefault(parts[0], {})[parts[1]] = parts[2][len('defsintf='):]
+        if not options.clean_only and (not roots or not output_dirs):
+            parser.error('Select schema roots and at least one output technology')
+        if not options.clean_only and any(kind not in inputs for kind in {entry['kind'] for entry in roots}):
+            parser.error('Each selected schema input requires an input naming convention')
+        if any(technology not in output_dirs for technology in roles):
+            parser.error('Naming role has no corresponding output technology root')
+        if not options.naming_conventions_file:
+            parser.error('At least one --naming-conventions-file is required')
+        if options.check and options.clean_only:
+            parser.error('--check conflicts with --clean-only')
+        manifest = dict(artifact='.', schema_inputs=roots, schema_input_naming_conventions=inputs,
+            technology_outputs=output_dirs, technology_output_naming_conventions=roles,
+            technology_enum_output_naming_conventions=enumerations,
+            naming_convention_files=list(dict.fromkeys(options.naming_conventions_file)),
+            languages=list(output_dirs), clean_only=options.clean_only,
+            allow_unversioned_schemas=options.allow_unversioned_schemas)
         results = AIcSchemaContractBindingsGenerator().generate_manifest(options.repository_root, manifest, options.check)
         for item in results:
             print(item['path'])

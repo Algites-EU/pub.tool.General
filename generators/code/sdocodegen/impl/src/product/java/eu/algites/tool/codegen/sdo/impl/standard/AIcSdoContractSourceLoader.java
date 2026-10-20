@@ -44,7 +44,9 @@ final class AIcSdoContractSourceLoader implements AutoCloseable {
             List<Path> locSources;
             try (var locStream = Files.walk(locRoot)) {
                 locSources = locStream.filter(Files::isRegularFile)
-                        .filter(aFile -> aFile.getFileName().toString().matches("(?:AIig|AIi|AIng)[A-Za-z0-9_$]+\\.java"))
+                        .filter(aFile -> !aFile.getFileName().toString().equals("module-info.java"))
+                        .filter(aFile -> !aFile.getFileName().toString().equals("package-info.java"))
+                        .filter(aFile -> aFile.getFileName().toString().endsWith(".java"))
                         .sorted().toList();
             }
             if (locSources.isEmpty()) throw new IllegalArgumentException("No Java contract sources: " + locRoot);

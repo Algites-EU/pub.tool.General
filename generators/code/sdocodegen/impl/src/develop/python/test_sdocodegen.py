@@ -170,9 +170,9 @@ def test_yaml_named_sdo_setter_parameter_follows_python_profile(contracts):
     assert 'def setName(self, a_value)' in generated.implementation.source
     assert "self.set_RawField('Name', a_value)" in generated.implementation.source
     assert catalog.recognize_filename(Path(generated.mutable_interface.relative_path).name,
-                                     {'algites-python-gen-data-intf-versioned'}) is not None
+                                     {'algites-python-gen-data-intf-versioned_1'}) is not None
     assert catalog.recognize_filename(Path(generated.implementation.relative_path).name,
-                                     {'algites-python-gen-data-class-versioned'}) is not None
+                                     {'algites-python-gen-data-class-versioned_1'}) is not None
 
 
 def test_generated_smartdo_policy_on_interface_and_getter(tmp_path, monkeypatch):

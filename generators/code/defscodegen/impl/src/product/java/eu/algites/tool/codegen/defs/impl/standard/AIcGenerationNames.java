@@ -27,13 +27,14 @@ final class AIcGenerationNames {
     private static String type(AIiNameConventionCatalog aCatalog, String aIdentifier, Integer aVersion,
             AInDefsNameRole aRole, String aStructure) {
         String locPrefix = "algites-" + technology(aCatalog) + "-gen-" + role(aRole);
-        String locProfile = locPrefix + (aVersion == null ? "" : "-versioned");
+        String locProfile = aCatalog instanceof AIcSelectedNamingCatalog locSelected
+                ? locSelected.selected(aRole) : locPrefix + (aVersion == null ? "_1" : "-versioned_1");
         /* Derived schema-pointer ordinals must not imitate a filename version suffix. */
         String locIdentifier = aIdentifier.replaceAll("(?<=[a-z])-(?=[0-9]+(?:-|$))", "");
         Map<String, String> locVariables = aVersion == null
                 ? Map.of("identifier", locIdentifier)
                 : Map.of("identifier", locIdentifier, "version", aVersion.toString());
-        return aCatalog.format(locProfile, aStructure, locVariables, "lower_kebab_case");
+        return aCatalog.format(locProfile, aStructure, locVariables, "lower_kebab_case_1");
     }
 
     String typeName(AIcdCanonicalDefinition aDefinition, AIiNameConventionCatalog aProfile, AInDefsNameRole aKind) {
@@ -51,7 +52,9 @@ final class AIcGenerationNames {
 
     private static String property(AIiNameConventionCatalog aProfile, String aName, String aStructure,
             String aSourceConvention) {
-        String locRole = "algites-" + technology(aProfile) + "-gen-intf-versioned";
+        String locRole = aProfile instanceof AIcSelectedNamingCatalog locSelected
+                ? locSelected.selected(AInDefsNameRole.INTERFACE_TYPE)
+                : "algites-" + technology(aProfile) + "-gen-intf-versioned_1";
         try {
             return aProfile.format(locRole, aStructure, Map.of("identifier", aName), aSourceConvention);
         } catch (IllegalArgumentException aError) {
@@ -60,20 +63,20 @@ final class AIcGenerationNames {
                     .toLowerCase(java.util.Locale.ROOT);
             if (locNormalized.isEmpty() || Character.isDigit(locNormalized.charAt(0)))
                 locNormalized = "field-" + locNormalized;
-            return aProfile.format(locRole, aStructure, Map.of("identifier", locNormalized), "lower_kebab_case");
+            return aProfile.format(locRole, aStructure, Map.of("identifier", locNormalized), "lower_kebab_case_1");
         }
     }
 
     String propertyName(String aName, AIiNameConventionCatalog aProfile) {
-        return property(aProfile, aName, "field_name", "upper_camel_case");
+        return property(aProfile, aName, "field_name", "upper_camel_case_1");
     }
 
     String enumConstant(String aName, AIiNameConventionCatalog aProfile) {
-        return property(aProfile, aName, "enum_item_name", "lower_snake_case");
+        return property(aProfile, aName, "enum_item_name", "lower_snake_case_1");
     }
 
     String schemaFieldNameConstant(String aName, AIiNameConventionCatalog aProfile) {
-        String locIdentifier = property(aProfile, aName, "constant_name", "upper_camel_case")
+        String locIdentifier = property(aProfile, aName, "constant_name", "upper_camel_case_1")
                 .replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_+", "_").replaceAll("^_+|_+$", "");
         return "SCHEMA_FIELD_NAME__" + (locIdentifier.isEmpty() ? "FIELD" : locIdentifier);
     }

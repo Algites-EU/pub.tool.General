@@ -1,26 +1,66 @@
-"""Generate SmartDataObject implementations from imported DO contracts.
-
-Both the legacy single-contract CLI and the new YAML-profile-driven batch CLI
-are supported.  The native Python CLI never invokes Java.
-"""
+"""Native Python SDO CLI with explicit semantic naming roles and external settings."""
 from __future__ import annotations
 
 import argparse
-import importlib
+import ast
+import importlib.resources
+import os
 from pathlib import Path
 import sys
 
 from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
 from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
 
+_ROLES = {'common', 'xmldefs_type', 'xmldefs_element', 'yamldefs', 'jsondefs'}
 
-def _write(root, item, check):
+
+def _settings(arguments: list[str]) -> list[str]:
+    paths = [value.partition('=')[2] for value in arguments if value.startswith('--settings-file=')]
+    if len(paths) > 1:
+        raise ValueError('Only one --settings-file is permitted')
+    remaining = [value for value in arguments if not value.startswith('--settings-file=')]
+    if not paths and remaining:
+        return remaining
+    if paths:
+        content = Path(paths[0]).read_text(encoding='utf-8')
+    else:
+        name = 'algites-sdocodegen-python-default.settings'
+        candidate = Path('generators/code/sdocodegen/intf/src/product/config/eu/algites/tool/codegen/sdo') / name
+        if candidate.is_file():
+            content = candidate.read_text(encoding='utf-8')
+        else:
+            content = None
+            for provider in ('eu.algites.tool.codegen.sdo',
+                             'algites.pub.tool.general.generators.code.sdocodegen.intf'):
+                try:
+                    resource = importlib.resources.files(provider).joinpath(
+                        *(['eu', 'algites', 'tool', 'codegen', 'sdo', name]
+                          if provider.startswith('algites.') else [name]))
+                    if resource.is_file():
+                        content = resource.read_text(encoding='utf-8')
+                        break
+                except (ModuleNotFoundError, FileNotFoundError, TypeError):
+                    continue
+            if content is None:
+                raise FileNotFoundError('Packaged default SDO settings are unavailable: ' + name)
+    options = []
+    for number, line in enumerate(content.splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        if not line.startswith('--') or any(ch.isspace() for ch in line):
+            raise ValueError(f'Invalid SDO settings line {number}')
+        options.append(line)
+    return options + remaining
+
+
+def _write(root: Path, item, check: bool):
     output = (root / item.relative_path).resolve()
     if not output.is_relative_to(root):
-        raise ValueError('Generated output escapes its target root')
+        raise ValueError(f'Generated SDO output escapes root: {item.relative_path}')
     if check:
         if not output.is_file() or output.read_text(encoding='utf-8') != item.source:
-            raise ValueError('Missing or outdated generated SDO output: ' + str(output))
+            raise ValueError(f'Missing or outdated generated SDO output: {output}')
     else:
         output.parent.mkdir(parents=True, exist_ok=True)
         if not output.is_file() or output.read_text(encoding='utf-8') != item.source:
@@ -28,101 +68,157 @@ def _write(root, item, check):
     print(output)
 
 
+def _clean_sdo_outputs(catalog, mutable_root: Path, concrete_root: Path,
+                       profiles: list[dict[str, str]]) -> None:
+    """Clean both output families together when they share a physical root."""
+    if mutable_root == concrete_root:
+        catalog.clean(mutable_root, set(profiles[1].values()) | set(profiles[2].values()))
+    else:
+        catalog.clean(mutable_root, set(profiles[1].values()))
+        catalog.clean(concrete_root, set(profiles[2].values()))
+
+
 def main(args=None):
-    """Parse command-line arguments and execute the requested code-generation action."""
-    arguments = list(args) if args is not None else sys.argv[1:]
-    if any(arg.startswith('--technology-') or arg == '--clean-only' for arg in arguments):
-        return _batch(arguments)
-    parser = argparse.ArgumentParser(description='Generate AIigd and AIcgd from an imported AIig contract')
-    parser.add_argument('contract', help='Qualified module:class name')
-    parser.add_argument('mutable_root', type=Path)
-    parser.add_argument('implementation_root', type=Path)
-    parser.add_argument('--marker', default='d')
-    parser.add_argument('--check', action='store_true')
-    options = parser.parse_args(arguments)
-    module, name = options.contract.rsplit(':', 1)
-    read_contract = getattr(importlib.import_module(module), name)
-    mutable = options.mutable_root.absolute().resolve()
-    implementation = options.implementation_root.absolute().resolve()
-    if mutable == implementation:
-        raise ValueError('Mutable interfaces and implementations require separate roots')
-    result = AIcSdoCodegenService().generate(read_contract, options.marker)
-    for root, item in ((mutable, result.mutable_interface), (implementation, result.implementation)):
-        _write(root, item, options.check)
-    return 0
-
-
-def _batch(arguments: list[str]) -> int:
-    parser = argparse.ArgumentParser(description='Generate SDO sources from YAML-profile-managed DO contract roots')
+    """Generate selected mutable and implementation roles from explicit DataObject inputs."""
+    arguments = _settings(list(args) if args is not None else sys.argv[1:])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--repository-root', default='.')
     parser.add_argument('--technology-dointf-input-dir', action='append', default=[])
-    parser.add_argument('--technology-dointf-input-naming-profile', action='append', default=[])
     parser.add_argument('--technology-sdointf-output-dir', action='append', default=[])
-    parser.add_argument('--technology-sdointf-output-naming-profile', action='append', default=[])
     parser.add_argument('--technology-sdoimpl-output-dir', action='append', default=[])
-    parser.add_argument('--technology-sdoimpl-output-naming-profile', action='append', default=[])
+    parser.add_argument('--input-technology-naming-convention', action='append', default=[])
+    parser.add_argument('--output-technology-naming-convention', action='append', default=[])
+    parser.add_argument('--naming-conventions-file', action='append', default=[])
+    parser.add_argument('--dointf-classpath', action='append', default=[])
+    parser.add_argument('--sdointf-subpackage', default='')
+    parser.add_argument('--sdoclass-subpackage', default='')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--clean-only', action='store_true')
     options = parser.parse_args(arguments)
+    if options.check and options.clean_only:
+        parser.error('--clean-only and --check cannot both be used')
+    root = Path(options.repository_root).resolve()
 
-    def group(values, label):
-        result = {}
-        for entry in values:
-            kind, sep, path = entry.partition(':')
-            if sep != ':' or kind != 'python' or not path:
-                parser.error(f'Python SDO CLI expects python:path in {label}, got {entry!r}')
-            if kind in result:
-                parser.error('Duplicate ' + label)
-            result[kind] = Path(path).resolve()
-        return result
+    def directory(values):
+        selected = None
+        for value in values:
+            kind, sep, path = value.partition(':')
+            if kind != 'python' or sep != ':' or not path:
+                continue
+            selected = (root / path).resolve()
+        return selected
 
-    input_roots = group(options.technology_dointf_input_dir, 'dointf input directory')
-    input_profiles = group(options.technology_dointf_input_naming_profile, 'dointf input profile')
-    mutable_roots = group(options.technology_sdointf_output_dir, 'sdointf output directory')
-    mutable_profiles = group(options.technology_sdointf_output_naming_profile, 'sdointf output profile')
-    implementation_roots = group(options.technology_sdoimpl_output_dir, 'sdoimpl output directory')
-    implementation_profiles = group(options.technology_sdoimpl_output_naming_profile, 'sdoimpl output profile')
-    if set(mutable_roots) != set(mutable_profiles) or set(implementation_roots) != set(implementation_profiles):
-        parser.error('Each SDO output root must have a matching naming catalog')
-    if not mutable_roots or not implementation_roots:
-        parser.error('Both sdointf and sdoimpl output roles are required')
-    if not options.clean_only and (set(input_roots) != set(input_profiles) or not input_roots):
-        parser.error('Each DO input root requires a matching naming catalog')
-    if options.clean_only and options.check:
-        parser.error('--clean-only cannot be combined with --check')
-
-    mutable_root, concrete_root = mutable_roots['python'], implementation_roots['python']
-    mutable_cat = AIcNameConventionCatalog_1.load(mutable_profiles['python'])
-    concrete_cat = AIcNameConventionCatalog_1.load(implementation_profiles['python'])
-    role_mut = 'algites-python-gen-data-intf-versioned'
-    role_impl = 'algites-python-gen-data-class-versioned'
+    source_root = directory(options.technology_dointf_input_dir)
+    mutable_root = directory(options.technology_sdointf_output_dir)
+    concrete_root = directory(options.technology_sdoimpl_output_dir)
+    if mutable_root is None or concrete_root is None:
+        parser.error('Python mutable and implementation output directories are required')
+    if not options.clean_only and source_root is None:
+        parser.error('Python DataObject input directory is required')
+    if not options.naming_conventions_file:
+        parser.error('At least one --naming-conventions-file is required')
+    resolved_catalogs = []
+    for value in options.naming_conventions_file:
+        resolved_catalogs.append(value if value.startswith('resource:') else str((root / value).resolve()))
+    catalog = AIcNameConventionCatalog_1.load_many(resolved_catalogs)
+    profiles = [{}, {}, {}]
+    for value in options.input_technology_naming_convention:
+        parts = value.split(':', 2)
+        if len(parts) != 3 or parts[0] not in {'java', 'python'} or parts[1] not in _ROLES:
+            parser.error(f'Invalid input naming convention: {value}')
+        if parts[0] == 'python':
+            if not parts[2].startswith('defsintf=') or not parts[2][9:]:
+                parser.error(f'Invalid defsintf assignment: {value}')
+            profiles[0][parts[1]] = parts[2][9:]
+    for value in options.output_technology_naming_convention:
+        parts = value.split(':', 2)
+        if len(parts) != 3 or parts[0] not in {'java', 'python'} or parts[1] not in _ROLES:
+            parser.error(f'Invalid output naming convention: {value}')
+        if parts[0] != 'python':
+            continue
+        for entry in parts[2].split(','):
+            key, sep, name = entry.partition('=')
+            if sep != '=' or not name or key not in {'sdointf', 'sdoclass'}:
+                parser.error(f'Invalid SDO role assignment: {entry}')
+            profiles[1 if key == 'sdointf' else 2][parts[1]] = name
+    for entry in profiles:
+        for role, name in entry.items():
+            try:
+                catalog.profile(name)
+            except KeyError as exc:
+                raise ValueError(f'Missing naming convention {name!r} for role {role}') from exc
     if options.clean_only:
-        mutable_cat.clean(mutable_root, {role_mut})
-        concrete_cat.clean(concrete_root, {role_impl})
+        _clean_sdo_outputs(catalog, mutable_root, concrete_root, profiles)
         return 0
-    do_root = input_roots['python']
-    input_cat = AIcNameConventionCatalog_1.load(input_profiles['python'])
-    input_role = 'algites-python-gen-intf-versioned'
-    if not do_root.is_dir():
-        raise ValueError('DO input directory does not exist: ' + str(do_root))
-    contracts = {}
-    for source in sorted(do_root.rglob('*.py')):
-        found = input_cat.recognize_filename(source.name, {input_role})
-        if found is not None:
-            contracts[source] = input_cat.format(input_role, 'main_container_name',
-                                                 found.variables, 'lower_snake_case')
-    results = AIcSdoCodegenService().generate_from_sources(
-        do_root, contracts, naming=(input_cat, mutable_cat, concrete_cat))
-    for source, generated in results.items():
-        if mutable_cat.recognize_filename(Path(generated.mutable_interface.relative_path).name, {role_mut}) is None:
-            raise ValueError('Generated mutable type violates output naming convention: ' + generated.mutable_interface.relative_path)
-        if concrete_cat.recognize_filename(Path(generated.implementation.relative_path).name, {role_impl}) is None:
-            raise ValueError('Generated concrete type violates output naming convention: ' + generated.implementation.relative_path)
+    if not source_root.is_dir():
+        raise ValueError(f'SDO input directory does not exist: {source_root}')
+    selected = {}
+    for source in sorted(source_root.rglob('*.py')):
+        matches = []
+        for role, name in profiles[0].items():
+            match = catalog.recognize_filename(source.name, {name})
+            if match is not None:
+                parsed = catalog.parse(name, 'file_name_stem', source.stem)
+                try:
+                    class_name = catalog.format(name, 'main_container_name', parsed,
+                                                catalog.identifier_convention(name, 'file_name_stem'))
+                except (KeyError, ValueError):
+                    continue
+                matches.append((role, class_name))
+        names = {name for _, name in matches}
+        if len(names) > 1:
+            raise ValueError(f'Ambiguous input DataObject class in {source}: {matches}')
+        if names and any(role in profiles[1] and role in profiles[2] for role, _ in matches):
+            selected[source.relative_to(source_root)] = next(iter(names))
+            continue
+        # Manually authored contracts do not have to match the Algites filename
+        # grammar. Their explicit metadata and actual marker bases select a role.
+        module = ast.parse(source.read_text(encoding='utf-8'), filename=str(source))
+        annotated_classes = []
+        for declaration in module.body:
+            if not isinstance(declaration, ast.ClassDef):
+                continue
+            if any(isinstance(node, (ast.Assign, ast.AnnAssign)) and (
+                    any(isinstance(target, ast.Name) and target.id == '__data_object__'
+                        for target in node.targets) if isinstance(node, ast.Assign)
+                    else isinstance(node.target, ast.Name) and node.target.id == '__data_object__')
+                    for node in declaration.body):
+                annotated_classes.append(declaration.name)
+        if len(annotated_classes) > 1:
+            raise ValueError(f'Multiple manually authored DataObject types in {source}: {annotated_classes}')
+        if annotated_classes:
+            selected[source.relative_to(source_root)] = annotated_classes[0]
+    if not selected:
+        return 0
+    added = []
+    for item in options.dointf_classpath:
+        for path in item.split(os.pathsep):
+            absolute = str((root / path).resolve())
+            if absolute not in sys.path:
+                sys.path.insert(0, absolute)
+                added.append(absolute)
+    try:
+        generated = AIcSdoCodegenService().generate_from_sources(
+            source_root, selected, naming=(*profiles, catalog),
+            mutable_subpackage=options.sdointf_subpackage,
+            concrete_subpackage=options.sdoclass_subpackage,
+            enabled_roles=set(profiles[0]) & set(profiles[1]) & set(profiles[2]))
+    finally:
+        for path in added:
+            sys.path.remove(path)
+    paths: set[Path] = set()
+    for result in generated.values():
+        for target in ((mutable_root, result.mutable_interface),
+                       (concrete_root, result.implementation)):
+            output = (target[0] / target[1].relative_path).resolve()
+            if output in paths:
+                raise ValueError(f'SDO naming roles generate duplicate output path: {output}')
+            paths.add(output)
     if not options.check:
-        mutable_cat.clean(mutable_root, {role_mut})
-        concrete_cat.clean(concrete_root, {role_impl})
-    for generated in results.values():
-        _write(mutable_root, generated.mutable_interface, options.check)
-        _write(concrete_root, generated.implementation, options.check)
+        _clean_sdo_outputs(catalog, mutable_root, concrete_root, profiles)
+    for result in generated.values():
+        _write(mutable_root, result.mutable_interface, options.check)
+        _write(concrete_root, result.implementation, options.check)
     return 0
 
 

@@ -31,6 +31,9 @@ public final class AIcXmlElementContractGenerator {
             AIcdXmlElementDeclaration aElement, Map<String, String> aContentTypes,
             Map<String, String> aElementTypes, java.util.Set<String> aValueTypes) {
         Integer locVersion = aRequest.definition().version();
+        String locElementConvention = aRequest.namingProfile() instanceof AIcSelectedNamingCatalog locSelected
+                ? locSelected.selected(AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE)
+                : aRequest.namingConvention();
         String locName = names.referenceTypeName(xmlIdentifier(aElement.localName()), locVersion, aRequest.namingProfile(),
                 AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE);
         String locStem = names.referenceTypeName(xmlIdentifier(aElement.localName()), locVersion, aRequest.namingProfile(),
@@ -59,7 +62,8 @@ public final class AIcXmlElementContractGenerator {
         String locPackage = aRequest.packageName();
         String locAnnotation = "@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = "
                 + quote(aElement.namespace() + "#" + aElement.localName()) + ", schemaVersion = "
-                + (locVersion == null ? -1 : locVersion) + ")";
+                + (locVersion == null ? -1 : locVersion) + ", namingConvention = "
+                + quote(locElementConvention) + ")";
         String locXmlAnnotation = "@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject("
                 + "definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.ELEMENT, namespace = "
                 + quote(aElement.namespace()) + ", namespaceLocalName = " + quote(aElement.localName()) + ")";
@@ -102,7 +106,8 @@ public final class AIcXmlElementContractGenerator {
             locImports.add("from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind");
             String locBody = "    __data_object__ = AIcdDataObject(schema_id="
                     + quote(aElement.namespace() + "#" + aElement.localName()) + ", schema_version="
-                    + (locVersion == null ? -1 : locVersion) + ")\n"
+                    + (locVersion == null ? -1 : locVersion) + ", naming_convention="
+                    + quote(locElementConvention) + ")\n"
                     + "    __xml_data_object__ = AIaXmlDataObject(definition_kind=AInXmlObjectDefinitionKind.ELEMENT, namespace="
                     + quote(aElement.namespace()) + ", namespace_local_name=" + quote(aElement.localName()) + ")\n"
                     + "    __slots__ = ()\n";

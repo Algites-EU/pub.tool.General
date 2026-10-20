@@ -31,7 +31,7 @@ public final class AIcSchemaContractInterfaceGenerator {
                     "from __future__ import annotations\nfrom " + aParentModule + " import " + aParentType + "\n");
         } else {
             String locDeclaration = "public interface " + locBase.typeName()
-                    + " extends " + dataObjectParent(aRequest.definition().sourceKind()) + " {";
+                    + " extends " + (aRequest.contractRole().equals("common") ? "eu.algites.lib.data.dataobject.AIiDataObject" : dataObjectParent(aRequest.definition().sourceKind())) + " {";
             if (!locSource.contains(locDeclaration)) throw new IllegalStateException("Cannot locate Java contract");
             locSource = locSource.replace(locDeclaration,
                     "public interface " + locBase.typeName() + " extends " + aParentModule + "." + aParentType + " {");
@@ -70,7 +70,8 @@ public final class AIcSchemaContractInterfaceGenerator {
                 + AIcScalarGeneration.jquote(aRequest.definition().identity())
                 + ", schemaVersion = " + (aRequest.definition().version() == null ? -1 : aRequest.definition().version())
                 + ", title = " + AIcScalarGeneration.jquote(visibleTitle(aRequest.definition().title(), aRequest.definition().logicalName()))
-                + ", description = " + AIcScalarGeneration.jquote(aRequest.definition().description() == null ? "" : aRequest.definition().description()) + ")");
+                + ", description = " + AIcScalarGeneration.jquote(aRequest.definition().description() == null ? "" : aRequest.definition().description())
+                + ", namingConvention = " + AIcScalarGeneration.jquote(aRequest.namingConvention()) + ")");
         if (aRequest.xmlTypeQName() != null) {
             String locQName = aRequest.xmlTypeQName();
             int locDelimiter = locQName.indexOf('}');
@@ -79,7 +80,7 @@ public final class AIcSchemaContractInterfaceGenerator {
                     + "namespace = " + AIcScalarGeneration.jquote(locQName.substring(1, locDelimiter))
                     + ", namespaceLocalName = " + AIcScalarGeneration.jquote(locQName.substring(locDelimiter + 1)) + ")");
         }
-        rows.add("public interface " + interfaceName + " extends " + dataObjectParent(aRequest.definition().sourceKind()) + " {");
+        rows.add("public interface " + interfaceName + " extends " + (aRequest.contractRole().equals("common") ? "eu.algites.lib.data.dataobject.AIiDataObject" : dataObjectParent(aRequest.definition().sourceKind())) + " {");
         rows.add("    /** Canonical schema ID independent of any representation-specific publication URL. */");
         rows.add("    String CANONICAL_SOURCE_ID = " + AIcScalarGeneration.jquote(aRequest.definition().identity()) + ";");
         rows.add("    /** Version identifying the canonical schema definition. */");

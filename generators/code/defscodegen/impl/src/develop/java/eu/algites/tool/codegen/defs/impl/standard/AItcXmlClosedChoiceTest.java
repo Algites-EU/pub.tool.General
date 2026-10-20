@@ -67,7 +67,7 @@ public final class AItcXmlClosedChoiceTest {
     private static AIiNameConventionCatalog naming() {
         return new AIiNameConventionCatalog() {
             /** Supported source and output conventions. */
-            @Override public Set<String> names() { return Set.of("algites-java-gen-intf-versioned"); }
+            @Override public Set<String> names() { return Set.of("algites-java-gen-intf-versioned_1"); }
             /** Produces a stable name from the nominal identifier. */
             @Override public String format(String aProfile, String aStructure,
                     Map<String, String> aVariables, String aLexical) {

@@ -25,6 +25,8 @@ class AIcXmlElementContractGenerator:
         logical = xml_identifier(element.local_name)
         version = request.definition.version
         role = AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE
+        element_convention = (profile.selected(role) if hasattr(profile, 'selected')
+                              else request.naming_convention)
         name = names.render(logical, version, profile, role)
         language = request.target
         stem = names.render(logical, version, profile, AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)
@@ -50,7 +52,7 @@ class AIcXmlElementContractGenerator:
             if len(set(extends)) != len(extends): extends = list(dict.fromkeys(extends))
             annotation = ('@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = '
                 + _java_quote(element.namespace + '#' + element.local_name) + ', schemaVersion = '
-                + str(version if version is not None else -1) + ')')
+                + str(version if version is not None else -1) + ', namingConvention = ' + _java_quote(element_convention) + ')')
             xml_annotation = ('@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject('
                 'definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.ELEMENT, '
                 'namespace = ' + _java_quote(element.namespace) + ', namespaceLocalName = '
@@ -96,7 +98,7 @@ class AIcXmlElementContractGenerator:
                 'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind']
             body = (f'    __data_object__ = AIcdDataObject(schema_id={element.namespace + "#" + logical!r}, '
                 f'schema_version={version if version is not None else -1}, '
-                f')\n'
+                f'naming_convention={element_convention!r})\n'
                 '    __xml_data_object__ = AIaXmlDataObject(definition_kind=AInXmlObjectDefinitionKind.ELEMENT, '
                 f'namespace={element.namespace!r}, namespace_local_name={element.local_name!r})\n'
                 '    __slots__ = ()\n')

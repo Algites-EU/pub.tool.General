@@ -25,7 +25,8 @@ class AIcGenerationNames:
                 else None)
         if role is None:
             raise ValueError(f'Unsupported type-name role: {kind}')
-        profile_name = f'algites-{self._technology(profile)}-gen-{role}' + ('-versioned' if version is not None else '')
+        profile_name = (profile.selected(kind) if hasattr(profile, 'selected') else
+            f'algites-{self._technology(profile)}-gen-{role}' + ('-versioned_1' if version is not None else '_1'))
         structure = 'file_name_stem' if kind in (AInDefsNameRole.DATA_TYPE_FILE_STEM,
             AInDefsNameRole.ENUM_TYPE_FILE_STEM, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
             AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM) else 'main_container_name'
@@ -35,7 +36,7 @@ class AIcGenerationNames:
         # A trailing numeric schema-pointer ordinal is a derived identifier fragment,
         # not a separate version. Keep lexical segments unambiguous against _<version>.
         values['identifier'] = re.sub(r'(?<=[a-z])-(?=[0-9]+(?:-|$))', '', values['identifier'])
-        return profile.format(profile_name, structure, values, 'lower_kebab_case')
+        return profile.format(profile_name, structure, values, 'lower_kebab_case_1')
 
     def type_name(self, definition, profile, kind):
         """Return the generated type name for the requested definition."""
@@ -46,7 +47,8 @@ class AIcGenerationNames:
         return self.render(definition.logical_name, definition.version, profile, kind)
 
     def _field(self, source_name, profile, structure, source_convention):
-        role = f'algites-{self._technology(profile)}-gen-intf-versioned'
+        role = (profile.selected(AInDefsNameRole.INTERFACE_TYPE) if hasattr(profile, 'selected') else
+            f'algites-{self._technology(profile)}-gen-intf-versioned_1')
         try:
             return profile.format(role, structure, {'identifier': source_name}, source_convention)
         except ValueError:
@@ -55,19 +57,19 @@ class AIcGenerationNames:
             normalized = re.sub(r'[^A-Za-z0-9]+', '-', source_name).strip('-').lower()
             if not normalized or normalized[0].isdigit():
                 normalized = 'field-' + normalized
-            return profile.format(role, structure, {'identifier': normalized}, 'lower_kebab_case')
+            return profile.format(role, structure, {'identifier': normalized}, 'lower_kebab_case_1')
 
     def property_name(self, source_name, profile):
         """Convert a canonical field name into a target-language identifier."""
-        return self._field(source_name, profile, 'field_name', 'upper_camel_case')
+        return self._field(source_name, profile, 'field_name', 'upper_camel_case_1')
 
     def enum_constant(self, source_name, profile):
         """Convert a wire-level enum value into its generated constant name."""
-        return self._field(source_name, profile, 'enum_item_name', 'lower_snake_case')
+        return self._field(source_name, profile, 'enum_item_name', 'lower_snake_case_1')
 
     def schema_field_name_constant(self, source_name, profile):
         """Build the stable constant exposing a field's canonical source name."""
-        name = self._field(source_name, profile, 'constant_name', 'upper_camel_case')
+        name = self._field(source_name, profile, 'constant_name', 'upper_camel_case_1')
         return 'SCHEMA_FIELD_NAME__' + (re.sub(r'_+', '_', re.sub(r'[^A-Za-z0-9_]', '_', name)).strip('_') or 'FIELD')
 
     def reference_type(self, ref, profile):

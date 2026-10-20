@@ -1,48 +1,76 @@
-# SDO Codegen — YAML naming catalog batch CLI
+# SDO Codegen — semantic-role naming CLI (1.1)
 
-The legacy single imported-class CLI remains available. The new CLI additionally accepts:
+The Java and Python SDO CLIs use **kebab-case** options. They generate mutable
+`AIigd` and concrete `AIcgd` types from annotated read-only DataObject
+contracts. They do not need the original YAML/JSON/XML schema files.
+
+## Named input/output roles
 
 ```sh
-sdo-codegen \
+python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli \
+  --repository-root=. \
   --technology-dointf-input-dir=python:src/product/python.gen \
-  --technology-dointf-input-naming-profile=python:config/algites-python-name-conventions.yml \
   --technology-sdointf-output-dir=python:src/product/python.gen \
-  --technology-sdointf-output-naming-profile=python:config/algites-python-name-conventions.yml \
   --technology-sdoimpl-output-dir=python:src/product/python.gen \
-  --technology-sdoimpl-output-naming-profile=python:config/algites-python-name-conventions.yml
+  --input-technology-naming-convention=python:yamldefs:defsintf=my-getter \
+  --output-technology-naming-convention=python:yamldefs:sdointf=my-mutable,sdoclass=my-implementation \
+  --sdointf-subpackage=impl.intf \
+  --sdoclass-subpackage=impl \
+  --naming-conventions-file=config/standard.yml \
+  --naming-conventions-file=config/project.yml
 ```
 
-The Java native CLI takes `java:` values and accepts optional
-`--dointf-classpath=<binary-dependencies>`. It compiles the generated AIig
-sources and sibling enums in memory, then uses reflection; no prior contract
-compilation is required. Python imports its `AIig` modules directly from the
-source root and does not invoke Java. Both native CLIs validate generated names
-against the loaded `sdointf`/`sdoimpl` output profiles, and restrict cleanup to
-those role names. Input and output directories may overlap. `--clean-only`
-needs only output root/catalog pairs. Normal generation validates all contracts
-**before** deleting recognized stale output; `--check` performs no writes.
+Supported roles are `common`, `xmldefs_type`, `xmldefs_element`, `yamldefs`
+and `jsondefs`. The technology prefix is `java` or `python`, depending on the
+native CLI being invoked. The mapping declares exact naming-convention IDs;
+none is inferred from an `AIig` prefix. If a role is omitted, it is not
+generated. `AIaDataObject.namingConvention` or Python `naming_convention`
+identifies the input convention used for reverse parsing. Semantic roles are
+selected from DataObject technology-marker interfaces and XML object metadata,
+not guessed from the name.
 
-The native SDO source renderers now obtain generated primary type names and filenames through the selected YAML catalog compositions (including version captures), including inherited and nested contracts. Their recognition of input `AIig` contracts, the semantic relationships among read/mutable/concrete types, and the setter/getter generation logic remain specific to the Algites SDO model. Arbitrary unrelated container kinds and custom code templates remain outside this migration.
+`--naming-conventions-file` can repeat and loads one catalog from filesystem
+and/or packaged `resource:NAME` inputs. The generator imposes no naming-ID
+version suffix policy. In Algites defaults the IDs end in `_1`.
 
-Full reference: [Code Generators Reference Guide](../CODEGEN-REFERENCE.md), section 3.
+## Java binary inputs
 
+The Java CLI also accepts repeatable selectors:
 
-### Shared structural naming rules
+- `--dointf-input-class=fully.qualified.Contract` for one compiled class;
+- `--dointf-input-artifact=PATH` for all eligible DataObject contracts in a
+  JAR or directory containing `.class` files;
+- `--dointf-classpath=PATHS` for supporting binary dependencies, separated
+  with the operating-system path separator.
 
-All Algites Java naming profiles share `method_parameter_name = a + UpperCamelCase`
-(e.g. `aCustomerAddress`) and `local_variable_name = loc + UpperCamelCase`
-(e.g. `locCustomerAddress`). The Python profiles use `a_ + lower_snake_case`
-and `loc_ + lower_snake_case` (e.g. `a_customer_address`, `loc_customer_address`).
-These fragments are declared once per language catalog and referenced by all
-32 profiles, rather than duplicated in each container variant. The suffix of a
-full filename is **not** part of a `*-file` stem composition: complete filenames
-are built from `file_name_stem + file_name_suffix`, with exactly one `.java` or
-`.py` suffix.
+The last option is **dependency classpath only**, not a selector. Module JARs
+can be inspected as classpath entries for generation, bypassing JPMS module
+encapsulation at build time. Resulting generated packages must still be
+compatible with actual named JPMS modules at runtime.
 
-With YAML catalogs supplied to SDO Codegen, both native renderers use their
-selected catalog for the generated mutable interface / concrete class names,
-filenames **and setter-argument names**. Existing protocol method names
-(`setName`, `get_Name`, `unset_Name`, etc.) are still determined by the SDO
-contract and are not freely renamed through the `method_name` profile entry.
-The `local_variable_name` rule is available to generators but does not rewrite
-internal local variables of the SDO renderer itself.
+Both native CLIs also accept input source roots (`--technology-dointf-input-dir`).
+Handwritten DataObject types with explicit metadata are valid inputs even
+when their class and filename do not follow the standard Algites names.
+
+## Output packages, settings, and verification
+
+`--sdointf-subpackage` and `--sdoclass-subpackage` independently append a
+validated suffix to the input type's package. Leaving either unspecified
+preserves the original package. For separate Java named modules use distinct
+packages, not a common suffix. The stock Algites settings select `impl.intf`
+and `impl` respectively.
+
+With no arguments the CLI loads
+`generators/code/sdocodegen/intf/src/product/config/eu/algites/tool/codegen/sdo/`
+from the checkout or packaged resources. The Java CLI selects
+`algites-sdocodegen-java-default.settings`, while the Python CLI selects
+`algites-sdocodegen-python-default.settings`. `--settings-file=PATH` chooses a
+custom file; further CLI mappings override its values for corresponding
+technology/role keys. Each settings file enables all five semantic role families for **one** target
+technology only. A dual-technology artifact runs both native generators
+independently, each with its corresponding settings file. A custom settings
+file may still target one or both languages explicitly.
+
+`--check` verifies generated outputs without changes, and `--clean-only`
+performs the generator's output cleanup without regenerating. Positional single-contract CLI entry points have been removed. For an individual
+contract, use `--dointf-input-class` (Java) or a source directory and role mapping.

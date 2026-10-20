@@ -12,31 +12,33 @@ The `intf` artifact exposes the generation API, `impl` generates mutable contrac
 (`AIigd*`, or a different configured marker) and concrete implementations
 (`AIcgd*`), and `cli` is the adapter used by build orchestration.
 
-Java:
+The CLI now uses **semantic-role options** and named settings, rather than
+positional class/output arguments. With no arguments it reads the packaged
+`algites-sdocodegen-java-default.settings` or
+`algites-sdocodegen-python-default.settings`, selected by native CLI.
+
+Java (processing a binary JAR):
 
 ```sh
 java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli \
-    example.contracts.AIigRoot_1 /path/to/intf/src/product/java.gen \
-    /path/to/impl/src/product/java.gen d
+    --settings-file=config/my-sdocodegen.settings \
+    --dointf-input-artifact=build/libs/my-read-contracts.jar \
+    --dointf-classpath=build/libs/dependencies
 ```
 
-Python:
+Python (using the native source loader):
 
 ```sh
 python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli \
-    example.contracts.aiig_root_1:AIigRoot_1 \
-    /path/to/intf/src/product/python.gen \
-    /path/to/impl/src/product/python.gen --marker d
+    --settings-file=config/my-sdocodegen.settings
 ```
 
-Both CLIs support `--check` for non-mutating verification. The positional
-single-contract invocation continues to accept already loadable classes.
-The batch invocations read contracts directly from their configured source roots;
-compiled Java AIig bytecode is **not** required. Java binary dependencies of the
-sources must be on the process or `--dointf-classpath` classpath. Python source
-modules must be importable from the configured root and need no packaging step.
-This is not a schema dependency: handwritten contracts with the same annotations
-are supported.
+The settings file defines independent technology-role mappings, input source
+roots and output roots; see [CLI-NAMING-BATCH.md](CLI-NAMING-BATCH.md).
+Both CLIs support `--check` for non-mutating verification. Java dependencies
+of source contracts must be visible on the process classpath or via
+`--dointf-classpath`; Python modules must be importable from the configured
+source root. Handwritten contracts are supported without schema generation.
 
 Inheritance is preserved in both the mutable interface and the concrete class.
 Inherited fields are implemented by the generated base class, and declared
@@ -75,8 +77,11 @@ intervals; those do not substitute for the full XSD content-model grammar. Unkno
 than being dropped. The generated XML wrapper is not an XSD validator.
 
 
-Do not merge the two output roots. `defscodegen` owns read contracts, `sdocodegen`
-owns mutable contracts and concrete implementations. Source trees under `.gen`
+The SDO mutable and implementation output roots may coincide when their
+actual generated relative paths are distinct. For JPMS, configure distinct
+output subpackages if separate named modules will own the two output roles.
+`defscodegen` owns read contracts; `sdocodegen` owns mutable contracts and
+concrete implementations. Source trees under `.gen`
 are generated outputs and should never be committed or packaged as handwritten
 source archives.
 
@@ -89,7 +94,7 @@ documented in [Code Generators Reference Guide](../CODEGEN-REFERENCE.md).
 ## Defs 1.1 integration: field restrictions and nominal XML elements
 
 The SDO generator consumes `AIaDataObjectField.fieldName`, `presence`
-(`REQUIRED`, `ALLOWED`, `FORBIDDEN`), `allowsNull`, and `sourceContract`
+(`REQUIRED`, `ALLOWED`, `FORBIDDEN`), `allowsNull`, and `namingConvention`
 metadata. Human-readable labels are resolved through `AIaFieldLabel`;
 default values are expressed separately through `AIaFieldDefault` and its
 factory-based resolver. XML-specific QNames belong to `AIaXmlDataObject` and

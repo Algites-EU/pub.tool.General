@@ -142,7 +142,7 @@ public final class AItcXmlImportedInheritanceTest {
     private static AIiNameConventionCatalog naming() {
         return new AIiNameConventionCatalog() {
             /** Returns the supported versioned Java interface convention. */
-            @Override public Set<String> names() { return Set.of("algites-java-gen-intf-versioned"); }
+            @Override public Set<String> names() { return Set.of("algites-java-gen-intf-versioned_1"); }
             /** Formats a simple deterministic identifier for generated tests. */
             @Override public String format(String aProfile, String aStructure,
                     Map<String, String> aValues, String aSourceIdentifierConvention) {

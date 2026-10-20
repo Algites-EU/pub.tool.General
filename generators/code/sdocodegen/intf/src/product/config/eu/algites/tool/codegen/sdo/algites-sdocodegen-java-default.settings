@@ -1,0 +1,24 @@
+# Algites default JAVA target configuration.
+# The target artifact must declare this technology in TechnologyKinds.
+# Naming IDs are supplied by the library catalog, not by the generator.
+--repository-root=.
+--technology-dointf-input-dir=java:src/product/java.gen
+--technology-sdointf-output-dir=java:src/product/java.gen
+--technology-sdoimpl-output-dir=java:src/product/java.gen
+--sdointf-subpackage=impl.intf
+--sdoclass-subpackage=impl
+--input-technology-naming-convention=java:common:defsintf=algites-java-gen-intf-versioned_1
+--output-technology-naming-convention=java:common:sdointf=algites-java-gen-data-intf-versioned_1,sdoclass=algites-java-gen-data-class-versioned_1
+--input-technology-naming-convention=java:xmldefs_type:defsintf=algites-java-gen-xml-type-intf-versioned_1
+--output-technology-naming-convention=java:xmldefs_type:sdointf=algites-java-gen-data-xml-type-intf-versioned_1,sdoclass=algites-java-gen-data-xml-type-class-versioned_1
+--input-technology-naming-convention=java:xmldefs_element:defsintf=algites-java-gen-xml-element-intf-versioned_1
+--output-technology-naming-convention=java:xmldefs_element:sdointf=algites-java-gen-data-xml-element-intf-versioned_1,sdoclass=algites-java-gen-data-xml-element-class-versioned_1
+--input-technology-naming-convention=java:yamldefs:defsintf=algites-java-gen-yaml-intf-versioned_1
+--output-technology-naming-convention=java:yamldefs:sdointf=algites-java-gen-data-yaml-intf-versioned_1,sdoclass=algites-java-gen-data-yaml-class-versioned_1
+--input-technology-naming-convention=java:jsondefs:defsintf=algites-java-gen-json-intf-versioned_1
+--output-technology-naming-convention=java:jsondefs:sdointf=algites-java-gen-data-json-intf-versioned_1,sdoclass=algites-java-gen-data-json-class-versioned_1
+--naming-conventions-file=resource:standard-conventions.yml
+--naming-conventions-file=resource:algites-java-name-conventions.yml
+--naming-conventions-file=resource:algites-xmldef-name-conventions.yml
+--naming-conventions-file=resource:algites-yamldef-name-conventions.yml
+--naming-conventions-file=resource:algites-jsondef-name-conventions.yml

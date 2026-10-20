@@ -45,6 +45,17 @@ public final class AIcSchemaContractBindingsGenerator {
         repository = repository.toAbsolutePath().normalize();
         Path intf = inside(repository, manifest.path("artifact").asText("."));
         boolean explicit = manifest.has("schema_inputs");
+        boolean locConfigured = manifest.has("technology_output_naming_conventions");
+        AIcNameConventionCatalog_1 locSharedNames = null;
+        if (locConfigured) {
+            List<String> locCatalogFiles = new ArrayList<>();
+            for (JsonNode locFile : manifest.path("naming_convention_files")) {
+                String locName = locFile.asText();
+                locCatalogFiles.add(locName.startsWith("resource:") ? locName
+                        : inside(repository, locName).toString());
+            }
+            locSharedNames = AIcNameConventionCatalog_1.loadAll(locCatalogFiles);
+        }
         Map<String, Path> outputRoots = new LinkedHashMap<>();
         Map<String, AIcNameConventionCatalog_1> catalogs = new LinkedHashMap<>();
         Map<String, AIiNameConventionCatalog> targetProfiles = new LinkedHashMap<>();
@@ -58,18 +69,40 @@ public final class AIcSchemaContractBindingsGenerator {
         }
         for (var entry : iterable(manifest.path("schema_input_naming_profiles").fields()))
             sourceCatalogs.put(entry.getKey(), AIcNameConventionCatalog_1.load(inside(repository, entry.getValue().asText())));
-        if (explicit) {
+        if (locConfigured) {
+            for (String locTechnology : outputRoots.keySet()) {
+                catalogs.put(locTechnology, locSharedNames);
+                targetProfiles.put(locTechnology, locSharedNames);
+            }
+            for (var locEntry : iterable(manifest.path("schema_input_naming_conventions").fields()))
+                sourceCatalogs.put(locEntry.getKey(), locSharedNames);
+        }
+        if (explicit && !locConfigured) {
             for (String technology : outputRoots.keySet())
                 if (!catalogs.containsKey(technology))
                     throw new IllegalArgumentException("Missing output naming profile for " + technology);
         }
+        /* Recorded output ownership, never matching a naming profile alone,
+         * determines which old files the generator is permitted to remove. */
+        Path state = repository.resolve("build/run/schema-contract-bindings/generated-files.json");
+        List<String> previouslyRecorded = Files.isRegularFile(state)
+                ? mapper.readValue(state.toFile(), mapper.getTypeFactory()
+                        .constructCollectionType(List.class, String.class)) : List.of();
+        Set<Path> previouslyOwned = new java.util.HashSet<>();
+        Set<Path> unrelatedOwned = new java.util.HashSet<>();
+        for (String old : previouslyRecorded) {
+            Path stale = inside(repository, old);
+            if (!hasGeneratedRoot(stale))
+                throw new IllegalArgumentException("Invalid ownership state: " + old);
+            if (outputRoots.values().stream().anyMatch(stale::startsWith)) previouslyOwned.add(stale);
+            else unrelatedOwned.add(stale);
+        }
         if (manifest.path("clean_only").asBoolean()) {
-            for (var entry : outputRoots.entrySet())
-                catalogs.get(entry.getKey()).clean(entry.getValue(), Set.of(
-                        "algites-" + entry.getKey() + "-gen-intf-versioned",
-                        "algites-" + entry.getKey() + "-gen-enum-versioned",
-                        "algites-" + entry.getKey() + "-gen-xml-element-intf-versioned",
-                        "algites-" + entry.getKey() + "-gen-xml-element-intf"));
+            for (Path stale : previouslyOwned) Files.deleteIfExists(stale);
+            Files.createDirectories(state.getParent());
+            mapper.writerWithDefaultPrettyPrinter().writeValue(state.toFile(),
+                    unrelatedOwned.stream().sorted().map(repository::relativize)
+                            .map(AIcSchemaContractBindingsGenerator::portable).toList());
             return List.of();
         }
         Map<String, Path> rootBySchema = new LinkedHashMap<>();
@@ -103,11 +136,15 @@ public final class AIcSchemaContractBindingsGenerator {
                     kindBySchema.put(schema, kind);
                     AIcNameConventionCatalog_1 sourceCatalog = sourceCatalogs.get(kind);
                     if (sourceCatalog != null) {
-                        var named = sourceCatalog.recognizeFilename(source.getFileName().toString(), null);
+                        String locRequired = locConfigured
+                                ? manifest.path("schema_input_naming_conventions").path(kind).asText("") : null;
+                        if (locConfigured && locRequired.isEmpty()) continue;
+                        var named = sourceCatalog.recognizeFilename(source.getFileName().toString(),
+                                locRequired == null ? null : Set.of(locRequired));
                         if (named == null) throw new IllegalArgumentException("Invalid schema filename: " + schema);
                         String sourceName = kind.substring(0, kind.length() - 1);
-                        if (!manifest.path("allow_unversioned_schemas").asBoolean()
-                                && !named.conventionName().equals("algites-" + sourceName + "-schema-versioned"))
+                        if (!locConfigured && !manifest.path("allow_unversioned_schemas").asBoolean()
+                                && !named.conventionName().equals("algites-" + sourceName + "-schema-versioned_1"))
                             throw new IllegalArgumentException("Unversioned schema is not allowed: " + schema);
                     }
                     JsonNode document = kind.equals("xmldefs") ? mapper.createObjectNode() : mapper.readTree(source.toFile());
@@ -158,15 +195,15 @@ public final class AIcSchemaContractBindingsGenerator {
                     case "java" -> AInCodeGenerationTarget.JAVA;
                     default -> throw new IllegalArgumentException("Unsupported target: " + targetText);
                 };
-                AIiNameConventionCatalog profile = targetProfiles.get(targetText);
-                if (profile == null) profile = target == AInCodeGenerationTarget.PYTHON
+                AIiNameConventionCatalog baseProfile = targetProfiles.get(targetText);
+                if (baseProfile == null) baseProfile = target == AInCodeGenerationTarget.PYTHON
                     ? AIcAlgitesNamingProfiles_1.pythonProfile() : AIcAlgitesNamingProfiles_1.javaProfile();
                 var sourceType = switch (sourceKind) {
                     case "yamldefs" -> AInDefinitionSourceKind.YAMLDEFS;
                     case "xmldefs" -> AInDefinitionSourceKind.XMLDEFS;
                     default -> AInDefinitionSourceKind.JSONDEFS;
                 };
-                var load = new AIcdDefinitionLoadRequest(source, sourceType, profile);
+                var load = new AIcdDefinitionLoadRequest(source, sourceType, baseProfile);
                 var loaded = sourceKind.equals("xmldefs")
                         ? (unit.pointer().startsWith("@type/")
                             ? new AIcXmlDefsFrontend().loadNamedType(load, unit.pointer().substring(6))
@@ -178,15 +215,48 @@ public final class AIcSchemaContractBindingsGenerator {
                             ? "{" + new AIcXmlDefsFrontend().schemaNamespace(load) + "}" + unit.pointer().substring(6)
                             : new AIcXmlDefsFrontend().rootTypeQName(load)) : null;
                 if (locXmlTypeQName != null && locXmlTypeQName.endsWith("}__root__")) locXmlTypeQName = null;
-                var request = new AIcdCodeGenerationRequest(definition, target, packageName, profile, locXmlTypeQName);
+                String locSourceRole = sourceKind.equals("xmldefs") ? "xmldefs_type" : sourceKind;
+                List<String> locEnabledRoles = new ArrayList<>();
+                if (locConfigured) {
+                    JsonNode locMappings = manifest.path("technology_output_naming_conventions").path(targetText);
+                    if (locMappings.hasNonNull("common")) locEnabledRoles.add("common");
+                    if (locMappings.hasNonNull(locSourceRole)) locEnabledRoles.add(locSourceRole);
+                } else locEnabledRoles.add("");
+                for (String locRole : locEnabledRoles) {
+                    String locSelectedId = locConfigured
+                            ? manifest.path("technology_output_naming_conventions").path(targetText)
+                                    .path(locRole).asText() : "";
+                    AIiNameConventionCatalog profile = baseProfile;
+                    if (locConfigured) {
+                        var locNames = new java.util.EnumMap<AInDefsNameRole, String>(AInDefsNameRole.class);
+                        for (AInDefsNameRole locNameRole : List.of(AInDefsNameRole.INTERFACE_TYPE,
+                                AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
+                                AInDefsNameRole.DATA_TYPE, AInDefsNameRole.DATA_TYPE_FILE_STEM))
+                            locNames.put(locNameRole, locSelectedId);
+                        String locElementConvention = manifest.path("technology_output_naming_conventions")
+                                .path(targetText).path("xmldefs_element").asText("");
+                        if (!locElementConvention.isEmpty()) {
+                            locNames.put(AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE, locElementConvention);
+                            locNames.put(AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM, locElementConvention);
+                        }
+                        String locEnumConvention = manifest.path("technology_enum_output_naming_conventions")
+                                .path(targetText).asText("");
+                        if (locEnumConvention.isEmpty()) locEnumConvention = locSelectedId;
+                        locNames.put(AInDefsNameRole.ENUM_TYPE, locEnumConvention);
+                        locNames.put(AInDefsNameRole.ENUM_TYPE_FILE_STEM, locEnumConvention);
+                        profile = new AIcSelectedNamingCatalog(baseProfile, locNames);
+                    }
+                    var request = new AIcdCodeGenerationRequest(definition, target, packageName, profile,
+                            locXmlTypeQName, locSelectedId, locRole);
                 var preview = new AIcSchemaContractInterfaceGenerator().generate(request);
                 String outputKey = targetText + "#" + preview.relativePath();
                 requests.computeIfAbsent(outputKey, key -> new ArrayList<>()).add(request);
-                unitRequests.put(targetText + "#" + unit.schema + "#" + unit.pointer, request);
+                unitRequests.put(targetText + "#" + locRole + "#" + unit.schema + "#" + unit.pointer, request);
                 relations.computeIfAbsent(outputKey, key -> new ArrayList<>()).add(parentUnit);
                 result.add(Map.of("schema", unit.schema, "pointer", unit.pointer, "language", targetText, "type", preview.typeName(),
                     "path", portable(repository.relativize(outputRoots.getOrDefault(targetText,
                         intf.resolve("src/product/" + targetText + ".gen")).resolve(preview.relativePath())))));
+                }
             }
         }
         /* Resolve named XML extension bases against the complete emitted-type index.
@@ -196,7 +266,7 @@ public final class AIcSchemaContractBindingsGenerator {
         for (var locUnitRequest : unitRequests.entrySet()) {
             var locCandidate = locUnitRequest.getValue();
             if (locCandidate.xmlTypeQName() == null) continue;
-            String locKey = locCandidate.target().name() + "#" + locCandidate.xmlTypeQName();
+            String locKey = locCandidate.target().name() + "#" + locCandidate.contractRole() + "#" + locCandidate.xmlTypeQName();
             var locPrevious = locXmlTypeRequests.putIfAbsent(locKey, locCandidate);
             if (locPrevious != null && !locPrevious.packageName().equals(locCandidate.packageName()))
                 throw new IllegalArgumentException("Ambiguous XML named type " + locCandidate.xmlTypeQName());
@@ -213,7 +283,7 @@ public final class AIcSchemaContractBindingsGenerator {
             String outputKey = targetText + "#" + new AIcSchemaContractInterfaceGenerator().generate(first).relativePath();
             List<AIcdUnit> linked = relations.get(outputKey);
             var inheritedRequests = linked.stream().map(u -> u == null ? null
-                : unitRequests.get(targetText + "#" + u.schema + "#" + u.pointer)).toList();
+                : unitRequests.get(targetText + "#" + first.contractRole() + "#" + u.schema + "#" + u.pointer)).toList();
             long parentKinds = inheritedRequests.stream().map(q -> q == null ? ""
                 : q.packageName() + "." + new AIcSchemaContractInterfaceGenerator().generate(q).typeName()).distinct().count();
             if (parentKinds != 1) throw new IllegalArgumentException("Conflicting inherited contracts across schema representations");
@@ -252,7 +322,7 @@ public final class AIcSchemaContractBindingsGenerator {
                                 locXmlLoad, locXmlOrigin.pointer().substring(6))
                         : new AIcXmlDefsFrontend().rootExtensionBaseQName(locXmlLoad);
                 if (locXmlParentQName != null) {
-                    var locXmlParent = locXmlTypeRequests.get(first.target().name() + "#" + locXmlParentQName);
+                    var locXmlParent = locXmlTypeRequests.get(first.target().name() + "#" + first.contractRole() + "#" + locXmlParentQName);
                     if (locXmlParent == null || locXmlParent == first)
                         throw new IllegalArgumentException("XML extension base has no independently emitted contract: "
                                 + locXmlParentQName + " for " + first.xmlTypeQName());
@@ -282,7 +352,7 @@ public final class AIcSchemaContractBindingsGenerator {
             int locIndex = 0;
             for (var pair : new AIcSchemaContractInterfaceGenerator().generateSources(
                     new AIcdCodeGenerationRequest(merged, first.target(), first.packageName(),
-                            first.namingProfile(), first.xmlTypeQName()),
+                            first.namingProfile(), first.xmlTypeQName(), first.namingConvention(), first.contractRole()),
                     parentName, parentModule)) {
                 eu.algites.tool.codegen.defs.AIcdDefinitionReference locChoiceReference = null;
                 if (merged.sourceKind() != AInDefinitionSourceKind.XMLDEFS
@@ -292,8 +362,34 @@ public final class AIcSchemaContractBindingsGenerator {
                     if (locAlternative.kind() == eu.algites.tool.codegen.defs.AInDataTypeKind.REFERENCE)
                         locChoiceReference = locAlternative.reference();
                 }
+                String locSource = pair.source();
+                if (locConfigured && !first.contractRole().equals("common")
+                        && merged.dataType().kind() == AInDataTypeKind.OBJECT) {
+                    AIcdUnit locOrigin = unitIndex.get(first.definition().sourceResource());
+                    if (locOrigin != null) {
+                        var locCommon = unitRequests.get(targetText + "#common#" + locOrigin.schema()
+                                + "#" + locOrigin.pointer());
+                        if (locCommon != null) {
+                            var locCommonPreview = new AIcSchemaContractInterfaceGenerator().generate(locCommon);
+                            if (targetText.equals("java")) {
+                                String locDeclaration = "public interface " + pair.typeName() + " extends ";
+                                locSource = locSource.replace(locDeclaration, locDeclaration
+                                        + locCommon.packageName() + "." + locCommonPreview.typeName() + ", ");
+                            } else {
+                                String locStem = Path.of(locCommonPreview.relativePath()).getFileName()
+                                        .toString().replaceFirst("\\.py$", "");
+                                locSource = locSource.replace("from __future__ import annotations\n",
+                                        "from __future__ import annotations\nfrom " + locCommon.packageName()
+                                                + "." + locStem + " import " + locCommonPreview.typeName() + "\n");
+                                String locDeclaration = "class " + pair.typeName() + "(";
+                                locSource = locSource.replace(locDeclaration,
+                                        locDeclaration + locCommonPreview.typeName() + ", ");
+                            }
+                        }
+                    }
+                }
                 add(pending, outputRoots.getOrDefault(targetText, intf.resolve("src/product/" + targetText + ".gen"))
-                        .resolve(pair.relativePath()), qualifyReferences(pair.source(), first, requests, true, locChoiceReference));
+                        .resolve(pair.relativePath()), qualifyReferences(locSource, first, requests, true, locChoiceReference));
                 locIndex++;
             }
         }
@@ -303,6 +399,8 @@ public final class AIcSchemaContractBindingsGenerator {
         var locXmlFrontend = new AIcXmlDefsFrontend();
         for (JsonNode locLanguage : manifest.required("languages")) {
             String locTarget = locLanguage.asText();
+            if (locConfigured && !manifest.path("technology_output_naming_conventions").path(locTarget)
+                    .hasNonNull("xmldefs_element")) continue;
             Map<String, String> locTypes = new LinkedHashMap<>();
             Map<String, String> locElements = new LinkedHashMap<>();
             Set<String> locValueTypes = new java.util.HashSet<>();
@@ -312,7 +410,7 @@ public final class AIcSchemaContractBindingsGenerator {
             for (AIcdUnit locUnit : units) {
                 if (!kindBySchema.get(locUnit.schema()).equals("xmldefs")) continue;
                 AIcdCodeGenerationRequest locRequest = unitRequests.get(
-                        locTarget + "#" + locUnit.schema() + "#" + locUnit.pointer());
+                        locTarget + "#" + (locConfigured ? "xmldefs_type" : "") + "#" + locUnit.schema() + "#" + locUnit.pointer());
                 if (locRequest == null) continue;
                 var locLoad = new AIcdDefinitionLoadRequest(inside(repository, locUnit.schema()),
                         AInDefinitionSourceKind.XMLDEFS, locRequest.namingProfile());
@@ -359,24 +457,11 @@ public final class AIcSchemaContractBindingsGenerator {
             }
         }
 
-        /* Validate the complete batch before cleaning any previously generated source. */
-        if (explicit && !check) {
-            for (var entry : outputRoots.entrySet())
-                catalogs.get(entry.getKey()).clean(entry.getValue(), Set.of(
-                        "algites-" + entry.getKey() + "-gen-intf-versioned",
-                        "algites-" + entry.getKey() + "-gen-enum-versioned",
-                        "algites-" + entry.getKey() + "-gen-xml-element-intf-versioned",
-                        "algites-" + entry.getKey() + "-gen-xml-element-intf"));
-        }
-        Path state = repository.resolve("build/run/schema-contract-bindings/generated-files.json");
-        List<String> previous = explicit ? List.of() : Files.isRegularFile(state)
-                ? mapper.readValue(state.toFile(), mapper.getTypeFactory().constructCollectionType(List.class, String.class)) : List.of();
-        /* Only recorded files owned by this generator may be removed. */
-        for (String old : previous) {
-            Path stale = inside(repository, old);
-            if (!hasGeneratedRoot(stale)) throw new IllegalArgumentException("Invalid ownership state: " + old);
+        /* Validation is complete. Never delete a foreign file merely because
+         * its filename happens to match a configured naming convention. */
+        for (Path stale : previouslyOwned) {
             if (!pending.containsKey(stale) && Files.exists(stale)) {
-                if (check) throw new IllegalStateException("Stale generated binding: " + old);
+                if (check) throw new IllegalStateException("Stale generated binding: " + stale);
                 Files.delete(stale);
             }
         }
@@ -389,9 +474,13 @@ public final class AIcSchemaContractBindingsGenerator {
                 if (!Files.isRegularFile(path) || !Files.readString(path).equals(entry.getValue())) Files.writeString(path, entry.getValue(), StandardCharsets.UTF_8);
             }
         }
-        if (!check && !explicit) {
+        if (!check) {
             Files.createDirectories(state.getParent());
-            mapper.writerWithDefaultPrettyPrinter().writeValue(state.toFile(), pending.keySet().stream().map(repository::relativize).map(AIcSchemaContractBindingsGenerator::portable).toList());
+            Set<Path> owned = new java.util.HashSet<>(unrelatedOwned);
+            owned.addAll(pending.keySet());
+            mapper.writerWithDefaultPrettyPrinter().writeValue(state.toFile(),
+                    owned.stream().sorted().map(repository::relativize)
+                            .map(AIcSchemaContractBindingsGenerator::portable).toList());
         }
         return result;
     }

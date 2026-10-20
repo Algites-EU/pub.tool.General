@@ -27,7 +27,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
     """Generate SDOs from annotated AIig or handwritten AIi read-only contracts."""
 
     def generate_from_sources(self, source_root: Path, contracts: dict[Path, str],
-                              marker: str = 'd', naming=None) -> dict[Path, AIcdSdoGenerationResult]:
+                              marker: str = 'd', naming=None, mutable_subpackage: str = '', concrete_subpackage: str = '',
+                              enabled_roles: set[str] | None = None) -> dict[Path, AIcdSdoGenerationResult]:
         """Import AIig modules from source roots and reuse the reflection-based generator.
 
         No separate packaging or Python build step is needed. Relative imports from
@@ -62,15 +63,31 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 if loaded != source:
                     raise ValueError(f'Imported DO contract is not the requested source: {source} (loaded {loaded})')
                 contract = getattr(module, class_name)
-                results[source] = self.generate(contract, marker, naming)
+                if enabled_roles is not None:
+                    if not isclass(contract) or not issubclass(contract, AIiDataObject):
+                        continue
+                    from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
+                    if issubclass(contract, AIiXmlDataObject):
+                        metadata = contract.__dict__.get('__xml_data_object__')
+                        role = ('xmldefs_element' if getattr(metadata, 'definition_kind', None)
+                                is AInXmlObjectDefinitionKind.ELEMENT else 'xmldefs_type')
+                    elif issubclass(contract, AIiJsonDataObject):
+                        role = 'jsondefs'
+                    elif issubclass(contract, AIiYamlDataObject):
+                        role = 'yamldefs'
+                    else:
+                        role = 'common'
+                    if role not in enabled_roles:
+                        continue
+                results[source] = self.generate(contract, marker, naming, mutable_subpackage, concrete_subpackage)
             return results
         finally:
             if inserted:
                 sys.path.remove(str(root))
 
-    def generate(self, read_contract: type, marker: str = 'd', naming=None) -> AIcdSdoGenerationResult:
+    def generate(self, read_contract: type, marker: str = 'd', naming=None, mutable_subpackage: str = '', concrete_subpackage: str = '') -> AIcdSdoGenerationResult:
         """Generate native SDO types while preserving inherited field and label annotations."""
-        if not isclass(read_contract) or not issubclass(read_contract, AIiDataObject) or not read_contract.__name__.startswith(('AIig', 'AIi')) or read_contract.__module__.startswith("eu.algites.lib.data.dataobject"):
+        if not isclass(read_contract) or not issubclass(read_contract, AIiDataObject) or read_contract.__module__.startswith("eu.algites.lib.data.dataobject"):
             # Source-family marker types are infrastructure, not generated schema contracts.
             raise ValueError('Read contract must be an AIig subclass of AIiDataObject')
         if not re.fullmatch(r'[a-z][a-z0-9]*', marker):
@@ -94,51 +111,77 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         if len({f.name for f in fields}) != len(fields):
             raise ValueError('Duplicate field in read contract')
         parents = [c for c in read_contract.__bases__ if not c.__module__.startswith('eu.algites.lib.data.dataobject')
-                   and c.__name__.startswith(('AIig', 'AIi')) and issubclass(c, AIiDataObject)]
+                   and issubclass(c, AIiDataObject)]
         parent = parents[0] if len(parents) == 1 else None
         if len(parents) > 1:
             fields = tuple(all_fields.values())
-        def roles_for(contract):
-            """Select each contract's source/output roles independently of its child."""
-            is_xml = contract.__name__.startswith(('AIig_xe', 'AIi_xe'))
-            return (
-                'algites-python-gen-xml-element-intf-versioned' if is_xml else 'algites-python-gen-intf-versioned',
-                'algites-python-gen-data-xml-element-intf-versioned' if is_xml else 'algites-python-gen-data-intf-versioned',
-                'algites-python-gen-data-xml-element-class-versioned' if is_xml else 'algites-python-gen-data-class-versioned',
-            )
+        def role_for(contract):
+            if issubclass(contract, AIiXmlDataObject):
+                metadata = contract.__dict__.get('__xml_data_object__')
+                return 'xmldefs_element' if getattr(getattr(metadata, 'definition_kind', None), 'name', '') == 'ELEMENT' else 'xmldefs_type'
+            if issubclass(contract, AIiJsonDataObject):
+                return 'jsondefs'
+            if issubclass(contract, AIiYamlDataObject):
+                return 'yamldefs'
+            return 'common'
 
-        input_role, mutable_role, concrete_role = roles_for(read_contract)
+        def selected(contract, index):
+            role = role_for(contract)
+            if naming is None:
+                return None
+            profiles = naming[index]
+            if isinstance(profiles, dict):
+                result = profiles.get(role)
+                if not result:
+                    raise ValueError(f'No configured SDO naming convention for {role}/{index}')
+                return result
+            return {'common': ('algites-python-gen-intf-versioned_1',
+                               'algites-python-gen-data-intf-versioned_1',
+                               'algites-python-gen-data-class-versioned_1'),
+                    'xmldefs_element': ('algites-python-gen-xml-element-intf-versioned_1',
+                                        'algites-python-gen-data-xml-element-intf-versioned_1',
+                                        'algites-python-gen-data-xml-element-class-versioned_1')}.get(role, (
+                    'algites-python-gen-intf-versioned_1',
+                    'algites-python-gen-data-intf-versioned_1',
+                    'algites-python-gen-data-class-versioned_1'))[index]
+
+        def catalog():
+            return naming[3] if naming is not None and len(naming) == 4 else None
 
         def names_for(contract):
             if naming is None:
                 tail = contract.__name__[4 if contract.__name__.startswith('AIig') else 3:]
                 return 'AIig' + marker + tail, 'AIcg' + marker + tail
-            input_cat, mutable_cat, concrete_cat = naming
-            source_role, target_mutable_role, target_concrete_role = roles_for(contract)
-            read_name = contract.__name__ if contract.__name__.startswith('AIig') else 'AIig' + contract.__name__[3:]
-            values = input_cat.parse(source_role, 'main_container_name', read_name)
-            return (mutable_cat.format(target_mutable_role, 'main_container_name', values, 'upper_camel_case'),
-                    concrete_cat.format(target_concrete_role, 'main_container_name', values, 'upper_camel_case'))
+            input_catalog = catalog() or naming[0]
+            source = getattr(contract, '__data_object__', None)
+            source_profile = getattr(source, 'naming_convention', '') or selected(contract, 0)
+            values = input_catalog.parse(source_profile, 'main_container_name', contract.__name__)
+            return (input_catalog.format(selected(contract, 1), 'main_container_name', values,
+                                          input_catalog.identifier_convention(source_profile, 'main_container_name')),
+                    input_catalog.format(selected(contract, 2), 'main_container_name', values,
+                                          input_catalog.identifier_convention(source_profile, 'main_container_name')))
 
-        def stem_for(type_name, is_mutable):
+        def stem_for(type_name, is_mutable, contract=None):
             if naming is None:
                 return _snake(type_name, marker)
-            cat = naming[1] if is_mutable else naming[2]
-            is_xml = type_name.startswith(('AIigd__xe', 'AIcgd__xe', 'AIigd_xe', 'AIcgd_xe'))
-            role = ('algites-python-gen-data-xml-element-intf-versioned' if is_mutable else
-                    'algites-python-gen-data-xml-element-class-versioned') if is_xml else (
-                    'algites-python-gen-data-intf-versioned' if is_mutable else 'algites-python-gen-data-class-versioned')
-            values = cat.parse(role, 'main_container_name', type_name)
-            return cat.format(role, 'file_name_stem', values, 'upper_camel_case')
+            target = contract or read_contract
+            profile = selected(target, 1 if is_mutable else 2)
+            all_catalog = catalog() or naming[1 if is_mutable else 2]
+            values = all_catalog.parse(profile, 'main_container_name', type_name)
+            return all_catalog.format(profile, 'file_name_stem', values,
+                                      all_catalog.identifier_convention(profile, 'main_container_name'))
 
         def extension_for(is_mutable):
             if naming is None:
                 return '.py'
-            cat = naming[1] if is_mutable else naming[2]
-            role = mutable_role if is_mutable else concrete_role
-            return cat.format(role, 'file_name_suffix', {})
+            profile = selected(read_contract, 1 if is_mutable else 2)
+            all_catalog = catalog() or naming[1 if is_mutable else 2]
+            return all_catalog.format(profile, 'file_name_suffix', {})
 
         mutable_name, concrete_name = names_for(read_contract)
+        input_role = selected(read_contract, 0)
+        mutable_role = selected(read_contract, 1)
+        concrete_role = selected(read_contract, 2)
         if issubclass(read_contract, AIiXmlDataObject):
             technology = 'xmldefs'
             mutable_technology = 'AIiXmlSmartDataObject'
@@ -158,12 +201,22 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         # The selected YAML profiles also own names of generated method parameters.
         parameter_name = 'value'
         if naming is not None:
-            parameter_name = naming[1].format(mutable_role, 'method_parameter_name',
-                                              {'identifier': 'value'}, 'lower_snake_case')
-            if not naming[2].matches(concrete_role, 'method_parameter_name', parameter_name):
+            parameter_name = (catalog() or naming[1]).format(mutable_role, 'method_parameter_name',
+                                              {'identifier': 'value'}, 'lower_snake_case_1')
+            if not (catalog() or naming[2]).matches(concrete_role, 'method_parameter_name', parameter_name):
                 raise ValueError('SDO parameter name does not match the implementation naming profile')
         package = read_contract.__module__.rsplit('.', 1)[0]
-        prefix = package.replace('.', '/') + '/'
+        def subpackage(base, value):
+            if not value:
+                return base
+            if not all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', part) for part in value.split('.')):
+                raise ValueError(f'Invalid generated subpackage: {value!r}')
+            return base + '.' + value
+
+        mutable_package = subpackage(package, mutable_subpackage)
+        concrete_package = subpackage(package, concrete_subpackage)
+        mutable_prefix = mutable_package.replace('.', '/') + '/'
+        concrete_prefix = concrete_package.replace('.', '/') + '/'
         contract_import = f'from {read_contract.__module__} import {read_contract.__name__}'
         mutable_lines = [f'"""Generated mutable contract for {read_contract.__name__}."""',
             'from __future__ import annotations',
@@ -173,7 +226,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             'from eu.algites.lib.data.smartdataobject.aii_smart_data_object import AIiSmartDataObject')]
         concrete_lines = [f'"""Generated SmartDataObject implementation for {read_contract.__name__}."""',
             'from __future__ import annotations',
-            f'from {package}.{stem_for(mutable_name, True)} import {mutable_name}',
+            f'from {mutable_package}.{stem_for(mutable_name, True)} import {mutable_name}',
             (f'from eu.algites.lib.data.smartdataobject.impl.{technology}.aic_{technology.removesuffix("defs")}_smart_data_object import {concrete_technology}' if technology else
             'from eu.algites.lib.data.smartdataobject.impl.standard.aic_smart_data_object import AIcSmartDataObject')]
         if len(parents) > 1:
@@ -182,12 +235,12 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             for inherited in parents:
                 parent_mut, _ = names_for(inherited)
                 parent_pkg = inherited.__module__.rsplit('.', 1)[0]
-                mutable_lines.append(f'from {parent_pkg}.{stem_for(parent_mut, True)} import {parent_mut}')
+                mutable_lines.append(f'from {subpackage(parent_pkg, mutable_subpackage)}.{stem_for(parent_mut, True, inherited if len(parents)>1 else parent)} import {parent_mut}')
         elif parent is not None:
             parent_mut, parent_impl = names_for(parent)
             parent_pkg = parent.__module__.rsplit('.', 1)[0]
-            mutable_lines.append(f'from {parent_pkg}.{stem_for(parent_mut, True)} import {parent_mut}')
-            concrete_lines.append(f'from {parent_pkg}.{stem_for(parent_impl, False)} import {parent_impl}')
+            mutable_lines.append(f'from {subpackage(parent_pkg, mutable_subpackage)}.{stem_for(parent_mut, True, inherited if len(parents)>1 else parent)} import {parent_mut}')
+            concrete_lines.append(f'from {subpackage(parent_pkg, concrete_subpackage)}.{stem_for(parent_impl, False, parent)} import {parent_impl}')
             mutable_bases = f'{read_contract.__name__}, {parent_mut}, {mutable_technology}'
             concrete_base = parent_impl
         else:
@@ -202,10 +255,10 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             if not parsed:
                 raise ValueError('Cannot derive SchemaId from contract name')
             if naming is not None:
-                read_name = read_contract.__name__ if read_contract.__name__.startswith('AIig') else 'AIig' + read_contract.__name__[3:]
-                details = naming[0].parse(input_role, 'main_container_name', read_name)
-                logical = naming[0].convert_identifier(details['identifier'],
-                    'upper_camel_case', 'lower_kebab_case')
+                read_name = read_contract.__name__
+                details = (catalog() or naming[0]).parse(getattr(inherited_definition, 'naming_convention', '') or input_role, 'main_container_name', read_name)
+                logical = (catalog() or naming[0]).convert_identifier(details['identifier'],
+                    'upper_camel_case_1', 'lower_kebab_case_1')
             else:
                 logical = _re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', parsed.group(1)).lower()
             schema_id = read_contract.__module__.rsplit('.', 1)[0] + '.' + logical
@@ -216,7 +269,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         inherited = inherited_definition or AIcdDataObject()
         annotation = (f'AIcdDataObject(schema_id={schema_id!r}, schema_version={schema_version}, '
             f'title={inherited.title!r}, description={inherited.description!r}, schema_url={inherited.schema_url!r}, '
-            f'fingerprint={inherited.fingerprint!r}, source_contract={read_contract.__name__})')
+            f'fingerprint={inherited.fingerprint!r}, naming_convention={mutable_role or inherited.naming_convention!r})')
         mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject')
         mutable_lines.insert(5, 'from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel')
         labels = {}
@@ -269,7 +322,9 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             for field_name, label in labels.items():
                 mutable_lines.append(f'        {field_name!r}: {encode_label(label)},')
             mutable_lines.append('    }')
+        concrete_lines.insert(2, 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject')
         concrete_lines.extend(['', '', f'class {concrete_name}({concrete_base}, {mutable_name}):',
+                               f'    __data_object__ = AIcdDataObject(schema_id={schema_id!r}, schema_version={schema_version}, naming_convention={concrete_role!r})',
                                '    """Generated implementation; inherited fields use parent behavior."""'])
         mutable_imports = []
         concrete_imports = []
@@ -294,16 +349,16 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 if nested_details:
                     nested_concrete = names_for(nested_details[0])[1]
                     nested_package = nested_details[0].__module__.rsplit('.', 1)[0]
-                    nested_concrete_module = nested_package + '.' + stem_for(nested_concrete, False)
+                    nested_concrete_module = subpackage(nested_package, concrete_subpackage) + '.' + stem_for(nested_concrete, False, nested_details[0])
                     xml_nested_imports[name] = nested_concrete_module + ':' + nested_concrete
             typed_value = nested_type or 'object'
             if nested_type is not None:
                 nested_class = nested_details[0]
                 nested_name = names_for(nested_class)[0]
                 nested_package = nested_class.__module__.rsplit('.', 1)[0]
-                nested_file = stem_for(nested_name, True)
-                mutable_imports.append(f'from {nested_package}.{nested_file} import {nested_name}')
-                concrete_imports.append(f'from {nested_package}.{nested_file} import {nested_name}')
+                nested_file = stem_for(nested_name, True, nested_class)
+                mutable_imports.append(f'from {subpackage(nested_package, mutable_subpackage)}.{nested_file} import {nested_name}')
+                concrete_imports.append(f'from {subpackage(nested_package, mutable_subpackage)}.{nested_file} import {nested_name}')
             if nested_type is not None:
                 mutable_lines.extend(['', '    @abstractmethod',
                     f'    def {getter}(self) -> {typed_value}: ...'])
@@ -343,16 +398,16 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             *['    ' + item for item in sorted(set(concrete_imports))]] if concrete_imports else []
         source_id = schema_id
         source_version = schema_version
-        mutable_module = package + '.' + stem_for(mutable_name, True)
-        concrete_module = package + '.' + stem_for(concrete_name, False)
+        mutable_module = mutable_package + '.' + stem_for(mutable_name, True)
+        concrete_module = concrete_package + '.' + stem_for(concrete_name, False)
         return AIcdSdoGenerationResult(
             AIcdGeneratedSdoSource(
-                mutable_name, prefix + stem_for(mutable_name, True) + '.py',
-                '\n'.join(mutable_lines) + '\n', package, mutable_module,
+                mutable_name, mutable_prefix + stem_for(mutable_name, True) + extension_for(True),
+                '\n'.join(mutable_lines) + '\n', mutable_package, mutable_module,
                 mutable_module + '.' + mutable_name, 'MUTABLE_INTERFACE_TYPE', source_id, source_version),
             AIcdGeneratedSdoSource(
-                concrete_name, prefix + stem_for(concrete_name, False) + extension_for(False),
-                '\n'.join(concrete_lines) + '\n', package, concrete_module,
+                concrete_name, concrete_prefix + stem_for(concrete_name, False) + extension_for(False),
+                '\n'.join(concrete_lines) + '\n', concrete_package, concrete_module,
                 concrete_module + '.' + concrete_name, 'SMART_DATA_OBJECT_TYPE', source_id, source_version))
 
 

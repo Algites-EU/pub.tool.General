@@ -140,7 +140,7 @@ public final class AItcXmlFieldQNameTest {
     private static AIiNameConventionCatalog naming() {
         return new AIiNameConventionCatalog() {
             /** Minimal naming profile is sufficient for deterministic QName tests. */
-            @Override public Set<String> names() { return Set.of("algites-java-gen-intf-versioned"); }
+            @Override public Set<String> names() { return Set.of("algites-java-gen-intf-versioned_1"); }
             /** Formats the source logical identifier into a Java-compatible test name. */
             @Override public String format(String aProfile, String aStructure,
                     Map<String, String> aVariables, String aLexical) {

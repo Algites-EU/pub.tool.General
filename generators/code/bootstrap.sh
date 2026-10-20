@@ -21,7 +21,25 @@ case "$locDependencyMode" in
     *) echo "Invalid MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE='$locDependencyMode' (remote|local|source)" >&2; exit 2 ;;
 esac
 export MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE="$locDependencyMode"
-echo "Bootstrap dependency mode: $locDependencyMode"
+# Published Maven SNAPSHOT coordinates are mutable. The remote bootstrap must
+# revalidate snapshot metadata after new Cloudsmith publications, rather than
+# silently compiling against an earlier Gradle changing-module cache entry.
+# Developers can override this for offline/local work or force a refresh in
+# other modes without clearing their Gradle dependency cache by hand.
+locRefreshDependencies="${MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES:-}"
+if [[ -z "$locRefreshDependencies" ]]; then
+    if [[ "$locDependencyMode" == remote ]]; then
+        locRefreshDependencies=1
+    else
+        locRefreshDependencies=0
+    fi
+fi
+case "$locRefreshDependencies" in
+    0|1) ;;
+    *) echo "Invalid MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES='$locRefreshDependencies' (0|1)" >&2; exit 2 ;;
+esac
+export MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES="$locRefreshDependencies"
+echo "Bootstrap dependency mode: $locDependencyMode; refresh published dependencies: $locRefreshDependencies"
 locBuildRoot="$locRepositoryDirectory/build/run/codegen-bootstrap"
 mkdir -p "$locBuildRoot/work"
 locTemporaryDirectory="$(mktemp -d "$locBuildRoot/work/launcher.XXXXXXXX")"
@@ -160,10 +178,33 @@ GENERAL_BUILD
         locGeneralGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}")
     fi
     echo "Refreshing pub.lib.General bootstrap dependency graph (9 artifacts including common and smartdataobject) from $locGeneralDirectory"
+    locGeneralGradleArgs=(--no-daemon)
+    if [[ "$locRefreshDependencies" == 1 ]]; then locGeneralGradleArgs+=(--refresh-dependencies); fi
     MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR="$locGeneralDirectory" \
     MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" \
-        "${locGeneralGradleCommand[@]}" --no-daemon --project-dir "$locGeneralBootstrapDirectory" publishToMavenLocal
+        "${locGeneralGradleCommand[@]}" "${locGeneralGradleArgs[@]}" --project-dir "$locGeneralBootstrapDirectory" publishToMavenLocal
     rm -rf -- "$locGeneralBootstrapDirectory"
+    # The Java dependencies above are rebuilt locally, but Python wheels in the
+    # published snapshot index may still contain earlier naming/DataObject APIs.
+    # Make parity tests and native SDO regressions use the same checked-out
+    # library sources as the freshly published Java bootstrap modules.
+    locGeneralPythonDirectories=()
+    for locGeneralPythonModule in \
+        common \
+        factory/cpdiscovery/intf factory/cpdiscovery/impl \
+        data/dataobject/intf \
+        data/smartdataobject/intf data/smartdataobject/impl \
+        text/format naming/convention/intf naming/convention/algites; do
+        locGeneralPythonSource="$locGeneralDirectory/$locGeneralPythonModule/src/product/python"
+        if [[ -d "$locGeneralPythonSource" ]]; then
+            locGeneralPythonDirectories+=("$locGeneralPythonSource")
+        fi
+    done
+    locGeneralNamingConfig="$locGeneralDirectory/naming/convention/algites/src/product/config"
+    [[ -d "$locGeneralNamingConfig" ]] && locGeneralPythonDirectories+=("$locGeneralNamingConfig")
+    locGeneralPythonPath="$(IFS=:; echo "${locGeneralPythonDirectories[*]}")"
+    export MODUSTRO_BOOTSTRAP_GENERAL_PYTHON_PATH="$locGeneralPythonPath"
+    echo "Bootstrap source mode: native Python tests use current pub.lib.General checkout"
 fi
 
 cat > "$locTemporaryDirectory/defs.sh" <<'MODUSTRO_DEFS_BOOTSTRAP'
@@ -205,7 +246,7 @@ subprojects {
     }
     java { toolchain { languageVersion = JavaLanguageVersion.of(17) }; withSourcesJar() }
     sourceSets {
-        main { java.srcDirs = ['src/product/java']; resources.srcDirs = ['src/product/resources'] }
+        main { java.srcDirs = ['src/product/java']; resources.srcDirs = ['src/product/resources', 'src/product/config'] }
         test {
             java.srcDirs = ['src/develop/java']
             resources.srcDirs = ['src/develop/yamldefs', 'src/develop/jsondefs', 'src/develop/xmldefs', 'src/develop/examples']
@@ -317,9 +358,14 @@ def verifyNamingCatalog = tasks.register('verifyNamingCatalog') {
         new java.util.zip.ZipFile(archive).withCloseable { zip ->
             entries.each { path ->
                 def entry = zip.getEntry(path)
-                if (entry == null || !zip.getInputStream(entry).getText('UTF-8').contains('algites-' +
-                        (path.contains('java') ? 'java' : 'python') + '-gen-xml-element-intf-versioned:')) {
-                    throw new GradleException("Outdated pub.lib.General naming catalog in ${archive}: missing XML element profile ${path}. " +
+                def language = path.contains('java') ? 'java' : 'python'
+                def required = ['xml-type-intf', 'xml-element-intf', 'yaml-intf', 'json-intf']
+                        .collect { 'algites-' + language + '-gen-' + it + '-versioned_1:' }
+                def content = entry == null ? '' : zip.getInputStream(entry).getText('UTF-8')
+                def missing = required.findAll { !content.contains(it) }
+                if (!missing.isEmpty()) {
+                    throw new GradleException("Outdated pub.lib.General naming catalog in ${archive}: " +
+                        "missing profiles ${missing} in ${path}. " +
                         "Use MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=source with current pub.lib.General sources.")
                 }
             }
@@ -331,18 +377,22 @@ project(':impl').tasks.withType(Test).configureEach {
     dependsOn prepareParityPython, verifyNamingCatalog
     environment 'MODUSTRO_ARTIFACT_DIRECTORY', new File(module, 'impl').absolutePath
     environment 'MODUSTRO_PYTHON_TEST_EXECUTABLE', System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3'
-    environment 'MODUSTRO_PYTHON_TEST_PATH', [
-        new File(module, 'intf/src/product/python').absolutePath,
-        new File(module, 'impl/src/product/python').absolutePath,
-        parityPython.get().asFile.absolutePath
-    ].join(File.pathSeparator)
+    environment 'MODUSTRO_PYTHON_TEST_PATH', (
+        (System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_PYTHON_PATH') ?: '').tokenize(File.pathSeparator) + [
+            new File(module, 'intf/src/product/python').absolutePath,
+            new File(module, 'impl/src/product/python').absolutePath,
+            parityPython.get().asFile.absolutePath
+        ]
+    ).join(File.pathSeparator)
 }
 GRADLE
 
 locGradleCommand=(bash "${locRepositoryDir}/gradlew")
 if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then locGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}"); fi
 if [[ $# -eq 0 ]]; then set -- test publishToMavenLocal; fi
-_TMP_MODUSTRO_DEFS_MODULE="${locModuleDir}" MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" "${locGradleCommand[@]}" --no-daemon --project-dir "${locBootstrapDir}" "$@"
+locGradleArgs=(--no-daemon)
+if [[ "${MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES:-0}" == 1 ]]; then locGradleArgs+=(--refresh-dependencies); fi
+_TMP_MODUSTRO_DEFS_MODULE="${locModuleDir}" MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" "${locGradleCommand[@]}" "${locGradleArgs[@]}" --project-dir "${locBootstrapDir}" "$@"
 
 MODUSTRO_DEFS_BOOTSTRAP
 cat > "$locTemporaryDirectory/sdo.sh" <<'MODUSTRO_SDO_BOOTSTRAP'
@@ -384,7 +434,7 @@ subprojects {
     }
     java { toolchain { languageVersion = JavaLanguageVersion.of(17) }; withSourcesJar() }
     sourceSets {
-        main { java.srcDirs = ['src/product/java'] }
+        main { java.srcDirs = ['src/product/java']; resources.srcDirs = ['src/product/resources', 'src/product/config'] }
         test { java.srcDirs = ['src/develop/java'] }
     }
     tasks.withType(Test).configureEach {
@@ -441,22 +491,26 @@ def prepareSdoPython = tasks.register('prepareSdoPython', Exec) {
 def runSdoPython = tasks.register('testSdoPython', Exec) {
     dependsOn prepareSdoPython
     def python = System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3'
-    commandLine python, '-m', 'pytest', '-q', new File(module, 'impl/src/develop/python/test_sdocodegen.py').absolutePath
+    commandLine python, '-m', 'pytest', '-q', new File(module, 'impl/src/develop/python').absolutePath
     def defsModule = new File(module, '../defscodegen')
-    environment 'PYTHONPATH', [
-        new File(module, 'intf/src/product/python').absolutePath,
-        new File(module, 'impl/src/product/python').absolutePath,
-        new File(defsModule, 'intf/src/product/python').absolutePath,
-        new File(defsModule, 'impl/src/product/python').absolutePath,
-        sdoPython.get().asFile.absolutePath
-    ].join(File.pathSeparator)
+    environment 'PYTHONPATH', (
+        (System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_PYTHON_PATH') ?: '').tokenize(File.pathSeparator) + [
+            new File(module, 'intf/src/product/python').absolutePath,
+            new File(module, 'impl/src/product/python').absolutePath,
+            new File(defsModule, 'intf/src/product/python').absolutePath,
+            new File(defsModule, 'impl/src/product/python').absolutePath,
+            sdoPython.get().asFile.absolutePath
+        ]
+    ).join(File.pathSeparator)
 }
 project(':impl').tasks.named('test').configure { finalizedBy runSdoPython }
 GRADLE
 locGradleCommand=(bash "${locRepositoryDirectory}/gradlew")
 if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then locGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}"); fi
 if [[ $# -eq 0 ]]; then set -- test publishToMavenLocal; fi
-_TMP_MODUSTRO_SDO_MODULE="${locModuleDirectory}" MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" "${locGradleCommand[@]}" --no-daemon --project-dir "${locBootstrapDirectory}" "$@"
+locGradleArgs=(--no-daemon)
+if [[ "${MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES:-0}" == 1 ]]; then locGradleArgs+=(--refresh-dependencies); fi
+_TMP_MODUSTRO_SDO_MODULE="${locModuleDirectory}" MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" "${locGradleCommand[@]}" "${locGradleArgs[@]}" --project-dir "${locBootstrapDirectory}" "$@"
 
 MODUSTRO_SDO_BOOTSTRAP
 chmod 700 "$locTemporaryDirectory/defs.sh" "$locTemporaryDirectory/sdo.sh"

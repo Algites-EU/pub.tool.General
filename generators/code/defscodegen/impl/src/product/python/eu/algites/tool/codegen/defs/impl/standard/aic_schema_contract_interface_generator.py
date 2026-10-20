@@ -133,6 +133,8 @@ class AIcSchemaContractInterfaceGenerator:
                 '        raise NotImplementedError', ''])
         parent_import = ''
         base_module, base_type, _ = _TECHNOLOGY_DATA_OBJECT[model.source_kind]
+        if request.contract_role == 'common':
+            base_module, base_type = ('eu.algites.lib.data.dataobject.aii_data_object', 'AIiDataObject')
         parent_name = base_type + ', ABC'
         if parent:
             parent_name, parent_module = parent
@@ -167,7 +169,8 @@ class AIcSchemaContractInterfaceGenerator:
             + f'class {interface}({parent_name}):\n'
             + f'    __data_object__ = AIcdDataObject(schema_id={model.identity!r}, '
             + f'schema_version={model.version if model.version is not None else -1}, '
-            + f'title={_visible_title(model.title, model.logical_name)!r}, description={(model.description or "")!r})\n'
+            + f'title={_visible_title(model.title, model.logical_name)!r}, description={(model.description or "")!r}, '
+            + f'naming_convention={request.naming_convention!r})\n'
             + xml_metadata
             + '    __data_object_fields__ = (\n' + '\n'.join(metadata_rows)
             + '\n    )\n\n    __field_labels__ = {\n' + '\n'.join(label_rows)
@@ -184,13 +187,16 @@ class AIcSchemaContractInterfaceGenerator:
         model = request.definition
         interface = self.names.type_name(model, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
         path = request.package_name.replace('.', '/') + '/' + interface + '.java'
-        extends = (parent[1] + '.' + parent[0]) if parent else _TECHNOLOGY_DATA_OBJECT[model.source_kind][2]
+        extends = ((parent[1] + '.' + parent[0]) if parent else
+            ('eu.algites.lib.data.dataobject.AIiDataObject' if request.contract_role == 'common' else
+                _TECHNOLOGY_DATA_OBJECT[model.source_kind][2]))
         rows = [f'package {request.package_name};', '', '/** Generated schema contract. Do not edit manually. */',
             '@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = '
             + _java_quote(model.identity) + ', schemaVersion = '
             + str(model.version if model.version is not None else -1)
             + ', title = ' + _java_quote(_visible_title(model.title, model.logical_name))
-            + ', description = ' + _java_quote(model.description or '') + ')',
+            + ', description = ' + _java_quote(model.description or '')
+            + ', namingConvention = ' + _java_quote(request.naming_convention) + ')',
             f'public interface {interface} extends {extends} {{',
             '    /** Canonical schema ID independent of any representation-specific publication URL. */',
             f'    String CANONICAL_SOURCE_ID = {_java_quote(model.identity)};',
