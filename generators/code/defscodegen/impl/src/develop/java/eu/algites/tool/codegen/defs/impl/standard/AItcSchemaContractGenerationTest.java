@@ -69,27 +69,38 @@ public final class AItcSchemaContractGenerationTest {
             """);
         var locGenerator = new AIcSchemaContractBindingsGenerator();
         var locGenerated = locGenerator.generateRepository(locRoot, locManifest, false);
-        Assert.assertEquals(locGenerated.size(), 4,
-                "Both technologies must emit the named XML content type and global element contract");
+        Assert.assertEquals(locGenerated.size(), 6,
+                "Both technologies must emit the named XML content type, global element, and namespace contract");
         for (String locLanguage : java.util.List.of("java", "python")) {
             var locEntries = locGenerated.stream()
                     .filter(aEntry -> locLanguage.equals(aEntry.get("language"))).toList();
-            Assert.assertEquals(locEntries.size(), 2);
+            Assert.assertEquals(locEntries.size(), 3);
             Assert.assertEquals(locEntries.stream()
                     .filter(aEntry -> "@element/example".equals(aEntry.get("pointer"))).count(), 1L);
+            Assert.assertEquals(locEntries.stream()
+                    .filter(aEntry -> "@namespace/urn:example:xml:1".equals(aEntry.get("pointer"))).count(), 1L);
             for (var locEntry : locEntries) {
                 Path locOutput = locRoot.resolve(locEntry.get("path"));
                 Assert.assertTrue(Files.isRegularFile(locOutput), locOutput.toString());
                 if ("@element/example".equals(locEntry.get("pointer"))) {
                     Assert.assertTrue(Files.readString(locOutput).contains("AInXmlObjectDefinitionKind.ELEMENT"),
                             "The XML element contract must retain its nominal identity: " + locOutput);
+                } else if ("@namespace/urn:example:xml:1".equals(locEntry.get("pointer"))) {
+                    String locSource = Files.readString(locOutput);
+                    Assert.assertTrue(locSource.contains("AIig_xnXmlDataObjectUrnExampleXml1"),
+                            "The XML namespace contract must use its selected naming convention: " + locOutput);
+                    Assert.assertTrue(locSource.contains("urn:example:xml:1"),
+                            "The namespace annotation must preserve its exact URI: " + locOutput);
+                    Assert.assertTrue(locSource.contains("AIiXmlDataObjectNamespace"),
+                            "The namespace marker must extend the XML namespace base interface: " + locOutput);
                 }
             }
         }
         Path locJava = locRoot.resolve("intf/src/product/java.gen/example/contracts/AIigExample_1.java");
         Path locPython = locRoot.resolve("intf/src/product/python.gen/example/contracts/aiig_example_1.py");
         Assert.assertTrue(Files.readString(locJava).contains("AIaDataObjectField"));
-        Assert.assertTrue(Files.readString(locJava).contains("name()"));
+        Assert.assertTrue(Files.readString(locJava).contains(" getName()"));
+        Assert.assertTrue(Files.readString(locJava).contains(" getCount()"));
         Assert.assertTrue(Files.readString(locPython).contains("AIcdDataObjectField"));
         Assert.assertTrue(Files.readString(locPython).contains("def getName"));
         Assert.assertFalse(Files.exists(locRoot.resolve("impl")));
@@ -148,8 +159,8 @@ public final class AItcSchemaContractGenerationTest {
         Path locJavaRoot = locRoot.resolve("intf/src/product/java.gen/example/contracts/");
         String locChild = Files.readString(locJavaRoot.resolve("AIigChild_1.java"));
         Assert.assertTrue(locChild.contains("extends example.contracts.AIigParent_1"));
-        Assert.assertFalse(locChild.contains(" name()"));
-        Assert.assertTrue(locChild.contains(" count()"));
+        Assert.assertFalse(locChild.contains(" getName()"));
+        Assert.assertTrue(locChild.contains(" getCount()"));
         String locPyChild = Files.readString(locRoot.resolve("intf/src/product/python.gen/example/contracts/aiig_child_1.py"));
         Assert.assertTrue(locPyChild.contains("class AIigChild_1(AIigParent_1):"));
         var locArgs = new ArrayList<String>(java.util.List.of(
