@@ -530,6 +530,26 @@ done
 
 locVersion="${MODUSTRO_CODEGEN_BOOTSTRAP_VERSION:-1.1-SNAPSHOT}"
 locRepo="${MODUSTRO_CODEGEN_BOOTSTRAP_CLOUDSMITH_REPO:-algites/java-snapshots-pub}"
+locPythonRepo="${MODUSTRO_CODEGEN_BOOTSTRAP_PYTHON_CLOUDSMITH_REPO:-algites/python-snapshots-pub}"
+locPythonOutput="$locBuildRoot/python-dist"
+locPythonManifest="$locBuildRoot/python-packages.tsv"
+# The six native Python distributions must come from the same current source
+# tree as the six Maven artifacts. Test-only Python imports are not publication.
+# Prepare and verify all wheels and sdists before any Cloudsmith upload.
+locPythonBuildExecutable="${MODUSTRO_BOOTSTRAP_PYTHON_BUILD_EXECUTABLE:-}"
+if [[ -z "$locPythonBuildExecutable" ]]; then
+    locPythonBuildVenv="$locBuildRoot/python-build-venv"
+    "${ALGITES_PYTHON_EXECUTABLE:-python3}" -m venv "$locPythonBuildVenv"
+    locPythonBuildExecutable="$locPythonBuildVenv/bin/python"
+    "$locPythonBuildExecutable" -m pip install --disable-pip-version-check \
+        'build>=1,<2' 'setuptools>=69' 'wheel>=0.43' 'pyyaml>=6,<7'
+fi
+locPythonBuildArgs=(--repository "$locRepositoryDirectory" --maven-version "$locVersion"
+    --output "$locPythonOutput" --manifest "$locPythonManifest")
+if [[ -n "${MODUSTRO_CODEGEN_BOOTSTRAP_PYTHON_VERSION:-}" ]]; then
+    locPythonBuildArgs+=(--python-version "$MODUSTRO_CODEGEN_BOOTSTRAP_PYTHON_VERSION")
+fi
+"$locPythonBuildExecutable" "$locCodeDirectory/bootstrap-python-dist.py" "${locPythonBuildArgs[@]}"
 locMavenRoot="${HOME}/.m2/repository/eu/algites/tool/codegen"
 locManifest="$locTemporaryDirectory/packages.tsv"
 for locGenerator in defscodegen sdocodegen; do
@@ -551,7 +571,10 @@ if [[ "${MODUSTRO_BOOTSTRAP_PREPARE_ONLY:-0}" == 1 ]]; then
     locOutput="${MODUSTRO_BOOTSTRAP_OUTPUT_DIR:-$locBuildRoot}"
     mkdir -p "$locOutput"
     cp "$locManifest" "$locOutput/packages.tsv"
-    echo "Validated six Maven packages; preparation-only manifest: $locOutput/packages.tsv"
+    if [[ "$locOutput/python-packages.tsv" != "$locPythonManifest" ]]; then
+        cp "$locPythonManifest" "$locOutput/python-packages.tsv"
+    fi
+    echo "Validated six Maven packages and six Python wheels with sdists; preparation-only manifests: $locOutput/packages.tsv and $locOutput/python-packages.tsv"
     exit 0
 fi
 
@@ -561,10 +584,17 @@ command -v algites-cloudsmith >/dev/null || { echo "algites-cloudsmith is requir
 # the session inherits the credential without reconsulting Secret Service.
 algites-cloudsmith --session -- bash -c '
     set -euo pipefail
-    locRepo="$1"; locManifest="$2"
+    locRepo="$1"; locManifest="$2"; locPythonRepo="$3"; locPythonManifest="$4"
     while IFS=$'"'"'\t'"'"' read -r locJar locPom locModule locSources; do
         locArgs=(--pom-file "$locPom" --extra-files "$locModule")
         if [[ -s "$locSources" ]]; then locArgs+=(--sources-file "$locSources"); fi
         cloudsmith push maven "$locRepo" "$locJar" "${locArgs[@]}"
     done < "$locManifest"
-' _ "$locRepo" "$locManifest"
+    while IFS=$'"'"'\t'"'"' read -r locWheel locSdist; do
+        [[ -s "$locWheel" && -s "$locSdist" ]] || {
+            echo "Python distribution missing before upload: $locWheel / $locSdist" >&2; exit 1;
+        }
+        cloudsmith push python "$locPythonRepo" "$locWheel"
+        cloudsmith push python "$locPythonRepo" "$locSdist"
+    done < "$locPythonManifest"
+' _ "$locRepo" "$locManifest" "$locPythonRepo" "$locPythonManifest"
