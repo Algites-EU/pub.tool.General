@@ -12,6 +12,7 @@
 --output-interface-technology-naming-convention=java:common:defsintf=algites-java-gen-intf-versioned_1
 --output-interface-technology-naming-convention=java:xmldefs_type:defsintf=algites-java-gen-xml-type-intf-versioned_1
 --output-interface-technology-naming-convention=java:xmldefs_element:defsintf=algites-java-gen-xml-element-intf-versioned_1
+--output-interface-technology-naming-convention=java:xmldefs_namespace:defsintf=algites-java-gen-xml-namespace-intf_1
 --output-interface-technology-naming-convention=java:yamldefs:defsintf=algites-java-gen-yaml-intf-versioned_1
 --output-interface-technology-naming-convention=java:jsondefs:defsintf=algites-java-gen-json-intf-versioned_1
 --output-enum-technology-naming-convention=java:algites-java-gen-enum-versioned_1

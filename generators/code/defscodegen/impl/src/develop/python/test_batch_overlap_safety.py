@@ -151,6 +151,6 @@ def test_xsd_without_namespace_can_merge_with_implicit_json_identity(prepared):
         _naming_resource_bytes('algites-xmldef-name-conventions.yml'))
     result = AIcSchemaContractBindingsGenerator().generate_manifest(
         prepared, _manifest(prepared, [('jsondefs', json_source), ('xmldefs', xml_source)]))
-    assert len(result) == 3
+    assert len(result) == 4  # includes one generated XML namespace contract
     assert _output(prepared).is_file()
     assert (prepared / 'src/product/python.gen/example/aiig__xe_customer_1.py').exists()

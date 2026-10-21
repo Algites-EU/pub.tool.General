@@ -68,17 +68,16 @@ public final class AIcXmlElementContractGenerator {
                 + "definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.ELEMENT, namespace = "
                 + quote(aElement.namespace()) + ", namespaceLocalName = " + quote(aElement.localName()) + ")";
         String locGetter = "";
+        String locGetterName = names.getterName(xmlIdentifier(aElement.localName()), aRequest.namingProfile(),
+                AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE);
         if (locBuiltin != null) {
-            String locSuffix = java.util.Arrays.stream(xmlIdentifier(aElement.localName()).split("-"))
-                    .map(aToken -> Character.toUpperCase(aToken.charAt(0)) + aToken.substring(1))
-                    .collect(java.util.stream.Collectors.joining());
             locGetter = "    /** Content value of this XML element. */\n"
                 + "    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = "
                 + quote(aElement.localName()) + ", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED, allowsNull = "
                 + aElement.nillable() + ")\n"
                 + "    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "
                 + quote(aElement.namespace()) + ", namespaceLocalName = " + quote(aElement.localName()) + ", order = 0)\n"
-                + "    " + locBuiltin[0] + " get" + locSuffix + "();\n";
+                + "    " + locBuiltin[0] + " " + locGetterName + "();\n";
         }
         String locSource;
         String locFile;
@@ -115,9 +114,6 @@ public final class AIcXmlElementContractGenerator {
                 locImports.add("from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField");
                 locImports.add("from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind");
                 if (locBuiltin[1].equals("Decimal")) locImports.add("from decimal import Decimal");
-                String locSuffix = java.util.Arrays.stream(xmlIdentifier(aElement.localName()).split("-"))
-                    .map(aToken -> Character.toUpperCase(aToken.charAt(0)) + aToken.substring(1))
-                    .collect(java.util.stream.Collectors.joining());
                 locImports.add("from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField");
                 locBody += "    __xml_data_object_fields__ = {" + quote(aElement.localName())
                     + ": AIaXmlDataObjectField(namespace=" + quote(aElement.namespace())
@@ -125,8 +121,8 @@ public final class AIcXmlElementContractGenerator {
                     + "    __data_object_fields__ = (AIcdDataObjectField(field_name="
                     + quote(aElement.localName()) + ", presence=AInFieldPresenceKind.REQUIRED, allows_null="
                     + (aElement.nillable() ? "True" : "False") + ", getter_name="
-                    + quote("get" + locSuffix) + "),)\n"
-                    + "    def get" + locSuffix + "(self) -> " + locBuiltin[1]
+                    + quote(locGetterName) + "),)\n"
+                    + "    def " + locGetterName + "(self) -> " + locBuiltin[1]
                     + ":\n        raise NotImplementedError\n";
             }
             locSource = "from __future__ import annotations\n" + String.join("\n", locImports.stream().distinct().sorted().toList())

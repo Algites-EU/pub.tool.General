@@ -31,7 +31,7 @@ final class AIcPythonSchemaContractRenderer {
         List<String> locXmlFields = new ArrayList<>();
         for (AIcdPropertyDefinition locProperty : locDefinition.dataType().properties()) {
             String locField = identifier(names.propertyName(locProperty.sourceName(), aRequest.namingProfile()));
-            String locSuffix = Character.toUpperCase(locField.charAt(0)) + locField.substring(1);
+            String locGetterName = names.getterName(locProperty.sourceName(), aRequest.namingProfile());
             boolean locArray = locProperty.dataType().kind() == AInDataTypeKind.ARRAY;
             var locReference = locProperty.dataType().referencedDefinition();
             String locAnnotation = AIcRecursiveContractType.render(locProperty, aRequest, names, false, locImports);
@@ -53,7 +53,7 @@ final class AIcPythonSchemaContractRenderer {
             locMetadata.add("        AIcdDataObjectField(field_name=" + quote(locProperty.sourceName())
                     + ", presence=AInFieldPresenceKind." + locProperty.presence().name()
                     + ", allows_null=" + (locProperty.nullable() ? "True" : "False")
-                    + ", getter_name=" + quote("get" + locSuffix) + "),");
+                    + ", getter_name=" + quote(locGetterName) + "),");
             if (locProperty.xmlField() != null) {
                 var locXml = locProperty.xmlField();
                 locXmlFields.add("        " + quote(locProperty.sourceName())
@@ -62,7 +62,9 @@ final class AIcPythonSchemaContractRenderer {
                         + ", value_kind=AInXmlValueKind." + locXml.valueKind().name()
                         + ", order=" + locDefinition.dataType().properties().indexOf(locProperty)
                         + ", min_occurs=" + locXml.minOccurs()
-                        + ", max_occurs=" + locXml.maxOccurs() + "),");
+                        + ", max_occurs=" + locXml.maxOccurs()
+                        + ", wildcard_namespace=" + quote(locXml.wildcardNamespace())
+                        + ", wildcard_process_contents=" + quote(locXml.wildcardProcessContents()) + "),");
             }
             locLabels.add("        " + quote(locProperty.sourceName()) + ": AIaFieldLabel(label=" + quote(locTitle)
                     + ", labels=" + locEntries + "),");
@@ -70,7 +72,7 @@ final class AIcPythonSchemaContractRenderer {
                     ? " -> " + locType + (locProperty.nullable() ? " | None" : "") : "";
             locGetters.add("    @AIaFieldLabel(label=" + quote(locTitle) + ", labels=" + locEntries + ")");
             locGetters.add("    @abstractmethod");
-            locGetters.add("    def get" + locSuffix + "(self)" + locReturn + ":");
+            locGetters.add("    def " + locGetterName + "(self)" + locReturn + ":");
             locGetters.add("        raise NotImplementedError");
             locGetters.add("");
         }

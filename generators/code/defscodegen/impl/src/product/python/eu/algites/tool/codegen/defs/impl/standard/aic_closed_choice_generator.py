@@ -58,6 +58,19 @@ class AIcClosedChoiceGenerator:
                 type_name = types[0] if target is AInCodeGenerationTarget.JAVA else types[1]
                 label, file_stem = f'Alternative{index + 1}', None
                 identity = model.identity + '#/' + kind + '/' + str(index)
+            elif alternative.kind is AInDataTypeKind.ARRAY:
+                item_type = {
+                    AInDataTypeKind.STRING: ('String', 'str'),
+                    AInDataTypeKind.INTEGER: ('Long', 'int'),
+                    AInDataTypeKind.NUMBER: ('java.math.BigDecimal', 'Decimal'),
+                    AInDataTypeKind.BOOLEAN: ('Boolean', 'bool'),
+                }.get(alternative.element_type.kind)
+                if item_type is None:
+                    raise ValueError('Closed choice array requires a supported scalar item kind')
+                label, file_stem = f'Alternative{index + 1}', None
+                type_name = ('java.util.List<' + item_type[0] + '>' if target is AInCodeGenerationTarget.JAVA
+                    else 'list[' + item_type[1] + ']')
+                identity = model.identity + '#/' + kind + '/' + str(index)
             elif alternative.kind is AInDataTypeKind.OBJECT:
                 # Batch discovery emits each inline branch as a separate contract.
                 label = f'Alternative{index + 1}'
@@ -144,7 +157,7 @@ class AIcClosedChoiceGenerator:
                     '    """One explicitly selected closed-choice alternative."""\n'
                     f'    value: {typ}\n\n'
                     '    def __post_init__(self):\n'
-                    f'        if not isinstance(self.value, {typ}):\n'
+                    f'        if not isinstance(self.value, {"list" if typ.startswith("list[") else typ}):\n'
                     f'            raise TypeError("Expected {typ} choice value")\n')
             rel = path_prefix + wrapper_file + ext
             generated.append(AIcdGeneratedSource(wrapper, rel, body,

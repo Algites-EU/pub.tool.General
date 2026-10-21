@@ -36,7 +36,6 @@ def test_external_complex_extension_retains_namespaces_and_base_qname(tmp_path):
 
 @pytest.mark.parametrize('fragment', [
     '<xs:sequence><xs:element name="x" type="xs:string" minOccurs="2" maxOccurs="1"/></xs:sequence>',
-    '<xs:sequence><xs:any namespace="##any"/></xs:sequence>',
     '<xs:sequence><xs:group ref="other"/></xs:sequence>',
 ])
 def test_unsafe_xml_particles_fail_closed(tmp_path, fragment):
@@ -73,7 +72,7 @@ def test_external_extension_generates_true_java_and_python_parent(tmp_path):
     assert 'String getCode' in jsource or 'String code' in jsource
     assert 'amount()' not in jsource
     psource = (tmp_path / 'intf/src/product/python.gen/example/inherited/aiig_derived_1.py').read_text()
-    assert 'class AIigDerived_1(AIigBase_1):' in psource
+    assert 'class AIigDerived_1(AIigBase_1, AIig_xnXmlDataObjectUrnDerived):' in psource
     assert 'from example.inherited.aiig_base_1 import AIigBase_1' in psource
     assert 'def getAmount' not in psource
 

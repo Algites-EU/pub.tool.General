@@ -167,7 +167,7 @@ public final class AIcSchemaContractBindingsGenerator {
         List<Map<String, String>> result = new ArrayList<>();
         Map<String, List<AIcdCodeGenerationRequest>> requests = new LinkedHashMap<>();
         Map<String, AIcdCodeGenerationRequest> unitRequests = new LinkedHashMap<>();
-        Map<String, List<AIcdUnit>> relations = new LinkedHashMap<>();
+        Map<String, List<List<AIcdUnit>>> relations = new LinkedHashMap<>();
         Map<String, AIcdUnit> unitIndex = new LinkedHashMap<>();
         for (AIcdUnit unit : units) unitIndex.put(unit.schema + "#" + unit.pointer, unit);
         for (AIcdUnit unit : units) {
@@ -187,7 +187,7 @@ public final class AIcSchemaContractBindingsGenerator {
                 projection.put("x-jsondefs-id", declaredId + (unit.pointer.isEmpty() ? "" : "#" + unit.pointer));
                 projection.put("x-jsondefs-name", unit.name);
             }
-            AIcdUnit parentUnit = sourceKind.equals("xmldefs") ? null : parentUnit(unit, unitIndex, repository);
+            List<AIcdUnit> parentUnits = sourceKind.equals("xmldefs") ? List.of() : parentUnits(unit, unitIndex, repository);
             for (JsonNode language : manifest.required("languages")) {
                 String targetText = language.asText();
                 AInCodeGenerationTarget target = switch (targetText) {
@@ -239,6 +239,11 @@ public final class AIcSchemaContractBindingsGenerator {
                             locNames.put(AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE, locElementConvention);
                             locNames.put(AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM, locElementConvention);
                         }
+                        String locNamespaceConvention = manifest.path("technology_output_naming_conventions")
+                                .path(targetText).path("xmldefs_namespace")
+                                .asText("algites-" + targetText + "-gen-xml-namespace-intf_1");
+                        locNames.put(AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE, locNamespaceConvention);
+                        locNames.put(AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM, locNamespaceConvention);
                         String locEnumConvention = manifest.path("technology_enum_output_naming_conventions")
                                 .path(targetText).asText("");
                         if (locEnumConvention.isEmpty()) locEnumConvention = locSelectedId;
@@ -252,7 +257,7 @@ public final class AIcSchemaContractBindingsGenerator {
                 String outputKey = targetText + "#" + preview.relativePath();
                 requests.computeIfAbsent(outputKey, key -> new ArrayList<>()).add(request);
                 unitRequests.put(targetText + "#" + locRole + "#" + unit.schema + "#" + unit.pointer, request);
-                relations.computeIfAbsent(outputKey, key -> new ArrayList<>()).add(parentUnit);
+                relations.computeIfAbsent(outputKey, key -> new ArrayList<>()).add(parentUnits);
                 result.add(Map.of("schema", unit.schema, "pointer", unit.pointer, "language", targetText, "type", preview.typeName(),
                     "path", portable(repository.relativize(outputRoots.getOrDefault(targetText,
                         intf.resolve("src/product/" + targetText + ".gen")).resolve(preview.relativePath())))));
@@ -266,10 +271,32 @@ public final class AIcSchemaContractBindingsGenerator {
         for (var locUnitRequest : unitRequests.entrySet()) {
             var locCandidate = locUnitRequest.getValue();
             if (locCandidate.xmlTypeQName() == null) continue;
-            String locKey = locCandidate.target().name() + "#" + locCandidate.contractRole() + "#" + locCandidate.xmlTypeQName();
+            String locKey = locCandidate.target().name() + "#" + locCandidate.contractRole() + "#"
+                    + (locCandidate.xmlTypeQName().startsWith("{}") ? locCandidate.packageName() + "#" : "")
+                    + locCandidate.xmlTypeQName();
             var locPrevious = locXmlTypeRequests.putIfAbsent(locKey, locCandidate);
             if (locPrevious != null && !locPrevious.packageName().equals(locCandidate.packageName()))
                 throw new IllegalArgumentException("Ambiguous XML named type " + locCandidate.xmlTypeQName());
+        }
+        /* XML-only namespace contracts are resolved before rendering their type-safe wildcard getters. */
+        Map<String, AIcdCodeGenerationRequest> locNamespaceOwners = new LinkedHashMap<>();
+        for (var locItem : unitRequests.entrySet()) {
+            AIcdCodeGenerationRequest locRequest = locItem.getValue();
+            if (!locItem.getKey().contains("#xmldefs_type#") && !locItem.getKey().contains("##"))
+                continue;
+            if (locRequest.definition().sourceKind() != AInDefinitionSourceKind.XMLDEFS
+                    || locRequest.contractRole().equals("common")) continue;
+            String locLanguage = locRequest.target() == AInCodeGenerationTarget.JAVA ? "java" : "python";
+            if (locRequest.xmlTypeQName() != null) {
+                String locNamespace = locRequest.xmlTypeQName().substring(1, locRequest.xmlTypeQName().indexOf('}'));
+                locNamespaceOwners.putIfAbsent(locLanguage + "#" + locNamespace, locRequest);
+            }
+            for (AIcdPropertyDefinition locField : locRequest.definition().dataType().properties()) {
+                if (locField.xmlField() == null || locField.xmlField().wildcardNamespace().isBlank()) continue;
+                String locNamespace = AIcXmlNamespaceContracts.selectedNamespace(
+                        locField.xmlField().wildcardNamespace(), locField.xmlField().namespace());
+                if (locNamespace != null) locNamespaceOwners.putIfAbsent(locLanguage + "#" + locNamespace, locRequest);
+            }
         }
         for (var representations : requests.values()) {
             var first = representations.get(0);
@@ -281,34 +308,77 @@ public final class AIcSchemaContractBindingsGenerator {
             var merged = AIcCanonicalDefinitionMerger.AIcMergeStrict(representations.stream().map(AIcdCodeGenerationRequest::definition).toList(), repository);
             String targetText = first.target() == AInCodeGenerationTarget.PYTHON ? "python" : "java";
             String outputKey = targetText + "#" + new AIcSchemaContractInterfaceGenerator().generate(first).relativePath();
-            List<AIcdUnit> linked = relations.get(outputKey);
-            var inheritedRequests = linked.stream().map(u -> u == null ? null
-                : unitRequests.get(targetText + "#" + first.contractRole() + "#" + u.schema + "#" + u.pointer)).toList();
-            long parentKinds = inheritedRequests.stream().map(q -> q == null ? ""
-                : q.packageName() + "." + new AIcSchemaContractInterfaceGenerator().generate(q).typeName()).distinct().count();
-            if (parentKinds != 1) throw new IllegalArgumentException("Conflicting inherited contracts across schema representations");
+            List<List<AIcdUnit>> linked = relations.get(outputKey);
+            List<String> expectedParents = new ArrayList<>();
+            for (AIcdUnit parent : linked.get(0)) {
+                AIcdCodeGenerationRequest request = unitRequests.get(targetText + "#" + first.contractRole()
+                        + "#" + parent.schema() + "#" + parent.pointer());
+                if (request == null) throw new IllegalArgumentException("allOf parent has no generated contract: " + parent.schema());
+                expectedParents.add(request.packageName() + "." + new AIcSchemaContractInterfaceGenerator().generate(request).typeName());
+            }
+            for (List<AIcdUnit> representationParents : linked) {
+                List<String> actualParents = new ArrayList<>();
+                for (AIcdUnit parent : representationParents) {
+                    AIcdCodeGenerationRequest request = unitRequests.get(targetText + "#" + first.contractRole()
+                            + "#" + parent.schema() + "#" + parent.pointer());
+                    if (request == null) throw new IllegalArgumentException("allOf parent has no generated contract: " + parent.schema());
+                    actualParents.add(request.packageName() + "." + new AIcSchemaContractInterfaceGenerator().generate(request).typeName());
+                }
+                if (!expectedParents.equals(actualParents))
+                    throw new IllegalArgumentException("Conflicting allOf parents across schema representations");
+            }
+            List<AIcdCodeGenerationRequest> inheritedRequests = new ArrayList<>();
+            for (AIcdUnit inheritedUnit : linked.get(0)) {
+                AIcdCodeGenerationRequest inherited = unitRequests.get(targetText + "#" + first.contractRole()
+                        + "#" + inheritedUnit.schema() + "#" + inheritedUnit.pointer());
+                if (inherited == null) {
+                    throw new IllegalArgumentException("allOf parent has no generated contract in role "
+                            + first.contractRole() + ": " + inheritedUnit.schema() + "#" + inheritedUnit.pointer());
+                }
+                inheritedRequests.add(inherited);
+            }
             String parentName = null, parentModule = null;
-            if (inheritedRequests.get(0) != null) {
-                AIcdCodeGenerationRequest inherited = inheritedRequests.get(0);
-                if (merged.dataType().kind() != AInDataTypeKind.OBJECT || inherited.definition().dataType().kind() != AInDataTypeKind.OBJECT)
+            List<String> additionalParents = new ArrayList<>();
+            Map<String, AIcdPropertyDefinition> inheritedFields = new LinkedHashMap<>();
+            for (AIcdCodeGenerationRequest inherited : inheritedRequests) {
+                if (merged.dataType().kind() != AInDataTypeKind.OBJECT
+                        || inherited.definition().dataType().kind() != AInDataTypeKind.OBJECT) {
                     throw new IllegalArgumentException("allOf inheritance must connect object contracts");
-                Map<String, AIcdPropertyDefinition> inheritedFields = new LinkedHashMap<>();
-                for (var field : inherited.definition().dataType().properties()) inheritedFields.put(field.sourceName(), field);
-                List<AIcdPropertyDefinition> locOverrides = new ArrayList<>();
-                for (var field : merged.dataType().properties()) {
-                    var previous = inheritedFields.get(field.sourceName());
-                    if (previous == null || !fieldShape(previous).equals(fieldShape(field))) {
-                        if (previous != null && !fieldNarrows(previous, field))
-                            throw new IllegalArgumentException("Conflicting inherited field: " + field.sourceName());
-                        locOverrides.add(field);
+                }
+                for (AIcdPropertyDefinition field : inherited.definition().dataType().properties()) {
+                    AIcdPropertyDefinition existing = inheritedFields.putIfAbsent(field.sourceName(), field);
+                    if (existing != null && !fieldShape(existing).equals(fieldShape(field))) {
+                        throw new IllegalArgumentException("Conflicting fields among allOf parents: " + field.sourceName());
                     }
                 }
-                merged = new AIcdCanonicalDefinition(merged.identity(), merged.version(), merged.logicalName(), merged.sourceKind(), merged.sourceResource(), merged.description(), merged.dataType().withProperties(locOverrides), merged.enumValues(), merged.title());
-                var parentSource = new AIcSchemaContractInterfaceGenerator().generate(inherited);
-                parentName = parentSource.typeName();
-                parentModule = inherited.packageName();
-                if (first.target() == AInCodeGenerationTarget.PYTHON)
-                    parentModule += "." + Path.of(parentSource.relativePath()).getFileName().toString().replaceFirst("\\.py$", "");
+                var inheritedSource = new AIcSchemaContractInterfaceGenerator().generate(inherited);
+                String inheritedModule = inherited.packageName();
+                if (first.target() == AInCodeGenerationTarget.PYTHON) {
+                    inheritedModule += "." + Path.of(inheritedSource.relativePath()).getFileName()
+                            .toString().replaceFirst("\\.py$", "");
+                }
+                if (parentName == null) {
+                    parentName = inheritedSource.typeName();
+                    parentModule = inheritedModule;
+                } else {
+                    additionalParents.add(first.target() == AInCodeGenerationTarget.PYTHON
+                            ? inheritedSource.typeName() : inheritedModule + "." + inheritedSource.typeName());
+                }
+            }
+            if (!inheritedRequests.isEmpty()) {
+                List<AIcdPropertyDefinition> ownFields = new ArrayList<>();
+                for (AIcdPropertyDefinition field : merged.dataType().properties()) {
+                    AIcdPropertyDefinition previous = inheritedFields.get(field.sourceName());
+                    if (previous == null || !fieldShape(previous).equals(fieldShape(field))) {
+                        if (previous != null && !fieldNarrows(previous, field)) {
+                            throw new IllegalArgumentException("Conflicting inherited field: " + field.sourceName());
+                        }
+                        ownFields.add(field);
+                    }
+                }
+                merged = new AIcdCanonicalDefinition(merged.identity(), merged.version(), merged.logicalName(),
+                        merged.sourceKind(), merged.sourceResource(), merged.description(),
+                        merged.dataType().withProperties(ownFields), merged.enumValues(), merged.title());
             }
             if (first.xmlTypeQName() != null) {
                 var locXmlOrigin = unitIndex.get(first.definition().sourceResource() + "#");
@@ -322,7 +392,9 @@ public final class AIcSchemaContractBindingsGenerator {
                                 locXmlLoad, locXmlOrigin.pointer().substring(6))
                         : new AIcXmlDefsFrontend().rootExtensionBaseQName(locXmlLoad);
                 if (locXmlParentQName != null) {
-                    var locXmlParent = locXmlTypeRequests.get(first.target().name() + "#" + first.contractRole() + "#" + locXmlParentQName);
+                    var locXmlParent = locXmlTypeRequests.get(first.target().name() + "#" + first.contractRole() + "#"
+                            + (locXmlParentQName.startsWith("{}") ? first.packageName() + "#" : "")
+                            + locXmlParentQName);
                     if (locXmlParent == null || locXmlParent == first)
                         throw new IllegalArgumentException("XML extension base has no independently emitted contract: "
                                 + locXmlParentQName + " for " + first.xmlTypeQName());
@@ -363,6 +435,32 @@ public final class AIcSchemaContractBindingsGenerator {
                         locChoiceReference = locAlternative.reference();
                 }
                 String locSource = pair.source();
+                if (!additionalParents.isEmpty()) {
+                    if (targetText.equals("java")) {
+                        String locDeclaration = "public interface " + pair.typeName() + " extends ";
+                        int locStart = locSource.indexOf(locDeclaration);
+                        int locEnd = locSource.indexOf(" {", locStart);
+                        if (locStart < 0 || locEnd < 0) throw new IllegalStateException("Missing Java interface declaration");
+                        locSource = locSource.substring(0, locEnd) + ", "
+                                + String.join(", ", additionalParents) + locSource.substring(locEnd);
+                    } else {
+                        for (int locExtra = 0; locExtra < additionalParents.size(); locExtra++) {
+                            AIcdCodeGenerationRequest locInherited = inheritedRequests.get(locExtra + 1);
+                            var locPreview = new AIcSchemaContractInterfaceGenerator().generate(locInherited);
+                            String locStem = Path.of(locPreview.relativePath()).getFileName()
+                                    .toString().replaceFirst("\\.py$", "");
+                            locSource = locSource.replace("from __future__ import annotations\n",
+                                    "from __future__ import annotations\nfrom " + locInherited.packageName() + "."
+                                            + locStem + " import " + locPreview.typeName() + "\n");
+                        }
+                        String locDeclaration = "class " + pair.typeName() + "(";
+                        int locStart = locSource.indexOf(locDeclaration);
+                        int locEnd = locSource.indexOf("):", locStart);
+                        if (locStart < 0 || locEnd < 0) throw new IllegalStateException("Missing Python class declaration");
+                        locSource = locSource.substring(0, locEnd) + ", "
+                                + String.join(", ", additionalParents) + locSource.substring(locEnd);
+                    }
+                }
                 if (locConfigured && !first.contractRole().equals("common")
                         && merged.dataType().kind() == AInDataTypeKind.OBJECT) {
                     AIcdUnit locOrigin = unitIndex.get(first.definition().sourceResource());
@@ -388,8 +486,29 @@ public final class AIcSchemaContractBindingsGenerator {
                         }
                     }
                 }
+                locSource = qualifyReferences(locSource, first, requests, true, locChoiceReference);
+                if (first.xmlTypeQName() != null && locIndex == 0 && (merged.dataType().kind() == AInDataTypeKind.OBJECT
+                        || merged.dataType().kind() == AInDataTypeKind.ONE_OF
+                        || merged.dataType().kind() == AInDataTypeKind.ANY_OF)) {
+                    String locNamespace = first.xmlTypeQName().substring(1, first.xmlTypeQName().indexOf('}'));
+                    Map<String, String> locWildcardFields = new LinkedHashMap<>();
+                    for (AIcdPropertyDefinition locField : merged.dataType().properties()) {
+                        var locXml = locField.xmlField();
+                        if (locXml == null || locXml.wildcardNamespace().isBlank()) continue;
+                        String locSelected = AIcXmlNamespaceContracts.selectedNamespace(
+                                locXml.wildcardNamespace(), locXml.namespace());
+                        String locQualified = locSelected == null
+                                ? targetText.equals("java")
+                                        ? "eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject"
+                                        : "eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object.AIiXmlDataObject"
+                                : namespaceType(locNamespaceOwners, targetText, locSelected);
+                        locWildcardFields.put(locField.sourceName(), locQualified);
+                    }
+                    locSource = AIcXmlNamespaceContracts.decorate(locSource, first,
+                            namespaceType(locNamespaceOwners, targetText, locNamespace), locWildcardFields);
+                }
                 add(pending, outputRoots.getOrDefault(targetText, intf.resolve("src/product/" + targetText + ".gen"))
-                        .resolve(pair.relativePath()), qualifyReferences(locSource, first, requests, true, locChoiceReference));
+                        .resolve(pair.relativePath()), locSource);
                 locIndex++;
             }
         }
@@ -450,11 +569,27 @@ public final class AIcSchemaContractBindingsGenerator {
             for (AIcdElementWork locEntry : locWork) {
                 var locGenerated = locXmlGenerator.generate(locEntry.request(), locEntry.element(), locTypes, locElements, locValueTypes);
                 Path locOutputRoot = outputRoots.getOrDefault(locTarget, intf.resolve("src/product/" + locTarget + ".gen"));
-                add(pending, locOutputRoot.resolve(locGenerated.relativePath()), locGenerated.source());
+                String locElementNamespace = locEntry.element().namespace();
+                locNamespaceOwners.putIfAbsent(locTarget + "#" + locElementNamespace, locEntry.request());
+                String locElementSource = AIcXmlNamespaceContracts.decorate(locGenerated.source(),
+                        locEntry.request(), namespaceType(locNamespaceOwners, locTarget, locElementNamespace), Map.of());
+                add(pending, locOutputRoot.resolve(locGenerated.relativePath()), locElementSource);
                 result.add(Map.of("schema", locEntry.source(), "pointer", "@element/" + locEntry.element().localName(),
                         "language", locTarget, "type", locGenerated.typeName(),
                         "path", portable(repository.relativize(locOutputRoot.resolve(locGenerated.relativePath())))));
             }
+        }
+
+        for (var locEntry : locNamespaceOwners.entrySet()) {
+            String locLanguage = locEntry.getKey().substring(0, locEntry.getKey().indexOf('#'));
+            String locNamespace = locEntry.getKey().substring(locEntry.getKey().indexOf('#') + 1);
+            var locGenerated = AIcXmlNamespaceContracts.generate(locEntry.getValue(), locNamespace);
+            Path locRoot = outputRoots.getOrDefault(locLanguage, intf.resolve("src/product/" + locLanguage + ".gen"));
+            add(pending, locRoot.resolve(locGenerated.relativePath()), locGenerated.source());
+            result.add(Map.of("schema", locEntry.getValue().definition().sourceResource(),
+                    "pointer", "@namespace/" + locNamespace, "language", locLanguage,
+                    "type", locGenerated.typeName(),
+                    "path", portable(repository.relativize(locRoot.resolve(locGenerated.relativePath())))));
         }
 
         /* Validation is complete. Never delete a foreign file merely because
@@ -527,16 +662,25 @@ public final class AIcSchemaContractBindingsGenerator {
                 && (aParent.presence() != aChild.presence() || aParent.nullable() != aChild.nullable());
     }
 
-    /** Resolve exactly one local or canonical-identity allOf parent into an emitted contract. */
-    private static AIcdUnit parentUnit(AIcdUnit aUnit, Map<String, AIcdUnit> aIndex, Path aRepository) {
+    /**
+     * Resolve every allOf reference branch in document order to an emitted contract.
+     * Both local fragment references and canonical cross-file schema IDs are supported;
+     * unresolved references must fail rather than silently lose inherited fields.
+     *
+     * @param aUnit schema unit declaring the composition
+     * @param aIndex indexed schema units, including nested definitions
+     * @param aRepository sandbox root against which relative references are resolved
+     * @return independently emitted parent contracts, in declaration order
+     */
+    private static List<AIcdUnit> parentUnits(AIcdUnit aUnit, Map<String, AIcdUnit> aIndex, Path aRepository) {
         JsonNode locAllOf = aUnit.node.path("allOf");
-        if (locAllOf.isMissingNode()) return null;
+        if (locAllOf.isMissingNode()) return List.of();
         if (!locAllOf.isArray()) throw new IllegalArgumentException("allOf must be an array");
         List<String> locReferences = new ArrayList<>();
         for (JsonNode locPart : locAllOf) if (locPart.has("$ref")) locReferences.add(locPart.path("$ref").asText());
-        if (locReferences.isEmpty()) return null;
-        if (locReferences.size() != 1) throw new IllegalArgumentException("Exactly one allOf parent is supported");
-        String locReference = locReferences.get(0);
+        if (locReferences.isEmpty()) return List.of();
+        List<AIcdUnit> locParents = new ArrayList<>();
+        for (String locReference : locReferences) {
         URI locUri = URI.create(locReference);
         String locPointer = locUri.getRawFragment() == null ? "" : java.net.URLDecoder.decode(locUri.getRawFragment(), java.nio.charset.StandardCharsets.UTF_8);
         if (!locPointer.isEmpty() && !locPointer.startsWith("/"))
@@ -546,7 +690,8 @@ public final class AIcSchemaContractBindingsGenerator {
                 u.document.path("$id").asText().equals(locReference.split("#", 2)[0])
                 && u.pointer.equals(locPointer)).toList();
             if (locCandidates.size() != 1) throw new IllegalArgumentException("Unresolved allOf parent: " + locReference);
-            return locCandidates.get(0);
+            locParents.add(locCandidates.get(0));
+            continue;
         }
         Path locSource = aRepository.resolve(aUnit.schema);
         Path locParent = (locUri.isAbsolute() ? Path.of(locUri.getPath()) : locUri.getPath().isEmpty() ? locSource
@@ -554,7 +699,12 @@ public final class AIcSchemaContractBindingsGenerator {
         if (!locParent.startsWith(aRepository)) throw new IllegalArgumentException("allOf parent escapes repository: " + locReference);
         AIcdUnit locUnit = aIndex.get(portable(aRepository.relativize(locParent)) + "#" + locPointer);
         if (locUnit == null) throw new IllegalArgumentException("allOf parent is not an emitted contract: " + locReference);
-        return locUnit;
+        locParents.add(locUnit);
+        }
+        if (locParents.stream().distinct().count() != locParents.size()) {
+            throw new IllegalArgumentException("Duplicate allOf parent in " + aUnit.schema());
+        }
+        return List.copyOf(locParents);
     }
 
     private static String qualifyReferences(String source, AIcdCodeGenerationRequest request,
@@ -642,6 +792,14 @@ public final class AIcSchemaContractBindingsGenerator {
 
     private static boolean contains(JsonNode values, JsonNode value) { for (JsonNode item : values) if (item.equals(value)) return true; return false; }
     private static String kebab(String name) { return name.replaceAll("([a-z0-9])([A-Z])", "$1-$2").replaceAll("[^A-Za-z0-9]+", "-").replaceAll("^-|-$", "").toLowerCase(java.util.Locale.ROOT); }
+    /** Resolve a generated namespace interface by its exact XML URI, sharing one owner across schema packages. */
+    private static String namespaceType(Map<String, AIcdCodeGenerationRequest> owners,
+            String language, String namespace) {
+        AIcdCodeGenerationRequest owner = owners.get(language + "#" + namespace);
+        if (owner == null) throw new IllegalArgumentException("Missing XML namespace contract " + namespace);
+        return AIcXmlNamespaceContracts.generate(owner, namespace).qualifiedName();
+    }
+
     private static void add(Map<Path, String> pending, Path path, String source) { if (pending.putIfAbsent(path.normalize(), source) != null) throw new IllegalArgumentException("Generated type collision: " + path); }
     private static Path inside(Path repository, String relative) { Path path = repository.resolve(relative).normalize(); if (!path.startsWith(repository) || Path.of(relative).isAbsolute()) throw new IllegalArgumentException("Path escapes repository: " + relative); return path; }
     private static String portable(Path path) { return path.toString().replace('\\', '/'); }

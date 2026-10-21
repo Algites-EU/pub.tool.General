@@ -20,6 +20,7 @@ class AIcGenerationNames:
         """Render a canonical type or file name using the requested naming role."""
         role = ('enum' if kind in (AInDefsNameRole.ENUM_TYPE, AInDefsNameRole.ENUM_TYPE_FILE_STEM)
                 else 'xml-element-intf' if kind in (AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE, AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)
+                else 'xml-namespace-intf' if kind in (AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE, AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM)
                 else 'intf' if kind in (AInDefsNameRole.INTERFACE_TYPE, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
                 else 'data-class' if kind in (AInDefsNameRole.DATA_TYPE, AInDefsNameRole.DATA_TYPE_FILE_STEM)
                 else None)
@@ -29,7 +30,8 @@ class AIcGenerationNames:
             f'algites-{self._technology(profile)}-gen-{role}' + ('-versioned_1' if version is not None else '_1'))
         structure = 'file_name_stem' if kind in (AInDefsNameRole.DATA_TYPE_FILE_STEM,
             AInDefsNameRole.ENUM_TYPE_FILE_STEM, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
-            AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM) else 'main_container_name'
+            AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM,
+            AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM) else 'main_container_name'
         values = {'identifier': logical_name}
         if version is not None:
             values['version'] = str(version)
@@ -46,8 +48,9 @@ class AIcGenerationNames:
         """Return the generated source-file stem according to the naming profile."""
         return self.render(definition.logical_name, definition.version, profile, kind)
 
-    def _field(self, source_name, profile, structure, source_convention):
-        role = (profile.selected(AInDefsNameRole.INTERFACE_TYPE) if hasattr(profile, 'selected') else
+    def _field(self, source_name, profile, structure, source_convention,
+               role=AInDefsNameRole.INTERFACE_TYPE):
+        role = (profile.selected(role) if hasattr(profile, 'selected') else
             f'algites-{self._technology(profile)}-gen-intf-versioned_1')
         try:
             return profile.format(role, structure, {'identifier': source_name}, source_convention)
@@ -59,18 +62,44 @@ class AIcGenerationNames:
                 normalized = 'field-' + normalized
             return profile.format(role, structure, {'identifier': normalized}, 'lower_kebab_case_1')
 
+    @staticmethod
+    def _source_field_convention(source_name: str) -> str:
+        """Identify input lexical form; output accessor syntax comes from the selected profile."""
+        if re.fullmatch(r'[A-Z][A-Za-z0-9]*', source_name):
+            return 'upper_camel_case_1'
+        if re.fullmatch(r'[a-z][A-Za-z0-9]*', source_name):
+            return 'lower_camel_case_1'
+        if re.fullmatch(r'[a-z][a-z0-9]*(?:_[a-z0-9]+)+', source_name):
+            return 'lower_snake_case_1'
+        if re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)+', source_name):
+            return 'lower_kebab_case_1'
+        return 'upper_camel_case_1'
+
     def property_name(self, source_name, profile):
         """Convert a canonical field name into a target-language identifier."""
-        return self._field(source_name, profile, 'field_name', 'upper_camel_case_1')
+        return self._field(source_name, profile, 'field_name', self._source_field_convention(source_name))
+
+    def getter_name(self, source_name, profile, role=AInDefsNameRole.INTERFACE_TYPE):
+        """Name a field getter using the selected profile, not a fixed prefix."""
+        return self._field(source_name, profile, 'getter_method_name', self._source_field_convention(source_name), role)
+
+    def setter_name(self, source_name, profile):
+        """Name a field setter using the selected profile, not a fixed prefix."""
+        return self._field(source_name, profile, 'setter_method_name', self._source_field_convention(source_name))
 
     def enum_constant(self, source_name, profile):
         """Convert a wire-level enum value into its generated constant name."""
         return self._field(source_name, profile, 'enum_item_name', 'lower_snake_case_1')
 
     def schema_field_name_constant(self, source_name, profile):
-        """Build the stable constant exposing a field's canonical source name."""
-        name = self._field(source_name, profile, 'constant_name', 'upper_camel_case_1')
-        return 'SCHEMA_FIELD_NAME__' + (re.sub(r'_+', '_', re.sub(r'[^A-Za-z0-9_]', '_', name)).strip('_') or 'FIELD')
+        """Use the chosen constant convention for both parts of a schema-field constant.
+
+        The empty middle component retains the two separators from the existing
+        schema-field API, without adding any domain-specific content to the catalog.
+        """
+        prefix = self._field('_'.join(('schema', 'field', 'name')), profile, 'constant_name', 'lower_snake_case_1')
+        field = self._field(source_name, profile, 'constant_name', self._source_field_convention(source_name))
+        return '_'.join((prefix, '', field))
 
     def reference_type(self, ref, profile):
         """Compute the generated type name for a referenced definition."""

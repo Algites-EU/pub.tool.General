@@ -72,7 +72,7 @@ def test_global_xml_elements_generate_nominal_substitution_types(tmp_path, monke
       <xs:element name="paymentReference" type="xs:string"/>
     </xs:schema>''')
     output = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _manifest(tmp_path, 'java', 'python'))
-    assert len(output) == 8
+    assert len(output) == 10  # includes XML namespace markers
     java = tmp_path / 'intf/src/product/java.gen/example/contracts'
     python = tmp_path / 'intf/src/product/python.gen/example/contracts'
     child = (java / 'AIig_xeCryptoPayment_1.java').read_text()
@@ -174,3 +174,24 @@ def test_xsd_disallowed_substitution_is_rejected_instead_of_ignored(tmp_path):
     </xs:schema>''')
     with pytest.raises(ValueError, match='Unsupported XSD substitution/derivation restriction'):
         AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _manifest(tmp_path, 'java', 'python'))
+
+
+def test_closed_choice_accepts_typed_string_array_alternative(tmp_path, monkeypatch):
+    """An array branch is a real typed choice, not an opaque or dropped variant."""
+    source = tmp_path / 'intf/src/product/jsondefs/example/choice'
+    source.mkdir(parents=True)
+    (source / 'mixed_1.jsondef.schema.json').write_text(json.dumps({
+        'oneOf': [
+            {'type': 'array', 'items': {'type': 'string'}},
+            {'type': 'object', 'properties': {'Code': {'type': 'string'}}},
+        ]}))
+    AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _manifest(tmp_path, 'java', 'python'))
+    java_root = tmp_path / 'intf/src/product/java.gen/example/choice'
+    java_variants = '\n'.join(path.read_text() for path in java_root.glob('AIcgdMixed*.java'))
+    assert 'java.util.List<String> value' in java_variants
+    python_root = tmp_path / 'intf/src/product/python.gen'
+    monkeypatch.syspath_prepend(str(python_root))
+    module = importlib.import_module('example.choice.aicgd_mixed_alternative1_1')
+    assert module.AIcgdMixedAlternative1_1(['one', 'two']).value == ['one', 'two']
+    with pytest.raises(TypeError):
+        module.AIcgdMixedAlternative1_1('not a list')

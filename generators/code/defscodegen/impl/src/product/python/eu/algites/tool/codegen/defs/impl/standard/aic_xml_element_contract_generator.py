@@ -68,7 +68,7 @@ class AIcXmlElementContractGenerator:
                     + '    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = '
                     + _java_quote(element.namespace) + ', namespaceLocalName = '
                     + _java_quote(element.local_name) + ', order = 0)\n'
-                    + '    ' + typ + ' get' + ''.join(part.capitalize() for part in logical.split('-')) + '();\n')
+                    + '    ' + typ + ' ' + names.getter_name(logical, request.naming_profile, AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE) + '();\n')
             source = ('package ' + request.package_name + ';\n\n'
                 + '/** Generated nominal contract of global XML element ' + logical + '. */\n'
                 + annotation + '\n' + xml_annotation + '\n'
@@ -106,11 +106,11 @@ class AIcXmlElementContractGenerator:
                 imports.append('from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField')
                 body += (f'    __xml_data_object_fields__ = {{{element.local_name!r}: '
                     f'AIaXmlDataObjectField(namespace={element.namespace!r}, namespace_local_name={element.local_name!r})}}\n')
-                suffix = ''.join(part.capitalize() for part in logical.split('-'))
+                getter_name = names.getter_name(logical, request.naming_profile, AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE)
                 body += (f'    __data_object_fields__ = (AIcdDataObjectField(field_name={element.local_name!r}, '
                     f'presence=AInFieldPresenceKind.REQUIRED, allows_null={element.nillable}, '
-                    f'getter_name={"get" + suffix!r}),)\n'
-                    f'    def get{suffix}(self) -> {builtin[1]}:\n'
+                    f'getter_name={getter_name!r}),)\n'
+                    f'    def {getter_name}(self) -> {builtin[1]}:\n'
                     '        raise NotImplementedError\n')
             source = ('from __future__ import annotations\n' + '\n'.join(sorted(set(imports)))
                 + '\n\n' + f'class {name}({", ".join(superclass_names)}):\n' + body)

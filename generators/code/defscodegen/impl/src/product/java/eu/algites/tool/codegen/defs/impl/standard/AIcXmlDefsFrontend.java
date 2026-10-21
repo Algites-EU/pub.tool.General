@@ -737,7 +737,30 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                     aActiveGroups.remove(locIdentity);
                 }
             } else if ("any".equals(locKind)) {
-                throw new IOException("Unsupported XSD wildcard/group particle 'any' in " + aRequest.path());
+                validateOccurs(locElement, false, aRequest.path());
+                int locMinimum = locElement.hasAttribute("minOccurs")
+                        ? Integer.parseInt(locElement.getAttribute("minOccurs")) : 1;
+                String locMaxText = locElement.getAttribute("maxOccurs");
+                Integer locMaximum = "unbounded".equals(locMaxText) ? null
+                        : locMaxText.isBlank() ? 1 : Integer.valueOf(locMaxText);
+                String locNamespace = locElement.hasAttribute("namespace")
+                        ? locElement.getAttribute("namespace") : "##any";
+                String locProcess = locElement.hasAttribute("processContents")
+                        ? locElement.getAttribute("processContents") : "strict";
+                if (locNamespace.isBlank() || !Set.of("skip", "lax", "strict").contains(locProcess))
+                    throw new IOException("Invalid xs:any wildcard constraint in " + aRequest.path());
+                String locName = "AnyXmlElement" + (aProperties.size() + 1);
+                boolean locRepeated = locMaximum == null || locMaximum > 1;
+                AIcdDataType locValueType = AIcdDataType.atom(AInDataTypeKind.ANY, null);
+                AIcdDataType locDataType = locRepeated
+                        ? AIcdDataType.array(locValueType, locMinimum, locMaximum) : locValueType;
+                aProperties.add(new AIcdPropertyDefinition(locName, locDataType,
+                        locMaximum != null && locMaximum == 0 ? AInFieldPresenceKind.FORBIDDEN
+                        : !aOptional && locMinimum > 0 ? AInFieldPresenceKind.REQUIRED : AInFieldPresenceKind.ALLOWED,
+                        false, "Complete XML subtrees accepted by xs:any.", "XML extension elements",
+                        new AIcdXmlFieldRepresentation(aSchema.getAttribute("targetNamespace"), locName,
+                                AInXmlValueKind.ELEMENT, locMinimum,
+                                locMaximum == null ? -1 : locMaximum, locNamespace, locProcess)));
             } else if ("annotation".equals(locKind)) {
                 continue;
             } else if (Set.of("attribute", "attributeGroup", "anyAttribute", "simpleContent",

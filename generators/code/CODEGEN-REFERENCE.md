@@ -52,7 +52,12 @@ and **independent mappings of semantic roles to exact convention IDs**:
 | `--check`, `--clean-only` | Read-only verification or cleanup of generator-owned outputs. |
 
 The getter-interface roles are `common`, `xmldefs_type`, `xmldefs_element`,
-`yamldefs` and `jsondefs`, independently for Java and Python. A missing role
+`xmldefs_namespace`, `yamldefs` and `jsondefs`, independently for Java and Python.
+`xmldefs_namespace` selects a dedicated **unversioned XML namespace interface**
+naming profile (type and filename) and is not a separately generated schema
+family. It never derives a marker by replacing an XML element prefix. If omitted
+by a custom batch manifest, the independent standard XML namespace profile is
+used; standard settings supply the mapping explicitly. A missing role
 mapping suppresses generation of that role, subject to consistency of
 referenced contracts. Standard Algites settings cover all families but do not
 restrict custom naming identifiers. Without arguments, Java and Python CLIs respectively select

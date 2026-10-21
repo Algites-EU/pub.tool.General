@@ -9,6 +9,7 @@ import eu.algites.tool.codegen.defs.AInCodeGenerationTarget;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
 import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1;
+import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URLClassLoader;
@@ -16,6 +17,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javax.tools.ToolProvider;
 import javax.xml.XMLConstants;
 import javax.xml.validation.SchemaFactory;
@@ -88,6 +91,45 @@ public final class AItcSchemaParityTest {
             Assert.assertTrue(pythonSource.contains("**Field Name:** ``optionalText``"));
             Assert.assertTrue(pythonSource.contains("**Field Description:** Optional text value."));
         }
+    }
+
+    /**
+     * Ensures Defs-specific constant designation does not depend on a fixed uppercase
+     * schema-field prefix inside the generator or in the general naming catalog.
+     */
+    @Test
+    public void AIcSchemaFieldConstantUsesChosenConstantStyle() {
+        AIcGenerationNames names = new AIcGenerationNames();
+        Assert.assertEquals(names.schemaFieldNameConstant("optionalText", AIcAlgitesNamingProfiles_1.javaProfile()),
+                "SCHEMA_FIELD_NAME__OPTIONAL_TEXT");
+        AIiNameConventionCatalog custom = new AIiNameConventionCatalog() {
+            /** Identifies the standard Java generation profile. */
+            @Override public Set<String> names() { return Set.of("algites-java-gen-intf-versioned_1"); }
+
+            /** Renders identifiers as UpperCamel, independently of schema-field semantics. */
+            @Override public String format(String profile, String structure, Map<String, String> values, String source) {
+                Assert.assertEquals(structure, "constant_name");
+                String identifier = values.get("identifier").replaceAll("(?<=[a-z])(?=[A-Z])", "_");
+                StringBuilder result = new StringBuilder();
+                for (String word : identifier.split("_")) {
+                    if (word.isEmpty()) continue;
+                    result.append(Character.toUpperCase(word.charAt(0)))
+                            .append(word.substring(1).toLowerCase(java.util.Locale.ROOT));
+                }
+                return result.toString();
+            }
+
+            /** Parsing is not used by the name-rendering scenario. */
+            @Override public Map<String, String> parse(String profile, String structure, String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            /** Filename matching is not used by the name-rendering scenario. */
+            @Override public boolean matches(String profile, String structure, String name) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        Assert.assertEquals(names.schemaFieldNameConstant("optionalText", custom), "SchemaFieldName__OptionalText");
     }
 
     /** Compiles all generated Java classes and imports all generated Python classes with nested references. */

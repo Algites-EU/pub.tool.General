@@ -26,7 +26,7 @@ python -m eu.algites.tool.codegen.defs.impl.cli.aic_defs_codegen_cli \
 schema kind. `--output-interface-technology-naming-convention=TECH:ROLE:defsintf=ID`
 chooses a generated getter-interface profile for each target technology
 (`java`, `python`) and semantic role (`common`, `xmldefs_type`,
-`xmldefs_element`, `yamldefs`, `jsondefs`). `--output-enum-technology-naming-convention=TECH:ID`
+`xmldefs_element`, `xmldefs_namespace`, `yamldefs`, `jsondefs`). `--output-enum-technology-naming-convention=TECH:ID`
 configures enums independently.
 
 `--naming-conventions-file` is repeatable and provides **one combined catalog**.
@@ -36,7 +36,13 @@ Conflicting definitions of one ID are rejected; identical repeated definitions
 can be merged. No generator requires a particular syntax for user-defined IDs;
 Algites chooses `_1` in its supplied catalog as a library-versioning policy.
 
-**A missing output-role naming ID means that role is not generated.** If two
+**A missing output-role naming ID means that a contract family is not generated.**
+The `xmldefs_namespace` role is different: it configures the names of auxiliary
+XML namespace interfaces, which are emitted when XML contracts need them,
+not as a separate contract family. When omitted from a custom manifest, the
+standard independent `algites-TECH-gen-xml-namespace-intf_1` profile is used.
+Namespace type names and file stems are both rendered through that profile;
+no `_xe`/`_x` text replacement is performed. If two
 configured roles would create the same relative output path, generation must
 fail instead of overwriting a different contract. The input-schema ID and
 required dependency roles still have to resolve. If a common getter and a

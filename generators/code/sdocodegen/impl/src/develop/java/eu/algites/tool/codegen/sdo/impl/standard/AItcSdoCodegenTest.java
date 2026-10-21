@@ -241,6 +241,27 @@ public final class AItcSdoCodegenTest {
                 "namingConvention = \"algites-java-gen-data-yaml-class-versioned_1\""));
     }
 
+    /** A field identifier is a semantic input; output setter and parameter spellings come from the catalog. */
+    @AIaDataObject(schemaId = "test:semantic-field", schemaVersion = 1)
+    public interface AIigSemanticField extends AIiDataObject {
+        /** Returns the identifier stored under a snake-case semantic field key. */
+        @AIaDataObjectField(fieldName = "customer_id")
+        String getCustomerId();
+    }
+
+    /** The standard naming profile converts snake-case field identifiers without a hardcoded setter suffix. */
+    @Test
+    public void AIcSetterConvertsSemanticFieldNameUsingTheNamingProfile() {
+        var locResult = new AIcSdoCodegenService().generate(AIigSemanticField.class, "d");
+        Assert.assertTrue(locResult.mutableInterface().source().contains("setCustomerId(java.lang.String aCustomerId)"));
+        Assert.assertTrue(locResult.implementation().source().contains("setCustomerId(java.lang.String aCustomerId)"));
+        Assert.assertFalse(locResult.implementation().source().contains("setCustomer_id("));
+        /* Fixed raw SDO methods are intentionally independent of getter/setter conventions. */
+        Assert.assertTrue(locResult.mutableInterface().source().contains("get_Customer_id()"));
+        Assert.assertTrue(locResult.mutableInterface().source().contains("isPresent_Customer_id()"));
+        Assert.assertTrue(locResult.mutableInterface().source().contains("unset_Customer_id()"));
+    }
+
     /** Generated Java SmartDOs honor interface defaults and explicit getter overrides. */
     @AIaDataObject(schemaId = "test:read-policy", schemaVersion = 1)
     @eu.algites.lib.data.smartdataobject.AIaSmartDataObject(allowNonPresentRead = true)

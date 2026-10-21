@@ -84,7 +84,7 @@ class AIcDefsCodegenCli:
         options = parser.parse_args(args)
         valid_inputs = {'xmldefs', 'yamldefs', 'jsondefs'}
         valid_targets = {'java', 'python'}
-        valid_roles = {'common', 'xmldefs_type', 'xmldefs_element', 'yamldefs', 'jsondefs'}
+        valid_roles = {'common', 'xmldefs_type', 'xmldefs_element', 'xmldefs_namespace', 'yamldefs', 'jsondefs'}
 
         def split_map(values, kinds, label):
             result = {}

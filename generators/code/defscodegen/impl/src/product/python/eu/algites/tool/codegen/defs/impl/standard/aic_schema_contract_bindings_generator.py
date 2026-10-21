@@ -19,6 +19,7 @@ from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog impo
 from eu.algites.tool.codegen.defs.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_element_contract_generator import AIcXmlElementContractGenerator, xml_identifier
+from eu.algites.tool.codegen.defs.impl.standard import aic_xml_namespace_contracts as xml_namespaces
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
@@ -162,7 +163,7 @@ class AIcSchemaContractBindingsGenerator:
                     projection['$defs'] = unit.document['$defs']
                 projection['x-jsondefs-id'] = (unit.document.get('x-yamldefs-id') or unit.document.get('x-jsondefs-id') or unit.document.get('$id') or unit.schema) + ('#' + unit.pointer if unit.pointer else '')
                 projection['x-jsondefs-name'] = unit.name
-            parent_unit = self._parent_unit(unit, unit_index, repository) if kind != 'xmldefs' else None
+            parent_units = self._parent_units(unit, unit_index, repository) if kind != 'xmldefs' else ()
             for language in manifest['languages']:
                 target = AInCodeGenerationTarget(language)
                 profile = target_profiles.get(language) or (AIcAlgitesNamingProfiles_1.python_profile()
@@ -195,6 +196,11 @@ class AIcSchemaContractBindingsGenerator:
                         if element_id:
                             entries.update({kind: element_id for kind in (AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE,
                                 AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)})
+                        namespace_id = configured_roles.get('xmldefs_namespace',
+                            f'algites-{language}-gen-xml-namespace-intf_1')
+                        entries.update({kind: namespace_id for kind in
+                            (AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE,
+                             AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM)})
                         enum_id = manifest.get('technology_enum_output_naming_conventions', {}).get(language, selected_id)
                         entries.update({kind: enum_id for kind in (AInDefsNameRole.ENUM_TYPE,
                             AInDefsNameRole.ENUM_TYPE_FILE_STEM)})
@@ -205,7 +211,7 @@ class AIcSchemaContractBindingsGenerator:
                     key = language + '#' + preview.relative_path
                     requests.setdefault(key, []).append(request)
                     unit_requests[(language, role, unit.schema, unit.pointer)] = request
-                    relations.setdefault(key, []).append((language, parent_unit))
+                    relations.setdefault(key, []).append(parent_units)
                     result.append(dict(schema=unit.schema, pointer=unit.pointer, language=language, type=preview.type_name,
                         path=(output_roots.get(language, intf / 'src/product' / (language + '.gen')) / preview.relative_path).relative_to(repository).as_posix()))
 
@@ -217,10 +223,35 @@ class AIcSchemaContractBindingsGenerator:
         for candidate in unit_requests.values():
             if candidate.xml_type_qname is None:
                 continue
-            key = (candidate.target, candidate.contract_role, candidate.xml_type_qname)
+            key = (candidate.target, candidate.contract_role,
+                candidate.package_name if candidate.xml_type_qname.startswith('{}') else '',
+                candidate.xml_type_qname)
             previous = xml_type_requests.setdefault(key, candidate)
             if previous.package_name != candidate.package_name:
                 raise ValueError(f'Ambiguous XML named type {candidate.xml_type_qname}')
+        # Resolve one XML namespace marker per target/namespace across all schema packages.
+        # Only XML requests participate; JSON and YAML have no namespace interfaces.
+        xml_namespace_owners = {}
+        for (language, role, schema, pointer), req in unit_requests.items():
+            if kind_by_source[schema] != 'xmldefs' or role == 'common':
+                continue
+            namespace = req.xml_type_qname[1:].split('}', 1)[0] if req.xml_type_qname else None
+            if namespace is not None:
+                xml_namespace_owners.setdefault((language, namespace), req)
+            for field in req.definition.data_type.properties:
+                xml = field.xml_field
+                if xml is None or not xml.wildcard_namespace:
+                    continue
+                explicit_namespace = xml_namespaces.namespace_of_wildcard(xml.wildcard_namespace, xml.namespace)
+                if explicit_namespace is not None:
+                    xml_namespace_owners.setdefault((language, explicit_namespace), req)
+        def namespace_ref(language, namespace):
+            owner = xml_namespace_owners.get((language, namespace))
+            if owner is None:
+                raise ValueError('Missing generated XML namespace contract: ' + namespace)
+            name, stem, module = xml_namespaces.namespace_contract(owner, namespace)
+            return module + '.' + name if language == 'python' else owner.package_name + '.' + name
+
         for representations in requests.values():
             first = representations[0]
             identities = {self._canonical_identity(r.definition, r.package_name, units_by_resource)
@@ -230,31 +261,52 @@ class AIcSchemaContractBindingsGenerator:
                     str([(r.definition.identity, r.definition.source_resource) for r in representations]))
             merged = AIcCanonicalDefinitionMerger.merge_strict((r.definition for r in representations), repository)
             parent_relations = relations[first.target.value + '#' + generator.generate(first).relative_path]
-            parent_requests = [None if value is None else unit_requests.get(
-                (first.target.value, first.contract_role, value.schema, value.pointer)) for _, value in parent_relations]
-            parent_types = {None if value is None else (value.package_name, generator.generate(value).type_name)
-                for value in parent_requests}
-            if len(parent_types) > 1:
-                raise ValueError('Conflicting inherited contracts across schema representations')
+            def represented_parents(relation):
+                result = []
+                for unit in relation:
+                    request = unit_requests.get((first.target.value, first.contract_role, unit.schema, unit.pointer))
+                    if request is None:
+                        raise ValueError('allOf parent has no generated contract in role '
+                                         + first.contract_role + ': ' + unit.schema + '#' + unit.pointer)
+                    result.append((request.package_name, generator.generate(request).type_name))
+                return tuple(result)
+            expected_parents = represented_parents(parent_relations[0])
+            if any(represented_parents(relation) != expected_parents for relation in parent_relations):
+                raise ValueError('Conflicting allOf parents across schema representations')
+            parent_requests = []
+            for unit in parent_relations[0]:
+                inherited = unit_requests.get((first.target.value, first.contract_role, unit.schema, unit.pointer))
+                if inherited is None:
+                    raise ValueError('allOf parent has no generated contract in role ' + first.contract_role
+                                     + ': ' + unit.schema + '#' + unit.pointer)
+                parent_requests.append(inherited)
             parent = None
-            if parent_requests[0] is not None:
-                inherited = parent_requests[0]
+            additional_parents = []
+            inherited_fields = {}
+            for inherited in parent_requests:
                 if inherited.definition.data_type.kind is not AInDataTypeKind.OBJECT or merged.data_type.kind is not AInDataTypeKind.OBJECT:
                     raise ValueError('allOf inheritance must connect object contracts')
-                inherited_fields = {field.source_name: field for field in inherited.definition.data_type.properties}
-                overrides = []
-                for field in merged.data_type.properties:
-                    parent_field = inherited_fields.get(field.source_name)
-                    if parent_field is None or self._field_shape(field) != self._field_shape(parent_field):
-                        if parent_field is not None and not self._field_narrows(parent_field, field):
-                            raise ValueError('Conflicting inherited field: ' + field.source_name)
-                        overrides.append(field)
-                merged = replace(merged, data_type=merged.data_type.with_properties(tuple(overrides)))
-                parent_type = generator.generate(inherited).type_name
+                for field in inherited.definition.data_type.properties:
+                    existing = inherited_fields.setdefault(field.source_name, field)
+                    if self._field_shape(existing) != self._field_shape(field):
+                        raise ValueError('Conflicting fields among allOf parents: ' + field.source_name)
+                preview = generator.generate(inherited)
                 parent_module = inherited.package_name
                 if first.target is AInCodeGenerationTarget.PYTHON:
-                    parent_module += '.' + generator.generate(inherited).relative_path.rsplit('/', 1)[-1][:-3]
-                parent = (parent_type, parent_module)
+                    parent_module += '.' + preview.relative_path.rsplit('/', 1)[-1][:-3]
+                if parent is None:
+                    parent = (preview.type_name, parent_module)
+                else:
+                    additional_parents.append((preview.type_name, parent_module))
+            if parent_requests:
+                own_fields = []
+                for field in merged.data_type.properties:
+                    inherited_field = inherited_fields.get(field.source_name)
+                    if inherited_field is None or self._field_shape(field) != self._field_shape(inherited_field):
+                        if inherited_field is not None and not self._field_narrows(inherited_field, field):
+                            raise ValueError('Conflicting inherited field: ' + field.source_name)
+                        own_fields.append(field)
+                merged = replace(merged, data_type=merged.data_type.with_properties(tuple(own_fields)))
             if first.xml_type_qname is not None:
                 xml_origin = units_by_resource.get(first.definition.source_resource)
                 if xml_origin is None:
@@ -265,7 +317,8 @@ class AIcSchemaContractBindingsGenerator:
                     if xml_origin.pointer.startswith('@type/')
                     else AIcXmlDefsFrontend().root_extension_base_qname(load))
                 if parent_qname is not None:
-                    inherited = xml_type_requests.get((first.target, first.contract_role, parent_qname))
+                    inherited = xml_type_requests.get((first.target, first.contract_role,
+                        first.package_name if parent_qname.startswith('{}') else '', parent_qname))
                     if inherited is None or inherited == first:
                         raise ValueError('XML extension base has no independently emitted contract: '
                             + parent_qname + ' for ' + first.xml_type_qname)
@@ -295,6 +348,23 @@ class AIcSchemaContractBindingsGenerator:
                     alternative = merged.data_type.alternatives[index - 1]
                 choice_reference = alternative.reference if alternative is not None and alternative.kind is AInDataTypeKind.REFERENCE else None
                 rendered = pair.source
+                if additional_parents:
+                    if language == 'java':
+                        declaration = f'public interface {pair.type_name} extends '
+                        start = rendered.index(declaration)
+                        end = rendered.index(' {', start)
+                        rendered = (rendered[:end] + ', ' + ', '.join(module + '.' + name
+                            for name, module in additional_parents) + rendered[end:])
+                    else:
+                        imports = ''.join('from ' + module + ' import ' + name + '\n'
+                            for name, module in additional_parents)
+                        rendered = rendered.replace('from __future__ import annotations\n',
+                            'from __future__ import annotations\n' + imports)
+                        declaration = f'class {pair.type_name}('
+                        start = rendered.index(declaration)
+                        end = rendered.index('):', start)
+                        rendered = (rendered[:end] + ', ' + ', '.join(name for name, _ in additional_parents)
+                                    + rendered[end:])
                 if configured and first.contract_role != 'common' and merged.data_type.kind is AInDataTypeKind.OBJECT:
                     origin = units_by_resource.get(first.definition.source_resource)
                     common = (unit_requests.get((language, 'common', origin.schema, origin.pointer))
@@ -312,8 +382,25 @@ class AIcSchemaContractBindingsGenerator:
                                 '.' + stem + ' import ' + preview.type_name + '\n')
                             declaration = f'class {pair.type_name}('
                             rendered = rendered.replace(declaration, declaration + preview.type_name + ', ')
+                rendered = self._qualify_references(rendered, first, requests, True, choice_reference)
+                if first.xml_type_qname is not None and index == 0 and merged.data_type.kind in (
+                        AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
+                    namespace = first.xml_type_qname[1:].split('}', 1)[0]
+                    wildcard_fields = {}
+                    for field in merged.data_type.properties:
+                        xml = field.xml_field
+                        if xml is None or not xml.wildcard_namespace:
+                            continue
+                        selected = xml_namespaces.namespace_of_wildcard(xml.wildcard_namespace, xml.namespace)
+                        wildcard_fields[field.source_name] = (namespace_ref(language, selected)
+                            if selected is not None else
+                            ('eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object.AIiXmlDataObject'
+                                if language == 'python' else
+                                'eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject'))
+                    rendered = xml_namespaces.decorate(rendered, first,
+                        namespace_ref(language, namespace), wildcard_fields, language == 'python')
                 self._add(pending, output_roots.get(language, intf / 'src/product' / (language + '.gen')) / pair.relative_path,
-                    self._qualify_references(rendered, first, requests, True, choice_reference))
+                    rendered)
 
         # Global XSD element declarations occupy a separate QName symbol space from
         # content types. Build complete target-specific indexes before emitting any
@@ -358,10 +445,23 @@ class AIcSchemaContractBindingsGenerator:
             for schema, req, element in declarations:
                 generated = xml_generator.generate(req, element, type_index, element_index, value_types)
                 output_root = output_roots.get(language, intf / 'src/product' / (language + '.gen'))
-                self._add(pending, output_root / generated.relative_path, generated.source)
+                element_namespace = element.namespace
+                if (language, element_namespace) not in xml_namespace_owners:
+                    xml_namespace_owners[(language, element_namespace)] = req
+                rendered = xml_namespaces.decorate(generated.source, req,
+                    namespace_ref(language, element_namespace), {}, language == 'python')
+                self._add(pending, output_root / generated.relative_path, rendered)
                 result.append(dict(schema=schema, pointer='@element/' + element.local_name,
                     language=language, type=generated.type_name,
                     path=(output_root / generated.relative_path).relative_to(repository).as_posix()))
+
+        for (language, namespace), owner in sorted(xml_namespace_owners.items()):
+            name, relative, generated = xml_namespaces.source(owner, namespace)
+            output_root = output_roots.get(language, intf / 'src/product' / (language + '.gen'))
+            self._add(pending, output_root / relative, generated)
+            result.append(dict(schema=owner.definition.source_resource, pointer='@namespace/' + namespace,
+                language=language, type=name,
+                path=(output_root / relative).relative_to(repository).as_posix()))
 
         # Preserve files owned by unrelated output technologies. A matching
         # naming pattern alone must never delete a manually authored source.
@@ -422,35 +522,41 @@ class AIcSchemaContractBindingsGenerator:
         return parent.presence != child.presence or parent.nullable != child.nullable
 
     @staticmethod
-    def _parent_unit(unit, index, repository):
-        branches = unit.node.get('allOf', []) 
+    def _parent_units(unit, index, repository):
+        """Resolve all allOf contract references without dropping any parent branch."""
+        branches = unit.node.get('allOf', [])
         if not isinstance(branches, list):
             raise ValueError('allOf must be an array')
-        references = [branch['$ref'] for branch in branches if isinstance(branch, dict) and '$ref' in branch]
-        if not references:
-            return None
-        if len(references) != 1:
-            raise ValueError('Exactly one allOf parent reference is supported')
-        parts = urlsplit(references[0])
-        if parts.scheme and parts.scheme != 'file':
-            matches = [candidate for candidate in index.values()
-                if candidate.document.get('$id') == references[0].split('#', 1)[0]
-                and candidate.pointer == ('/' + unquote(parts.fragment)[1:] if parts.fragment.startswith('/') else '')]
-            if len(matches) != 1:
-                raise ValueError('Unresolved or ambiguous allOf parent: ' + references[0])
-            return matches[0]
-        if parts.scheme == 'file':
-            target = Path(unquote(parts.path))
-        else:
-            target = (repository / unit.schema).parent / unquote(parts.path) if parts.path else repository / unit.schema
-        target = Path(os.path.abspath(target))
-        if not target.is_relative_to(repository):
-            raise ValueError('allOf parent escapes repository: ' + references[0])
-        pointer = unquote(parts.fragment) if parts.fragment.startswith('/') else ''
-        parent = index.get((target.relative_to(repository).as_posix(), pointer))
-        if parent is None:
-            raise ValueError('allOf parent is not an emitted contract: ' + references[0])
-        return parent
+        references = [branch['$ref'] for branch in branches
+                      if isinstance(branch, dict) and '$ref' in branch]
+        parents = []
+        for reference in references:
+            parts = urlsplit(reference)
+            if parts.fragment and not unquote(parts.fragment).startswith('/'):
+                raise ValueError('Unsupported allOf parent anchor: ' + reference)
+            if parts.scheme and parts.scheme != 'file':
+                matches = [candidate for candidate in index.values()
+                    if candidate.document.get('$id') == reference.split('#', 1)[0]
+                    and candidate.pointer == unquote(parts.fragment)]
+                if len(matches) != 1:
+                    raise ValueError('Unresolved or ambiguous allOf parent: ' + reference)
+                parents.append(matches[0])
+                continue
+            if parts.scheme == 'file':
+                target = Path(unquote(parts.path))
+            else:
+                target = (repository / unit.schema).parent / unquote(parts.path) if parts.path else repository / unit.schema
+            target = Path(os.path.abspath(target))
+            if not target.is_relative_to(repository):
+                raise ValueError('allOf parent escapes repository: ' + reference)
+            pointer = unquote(parts.fragment)
+            parent = index.get((target.relative_to(repository).as_posix(), pointer))
+            if parent is None:
+                raise ValueError('allOf parent is not an emitted contract: ' + reference)
+            parents.append(parent)
+        if len({(unit.schema, unit.pointer) for unit in parents}) != len(parents):
+            raise ValueError('Duplicate allOf parent in ' + unit.schema)
+        return tuple(parents)
 
     @staticmethod
     def _qualify_references(source, request, requests, contract, choice_reference=None):

@@ -9,6 +9,7 @@ import eu.algites.lib.data.dataobject.AIaFieldDefault;
 import eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject;
 import eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField;
 import eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject;
+import eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObjectNamespace;
 import eu.algites.lib.data.dataobject.jsondefs.AIiJsonDataObject;
 import eu.algites.lib.data.dataobject.yamldefs.AIiYamlDataObject;
 import eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition;
@@ -163,8 +164,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         var locParents = Arrays.stream(aReadContract.getInterfaces())
                 .filter(AIcSdoCodegenService::isReadContract).toList();
         Class<?> locParent = locParents.isEmpty() ? null : locParents.get(0);
-        LinkedHashMap<String, AIcdGetter> locOwn = fields(aReadContract.getDeclaredMethods());
-        LinkedHashMap<String, AIcdGetter> locAll = inheritedFields(aReadContract);
+        LinkedHashMap<String, AIcdGetter> locOwn = fields(aReadContract.getDeclaredMethods(), aInputNames);
+        LinkedHashMap<String, AIcdGetter> locAll = inheritedFields(aReadContract, aInputNames);
         /* A multiply inherited contract cannot extend both concrete parent classes.
          * Flatten its fields into a single concrete SDO while implementing every
          * inherited mutable interface and keeping the original read-only diamond.
@@ -248,13 +249,22 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 + "(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }\n");
         for (var locField : locOwn.values()) {
             Method locGetter = locField.method();
-            String locName = fieldName(locField.method(), locField.field());
+            String locName = fieldName(locField.method(), locField.field(), aInputNames);
             String locType = mutableValueType(locGetter, locMarker, aInputNames, aMutableNames,
                     aConcreteNames, aMutableSubpackage);
-            String locSuffix = suffix(locGetter.getName());
-            String locParameter = aMutableNames == null ? "a" + locSuffix
-                    : aMutableNames.format(locMutableConvention, "method_parameter_name",
-                            Map.of("identifier", locSuffix), "upper_camel_case_1");
+            String locSuffix = Character.toUpperCase(locName.charAt(0)) + locName.substring(1);
+            AIcNameConventionCatalog_1 locAccessorCatalog = aMutableNames == null
+                    ? standardNaming() : aMutableNames;
+            String locSetterProfile = aMutableNames == null
+                    ? standardProfile(locContractRole, true) : locMutableConvention;
+            String locIdentifierConvention = semanticIdentifierConvention(locName);
+            String locSetterName = locAccessorCatalog.format(locSetterProfile, "setter_method_name",
+                    Map.of("identifier", locName), locIdentifierConvention);
+            if (aConcreteNames != null && !aConcreteNames.matches(
+                    locConcreteConvention, "setter_method_name", locSetterName))
+                throw new IllegalArgumentException("SDO setter name does not match concrete naming profile: " + locSetterName);
+            String locParameter = locAccessorCatalog.format(locSetterProfile, "method_parameter_name",
+                    Map.of("identifier", locName), locIdentifierConvention);
             if (aConcreteNames != null && !aConcreteNames.matches(
                     locConcreteConvention, "method_parameter_name", locParameter))
                 throw new IllegalArgumentException("SDO parameter name does not match concrete naming profile: " + locParameter);
@@ -265,7 +275,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             locInterface.append("    ").append(defaultValueAnnotation(locGetter));
             locInterface.append("    @Override ").append(locType).append(' ')
                     .append(locGetter.getName()).append("();\n");
-            locInterface.append("    void set").append(locSuffix).append('(').append(locType).append(' ')
+            locInterface.append("    void ").append(locSetterName).append('(').append(locType).append(' ')
                     .append(locParameter).append(");\n")
                     .append("    ").append(locType).append(" get_").append(locSuffix).append("();\n")
                     .append("    boolean isPresent_").append(locSuffix).append("();\n")
@@ -273,7 +283,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             locImplementation.append("    @Override public ").append(locType).append(' ').append(locGetter.getName())
                     .append("() { return (").append(locBoxed).append(") get_EffectiveField(")
                     .append(locLiteral).append("); }\n")
-                    .append("    @Override public void set").append(locSuffix).append('(').append(locType).append(' ')
+                    .append("    @Override public void ").append(locSetterName).append('(').append(locType).append(' ')
                     .append(locParameter).append(") { set_RawField(").append(locLiteral).append(", ")
                     .append(locParameter).append("); }\n")
                     .append("    @Override public ").append(locType).append(" get_").append(locSuffix)
@@ -308,7 +318,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 if (locTarget == null) continue;
                 if (!AIiXmlDataObject.class.isAssignableFrom(locTarget))
                     throw new IllegalArgumentException("XML field references a non-XML DataObject: " + locGetter);
-                String locName = fieldName(locGetter, locField.field());
+                String locName = fieldName(locGetter, locField.field(), aInputNames);
                 locNested.put(locName, qualifiedName(locTarget,
                         typeName(locTarget, locMarker, false, aInputNames, aMutableNames, aConcreteNames),
                         aConcreteSubpackage));
@@ -462,7 +472,9 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 + "eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind."
                 + locXml.valueKind().name() + ", order = " + locXml.order()
                 + ", minOccurs = " + locXml.minOccurs()
-                + ", maxOccurs = " + locXml.maxOccurs() + ")\n";
+                + ", maxOccurs = " + locXml.maxOccurs()
+                + ", wildcardNamespace = \"" + escape(locXml.wildcardNamespace()) + "\""
+                + ", wildcardProcessContents = \"" + escape(locXml.wildcardProcessContents()) + "\")\n";
     }
 
     /** Retain a field default factory selection on the mutable getter. */
@@ -482,7 +494,9 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
     /** Tests the semantic contract hierarchy, independent of the declared Java type name. */
     private static boolean isReadContract(Class<?> aClass) {
         return aClass.isInterface() && !aClass.getPackageName().startsWith("eu.algites.lib.data.dataobject")
-                && AIiDataObject.class.isAssignableFrom(aClass);
+                && AIiDataObject.class.isAssignableFrom(aClass)
+                && !(AIiXmlDataObjectNamespace.class.isAssignableFrom(aClass)
+                    && aClass.getDeclaredAnnotation(AIaDataObject.class) == null);
     }
 
     /** Determines the independent schema role from actual marker types and XML metadata. */
@@ -506,20 +520,15 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         return aPackage + "." + aSubpackage;
     }
 
-    /** A selected General naming profile expects the generated-interface role prefix. */
-    private static String normalizedReadName(Class<?> aClass) {
-        String locName = aClass.getSimpleName();
-        return locName.startsWith("AIig") ? locName : "AIig" + locName.substring(3);
-    }
-
     /** Collect the complete inherited contract tree, detecting incompatible redeclarations. */
-    private static LinkedHashMap<String, AIcdGetter> inheritedFields(Class<?> aType) {
+    private static LinkedHashMap<String, AIcdGetter> inheritedFields(Class<?> aType,
+            AIcNameConventionCatalog_1 aInputNames) {
         var locResult = new LinkedHashMap<String, AIcdGetter>();
         for (Class<?> locParent : aType.getInterfaces()) {
             if (!AIiDataObject.class.isAssignableFrom(locParent)) continue;
-            merge(locResult, inheritedFields(locParent));
+            merge(locResult, inheritedFields(locParent, aInputNames));
         }
-        mergeOverrides(locResult, fields(aType.getDeclaredMethods()));
+        mergeOverrides(locResult, fields(aType.getDeclaredMethods(), aInputNames));
         return locResult;
     }
 
@@ -556,7 +565,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         });
     }
 
-    private static LinkedHashMap<String, AIcdGetter> fields(Method[] aMethods) {
+    private static LinkedHashMap<String, AIcdGetter> fields(Method[] aMethods,
+            AIcNameConventionCatalog_1 aInputNames) {
         var locResult = new LinkedHashMap<String, AIcdGetter>();
         Arrays.stream(aMethods).sorted(Comparator.comparing(Method::getName)).forEach(aMethod -> {
             AIaDataObjectField locAnnotation = aMethod.getDeclaredAnnotation(AIaDataObjectField.class);
@@ -565,17 +575,77 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     || aMethod.getReturnType() == void.class) {
                 throw new IllegalArgumentException("Annotated method is not a value getter: " + aMethod);
             }
-            AIcdGetter locPrevious = locResult.putIfAbsent(fieldName(aMethod, locAnnotation), new AIcdGetter(aMethod, locAnnotation));
+            AIcdGetter locPrevious = locResult.putIfAbsent(fieldName(aMethod, locAnnotation, aInputNames), new AIcdGetter(aMethod, locAnnotation));
             if (locPrevious != null && (!locPrevious.method().getGenericReturnType()
                     .equals(aMethod.getGenericReturnType()) || !locPrevious.field().equals(locAnnotation))) {
-                throw new IllegalArgumentException("Conflicting inherited field: " + fieldName(aMethod, locAnnotation));
+                throw new IllegalArgumentException("Conflicting inherited field: " + fieldName(aMethod, locAnnotation, aInputNames));
             }
         });
         return locResult;
     }
 
-    private static String fieldName(Method aGetter, AIaDataObjectField aField) {
-        return aField.fieldName().isBlank() ? suffix(aGetter.getName()) : aField.fieldName();
+    /**
+     * Resolve an omitted semantic field identifier by parsing the original accessor
+     * through its input convention. No getter prefix is assumed by the generator.
+     */
+    private static String fieldName(Method aGetter, AIaDataObjectField aField,
+            AIcNameConventionCatalog_1 aInputNames) {
+        if (!aField.fieldName().isBlank()) return aField.fieldName();
+        Class<?> locOwner = aGetter.getDeclaringClass();
+        String locRole = dataObjectRole(locOwner);
+        AIaDataObject locMetadata = locOwner.getDeclaredAnnotation(AIaDataObject.class);
+        AIcNameConventionCatalog_1 locCatalog = aInputNames == null ? standardNaming() : aInputNames;
+        String locProfile = locMetadata != null && !locMetadata.namingConvention().isBlank()
+                ? locMetadata.namingConvention()
+                : aInputNames == null ? standardProfile(locRole, false)
+                : aInputNames.selectedRole(locRole);
+        String locIdentifier = locCatalog.parse(locProfile, "getter_method_name", aGetter.getName())
+                .get("identifier");
+        if (locIdentifier == null || locIdentifier.isBlank())
+            throw new IllegalArgumentException("Getter naming convention has no semantic identifier: "
+                    + locOwner.getName() + "." + aGetter.getName());
+        return locIdentifier;
+    }
+
+    /**
+     * Identifies the lexical form of a semantic field identifier, not the output method syntax.
+     *
+     * <p>The naming catalog converts this source form into whatever identifier convention
+     * the selected getter, setter, or parameter structure declares. Raw SDO field
+     * helpers deliberately retain their existing independent naming rules.
+     *
+     * @param aIdentifier semantic field identifier from source contract metadata
+     * @return standard identifier convention used to interpret the original field name
+     * @throws IllegalArgumentException if the field identifier has no supported lexical form
+     */
+    private static String semanticIdentifierConvention(String aIdentifier) {
+        if (aIdentifier.matches("[A-Z][A-Za-z0-9]*")) return "upper_camel_case_1";
+        if (aIdentifier.matches("[a-z][A-Za-z0-9]*")) return "lower_camel_case_1";
+        if (aIdentifier.matches("[a-z][a-z0-9]*(?:_[a-z0-9]+)+")) return "lower_snake_case_1";
+        if (aIdentifier.matches("[a-z][a-z0-9]*(?:-[a-z0-9]+)+")) return "lower_kebab_case_1";
+        throw new IllegalArgumentException("Unsupported source field identifier: " + aIdentifier);
+    }
+
+    /** Standard profiles are used only when no caller-selected naming catalog exists. */
+    private static AIcNameConventionCatalog_1 standardNaming() {
+        try {
+            return AIcNameConventionCatalog_1.standard("java");
+        } catch (java.io.IOException aError) {
+            throw new IllegalStateException("Default Java naming catalog is not available", aError);
+        }
+    }
+
+    /** Select the stock profile by semantic role, without encoding accessor syntax. */
+    private static String standardProfile(String aRole, boolean aMutable) {
+        String locGroup = switch (aRole) {
+            case "xmldefs_type" -> "xml-type-";
+            case "xmldefs_element" -> "xml-element-";
+            case "yamldefs" -> "yaml-";
+            case "jsondefs" -> "json-";
+            case "common" -> "";
+            default -> throw new IllegalArgumentException("Unsupported DataObject naming role: " + aRole);
+        };
+        return "algites-java-gen-" + (aMutable ? "data-" : "") + locGroup + "intf-versioned_1";
     }
 
     private static String typeName(Class<?> aContract, String aMarker, boolean aMutable,
@@ -654,14 +724,6 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
 
     private static String qualifiedName(Class<?> aParent, String aReplacement, String aSubpackage) {
         return appendedPackage(aParent.getPackageName(), aSubpackage) + "." + aReplacement;
-    }
-    private static String suffix(String aGetter) {
-        String locSuffix = aGetter.startsWith("get") && aGetter.length() > 3
-                ? aGetter.substring(3) : aGetter;
-        if (!locSuffix.matches("[A-Za-z_$][A-Za-z0-9_$]*")) {
-            throw new IllegalArgumentException("Unsupported getter: " + aGetter);
-        }
-        return Character.toUpperCase(locSuffix.charAt(0)) + locSuffix.substring(1);
     }
     private static String escape(String aValue) {
         return aValue.replace("\\", "\\\\").replace("\"", "\\\"");

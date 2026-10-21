@@ -126,7 +126,7 @@ public final class AIcDefsCodegenCli {
                 case "output-interface-technology-naming-convention" -> {
                     String[] locTriplet = locValue.split(":", 3);
                     if (locTriplet.length != 3 || !Set.of("java", "python").contains(locTriplet[0])
-                            || !Set.of("common", "xmldefs_type", "xmldefs_element", "yamldefs", "jsondefs")
+                            || !Set.of("common", "xmldefs_type", "xmldefs_element", "xmldefs_namespace", "yamldefs", "jsondefs")
                                     .contains(locTriplet[1])
                             || !locTriplet[2].startsWith("defsintf=")
                             || locTriplet[2].length() <= "defsintf=".length())

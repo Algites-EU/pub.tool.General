@@ -110,3 +110,20 @@ inherits from the technology-specific `AIc*SmartDataObject` implementation
 base. These base classes may be behaviorally empty but establish the final
 extension hierarchy. Remaining limitations are documented in
 [Defs Codegen recursive types](../defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md).
+
+## Future possible extension of SDO generator
+
+The standard generated DataObject getter and setter names are controlled by the
+`getter_method_name` and `setter_method_name` structures of the selected
+Java/Python naming convention. They are independent of the **raw SDO access API**:
+`get_<Field>`, `isPresent_<Field>`, `unset_<Field>` and the fixed runtime methods
+such as `get_EffectiveField`, `get_RawField`, and `set_RawField`.
+
+A possible **future extension** is a separate, opt-in *SDO naming convention*
+for generated raw field-access/presence/unset methods. Such a profile would need
+its own semantic method roles and must consistently update declarations,
+implementations, references and compatibility expectations in Java and Python.
+It must not reuse `getter_method_name` or `setter_method_name`, since those
+apply to the regular DataObject API. **This extension is not implemented or
+scheduled by the current migration**: the raw SDO API and its names remain
+unchanged.

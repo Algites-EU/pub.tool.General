@@ -12,6 +12,7 @@
 --output-interface-technology-naming-convention=python:common:defsintf=algites-python-gen-intf-versioned_1
 --output-interface-technology-naming-convention=python:xmldefs_type:defsintf=algites-python-gen-xml-type-intf-versioned_1
 --output-interface-technology-naming-convention=python:xmldefs_element:defsintf=algites-python-gen-xml-element-intf-versioned_1
+--output-interface-technology-naming-convention=python:xmldefs_namespace:defsintf=algites-python-gen-xml-namespace-intf_1
 --output-interface-technology-naming-convention=python:yamldefs:defsintf=algites-python-gen-yaml-intf-versioned_1
 --output-interface-technology-naming-convention=python:jsondefs:defsintf=algites-python-gen-json-intf-versioned_1
 --output-enum-technology-naming-convention=python:algites-python-gen-enum-versioned_1

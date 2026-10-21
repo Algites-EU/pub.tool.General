@@ -11,6 +11,8 @@ class AIcdXmlFieldRepresentation:
     value_kind: AInXmlValueKind
     min_occurs: int = -1
     max_occurs: int = -1
+    wildcard_namespace: str = ''
+    wildcard_process_contents: str = 'strict'
 
     def __post_init__(self):
         """Reject incomplete XML names and representation kinds."""
@@ -21,3 +23,6 @@ class AIcdXmlFieldRepresentation:
             raise ValueError('Invalid XML wire occurrence interval')
         if not isinstance(self.value_kind, AInXmlValueKind):
             raise ValueError('XML field requires an AInXmlValueKind')
+        if self.wildcard_namespace and (self.value_kind is not AInXmlValueKind.ELEMENT
+                or self.wildcard_process_contents not in ('skip', 'lax', 'strict')):
+            raise ValueError('Invalid xs:any wildcard metadata')

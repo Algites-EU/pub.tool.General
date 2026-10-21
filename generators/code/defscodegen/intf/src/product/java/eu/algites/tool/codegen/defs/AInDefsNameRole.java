@@ -12,6 +12,10 @@ public enum AInDefsNameRole {
     XML_ELEMENT_INTERFACE_TYPE,
     /** Python filename stem for a named XML global element. */
     XML_ELEMENT_INTERFACE_TYPE_FILE_STEM,
+    /** Generated XML namespace contract interface, independent of XML element naming. */
+    XML_NAMESPACE_INTERFACE_TYPE,
+    /** File stem for a generated XML namespace contract. */
+    XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM,
     /** Identifier used for an individual canonical property. */
     PROPERTY,
     /** Generated enumeration constant preserving a serialized value. */

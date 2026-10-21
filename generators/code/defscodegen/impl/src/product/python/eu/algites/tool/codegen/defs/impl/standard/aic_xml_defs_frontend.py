@@ -484,7 +484,7 @@ class AIcXmlDefsFrontend:
 
     def _elements(self, parent, optional, request, resource, groups=frozenset()):
         """Project leaf XML fields while resolving acyclic local named compositor groups."""
-        for node in self._children(parent):
+        for xml_order, node in enumerate(self._children(parent)):
             kind = node.tag.removeprefix(self._xs)
             if kind in ('sequence', 'all', 'choice'):
                 minimum, maximum = self._validate_occurs(node, True, request.path)
@@ -542,7 +542,26 @@ class AIcXmlDefsFrontend:
                     group_request, group_resource, groups | {identity}))
                 yield from self._compositor_fields(projected, minimum, maximum, optional, request.path)
             elif kind == 'any':
-                raise ValueError(f'Unsupported XSD wildcard/group particle {kind!r} in {request.path}')
+                minimum, maximum = self._validate_occurs(node, False, request.path)
+                namespace_constraint = node.get('namespace', '##any')
+                process_contents = node.get('processContents', 'strict')
+                if process_contents not in ('skip', 'lax', 'strict'):
+                    raise ValueError(f'Invalid xs:any processContents in {request.path}')
+                if not namespace_constraint.strip():
+                    raise ValueError(f'Invalid xs:any namespace constraint in {request.path}')
+                name = f'AnyXmlElement{xml_order + 1}'
+                repeated = maximum is None or maximum > 1
+                primitive = AIcdDataType(AInDataTypeKind.ANY)
+                data_type = (AIcdDataType(AInDataTypeKind.ARRAY, element_type=primitive,
+                    constraints=AIcdValueConstraints(min_items=minimum, max_items=maximum))
+                    if repeated else primitive)
+                yield AIcdPropertyDefinition(name, data_type,
+                    AInFieldPresenceKind.FORBIDDEN if maximum == 0 else
+                    AInFieldPresenceKind.REQUIRED if not optional and minimum > 0 else AInFieldPresenceKind.ALLOWED,
+                    False, 'Complete XML subtrees accepted by xs:any.', 'XML extension elements',
+                    AIcdXmlFieldRepresentation(resource[0].get('targetNamespace', ''), name,
+                        AInXmlValueKind.ELEMENT, minimum, -1 if maximum is None else maximum,
+                        namespace_constraint, process_contents))
             elif kind == 'annotation':
                 continue
             elif kind in ('attribute', 'attributeGroup', 'anyAttribute',

@@ -60,6 +60,20 @@ public final class AIcClosedChoiceGenerator {
                 };
                 locFile = null;
                 locIdentity = aRequest.definition().identity() + "#/" + locMode + "/" + locIndex;
+            } else if (locAlternative.kind() == AInDataTypeKind.ARRAY) {
+                AIcdDataType locItem = locAlternative.elementType();
+                String locItemType = switch (locItem.kind()) {
+                    case STRING -> locJava ? "String" : "str";
+                    case INTEGER -> locJava ? "Long" : "int";
+                    case NUMBER -> locJava ? "java.math.BigDecimal" : "Decimal";
+                    case BOOLEAN -> locJava ? "Boolean" : "bool";
+                    default -> throw new IllegalArgumentException(
+                            "Closed choice array requires a supported scalar element type: " + locItem.kind());
+                };
+                locLabel = "Alternative" + (locIndex + 1);
+                locType = (locJava ? "java.util.List<" : "list[") + locItemType + (locJava ? ">" : "]");
+                locFile = null;
+                locIdentity = aRequest.definition().identity() + "#/" + locMode + "/" + locIndex;
             } else if (locAlternative.kind() == AInDataTypeKind.OBJECT) {
                 locLabel = "alternative" + (locIndex + 1);
                 String locBranchName = aRequest.definition().logicalName()
@@ -156,7 +170,8 @@ public final class AIcClosedChoiceGenerator {
                         + "    \"\"\"One explicitly selected alternative.\"\"\"\n"
                         + "    value: " + locVariant.type() + "\n"
                         + "    def __post_init__(self):\n"
-                        + "        if not isinstance(self.value, " + locVariant.type() + "):\n"
+                        + "        if not isinstance(self.value, "
+                        + (locVariant.type().startsWith("list[") ? "list" : locVariant.type()) + "):\n"
                         + "            raise TypeError(\"Invalid closed-choice alternative\")\n";
             locResults.add(source(aRequest, locVariant.recordName(),
                     locPrefix + locVariant.fileName() + locExtension, locSource, AInDefsNameRole.DATA_TYPE));

@@ -86,6 +86,32 @@ def test_schema_field_name_constants_across_all_definition_kinds():
         assert '**Field Description:** Optional text value.' in python_source
 
 
+def test_schema_field_constant_uses_entire_selected_constant_convention():
+    """A custom constant style must affect both words groups, but keep the empty group."""
+    import copy
+    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+    from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
+
+    names = AIcGenerationNames()
+    for language, target in (('java', AInCodeGenerationTarget.JAVA),
+                             ('python', AInCodeGenerationTarget.PYTHON)):
+        standard = getattr(AIcAlgitesNamingProfiles_1, f'{language}_profile')()
+        # The general convention describes only the lexical format of an identifier.
+        assert standard.composition('constant-name_1') == (
+            {'Kind': 'identifier', 'Convention': 'upper_snake_case_1'},)
+        assert names.schema_field_name_constant('optionalText', standard) == 'SCHEMA_FIELD_NAME__OPTIONAL_TEXT'
+        assert names.schema_field_name_constant('$schema', standard) == 'SCHEMA_FIELD_NAME__SCHEMA'
+        custom_data = copy.deepcopy(standard._config)
+        custom_data['NameCompositions']['constant-name_1']['Segments'][0]['Convention'] = 'upper_camel_case_1'
+        custom = AIcNameConventionCatalog_1(custom_data)
+        assert names.schema_field_name_constant('optionalText', custom) == 'SchemaFieldName__OptionalText'
+        model = load('parity-root', *FORMATS[1])
+        output = AIcDefaultDefsCodegenService().generate(AIcdCodeGenerationRequest(
+            model, target, 'parity_generated', custom)).source
+        assert 'SchemaFieldName__OptionalText' in output
+        assert 'SCHEMA_FIELD_NAME__OPTIONAL_TEXT' not in output
+
+
 def generate_package(tmp_path, target):
     service = AIcDefaultDefsCodegenService()
     profile = AIcAlgitesNamingProfiles_1.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles_1.python_profile()

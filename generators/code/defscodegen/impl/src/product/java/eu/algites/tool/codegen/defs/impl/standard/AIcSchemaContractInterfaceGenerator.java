@@ -110,16 +110,25 @@ public final class AIcSchemaContractInterfaceGenerator {
                         + ", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind."
                          + locXml.valueKind().name() + ", order = " + locXmlOrder
                         + ", minOccurs = " + locXml.minOccurs()
-                        + ", maxOccurs = " + locXml.maxOccurs() + ")");
+                        + ", maxOccurs = " + locXml.maxOccurs()
+                        + ", wildcardNamespace = " + AIcScalarGeneration.jquote(locXml.wildcardNamespace())
+                        + ", wildcardProcessContents = " + AIcScalarGeneration.jquote(locXml.wildcardProcessContents()) + ")");
             }
-            rows.add("    " + propertyType + " " + name + "();");
+            rows.add("    " + propertyType + " " + names.getterName(property.sourceName(), aRequest.namingProfile()) + "();");
             locXmlOrder++;
         }
         rows.add("}");
         String contract = String.join("\n", rows) + "\n";
-        return new AIcdGeneratedSource(interfaceName, path + interfaceName + ".java", contract,
+        String locFileStem = names.fileStem(aRequest.definition(), aRequest.namingProfile(),
+                AInDefsNameRole.INTERFACE_TYPE_FILE_STEM);
+        if (!locFileStem.equals(interfaceName)) {
+            throw new IllegalArgumentException("Java public interface and source filename must agree: "
+                    + interfaceName + " vs " + locFileStem);
+        }
+        String locRelativePath = path + locFileStem + ".java";
+        return new AIcdGeneratedSource(interfaceName, locRelativePath, contract,
                 List.of(AIcdGeneratedTypeIdentity.fromRequest(aRequest, interfaceName,
-                    path + interfaceName + ".java", AInDefsNameRole.INTERFACE_TYPE)));
+                    locRelativePath, AInDefsNameRole.INTERFACE_TYPE)));
     }
 
     /**

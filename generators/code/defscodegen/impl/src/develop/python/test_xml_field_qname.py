@@ -62,8 +62,8 @@ def test_xml_metadata_survives_all_contract_renderers_and_sdo(tmp_path, monkeypa
             assert '@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField' in emitted.source
             assert 'namespace = "urn:ledger", namespaceLocalName = "amount", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT' in emitted.source
             assert 'namespace = "", namespaceLocalName = "currency", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ATTRIBUTE' in emitted.source
-            assert 'order = 0, minOccurs = 1, maxOccurs = 1)' in emitted.source
-            assert 'order = 3, minOccurs = 0, maxOccurs = 1)' in emitted.source
+            assert 'order = 0, minOccurs = 1, maxOccurs = 1, wildcardNamespace = "", wildcardProcessContents = "strict")' in emitted.source
+            assert 'order = 3, minOccurs = 0, maxOccurs = 1, wildcardNamespace = "", wildcardProcessContents = "strict")' in emitted.source
             continue
         assert '__xml_data_object_fields__' in emitted.source
         assert 'AInXmlValueKind.ATTRIBUTE' in emitted.source

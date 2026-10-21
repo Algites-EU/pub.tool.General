@@ -14,9 +14,12 @@ import java.util.Objects;
  * @param valueKind XML element or attribute representation
  * @param minOccurs minimum XML occurrence count, or -1 when unknown
  * @param maxOccurs maximum XML occurrence count, or -1 when unbounded or unknown
+ * @param wildcardNamespace original xs:any namespace expression; empty for ordinary fields
+ * @param wildcardProcessContents xs:any validation policy
  */
 public record AIcdXmlFieldRepresentation(
-        String namespace, String namespaceLocalName, AInXmlValueKind valueKind, int minOccurs, int maxOccurs) {
+        String namespace, String namespaceLocalName, AInXmlValueKind valueKind, int minOccurs, int maxOccurs,
+        String wildcardNamespace, String wildcardProcessContents) {
     /**
      * Validates that every represented field has a complete QName and wire kind.
      *
@@ -27,9 +30,28 @@ public record AIcdXmlFieldRepresentation(
         Objects.requireNonNull(namespace, "namespace");
         Objects.requireNonNull(namespaceLocalName, "namespaceLocalName");
         Objects.requireNonNull(valueKind, "valueKind");
+        Objects.requireNonNull(wildcardNamespace, "wildcardNamespace");
+        Objects.requireNonNull(wildcardProcessContents, "wildcardProcessContents");
+        if (!wildcardNamespace.isBlank() && (valueKind != AInXmlValueKind.ELEMENT
+                || !java.util.Set.of("skip", "lax", "strict").contains(wildcardProcessContents)))
+            throw new IllegalArgumentException("Invalid xs:any wildcard metadata");
         if (namespaceLocalName.isBlank()) throw new IllegalArgumentException("XML field local name is blank");
         if (minOccurs < -1 || maxOccurs < -1 || (minOccurs >= 0 && maxOccurs >= 0 && minOccurs > maxOccurs))
             throw new IllegalArgumentException("Invalid XML wire occurrence interval");
+    }
+
+    /**
+     * Construct an ordinary XML field without wildcard metadata.
+     *
+     * @param aNamespace XML namespace URI
+     * @param aLocalName XML QName local part
+     * @param aValueKind element or attribute kind
+     * @param aMinOccurs minimum occurrence count
+     * @param aMaxOccurs maximum occurrence count
+     */
+    public AIcdXmlFieldRepresentation(String aNamespace, String aLocalName, AInXmlValueKind aValueKind,
+            int aMinOccurs, int aMaxOccurs) {
+        this(aNamespace, aLocalName, aValueKind, aMinOccurs, aMaxOccurs, "", "strict");
     }
 
     /**
@@ -40,6 +62,6 @@ public record AIcdXmlFieldRepresentation(
      * @param aValueKind element or attribute kind
      */
     public AIcdXmlFieldRepresentation(String aNamespace, String aLocalName, AInXmlValueKind aValueKind) {
-        this(aNamespace, aLocalName, aValueKind, -1, -1);
+        this(aNamespace, aLocalName, aValueKind, -1, -1, "", "strict");
     }
 }

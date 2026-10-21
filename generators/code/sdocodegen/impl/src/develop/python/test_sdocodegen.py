@@ -92,7 +92,7 @@ def test_nested_data_object_getter_is_covariant(contracts):
         emit(generator.generate(contract), root)
     generated=generator.generate(AIigContainer)
     assert 'def getChild(self) -> AIigdChild' in generated.mutable_interface.source
-    assert 'def setChild(self, value: AIigdChild)' in generated.mutable_interface.source
+    assert 'def setChild(self, a_value: AIigdChild)' in generated.mutable_interface.source
     assert 'def get_Child(self) -> AIigdChild' in generated.mutable_interface.source
     emit(generated, root)
     Container=importlib.import_module(package+'.aicgd_container').AIcgdContainer
@@ -140,7 +140,7 @@ def test_schema_nested_reference_passes_mutable_contract_to_sdo(tmp_path, monkey
     assert instance.get_Child().getName() == 'Nested'
     generated = generator.generate(read_container)
     assert 'def getChild(self) -> AIigdChild_1' in generated.mutable_interface.source
-    assert 'def setChild(self, value: AIigdChild_1)' in generated.mutable_interface.source
+    assert 'def setChild(self, a_value: AIigdChild_1)' in generated.mutable_interface.source
 
 
 def test_nullable_nested_contract_uses_nullable_mutable_return(contracts):
@@ -155,7 +155,7 @@ def test_nullable_nested_contract_uses_nullable_mutable_return(contracts):
     setattr(module, 'AIigNullable', AIigNullable)
     result = AIcSdoCodegenService().generate(AIigNullable)
     assert 'def getChild(self) -> AIigdChild | None' in result.mutable_interface.source
-    assert 'def setChild(self, value: AIigdChild | None)' in result.mutable_interface.source
+    assert 'def setChild(self, a_value: AIigdChild | None)' in result.mutable_interface.source
     assert 'def get_Child(self) -> AIigdChild | None' in result.mutable_interface.source
 
 
@@ -223,3 +223,63 @@ def test_source_loader_rejects_path_escape(contracts, tmp_path):
     outside.write_text('class AIigOutside: pass')
     with pytest.raises(ValueError, match='Invalid DO contract source'):
         AIcSdoCodegenService().generate_from_sources(root, {outside: 'AIigOutside'})
+
+
+def test_user_defined_setter_method_composition_is_used_by_sdo():
+    """A custom setter syntax must not be derived from the read getter prefix."""
+    from copy import deepcopy
+    from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
+    from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
+    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+
+    class AIigInvoice_1(AIiDataObject):
+        __data_object__ = AIcdDataObject(schema_id='test.invoice', schema_version=1,
+            naming_convention='algites-python-gen-intf-versioned_1')
+        __data_object_fields__ = (AIcdDataObjectField(field_name='Name', getter_name='readName'),)
+        def readName(self):
+            raise NotImplementedError
+
+    AIigInvoice_1.__module__ = 'example.contracts.aiig_invoice_1'
+    source = AIcNameConventionCatalog_1.standard('python')
+    config = deepcopy(source._config)
+    config['NameCompositions']['python-setter-method-name_1']['Segments'][0]['Value'] = 'write'
+    catalog = AIcNameConventionCatalog_1(config)
+    result = AIcSdoCodegenService().generate(AIigInvoice_1, naming=(catalog, catalog, catalog))
+    assert 'def writeName(self' in result.mutable_interface.source
+    assert 'def writeName(self' in result.implementation.source
+    assert 'def setName(self' not in result.mutable_interface.source
+    assert 'def get_Name(self' in result.mutable_interface.source
+    assert 'def get_ReadName(self' not in result.mutable_interface.source
+    assert 'def readName(self' in result.implementation.source
+
+
+def test_custom_getter_without_explicit_getter_metadata_uses_selected_convention():
+    """SDO resolves implicit read getters from the selected profile, not a built-in prefix."""
+    from copy import deepcopy
+    from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
+    from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
+    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+
+    class AIigInvoice_1(AIiDataObject):
+        __data_object__ = AIcdDataObject(schema_id='test.invoice', schema_version=1,
+            naming_convention='algites-python-gen-intf-versioned_1')
+        __data_object_fields__ = (AIcdDataObjectField(field_name='Name'),)
+        def readName(self):
+            raise NotImplementedError
+
+    AIigInvoice_1.__module__ = 'example.contracts.aiig_invoice_1'
+    source = AIcNameConventionCatalog_1.standard('python')
+    config = deepcopy(source._config)
+    config['NameCompositions']['python-getter-method-name_1']['Segments'][0]['Value'] = 'read'
+    config['NameCompositions']['python-setter-method-name_1']['Segments'][0]['Value'] = 'write'
+    catalog = AIcNameConventionCatalog_1(config)
+    result = AIcSdoCodegenService().generate(AIigInvoice_1, naming=(catalog, catalog, catalog))
+    # Scalar read methods are inherited from the input contract rather than redeclared.
+    assert 'def readName(self' in result.implementation.source
+    assert 'def writeName(self' in result.mutable_interface.source
+    assert 'def writeName(self' in result.implementation.source
+    assert 'def getName(self' not in result.implementation.source
+    assert 'def setName(self' not in result.implementation.source
+    assert 'def get_Name(self' in result.mutable_interface.source
+    assert 'def isPresent_Name(self' in result.mutable_interface.source
+    assert 'def unset_Name(self' in result.mutable_interface.source

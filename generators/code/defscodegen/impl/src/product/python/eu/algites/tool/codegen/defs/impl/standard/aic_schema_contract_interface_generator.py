@@ -96,7 +96,7 @@ class AIcSchemaContractInterfaceGenerator:
         has_temporal = False
         for field_order, prop in enumerate(model.data_type.properties):
             name = _property_name(self.names.property_name(prop.source_name, request.naming_profile))
-            suffix = name[0].upper() + name[1:]
+            getter_name = self.names.getter_name(prop.source_name, request.naming_profile)
             field_type = contract_type(prop, request, self.names, imports=ref_imports)
             if 'AIcSchemaTemporalValue' in field_type or 'AIcSchemaDuration' in field_type:
                 has_temporal = True
@@ -119,17 +119,19 @@ class AIcSchemaContractInterfaceGenerator:
                 xml_field_rows.append(f'        {prop.source_name!r}: AIaXmlDataObjectField('
                     f'namespace={wire.namespace!r}, namespace_local_name={wire.namespace_local_name!r}, '
                     f'value_kind=AInXmlValueKind.{wire.value_kind.name}, order={field_order}, '
-                    f'min_occurs={wire.min_occurs}, max_occurs={wire.max_occurs}),')
+                    f'min_occurs={wire.min_occurs}, max_occurs={wire.max_occurs}, '
+                    f'wildcard_namespace={wire.wildcard_namespace!r}, '
+                    f'wildcard_process_contents={wire.wildcard_process_contents!r}),')
             label_rows.append(f'        {prop.source_name!r}: AIaFieldLabel(label={title!r}, labels={entries}),')
             metadata_rows.append('        AIcdDataObjectField(field_name=' + repr(prop.source_name)
                 + ', presence=AInFieldPresenceKind.' + prop.presence.name
                 + ', allows_null=' + str(bool(prop.nullable))
-                + ', getter_name=' + repr('get' + suffix) + '),')
+                + ', getter_name=' + repr(getter_name) + '),')
             getter_type = ''
             if reference is not None and not array and not reference.targets_enum:
                 getter_type = f' -> {kind_type}' + (' | None' if prop.nullable else '')
             getter_rows.extend([f'    @AIaFieldLabel(label={title!r}, labels={entries})',
-                '    @abstractmethod', f'    def get{suffix}(self){getter_type}:',
+                '    @abstractmethod', f'    def {getter_name}(self){getter_type}:',
                 '        raise NotImplementedError', ''])
         parent_import = ''
         base_module, base_type, _ = _TECHNOLOGY_DATA_OBJECT[model.source_kind]
@@ -186,7 +188,10 @@ class AIcSchemaContractInterfaceGenerator:
         from eu.algites.tool.codegen.defs.impl.standard.aic_scalar_generation import java_identifier
         model = request.definition
         interface = self.names.type_name(model, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
-        path = request.package_name.replace('.', '/') + '/' + interface + '.java'
+        stem = self.names.file_stem(model, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
+        if stem != interface:
+            raise ValueError(f'Java public interface and source filename must agree: {interface} vs {stem}')
+        path = request.package_name.replace('.', '/') + '/' + stem + '.java'
         extends = ((parent[1] + '.' + parent[0]) if parent else
             ('eu.algites.lib.data.dataobject.AIiDataObject' if request.contract_role == 'common' else
                 _TECHNOLOGY_DATA_OBJECT[model.source_kind][2]))
@@ -231,8 +236,10 @@ class AIcSchemaContractInterfaceGenerator:
                     + ', namespaceLocalName = ' + _java_quote(wire.namespace_local_name)
                     + ', valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.'
                     + wire.value_kind.name + ', order = ' + str(field_order)
-                    + ', minOccurs = ' + str(wire.min_occurs) + ', maxOccurs = ' + str(wire.max_occurs) + ')')
-            rows.append(f'    {typ} {name}();')
+                    + ', minOccurs = ' + str(wire.min_occurs) + ', maxOccurs = ' + str(wire.max_occurs)
+                    + ', wildcardNamespace = ' + _java_quote(wire.wildcard_namespace)
+                    + ', wildcardProcessContents = ' + _java_quote(wire.wildcard_process_contents) + ')')
+            rows.append(f'    {typ} {self.names.getter_name(prop.source_name, request.naming_profile)}();')
         rows.append('}')
         return AIcdGeneratedSource(interface, path, '\n'.join(rows) + '\n',
             (AIcdGeneratedTypeIdentity.from_request(request, interface, path, AInDefsNameRole.INTERFACE_TYPE),))

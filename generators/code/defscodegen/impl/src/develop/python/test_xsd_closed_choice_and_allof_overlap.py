@@ -38,20 +38,20 @@ def test_xml_closed_choice_preserves_qname_in_recursive_alternatives(tmp_path):
         'urn:choice:regression', 'urn:choice:regression']
 
 
-def test_xml_closed_choice_generates_five_sources_per_language(tmp_path, monkeypatch):
+def test_xml_closed_choice_generates_namespace_contracts_per_language(tmp_path, monkeypatch):
     sources = tmp_path / 'intf/src/product/xmldefs/example/choice'
     sources.mkdir(parents=True)
     (sources / 'payment_1.xsd').write_text(CHOICE)
     manifest = tmp_path / 'generate.json'
     manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['java', 'python']}))
     generated = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
-    assert len(generated) == 4
+    assert len(generated) == 6
     java = tmp_path / 'intf/src/product/java.gen/example/choice'
     python = tmp_path / 'intf/src/product/python.gen/example/choice'
-    assert len(list(java.glob('*.java'))) == 6
-    assert len(list(python.glob('*.py'))) == 6
+    assert len(list(java.glob('*.java'))) == 7
+    assert len(list(python.glob('*.py'))) == 7
     main = (java / 'AIigPayment_1.java').read_text()
-    assert 'sealed interface AIigPayment_1 extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject permits' in main
+    assert 'sealed interface AIigPayment_1 extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject, example.choice.AIig_xnXmlDataObjectUrnChoiceRegression permits' in main
     assert 'namespaceLocalName = "PaymentChoice"' in main
     assert 'AIaXmlDataObjectField' in (java / 'AIigPaymentOneOf0_1.java').read_text()
     element_contract = (java / 'AIig_xePayment_1.java').read_text()

@@ -95,9 +95,9 @@ def test_batch_emits_recursive_objects_choices_and_importable_sdo(tmp_path, monk
     AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     java = tmp_path / 'intf/src/product/java.gen/example/recursive_contract'
     python = tmp_path / 'intf/src/product/python.gen/example/recursive_contract'
-    assert 'java.util.List<java.util.List<AIigInvoiceLinesItemsItems_1>> lines()' in (
+    assert 'java.util.List<java.util.List<AIigInvoiceLinesItemsItems_1>> getLines()' in (
         java / 'AIigInvoice_1.java').read_text()
-    assert 'AIigInvoiceLinesItemsItemsSelection_1 selection()' in (
+    assert 'AIigInvoiceLinesItemsItemsSelection_1 getSelection()' in (
         java / 'AIigInvoiceLinesItemsItems_1.java').read_text()
     choice = (java / 'AIigInvoiceLinesItemsItemsSelection_1.java').read_text()
     assert 'sealed interface' in choice and 'permits' in choice
@@ -136,8 +136,8 @@ def test_array_references_to_defs_use_identical_nominal_types(tmp_path, monkeypa
     manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['java', 'python']}))
     AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     java = (tmp_path / 'intf/src/product/java.gen/example/reference_arrays/AIigExample_1.java').read_text()
-    assert 'AIigExampleDefinitionAccount_1 account()' in java
-    assert 'java.util.List<java.util.List<AIigExampleDefinitionAccount_1>> accounts()' in java
+    assert 'AIigExampleDefinitionAccount_1 getAccount()' in java
+    assert 'java.util.List<java.util.List<AIigExampleDefinitionAccount_1>> getAccounts()' in java
     pyroot = tmp_path / 'intf/src/product/python.gen'
     monkeypatch.syspath_prepend(str(pyroot))
     module = importlib.import_module('example.reference_arrays.aiig_example_1')

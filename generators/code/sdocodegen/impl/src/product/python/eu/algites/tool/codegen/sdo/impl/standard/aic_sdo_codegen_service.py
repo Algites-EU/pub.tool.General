@@ -14,6 +14,7 @@ from typing import get_type_hints, get_args, get_origin, Union
 from types import UnionType
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject
+from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object_namespace import AIiXmlDataObjectNamespace
 from eu.algites.lib.data.dataobject.jsondefs.aii_json_data_object import AIiJsonDataObject
 from eu.algites.lib.data.dataobject.yamldefs.aii_yaml_data_object import AIiYamlDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
@@ -111,7 +112,9 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         if len({f.name for f in fields}) != len(fields):
             raise ValueError('Duplicate field in read contract')
         parents = [c for c in read_contract.__bases__ if not c.__module__.startswith('eu.algites.lib.data.dataobject')
-                   and issubclass(c, AIiDataObject)]
+                   and issubclass(c, AIiDataObject)
+                   and not (issubclass(c, AIiXmlDataObjectNamespace)
+                            and '__data_object__' not in c.__dict__)]
         parent = parents[0] if len(parents) == 1 else None
         if len(parents) > 1:
             fields = tuple(all_fields.values())
@@ -147,6 +150,35 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
 
         def catalog():
             return naming[3] if naming is not None and len(naming) == 4 else None
+
+        default_catalog = None
+
+        def accessor_profile(contract, index):
+            """Select the explicit profile, or the technology's packaged default."""
+            nonlocal default_catalog
+            if naming is not None:
+                return (catalog() or naming[index]), selected(contract, index)
+            if default_catalog is None:
+                from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+                default_catalog = AIcNameConventionCatalog_1.standard('python')
+            role = role_for(contract)
+            category = {'common': '', 'xmldefs_type': 'xml-type-',
+                        'xmldefs_element': 'xml-element-', 'yamldefs': 'yaml-',
+                        'jsondefs': 'json-'}[role]
+            output = 'data-' if index == 1 else ''
+            return default_catalog, f'algites-python-gen-{output}{category}intf-versioned_1'
+
+        def semantic_identifier(name):
+            """Describe the input field identifier; accessor syntax belongs to the catalog."""
+            if '_' in name:
+                return name, 'lower_snake_case_1'
+            return name, ('upper_camel_case_1' if name[:1].isupper() else 'lower_camel_case_1')
+
+        def accessor_name(contract, field, structure, index):
+            profile_catalog, profile_name = accessor_profile(contract, index)
+            identifier, source_convention = semantic_identifier(field.name)
+            return profile_catalog.format(profile_name, structure,
+                                          {'identifier': identifier}, source_convention)
 
         def names_for(contract):
             if naming is None:
@@ -199,12 +231,12 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             mutable_technology = 'AIiSmartDataObject'
             concrete_technology = 'AIcSmartDataObject' 
         # The selected YAML profiles also own names of generated method parameters.
-        parameter_name = 'value'
-        if naming is not None:
-            parameter_name = (catalog() or naming[1]).format(mutable_role, 'method_parameter_name',
-                                              {'identifier': 'value'}, 'lower_snake_case_1')
-            if not (catalog() or naming[2]).matches(concrete_role, 'method_parameter_name', parameter_name):
-                raise ValueError('SDO parameter name does not match the implementation naming profile')
+        parameter_catalog, parameter_profile = accessor_profile(read_contract, 1)
+        parameter_name = parameter_catalog.format(parameter_profile, 'method_parameter_name',
+                                                  {'identifier': 'value'}, 'lower_snake_case_1')
+        if naming is not None and not (catalog() or naming[2]).matches(
+                concrete_role, 'method_parameter_name', parameter_name):
+            raise ValueError('SDO parameter name does not match the implementation naming profile')
         package = read_contract.__module__.rsplit('.', 1)[0]
         def subpackage(base, value):
             if not value:
@@ -274,7 +306,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         mutable_lines.insert(5, 'from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel')
         labels = {}
         for field in fields:
-            method = getattr(read_contract, field.getter_name or 'get' + field.name, None)
+            getter = field.getter_name or accessor_name(read_contract, field, 'getter_method_name', 0)
+            method = getattr(read_contract, getter, None)
             explicit = getattr(method, '__field_label__', None)
             if explicit is None:
                 for base in read_contract.__mro__:
@@ -312,7 +345,9 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 mutable_lines.append(f'        {name!r}: AIaXmlDataObjectField(namespace={metadata.namespace!r}, '
                     f'namespace_local_name={metadata.namespace_local_name!r}, '
                     f'value_kind=AInXmlValueKind.{metadata.value_kind.name}, order={metadata.order}, '
-                    f'min_occurs={metadata.min_occurs}, max_occurs={metadata.max_occurs}),')
+                    f'min_occurs={metadata.min_occurs}, max_occurs={metadata.max_occurs}, '
+                    f'wildcard_namespace={metadata.wildcard_namespace!r}, '
+                    f'wildcard_process_contents={metadata.wildcard_process_contents!r}),')
             mutable_lines.append('    }')
         if labels:
             # A new mapping would shadow the read contract's mapping.  Start with
@@ -335,8 +370,13 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             concrete_lines.append('    pass')
         for descriptor in fields:
             name = descriptor.name
-            suffix = _suffix(descriptor.getter_name or 'get' + name)
-            getter = descriptor.getter_name or 'get' + name
+            getter = descriptor.getter_name or accessor_name(read_contract, descriptor, 'getter_method_name', 0)
+            suffix = name[:1].upper() + name[1:]
+            # A setter is named independently from its read getter and from the raw SDO API.
+            setter = accessor_name(read_contract, descriptor, 'setter_method_name', 1)
+            if naming is not None and not (catalog() or naming[2]).matches(
+                    concrete_role, 'setter_method_name', setter):
+                raise ValueError('SDO setter name does not match concrete naming profile: ' + setter)
             if not getter.isidentifier() or not suffix.isidentifier():
                 raise ValueError('Invalid field getter: ' + getter)
             nested_details = _nested_contract(read_contract, getter, name)
@@ -363,13 +403,13 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 mutable_lines.extend(['', '    @abstractmethod',
                     f'    def {getter}(self) -> {typed_value}: ...'])
             mutable_lines.extend(['', '    @abstractmethod',
-                f'    def set{suffix}(self, {parameter_name}: {typed_value}) -> None: ...',
+                f'    def {setter}(self, {parameter_name}: {typed_value}) -> None: ...',
                 '', '    @abstractmethod', f'    def get_{suffix}(self) -> {typed_value}: ...',
                 '', '    @abstractmethod', f'    def isPresent_{suffix}(self) -> bool: ...',
                 '', '    @abstractmethod', f'    def unset_{suffix}(self) -> None: ...'])
             concrete_lines.extend(['', f'    def {getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
                 f'        return self.get_EffectiveField({name!r})',
-                '', f'    def set{suffix}(self, {parameter_name}' + (f': {typed_value}' if nested_type else '') + '):',
+                '', f'    def {setter}(self, {parameter_name}' + (f': {typed_value}' if nested_type else '') + '):',
                 f'        self.set_RawField({name!r}, {parameter_name})',
                 '', f'    def get_{suffix}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
                 f'        return self.get_RawField({name!r})',
@@ -424,11 +464,6 @@ def _camel_to_snake(value: str) -> str:
     return re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', value).lower()
 
 
-def _suffix(getter: str) -> str:
-    text = getter[3:] if getter.startswith('get') and len(getter) > 3 else getter
-    return text[0].upper() + text[1:]
-
-
 def _field_annotation(read_contract: type, getter: str, field_name: str):
     """Obtain a source annotation without mistaking missing type hints for scalar values."""
     method = getattr(read_contract, getter, None)
@@ -439,8 +474,7 @@ def _field_annotation(read_contract: type, getter: str, field_name: str):
                 return annotation
         except (NameError, TypeError):
             pass
-    candidates = (field_name, field_name[:1].lower() + field_name[1:],
-                  getter[3:4].lower() + getter[4:] if getter.startswith('get') else getter)
+    candidates = (field_name, field_name[:1].lower() + field_name[1:])
     for base in read_contract.__mro__:
         declarations = base.__dict__.get('__annotations__', {})
         for candidate in candidates:

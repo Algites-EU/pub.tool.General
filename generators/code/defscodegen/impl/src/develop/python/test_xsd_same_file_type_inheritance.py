@@ -26,7 +26,7 @@ def test_same_file_complex_type_extension_emits_two_types_and_one_element(tmp_pa
     manifest = tmp_path / 'manifest.json'
     manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['java', 'python']}))
     generated = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
-    assert len(generated) == 6  # two types + one global element per target
+    assert len(generated) == 8  # two types, one global element and one XML namespace per target
     java_dir = tmp_path / 'intf/src/product/java.gen/example/types'
     python_dir = tmp_path / 'intf/src/product/python.gen/example/types'
     root = (java_dir / 'AIigDerived_1.java').read_text()
