@@ -98,6 +98,19 @@ independent technology-specific inheritance. Public definition URLs on the
 cross-file reference qualification, even when the schema has an explicit URN
 rather than using the publication URL as its identity.
 
+**XSD documents without `targetNamespace`:** Global XML type and element QNames
+are resolved within their defining document when different independent XSDs
+reuse the same no-namespace names. Such collisions must not merge unrelated
+XML types or direct an element to another document's content type. When a
+collision would otherwise produce identical Java/Python output paths, only
+the XML-specialized type, element and namespace-marker contracts receive a
+stable `xmlschema_<versioned-schema-stem>` subpackage. The shared `common`
+contract remains in its existing package. XSDs without conflicting names
+retain their original generated paths. Each specialized XML contract keeps
+the appropriate document-specific XML namespace-marker inheritance; external
+nonempty namespaces continue to use the usual URI-based resolution. Both
+implementations have regression tests for the collisions and unchanged paths.
+
 Batch processing retains canonical-source deduplication, format parity and
 preflight checks. Cleanup is based on **generator ownership state**, not
 regex deletion of all filenames that happen to match a convention. Positional single-definition CLI entry points have been removed; use the

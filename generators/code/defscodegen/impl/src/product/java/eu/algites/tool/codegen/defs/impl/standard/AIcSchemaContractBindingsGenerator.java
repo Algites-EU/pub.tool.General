@@ -158,6 +158,35 @@ public final class AIcSchemaContractBindingsGenerator {
                 }
             }
         }
+        /* Anonymous XML namespaces are document-local for generator symbol resolution.
+         * Unqualified QNames from separate XSD documents do not identify one
+         * interchangeable Java/Python type, even if the local names coincide.
+         * Name-clashing XML projections receive a stable document-specific package;
+         * common cross-format contracts retain their original package. */
+        Map<String, Set<String>> locAnonymousXmlOwners = new LinkedHashMap<>();
+        var locScopeFrontend = new AIcXmlDefsFrontend();
+        for (AIcdUnit locUnit : units) {
+            if (!"xmldefs".equals(kindBySchema.get(locUnit.schema()))) continue;
+            Path locSource = inside(repository, locUnit.schema());
+            var locLoad = new AIcdDefinitionLoadRequest(locSource, AInDefinitionSourceKind.XMLDEFS,
+                    AIcAlgitesNamingProfiles_1.javaProfile());
+            String locQName = locUnit.pointer().startsWith("@type/")
+                    ? "{" + locScopeFrontend.schemaNamespace(locLoad) + "}" + locUnit.pointer().substring(6)
+                    : locScopeFrontend.rootTypeQName(locLoad);
+            if (locQName.startsWith("{}"))
+                locAnonymousXmlOwners.computeIfAbsent("type#" + locQName, key -> new java.util.LinkedHashSet<>())
+                        .add(locUnit.schema());
+            if (locUnit.pointer().isEmpty()) {
+                for (var locElement : locScopeFrontend.globalElementDeclarations(locLoad)) {
+                    if (locElement.namespace().isEmpty())
+                        locAnonymousXmlOwners.computeIfAbsent("element#" + locElement.qName(),
+                                key -> new java.util.LinkedHashSet<>()).add(locUnit.schema());
+                }
+            }
+        }
+        Set<String> locScopedXmlDocuments = new java.util.HashSet<>();
+        for (var locOwners : locAnonymousXmlOwners.values())
+            if (locOwners.size() > 1) locScopedXmlDocuments.addAll(locOwners);
         for (String key : overrides.keySet()) {
             if (units.stream().noneMatch(unit -> (unit.schema + "#" + unit.pointer).equals(key))) {
                 throw new IllegalArgumentException("Binding override no longer identifies a schema object: " + key);
@@ -251,7 +280,14 @@ public final class AIcSchemaContractBindingsGenerator {
                         locNames.put(AInDefsNameRole.ENUM_TYPE_FILE_STEM, locEnumConvention);
                         profile = new AIcSelectedNamingCatalog(baseProfile, locNames);
                     }
-                    var request = new AIcdCodeGenerationRequest(definition, target, packageName, profile,
+                    String locOutputPackage = packageName;
+                    if (kind.equals("xmldefs") && !locRole.equals("common")
+                            && locScopedXmlDocuments.contains(unit.schema())) {
+                        String locDocument = source.getFileName().toString().replaceFirst("\\.xsd$", "")
+                                .replaceAll("[^A-Za-z0-9_]", "_").toLowerCase(java.util.Locale.ROOT);
+                        locOutputPackage += ".xmlschema_" + locDocument;
+                    }
+                    var request = new AIcdCodeGenerationRequest(definition, target, locOutputPackage, profile,
                             locXmlTypeQName, locSelectedId, locRole);
                 var preview = new AIcSchemaContractInterfaceGenerator().generate(request);
                 String outputKey = targetText + "#" + preview.relativePath();
@@ -289,13 +325,15 @@ public final class AIcSchemaContractBindingsGenerator {
             String locLanguage = locRequest.target() == AInCodeGenerationTarget.JAVA ? "java" : "python";
             if (locRequest.xmlTypeQName() != null) {
                 String locNamespace = locRequest.xmlTypeQName().substring(1, locRequest.xmlTypeQName().indexOf('}'));
-                locNamespaceOwners.putIfAbsent(locLanguage + "#" + locNamespace, locRequest);
+                locNamespaceOwners.putIfAbsent(xmlNamespaceOwnerKey(locLanguage, locNamespace,
+                        locRequest, locScopedXmlDocuments), locRequest);
             }
             for (AIcdPropertyDefinition locField : locRequest.definition().dataType().properties()) {
                 if (locField.xmlField() == null || locField.xmlField().wildcardNamespace().isBlank()) continue;
                 String locNamespace = AIcXmlNamespaceContracts.selectedNamespace(
                         locField.xmlField().wildcardNamespace(), locField.xmlField().namespace());
-                if (locNamespace != null) locNamespaceOwners.putIfAbsent(locLanguage + "#" + locNamespace, locRequest);
+                if (locNamespace != null) locNamespaceOwners.putIfAbsent(xmlNamespaceOwnerKey(locLanguage, locNamespace,
+                        locRequest, locScopedXmlDocuments), locRequest);
             }
         }
         for (var representations : requests.values()) {
@@ -509,7 +547,8 @@ public final class AIcSchemaContractBindingsGenerator {
                     }
                 }
                 locSource = qualifyReferences(locSource, first, requests, true, locChoiceReference);
-                if (first.xmlTypeQName() != null && locIndex == 0 && (merged.dataType().kind() == AInDataTypeKind.OBJECT
+                if (first.xmlTypeQName() != null && !first.contractRole().equals("common")
+                        && locIndex == 0 && (merged.dataType().kind() == AInDataTypeKind.OBJECT
                         || merged.dataType().kind() == AInDataTypeKind.ONE_OF
                         || merged.dataType().kind() == AInDataTypeKind.ANY_OF)) {
                     String locNamespace = first.xmlTypeQName().substring(1, first.xmlTypeQName().indexOf('}'));
@@ -523,11 +562,11 @@ public final class AIcSchemaContractBindingsGenerator {
                                 ? targetText.equals("java")
                                         ? "eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject"
                                         : "eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object.AIiXmlDataObject"
-                                : namespaceType(locNamespaceOwners, targetText, locSelected);
+                                : namespaceType(locNamespaceOwners, targetText, locSelected, first, locScopedXmlDocuments);
                         locWildcardFields.put(locField.sourceName(), locQualified);
                     }
                     locSource = AIcXmlNamespaceContracts.decorate(locSource, first,
-                            namespaceType(locNamespaceOwners, targetText, locNamespace), locWildcardFields);
+                            namespaceType(locNamespaceOwners, targetText, locNamespace, first, locScopedXmlDocuments), locWildcardFields);
                 }
                 add(pending, outputRoots.getOrDefault(targetText, intf.resolve("src/product/" + targetText + ".gen"))
                         .resolve(pair.relativePath()), locSource);
@@ -545,6 +584,9 @@ public final class AIcSchemaContractBindingsGenerator {
             Map<String, String> locTypes = new LinkedHashMap<>();
             Map<String, String> locElements = new LinkedHashMap<>();
             Set<String> locValueTypes = new java.util.HashSet<>();
+            Map<String, Map<String, String>> locDocumentTypes = new LinkedHashMap<>();
+            Map<String, Map<String, String>> locDocumentElements = new LinkedHashMap<>();
+            Map<String, Set<String>> locDocumentValueTypes = new LinkedHashMap<>();
             record AIcdElementWork(String source, AIcdCodeGenerationRequest request,
                                    eu.algites.tool.codegen.defs.AIcdXmlElementDeclaration element) { }
             List<AIcdElementWork> locWork = new ArrayList<>();
@@ -564,15 +606,22 @@ public final class AIcSchemaContractBindingsGenerator {
                     if (locRequest.definition().dataType().kind() == AInDataTypeKind.ENUM
                             || locRequest.definition().dataType().kind() == AInDataTypeKind.ONE_OF
                             || locRequest.definition().dataType().kind() == AInDataTypeKind.ANY_OF)
-                        locValueTypes.add(locRootQName);
+                        if (locRootQName.startsWith("{}"))
+                            locDocumentValueTypes.computeIfAbsent(locUnit.schema(), key -> new java.util.HashSet<>())
+                                    .add(locRootQName);
+                        else locValueTypes.add(locRootQName);
                     var locPreview = new AIcSchemaContractInterfaceGenerator().generate(locRequest);
                     String locQualified = locRequest.packageName() + "."
                             + (locTarget.equals("python")
                                 ? Path.of(locPreview.relativePath()).getFileName().toString().replaceFirst("\\.py$", "") + "."
                                 : "") + locPreview.typeName();
-                    String locPrevious = locTypes.putIfAbsent(locRootQName, locQualified);
+                    Map<String, String> locIndex = locRootQName.startsWith("{}")
+                            ? locDocumentTypes.computeIfAbsent(locUnit.schema(), key -> new LinkedHashMap<>())
+                            : locTypes;
+                    String locPrevious = locIndex.putIfAbsent(locRootQName, locQualified);
                     if (locPrevious != null && !locPrevious.equals(locQualified))
-                        throw new IllegalArgumentException("Duplicate XML content type " + locRootQName);
+                        throw new IllegalArgumentException("Duplicate XML content type " + locRootQName
+                                + " in " + locUnit.schema());
                 }
                 if (!locUnit.pointer().isEmpty()) continue;
                 for (var locElement : locXmlFrontend.globalElementDeclarations(locLoad)) {
@@ -583,18 +632,31 @@ public final class AIcSchemaContractBindingsGenerator {
                             locRequest.namingProfile(), AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM);
                     String locQualified = locRequest.packageName() + "."
                             + (locTarget.equals("python") ? locStem + "." : "") + locName;
-                    if (locElements.putIfAbsent(locElement.qName(), locQualified) != null)
-                        throw new IllegalArgumentException("Duplicate XML global element " + locElement.qName());
+                    Map<String, String> locIndex = locElement.namespace().isEmpty()
+                            ? locDocumentElements.computeIfAbsent(locUnit.schema(), key -> new LinkedHashMap<>())
+                            : locElements;
+                    if (locIndex.putIfAbsent(locElement.qName(), locQualified) != null)
+                        throw new IllegalArgumentException("Duplicate XML global element " + locElement.qName()
+                                + " in " + locUnit.schema());
                     locWork.add(new AIcdElementWork(locUnit.schema(), locRequest, locElement));
                 }
             }
             for (AIcdElementWork locEntry : locWork) {
-                var locGenerated = locXmlGenerator.generate(locEntry.request(), locEntry.element(), locTypes, locElements, locValueTypes);
+                Map<String, String> locResolvedTypes = new LinkedHashMap<>(locTypes);
+                locResolvedTypes.putAll(locDocumentTypes.getOrDefault(locEntry.source(), Map.of()));
+                Map<String, String> locResolvedElements = new LinkedHashMap<>(locElements);
+                locResolvedElements.putAll(locDocumentElements.getOrDefault(locEntry.source(), Map.of()));
+                Set<String> locResolvedValueTypes = new java.util.HashSet<>(locValueTypes);
+                locResolvedValueTypes.addAll(locDocumentValueTypes.getOrDefault(locEntry.source(), Set.of()));
+                var locGenerated = locXmlGenerator.generate(locEntry.request(), locEntry.element(),
+                        locResolvedTypes, locResolvedElements, locResolvedValueTypes);
                 Path locOutputRoot = outputRoots.getOrDefault(locTarget, intf.resolve("src/product/" + locTarget + ".gen"));
                 String locElementNamespace = locEntry.element().namespace();
-                locNamespaceOwners.putIfAbsent(locTarget + "#" + locElementNamespace, locEntry.request());
+                locNamespaceOwners.putIfAbsent(xmlNamespaceOwnerKey(locTarget, locElementNamespace,
+                        locEntry.request(), locScopedXmlDocuments), locEntry.request());
                 String locElementSource = AIcXmlNamespaceContracts.decorate(locGenerated.source(),
-                        locEntry.request(), namespaceType(locNamespaceOwners, locTarget, locElementNamespace), Map.of());
+                        locEntry.request(), namespaceType(locNamespaceOwners, locTarget, locElementNamespace,
+                                locEntry.request(), locScopedXmlDocuments), Map.of());
                 add(pending, locOutputRoot.resolve(locGenerated.relativePath()), locElementSource);
                 result.add(Map.of("schema", locEntry.source(), "pointer", "@element/" + locEntry.element().localName(),
                         "language", locTarget, "type", locGenerated.typeName(),
@@ -604,7 +666,7 @@ public final class AIcSchemaContractBindingsGenerator {
 
         for (var locEntry : locNamespaceOwners.entrySet()) {
             String locLanguage = locEntry.getKey().substring(0, locEntry.getKey().indexOf('#'));
-            String locNamespace = locEntry.getKey().substring(locEntry.getKey().indexOf('#') + 1);
+            String locNamespace = locEntry.getKey().substring(locEntry.getKey().indexOf('#') + 1).split("#", 2)[0];
             var locGenerated = AIcXmlNamespaceContracts.generate(locEntry.getValue(), locNamespace);
             Path locRoot = outputRoots.getOrDefault(locLanguage, intf.resolve("src/product/" + locLanguage + ".gen"));
             add(pending, locRoot.resolve(locGenerated.relativePath()), locGenerated.source());
@@ -830,10 +892,40 @@ public final class AIcSchemaContractBindingsGenerator {
 
     private static boolean contains(JsonNode values, JsonNode value) { for (JsonNode item : values) if (item.equals(value)) return true; return false; }
     private static String kebab(String name) { return name.replaceAll("([a-z0-9])([A-Z])", "$1-$2").replaceAll("[^A-Za-z0-9]+", "-").replaceAll("^-|-$", "").toLowerCase(java.util.Locale.ROOT); }
-    /** Resolve a generated namespace interface by its exact XML URI, sharing one owner across schema packages. */
+    /**
+     * Identify the XML namespace contract that owns a declaration. Explicit target
+     * namespaces are repository-wide; an empty namespace is scoped to the XSD
+     * document when otherwise-independent definitions have conflicting QNames.
+     *
+     * @param language target source language
+     * @param namespace XML namespace URI or the empty namespace
+     * @param request source contract carrying the defining schema path
+     * @param scopedDocuments documents requiring their own nominal XML scope
+     * @return stable lookup key for the namespace interface owner
+     */
+    private static String xmlNamespaceOwnerKey(String language, String namespace,
+            AIcdCodeGenerationRequest request, Set<String> scopedDocuments) {
+        String source = request.definition().sourceResource().split("#", 2)[0];
+        return language + "#" + namespace
+                + (namespace.isEmpty() && scopedDocuments.contains(source) ? "#" + source : "");
+    }
+
+    /**
+     * Resolve a generated XML namespace interface without mixing unrelated
+     * no-targetNamespace XSD documents.
+     *
+     * @param owners available namespace interface owners
+     * @param language generated source language
+     * @param namespace namespace URI or empty XML namespace
+     * @param request definition whose XML scope is being resolved
+     * @param scopedDocuments documents scoped independently because of QName collisions
+     * @return fully qualified generated namespace contract type
+     */
     private static String namespaceType(Map<String, AIcdCodeGenerationRequest> owners,
-            String language, String namespace) {
-        AIcdCodeGenerationRequest owner = owners.get(language + "#" + namespace);
+            String language, String namespace, AIcdCodeGenerationRequest request,
+            Set<String> scopedDocuments) {
+        AIcdCodeGenerationRequest owner = owners.get(
+                xmlNamespaceOwnerKey(language, namespace, request, scopedDocuments));
         if (owner == null) throw new IllegalArgumentException("Missing XML namespace contract " + namespace);
         return AIcXmlNamespaceContracts.generate(owner, namespace).qualifiedName();
     }

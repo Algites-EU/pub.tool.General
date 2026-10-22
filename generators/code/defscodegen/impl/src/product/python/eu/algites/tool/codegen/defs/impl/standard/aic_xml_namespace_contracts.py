@@ -77,8 +77,24 @@ def decorate(generated: str, request, marker: str, fields: dict[str, str], pytho
         if declaration:
             bases = [part.strip() for part in declaration.group(2).split(',') if part.strip()]
             bases = [base for base in bases if base != 'AIiXmlDataObject']
-            if own_name not in bases:
-                bases.insert(0, own_name) if bases == ['ABC'] else bases.append(own_name)
+            if '.xmlschema_' not in request.package_name:
+                # Preserve existing XML extension inheritance, including a
+                # different namespace marker contributed by a derived XSD.
+                if own_name not in bases:
+                    if bases == ['ABC']:
+                        bases.insert(0, own_name)
+                    else:
+                        bases.append(own_name)
+            else:
+                # Keep the document-scoped marker even when a generated XML
+                # element extends its nominal content type. Any nominal parent
+                # comes first, while the marker must precede ABC/AIiDataObject
+                # (ancestors of AIiXmlDataObjectNamespace) to satisfy C3 MRO.
+                bases = [base for base in bases if base != own_name]
+                marker_index = next((i for i, base in enumerate(bases)
+                    if base in ('ABC', 'AIiDataObject', 'AIiXmlDataObject')),
+                    len(bases))
+                bases.insert(marker_index, own_name)
             generated = generated[:declaration.start()] + declaration.group(1) + ', '.join(bases) + declaration.group(3) + generated[declaration.end():]
     else:
         declaration = re.search(

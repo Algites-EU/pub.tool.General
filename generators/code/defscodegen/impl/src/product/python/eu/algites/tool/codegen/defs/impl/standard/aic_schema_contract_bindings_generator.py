@@ -145,6 +145,28 @@ class AIcSchemaContractBindingsGenerator:
             if key not in discovered:
                 raise ValueError(f'Binding override no longer identifies a schema object: {key}')
 
+        # No-namespace XML declarations are scoped to their defining schema, not
+        # to one fictitious global {} QName registry shared by unrelated XSDs.
+        # Put genuinely colliding XML-specialized types in document-specific
+        # packages; common XML/YAML/JSON contracts keep their original package.
+        anonymous_owners = {}
+        xml_scope_frontend = AIcXmlDefsFrontend()
+        for unit in units:
+            if kind_by_source[unit.schema] != 'xmldefs':
+                continue
+            source = self._inside(repository, unit.schema)
+            load = AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS,
+                AIcAlgitesNamingProfiles_1.python_profile())
+            qname = ('{' + xml_scope_frontend.schema_namespace(load) + '}' + unit.pointer[6:]
+                if unit.pointer.startswith('@type/') else xml_scope_frontend.root_type_qname(load))
+            if qname.startswith('{}'):
+                anonymous_owners.setdefault(('type', qname), set()).add(unit.schema)
+            if not unit.pointer:
+                for element in xml_scope_frontend.global_element_declarations(load):
+                    if not element.namespace:
+                        anonymous_owners.setdefault(('element', element.qname), set()).add(unit.schema)
+        scoped_xml_documents = set().union(*(owners for owners in anonymous_owners.values()
+            if len(owners) > 1)) if anonymous_owners else set()
         requests, result, pending = {}, [], {}
         unit_requests = {}
         relations = {}
@@ -205,7 +227,11 @@ class AIcSchemaContractBindingsGenerator:
                         entries.update({kind: enum_id for kind in (AInDefsNameRole.ENUM_TYPE,
                             AInDefsNameRole.ENUM_TYPE_FILE_STEM)})
                         role_profile = AIcSelectedNamingCatalog(profile, entries)
-                    request = AIcdCodeGenerationRequest(definition, target, package, role_profile,
+                    output_package = package
+                    if kind == 'xmldefs' and role != 'common' and unit.schema in scoped_xml_documents:
+                        document = re.sub(r'[^A-Za-z0-9_]', '_', source.stem).lower()
+                        output_package += '.xmlschema_' + document
+                    request = AIcdCodeGenerationRequest(definition, target, output_package, role_profile,
                         xml_type_qname, selected_id, role)
                     preview = generator.generate(request)
                     key = language + '#' + preview.relative_path
@@ -231,22 +257,26 @@ class AIcSchemaContractBindingsGenerator:
                 raise ValueError(f'Ambiguous XML named type {candidate.xml_type_qname}')
         # Resolve one XML namespace marker per target/namespace across all schema packages.
         # Only XML requests participate; JSON and YAML have no namespace interfaces.
+        def namespace_key(language, namespace, req):
+            """Scope absent XML namespaces by document, retaining explicit global URIs."""
+            source = req.definition.source_resource.split('#', 1)[0]
+            return (language, namespace, source if not namespace and source in scoped_xml_documents else '')
         xml_namespace_owners = {}
         for (language, role, schema, pointer), req in unit_requests.items():
             if kind_by_source[schema] != 'xmldefs' or role == 'common':
                 continue
             namespace = req.xml_type_qname[1:].split('}', 1)[0] if req.xml_type_qname else None
             if namespace is not None:
-                xml_namespace_owners.setdefault((language, namespace), req)
+                xml_namespace_owners.setdefault(namespace_key(language, namespace, req), req)
             for field in req.definition.data_type.properties:
                 xml = field.xml_field
                 if xml is None or not xml.wildcard_namespace:
                     continue
                 explicit_namespace = xml_namespaces.namespace_of_wildcard(xml.wildcard_namespace, xml.namespace)
                 if explicit_namespace is not None:
-                    xml_namespace_owners.setdefault((language, explicit_namespace), req)
-        def namespace_ref(language, namespace):
-            owner = xml_namespace_owners.get((language, namespace))
+                    xml_namespace_owners.setdefault(namespace_key(language, explicit_namespace, req), req)
+        def namespace_ref(language, namespace, req):
+            owner = xml_namespace_owners.get(namespace_key(language, namespace, req))
             if owner is None:
                 raise ValueError('Missing generated XML namespace contract: ' + namespace)
             name, stem, module = xml_namespaces.namespace_contract(owner, namespace)
@@ -402,7 +432,7 @@ class AIcSchemaContractBindingsGenerator:
                             declaration = f'class {pair.type_name}('
                             rendered = rendered.replace(declaration, declaration + preview.type_name + ', ')
                 rendered = self._qualify_references(rendered, first, requests, True, choice_reference)
-                if first.xml_type_qname is not None and index == 0 and merged.data_type.kind in (
+                if first.xml_type_qname is not None and first.contract_role != 'common' and index == 0 and merged.data_type.kind in (
                         AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
                     namespace = first.xml_type_qname[1:].split('}', 1)[0]
                     wildcard_fields = {}
@@ -411,13 +441,13 @@ class AIcSchemaContractBindingsGenerator:
                         if xml is None or not xml.wildcard_namespace:
                             continue
                         selected = xml_namespaces.namespace_of_wildcard(xml.wildcard_namespace, xml.namespace)
-                        wildcard_fields[field.source_name] = (namespace_ref(language, selected)
+                        wildcard_fields[field.source_name] = (namespace_ref(language, selected, first)
                             if selected is not None else
                             ('eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object.AIiXmlDataObject'
                                 if language == 'python' else
                                 'eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject'))
                     rendered = xml_namespaces.decorate(rendered, first,
-                        namespace_ref(language, namespace), wildcard_fields, language == 'python')
+                        namespace_ref(language, namespace, first), wildcard_fields, language == 'python')
                 self._add(pending, output_roots.get(language, intf / 'src/product' / (language + '.gen')) / pair.relative_path,
                     rendered)
 
@@ -433,6 +463,7 @@ class AIcSchemaContractBindingsGenerator:
                             if target == language and kind_by_source[schema] == 'xmldefs'
                             and role == ('xmldefs_type' if configured else '')]
             type_index, element_index, declarations, value_types = {}, {}, [], set()
+            local_types, local_elements, local_value_types = {}, {}, {}
             for schema, pointer, req in xml_requests:
                 loaded = AIcdDefinitionLoadRequest(self._inside(repository, schema),
                     AInDefinitionSourceKind.XMLDEFS, req.naming_profile)
@@ -441,13 +472,15 @@ class AIcSchemaContractBindingsGenerator:
                         AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
                     if req.definition.data_type.kind in (AInDataTypeKind.ENUM,
                             AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
-                        value_types.add(root_qname)
+                        (local_value_types.setdefault(schema, set()) if root_qname.startswith('{}')
+                            else value_types).add(root_qname)
                     preview = generator.generate(req)
                     qualified = req.package_name + '.' + (preview.relative_path.rsplit('/', 1)[-1][:-3] + '.'
                         if language == 'python' else '') + preview.type_name
-                    if root_qname in type_index and type_index[root_qname] != qualified:
-                        raise ValueError('Duplicate XML global content type: ' + root_qname)
-                    type_index[root_qname] = qualified
+                    types = local_types.setdefault(schema, {}) if root_qname.startswith('{}') else type_index
+                    if root_qname in types and types[root_qname] != qualified:
+                        raise ValueError('Duplicate XML content type: ' + root_qname + ' in ' + schema)
+                    types[root_qname] = qualified
                 if pointer:
                     continue
                 for element in xml_frontend.global_element_declarations(loaded):
@@ -457,24 +490,29 @@ class AIcSchemaContractBindingsGenerator:
                     stem = generator.names.render(xml_identifier(element.local_name), req.definition.version,
                         req.naming_profile, AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)
                     qualified = req.package_name + '.' + (stem + '.' if language == 'python' else '') + element_name
-                    if element.qname in element_index:
-                        raise ValueError('Duplicate XML global element: ' + element.qname)
-                    element_index[element.qname] = qualified
+                    elements = local_elements.setdefault(schema, {}) if not element.namespace else element_index
+                    if element.qname in elements:
+                        raise ValueError('Duplicate XML global element: ' + element.qname + ' in ' + schema)
+                    elements[element.qname] = qualified
                     declarations.append((schema, req, element))
             for schema, req, element in declarations:
-                generated = xml_generator.generate(req, element, type_index, element_index, value_types)
+                generated = xml_generator.generate(req, element,
+                    {**type_index, **local_types.get(schema, {})},
+                    {**element_index, **local_elements.get(schema, {})},
+                    value_types | local_value_types.get(schema, set()))
                 output_root = output_roots.get(language, intf / 'src/product' / (language + '.gen'))
                 element_namespace = element.namespace
-                if (language, element_namespace) not in xml_namespace_owners:
-                    xml_namespace_owners[(language, element_namespace)] = req
+                owner_key = namespace_key(language, element_namespace, req)
+                if owner_key not in xml_namespace_owners:
+                    xml_namespace_owners[owner_key] = req
                 rendered = xml_namespaces.decorate(generated.source, req,
-                    namespace_ref(language, element_namespace), {}, language == 'python')
+                    namespace_ref(language, element_namespace, req), {}, language == 'python')
                 self._add(pending, output_root / generated.relative_path, rendered)
                 result.append(dict(schema=schema, pointer='@element/' + element.local_name,
                     language=language, type=generated.type_name,
                     path=(output_root / generated.relative_path).relative_to(repository).as_posix()))
 
-        for (language, namespace), owner in sorted(xml_namespace_owners.items()):
+        for (language, namespace, _source), owner in sorted(xml_namespace_owners.items()):
             name, relative, generated = xml_namespaces.source(owner, namespace)
             output_root = output_roots.get(language, intf / 'src/product' / (language + '.gen'))
             self._add(pending, output_root / relative, generated)
