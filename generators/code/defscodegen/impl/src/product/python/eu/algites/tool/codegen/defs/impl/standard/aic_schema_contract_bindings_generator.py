@@ -254,12 +254,29 @@ class AIcSchemaContractBindingsGenerator:
 
         for representations in requests.values():
             first = representations[0]
-            identities = {self._canonical_identity(r.definition, r.package_name, units_by_resource)
+            common_role = first.contract_role == 'common'
+            identities = {(self._common_identity(r.definition, r.package_name,
+                          self._canonical_identity(r.definition, r.package_name, units_by_resource))
+                          if common_role else self._canonical_identity(r.definition, r.package_name, units_by_resource))
                           for r in representations}
+            if common_role:
+                explicit = {item for item in identities if item[0] != 'implicit'}
+                implicit = any(item[0] == 'implicit' for item in identities)
+                if explicit and implicit:
+                    candidate = next(iter(explicit))[1]
+                    tail = f':{first.definition.logical_name}:{first.definition.version}'
+                    if not (candidate.startswith('urn:algites:') and candidate.endswith(tail)):
+                        explicit.add(('incompatible', 'implicit-identity'))
+                if explicit:
+                    identities = explicit
             if len(identities) != 1:
                 raise ValueError('Canonical identity collision for one generated output: ' +
                     str([(r.definition.identity, r.definition.source_resource) for r in representations]))
-            merged = AIcCanonicalDefinitionMerger.merge_strict((r.definition for r in representations), repository)
+            if common_role and len(representations) > 1:
+                from eu.algites.tool.codegen.defs.impl.standard.aic_common_contract_projection import merge_common
+                merged = merge_common([r.definition for r in representations])
+            else:
+                merged = AIcCanonicalDefinitionMerger.merge_strict((r.definition for r in representations), repository)
             parent_relations = relations[first.target.value + '#' + generator.generate(first).relative_path]
             def represented_parents(relation):
                 result = []
@@ -271,10 +288,12 @@ class AIcSchemaContractBindingsGenerator:
                     result.append((request.package_name, generator.generate(request).type_name))
                 return tuple(result)
             expected_parents = represented_parents(parent_relations[0])
-            if any(represented_parents(relation) != expected_parents for relation in parent_relations):
+            shared_parents = all(represented_parents(relation) == expected_parents
+                                 for relation in parent_relations)
+            if not shared_parents and not common_role:
                 raise ValueError('Conflicting allOf parents across schema representations')
             parent_requests = []
-            for unit in parent_relations[0]:
+            for unit in (parent_relations[0] if shared_parents else ()) :
                 inherited = unit_requests.get((first.target.value, first.contract_role, unit.schema, unit.pointer))
                 if inherited is None:
                     raise ValueError('allOf parent has no generated contract in role ' + first.contract_role
@@ -502,6 +521,16 @@ class AIcSchemaContractBindingsGenerator:
         return ('explicit', identity, definition.version)
 
     @staticmethod
+    def _common_identity(definition, package_name, identity):
+        """Treat only the source-kind URN segment as a serialization alias of a common type."""
+        if identity[0] != 'explicit' or not str(identity[1]).startswith('urn:algites:'):
+            return identity
+        name = {'YAMLDEFS': 'yamldef', 'JSONDEFS': 'jsondef'}.get(definition.source_kind.name)
+        if name:
+            return ('explicit', str(identity[1]).replace(':' + name + ':', ':', 1), definition.version)
+        return identity
+
+    @staticmethod
     def _field_shape(field):
         return (field.source_name, field.data_type, field.presence, field.nullable,
             field.xml_field)
@@ -567,9 +596,18 @@ class AIcSchemaContractBindingsGenerator:
         for ref in references:
             resource = ref.identity.split('#', 1)[0]
             owner = request.definition.source_resource.split('#', 1)[0]
-            local = None if urlsplit(resource).scheme else (owner if not resource else Path(os.path.normpath(str(Path(owner).parent / resource))).as_posix())
+            parsed = urlsplit(resource)
+            local = None if parsed.scheme else (owner if not resource else Path(os.path.normpath(str(Path(owner).parent / resource))).as_posix())
+            published = None
+            if parsed.scheme == 'https' and parsed.netloc == 'defs.dev.algites.eu':
+                for kind in ('yamldefs', 'jsondefs', 'xmldefs'):
+                    prefix = '/api/' + kind + '/'
+                    if parsed.path.startswith(prefix):
+                        published = 'src/product/' + kind + '/' + parsed.path[len(prefix):]
+                        break
             candidates = {r.package_name for representations in requests.values() for r in representations
-                if r.target is request.target and (r.definition.source_resource == local or r.definition.identity == resource)}
+                if r.target is request.target and (r.definition.source_resource in (local, published)
+                    or r.definition.identity == resource)}
             if len(candidates) != 1:
                 raise ValueError(f'Cannot resolve generated reference package: {ref.identity} in {owner}')
             package = next(iter(candidates))

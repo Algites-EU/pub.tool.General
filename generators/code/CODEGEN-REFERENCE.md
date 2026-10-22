@@ -71,6 +71,33 @@ DataObject annotation/metadata. When both a common getter interface and a
 format-specific getter interface exist, the format-specific interface can
 extend the shared contract and a corresponding technology marker.
 
+**Cross-format common-role semantics (1.1):** `common` is a semantic
+intersection, not a strict serialization parity assertion. When XML/YAML/JSON
+schemas map to the same read-contract name, only fields present in every
+representation are emitted on `common`; format-specific fields remain on the
+independently named `xmldefs_type`, `yamldefs`, or `jsondefs` interfaces. Shared
+fields retain compatible structural kinds and the least restrictive presence
+and nullability. Differences in serialization facets are preserved in the
+specialized contracts. General `xs:anyType`, scalar-enum projections, and
+object/choice representations use an `Any`/`Object` common supertype when the
+specialized value types cannot safely share a narrower getter return type.
+Incompatible scalar categories (such as `STRING` versus `INTEGER`) fail with
+the field path; they are not silently dropped. If an object representation and
+a closed-choice representation have no common object structure, the shared
+role is an empty semantic marker interface.
+
+For `common` only, the format marker in Algites canonical URNs (`:yamldef:`
+or `:jsondef:`) is removed when comparing identity. An XML schema without an
+explicit namespace may join such a group only when the normalized Algites
+URN ends in the same logical name and version. Unrelated schema identities
+remain collisions. Original publication identities are kept in provenance.
+The shared role inherits an `allOf` parent only if **every** representation
+has the same emitted common parent chain. Other representations keep their
+independent technology-specific inheritance. Public definition URLs on the
+`defs.dev.algites.eu/api/{kind}/` host resolve to the matching input tree for
+cross-file reference qualification, even when the schema has an explicit URN
+rather than using the publication URL as its identity.
+
 Batch processing retains canonical-source deduplication, format parity and
 preflight checks. Cleanup is based on **generator ownership state**, not
 regex deletion of all filenames that happen to match a convention. Positional single-definition CLI entry points have been removed; use the

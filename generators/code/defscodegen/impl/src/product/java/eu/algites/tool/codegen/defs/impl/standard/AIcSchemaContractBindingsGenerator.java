@@ -302,10 +302,30 @@ public final class AIcSchemaContractBindingsGenerator {
             var first = representations.get(0);
             long identityCount = representations.stream().map(r -> canonicalIdentity(
                     r.definition(), r.packageName(), unitIndex)).distinct().count();
+            boolean locIsCommonRole = first.contractRole().equals("common");
+            if (locIsCommonRole) {
+                var locIdentities = representations.stream().map(r ->
+                        AIcCommonContractProjection.canonicalIdentity(r.definition(), r.packageName(),
+                            canonicalIdentity(r.definition(), r.packageName(), unitIndex))).toList();
+                var locExplicit = locIdentities.stream().filter(aIdentity ->
+                        !((List<?>) aIdentity).get(0).equals("implicit")).distinct().toList();
+                identityCount = locExplicit.isEmpty() ? locIdentities.stream().distinct().count() : locExplicit.size();
+                if (!locExplicit.isEmpty() && locIdentities.stream().anyMatch(aIdentity ->
+                        ((List<?>) aIdentity).get(0).equals("implicit"))) {
+                    String locExplicitId = String.valueOf(((List<?>) locExplicit.get(0)).get(1));
+                    String locTail = ":" + first.definition().logicalName() + ":" + first.definition().version();
+                    if (!locExplicitId.startsWith("urn:algites:") || !locExplicitId.endsWith(locTail))
+                        identityCount = 2;
+                }
+            }
             if (identityCount != 1)
                 throw new IllegalArgumentException("Canonical identity collision for one generated output: "
                     + representations.stream().map(r -> r.definition().identity() + " (" + r.definition().sourceResource() + ")").toList());
-            var merged = AIcCanonicalDefinitionMerger.AIcMergeStrict(representations.stream().map(AIcdCodeGenerationRequest::definition).toList(), repository);
+            var merged = locIsCommonRole && representations.size() > 1
+                    ? AIcCommonContractProjection.merge(representations.stream()
+                        .map(AIcdCodeGenerationRequest::definition).toList())
+                    : AIcCanonicalDefinitionMerger.AIcMergeStrict(representations.stream()
+                        .map(AIcdCodeGenerationRequest::definition).toList(), repository);
             String targetText = first.target() == AInCodeGenerationTarget.PYTHON ? "python" : "java";
             String outputKey = targetText + "#" + new AIcSchemaContractInterfaceGenerator().generate(first).relativePath();
             List<List<AIcdUnit>> linked = relations.get(outputKey);
@@ -316,6 +336,7 @@ public final class AIcSchemaContractBindingsGenerator {
                 if (request == null) throw new IllegalArgumentException("allOf parent has no generated contract: " + parent.schema());
                 expectedParents.add(request.packageName() + "." + new AIcSchemaContractInterfaceGenerator().generate(request).typeName());
             }
+            boolean locSharedParents = true;
             for (List<AIcdUnit> representationParents : linked) {
                 List<String> actualParents = new ArrayList<>();
                 for (AIcdUnit parent : representationParents) {
@@ -324,11 +345,12 @@ public final class AIcSchemaContractBindingsGenerator {
                     if (request == null) throw new IllegalArgumentException("allOf parent has no generated contract: " + parent.schema());
                     actualParents.add(request.packageName() + "." + new AIcSchemaContractInterfaceGenerator().generate(request).typeName());
                 }
-                if (!expectedParents.equals(actualParents))
-                    throw new IllegalArgumentException("Conflicting allOf parents across schema representations");
+                if (!expectedParents.equals(actualParents)) locSharedParents = false;
             }
+            if (!locSharedParents && !locIsCommonRole)
+                throw new IllegalArgumentException("Conflicting allOf parents across schema representations");
             List<AIcdCodeGenerationRequest> inheritedRequests = new ArrayList<>();
-            for (AIcdUnit inheritedUnit : linked.get(0)) {
+            for (AIcdUnit inheritedUnit : locSharedParents ? linked.get(0) : List.<AIcdUnit>of()) {
                 AIcdCodeGenerationRequest inherited = unitRequests.get(targetText + "#" + first.contractRole()
                         + "#" + inheritedUnit.schema() + "#" + inheritedUnit.pointer());
                 if (inherited == null) {
@@ -718,9 +740,25 @@ public final class AIcSchemaContractBindingsGenerator {
         for (var ref : locReferences) {
             String resource = ref.identity().split("#", 2)[0];
             String owner = request.definition().sourceResource().split("#", 2)[0];
-            String local = java.net.URI.create(resource).isAbsolute() ? null : resource.isEmpty() ? owner : portable(Path.of(owner).getParent().resolve(resource).normalize());
+            URI locRefUri = URI.create(resource);
+            String local = locRefUri.isAbsolute() ? null : resource.isEmpty() ? owner
+                    : portable(Path.of(owner).getParent().resolve(resource).normalize());
+            /* Public definition URLs are publication aliases, not necessarily the
+             * x-*-id of the schema. Resolve against the corresponding input path. */
+            String locPublished = null;
+            if ("https".equalsIgnoreCase(locRefUri.getScheme())
+                    && "defs.dev.algites.eu".equalsIgnoreCase(locRefUri.getHost())) {
+                String locPath = locRefUri.getPath();
+                for (String locKind : List.of("yamldefs", "jsondefs", "xmldefs")) {
+                    String locPrefix = "/api/" + locKind + "/";
+                    if (locPath.startsWith(locPrefix))
+                        locPublished = "src/product/" + locKind + "/" + locPath.substring(locPrefix.length());
+                }
+            }
+            String locPublishedPath = locPublished;
             var candidates = requests.values().stream().flatMap(List::stream).filter(candidate ->
                 candidate.target() == request.target() && (candidate.definition().sourceResource().equals(local)
+                    || candidate.definition().sourceResource().equals(locPublishedPath)
                     || candidate.definition().identity().equals(resource))).map(AIcdCodeGenerationRequest::packageName).distinct().toList();
             if (candidates.size() != 1) throw new IllegalArgumentException("Cannot resolve generated reference package: " + ref.identity() + " in " + owner);
             String packageName = candidates.get(0);
