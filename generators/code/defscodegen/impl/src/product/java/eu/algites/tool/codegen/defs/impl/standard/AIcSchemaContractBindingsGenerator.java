@@ -281,7 +281,7 @@ public final class AIcSchemaContractBindingsGenerator {
                         profile = new AIcSelectedNamingCatalog(baseProfile, locNames);
                     }
                     String locOutputPackage = packageName;
-                    if (kind.equals("xmldefs") && !locRole.equals("common")
+                    if (sourceKind.equals("xmldefs") && !locRole.equals("common")
                             && locScopedXmlDocuments.contains(unit.schema())) {
                         String locDocument = source.getFileName().toString().replaceFirst("\\.xsd$", "")
                                 .replaceAll("[^A-Za-z0-9_]", "_").toLowerCase(java.util.Locale.ROOT);
