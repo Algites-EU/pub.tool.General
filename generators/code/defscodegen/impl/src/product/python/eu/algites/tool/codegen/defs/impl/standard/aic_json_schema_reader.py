@@ -79,17 +79,30 @@ class AIcJsonSchemaReader:
                 if not isinstance(referenced, Mapping):
                     raise ValueError(f"Undefined schema reference '{ref}' in {request.path}")
                 visited = set() if visited is None else visited
-                reference_key = (target_path, fragment)
+                # Named $defs objects/choices are nominal, even when a child
+                # property refers to the containing definition recursively.
+                canonical_type = self._recursive_type(schema, request, visited)
+                if canonical_type.kind is AInDataTypeKind.REFERENCE:
+                    return AIcdPropertyDefinition(str(name), canonical_type,
+                        AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED,
+                        nullable and _accepts_null(referenced),
+                        schema.get('description', referenced.get('description')),
+                        schema.get('title', referenced.get('title')), None)
+                reference_key = (target_path.resolve(), fragment)
                 if reference_key in visited:
-                    raise ValueError(f"Circular schema reference '{ref}' in {request.path}")
+                    raise ValueError(f"Circular schema alias '{ref}' in {request.path}")
                 visited.add(reference_key)
-                if "allOf" in referenced:
-                    referenced = self._structural(referenced, AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), set())
-                normalized = self._property(name, referenced, required,
-                    AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), visited)
-                canonical_type = self._recursive_type(schema, request)
-                named = canonical_type.kind is AInDataTypeKind.REFERENCE
-                return AIcdPropertyDefinition(str(name), canonical_type if named else normalized.data_type, (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), nullable and normalized.nullable, schema.get("description", normalized.description), schema.get("title", normalized.title), None)
+                try:
+                    if "allOf" in referenced:
+                        referenced = self._structural(referenced, AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), set())
+                    normalized = self._property(name, referenced, required,
+                        AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), visited)
+                    return AIcdPropertyDefinition(str(name), normalized.data_type,
+                        AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED,
+                        nullable and normalized.nullable, schema.get('description', normalized.description),
+                        schema.get('title', normalized.title), None)
+                finally:
+                    visited.remove(reference_key)
             target_path = self._reference_path(resource, request)
             parsed = AIcDefinitionIdentityResolver.parse_versioned_stem(_strip_extensions(target_path.name), None)
             target_kind = self._detect_referenced_kind(target_path)
@@ -99,8 +112,7 @@ class AIcJsonSchemaReader:
             kind = _non_null_kind(schema)
         else:
             kind = _value_kind(raw_type)
-        item = self._property(name, schema['items'], True, request, set(visited or ())) if kind is AInDataTypeKind.ARRAY and isinstance(schema.get('items'), Mapping) else None
-        return AIcdPropertyDefinition(str(name), self._recursive_type(schema, request), (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), nullable, schema.get('description'), schema.get("title"), None)
+        return AIcdPropertyDefinition(str(name), self._recursive_type(schema, request, visited), (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), nullable, schema.get('description'), schema.get("title"), None)
 
     @staticmethod
     def _presence_any_of_as_min_properties(schema):
@@ -140,7 +152,7 @@ class AIcJsonSchemaReader:
             declared = non_null[0] if len(non_null) == 1 else None
         return _value_kind(declared)
 
-    def _recursive_type(self, schema, request):
+    def _recursive_type(self, schema, request, visited=None):
         """Recursively project arrays, inline objects and exclusive/inclusive choices.
 
         References deliberately remain reference nodes: they do not recursively inline
@@ -148,6 +160,7 @@ class AIcJsonSchemaReader:
         """
         if not isinstance(schema, Mapping):
             return AIcdDataType(AInDataTypeKind.ANY)
+        visited = set() if visited is None else visited
         # A typed enum can use oneOf solely to document individual const values.
         # Only collapse such a presentation when every alternative is exactly one
         # listed scalar enum member and imposes no additional schema semantics.
@@ -172,7 +185,7 @@ class AIcJsonSchemaReader:
             branches = schema.get(keyword)
             if isinstance(branches, list) and branches:
                 return AIcdDataType.choice(kind,
-                    (self._recursive_type(branch, request) for branch in branches))
+                    (self._recursive_type(branch, request, visited) for branch in branches))
         if '$ref' in schema:
             # References to emitted named objects/enums remain nominal. Expanding
             # them inline would lose their identity and produce nonexistent branch contracts.
@@ -191,33 +204,52 @@ class AIcJsonSchemaReader:
                         resolved = resolved[int(token)] if isinstance(resolved, list) else resolved[token]
                 except (KeyError, IndexError, TypeError, ValueError) as error:
                     raise ValueError(f"Undefined schema reference '{ref}' in {request.path}") from error
-                if len(tokens) == 2 and tokens[0] in ('$defs', 'definitions') and isinstance(resolved, Mapping):
-                    if 'properties' in resolved or resolved.get('type') == 'object' or 'enum' in resolved or 'oneOf' in resolved or 'anyOf' in resolved:
-                        stem = AIcDefinitionIdentityResolver.parse_versioned_stem(_strip_extensions(target_path.name), None)
-                        kebab = re.sub(r'[^a-z0-9]+', '-', re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', tokens[1]).lower()).strip('-')
-                        logical = stem.logical_name + '-definition-' + kebab
-                        kind = self._local_definition_kind(resolved)
-                        return AIcdDataType(AInDataTypeKind.REFERENCE, reference=AIcdDefinitionReference(
-                            ref, stem.version, logical, self._recursive_type(resolved,
-                            AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile))
-                            if kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF) else AIcdDataType(kind)))
+            else:
+                tokens = []
+                resolved = self._anchor(target, unescaped)
+            named = (len(tokens) == 2 and tokens[0] in ('$defs', 'definitions')
+                     and isinstance(resolved, Mapping)
+                     and ('properties' in resolved or resolved.get('type') == 'object'
+                          or 'enum' in resolved or 'oneOf' in resolved or 'anyOf' in resolved))
+            key = (target_path.resolve(), unescaped)
+            entered = key not in visited
+            if named:
+                stem = AIcDefinitionIdentityResolver.parse_versioned_stem(_strip_extensions(target_path.name), None)
+                kebab = re.sub(r'[^a-z0-9]+', '-', re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', tokens[1]).lower()).strip('-')
+                kind = self._local_definition_kind(resolved)
+                if not entered:
+                    target_type = None
+                elif kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
+                    visited.add(key)
+                    try:
+                        target_type = self._recursive_type(resolved, AIcdDefinitionLoadRequest(
+                            target_path, request.source_kind, request.naming_profile), visited)
+                    finally:
+                        visited.remove(key)
+                else:
+                    target_type = AIcdDataType(kind)
+                return AIcdDataType(AInDataTypeKind.REFERENCE, reference=AIcdDefinitionReference(
+                    ref, stem.version, stem.logical_name + '-definition-' + kebab, target_type))
+            if not entered:
+                raise ValueError(f"Circular inline schema alias '{ref}' in {request.path}")
+            visited.add(key)
+            try:
                 return self._recursive_type(resolved, AIcdDefinitionLoadRequest(target_path,
-                    request.source_kind, request.naming_profile))
-            resolved = self._anchor(target, unescaped)
-            return self._recursive_type(resolved, AIcdDefinitionLoadRequest(target_path,
-                request.source_kind, request.naming_profile))
+                    request.source_kind, request.naming_profile), visited)
+            finally:
+                visited.remove(key)
         raw = schema.get('type')
         if isinstance(raw, list):
             raw = next((kind for kind in raw if kind != 'null'), None)
         if raw == 'array' or 'items' in schema:
             return AIcdDataType(AInDataTypeKind.ARRAY,
-                element_type=self._recursive_type(schema.get('items', {}), request),
+                element_type=self._recursive_type(schema.get('items', {}), request, visited),
                 constraints=from_json(schema, AInDataTypeKind.ARRAY))
         if raw == 'object' or 'properties' in schema:
             fields = schema.get('properties', {})
             required = set(schema.get('required', ()))
             return AIcdDataType(AInDataTypeKind.OBJECT,
-                properties=tuple(self._property(name, node, name in required, request)
+                properties=tuple(self._property(name, node, name in required, request, visited)
                                  for name, node in (fields if isinstance(fields, Mapping) else {}).items()),
                 constraints=from_json(schema, AInDataTypeKind.OBJECT))
         if 'enum' in schema or 'const' in schema:

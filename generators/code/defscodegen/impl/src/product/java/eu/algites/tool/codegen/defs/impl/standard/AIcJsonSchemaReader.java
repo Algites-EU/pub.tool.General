@@ -109,16 +109,33 @@ final class AIcJsonSchemaReader {
             if (referenced == null || referenced.isMissingNode()) {
                 throw new IllegalArgumentException("Undefined schema reference '" + ref + "' in " + request.path());
             }
+            /* Nominal $defs contracts must not be expanded into their own properties.
+             * A recursive child (for example FinalizationActions[]) is represented
+             * by its named reference, not an infinitely nested inline object. */
+            AIcdDataType locCanonicalType = recursiveType(node, request, visited);
+            if (locCanonicalType.kind() == AInDataTypeKind.REFERENCE)
+                return new AIcdPropertyDefinition(name, locCanonicalType,
+                        required ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED
+                                : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED,
+                        nullable && AIcJsonSchemaNullability.acceptsNull(referenced),
+                        text(node, "description") == null ? text(referenced, "description") : text(node, "description"),
+                        text(node, "title") == null ? text(referenced, "title") : text(node, "title"), null);
             String referenceKey = target.toAbsolutePath().normalize() + "#" + fragment;
-            if (!visited.add(referenceKey)) {
-                throw new IllegalArgumentException("Circular schema reference '" + ref + "' in " + request.path());
+            if (!visited.add(referenceKey))
+                throw new IllegalArgumentException("Circular schema alias '" + ref + "' in " + request.path());
+            try {
+                AIcdPropertyDefinition normalized = property(name, referenced.has("allOf")
+                        ? structural(referenced, new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), new HashSet<>()) : referenced, required,
+                        new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited);
+                return new AIcdPropertyDefinition(name, normalized.dataType(),
+                        required ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED
+                                : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED,
+                        nullable && normalized.nullable(),
+                        text(node, "description") == null ? normalized.description() : text(node, "description"),
+                        text(node, "title") == null ? normalized.title() : text(node, "title"), null);
+            } finally {
+                visited.remove(referenceKey);
             }
-            AIcdPropertyDefinition normalized = property(name, referenced.has("allOf")
-                    ? structural(referenced, new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), new HashSet<>()) : referenced, required,
-                    new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited);
-            AIcdDataType locCanonicalType = recursiveType(node, request);
-            boolean locNamed = locCanonicalType.kind() == AInDataTypeKind.REFERENCE;
-            return new AIcdPropertyDefinition(name, locNamed ? locCanonicalType : normalized.dataType(), ((required) ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED), nullable && normalized.nullable(), text(node, "description") == null ? normalized.description() : text(node, "description"), text(node, "title") == null ? normalized.title() : text(node, "title"), null);
         }
         if (ref != null) {
             String resource = ref.split("#", 2)[0];
@@ -137,9 +154,7 @@ final class AIcJsonSchemaReader {
         }
         AInDataTypeKind kind = type == null && (!enumValues(node).isEmpty() || node.has("const"))
                 ? kindFromValue(node) : kind(type);
-        AIcdPropertyDefinition item = kind == AInDataTypeKind.ARRAY && node.get("items") != null
-                ? property(name, node.get("items"), true, request, new HashSet<>(visited)) : null;
-        return new AIcdPropertyDefinition(name, recursiveType(node, request), ((required) ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED), nullable, text(node, "description"), text(node, "title"), null);
+        return new AIcdPropertyDefinition(name, recursiveType(node, request, visited), ((required) ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED), nullable, text(node, "description"), text(node, "title"), null);
     }
 
     /**
@@ -179,6 +194,12 @@ final class AIcJsonSchemaReader {
 
     /** Build the recursive structural model without truncating nested array or choice types. */
     private AIcdDataType recursiveType(JsonNode aSchema, AIcdDefinitionLoadRequest aRequest) {
+        return recursiveType(aSchema, aRequest, new HashSet<>());
+    }
+
+    /** Preserve the active reference path through nested objects, arrays and choices. */
+    private AIcdDataType recursiveType(JsonNode aSchema, AIcdDefinitionLoadRequest aRequest,
+            Set<String> aVisited) {
         if (aSchema == null || aSchema.isNull() || !aSchema.isObject())
             return AIcdDataType.atom(AInDataTypeKind.ANY, AIcdValueConstraints.empty());
         /* A typed scalar enum may use oneOf only for per-value descriptions.
@@ -224,7 +245,7 @@ final class AIcJsonSchemaReader {
             JsonNode locBranches = aSchema.get(locKey);
             if (locBranches != null && locBranches.isArray() && !locBranches.isEmpty()) {
                 List<AIcdDataType> locAlternatives = new ArrayList<>();
-                for (JsonNode locBranch : locBranches) locAlternatives.add(recursiveType(locBranch, aRequest));
+                for (JsonNode locBranch : locBranches) locAlternatives.add(recursiveType(locBranch, aRequest, aVisited));
                 return AIcdDataType.choice(locKey.equals("oneOf")
                         ? AInDataTypeKind.ONE_OF : AInDataTypeKind.ANY_OF, locAlternatives);
             }
@@ -236,6 +257,8 @@ final class AIcJsonSchemaReader {
             if (locFragment == null || locFragment.isEmpty())
                 return property("reference", aSchema, false, aRequest).dataType();
             Path locTarget = referencePath(locResource, aRequest);
+            String locReferenceKey = locTarget.toAbsolutePath().normalize() + "#" + locFragment;
+            boolean locEntered = aVisited.add(locReferenceKey);
             try {
                 String locName = locTarget.getFileName().toString().toLowerCase();
                 JsonNode locDocument = (locName.endsWith(".yaml") || locName.endsWith(".yml"))
@@ -255,16 +278,25 @@ final class AIcJsonSchemaReader {
                             .replaceAll("[^a-zA-Z0-9]+", "-").replaceAll("^-|-$", "")
                             .toLowerCase(java.util.Locale.ROOT);
                     AInDataTypeKind locKind = localDefinitionKind(locResolved);
+                    /* A back-edge carries the nominal identity without embedding
+                     * the same named choice again in targetDataType. */
+                    AIcdDataType locTargetType = !locEntered ? null
+                            : (locKind == AInDataTypeKind.ONE_OF || locKind == AInDataTypeKind.ANY_OF)
+                                ? recursiveType(locResolved, new AIcdDefinitionLoadRequest(locTarget,
+                                        aRequest.sourceKind(), aRequest.namingProfile()), aVisited)
+                                : AIcdDataType.atom(locKind, null);
                     return AIcdDataType.reference(new AIcdDefinitionReference(locRef, locParsed.version(),
-                            locParsed.logicalName() + "-definition-" + locKebab,
-                            (locKind == AInDataTypeKind.ONE_OF || locKind == AInDataTypeKind.ANY_OF)
-                                    ? recursiveType(locResolved, new AIcdDefinitionLoadRequest(locTarget, aRequest.sourceKind(),
-                                            aRequest.namingProfile())) : AIcdDataType.atom(locKind, null)));
+                            locParsed.logicalName() + "-definition-" + locKebab, locTargetType));
                 }
+                if (!locEntered)
+                    throw new IllegalArgumentException("Circular inline schema alias '" + locRef
+                            + "' in " + aRequest.path());
                 return recursiveType(locResolved, new AIcdDefinitionLoadRequest(locTarget,
-                        aRequest.sourceKind(), aRequest.namingProfile()));
+                        aRequest.sourceKind(), aRequest.namingProfile()), aVisited);
             } catch (IOException locError) {
                 throw new IllegalArgumentException("Cannot read nested schema reference '" + locRef + "'", locError);
+            } finally {
+                if (locEntered) aVisited.remove(locReferenceKey);
             }
         }
         String locType = text(aSchema, "type");
@@ -274,7 +306,7 @@ final class AIcJsonSchemaReader {
         }
         if ("array".equals(locType) || aSchema.has("items"))
             return new AIcdDataType(AInDataTypeKind.ARRAY,
-                    recursiveType(aSchema.get("items"), aRequest), List.of(), List.of(), null,
+                    recursiveType(aSchema.get("items"), aRequest, aVisited), List.of(), List.of(), null,
                     AIcScalarConstraints.json(aSchema, AInDataTypeKind.ARRAY));
         if ("object".equals(locType) || aSchema.has("properties")) {
             Set<String> locRequired = new HashSet<>();
@@ -284,7 +316,7 @@ final class AIcJsonSchemaReader {
             JsonNode locObject = aSchema.path("properties");
             if (locObject.isObject()) locObject.fields().forEachRemaining(aEntry ->
                     locProperties.add(property(aEntry.getKey(), aEntry.getValue(),
-                            locRequired.contains(aEntry.getKey()), aRequest)));
+                            locRequired.contains(aEntry.getKey()), aRequest, aVisited)));
             return new AIcdDataType(AInDataTypeKind.OBJECT, null, locProperties, List.of(), null,
                     AIcScalarConstraints.json(aSchema, AInDataTypeKind.OBJECT));
         }

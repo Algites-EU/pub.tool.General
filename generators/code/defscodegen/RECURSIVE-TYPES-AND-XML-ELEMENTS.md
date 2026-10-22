@@ -80,6 +80,16 @@ clean its generated interface/enum roles after successful preflight. Both
 paths support `--check` and collision detection; neither may delete
 SDO-generated files or unrelated generator outputs.
 
+Named local JSON/YAML `$defs` objects and choices retain nominal references, including
+recursive members such as `FinalizationAction.FinalizationActions[]` that refer back
+to their own containing contract. Defs Codegen must not eagerly inline those
+members: a named object target is represented by its kind and stable identity,
+while a named choice retains its alternatives until a recursive back-edge is
+reached. The back-edge remains a reference without a recursively embedded
+`targetDataType`. Invalid cyclic aliases without a named target fail with an
+explicit error rather than overflowing the Java/Python call stack. This rule
+applies equally to the Java and Python canonical schema readers.
+
 The first-stage renderers emit contracts directly from canonical definitions,
 without rendering or parsing a concrete DTO source. There is no paired
 Defs Codegen API: the former `AIcSchemaInterfaceGenerator` and
