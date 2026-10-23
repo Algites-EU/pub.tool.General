@@ -5,6 +5,7 @@ import eu.algites.tool.codegen.sdo.AIcdGeneratedSdoSource;
 import eu.algites.tool.codegen.sdo.AIcdSdoGenerationResult;
 import eu.algites.tool.codegen.sdo.AIiSdoCodegenService;
 import eu.algites.lib.data.dataobject.AIaDataObjectField;
+import eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy;
 import eu.algites.lib.data.dataobject.AIaFieldDefault;
 import eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject;
 import eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField;
@@ -30,6 +31,8 @@ import java.util.Map;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.Objects;
 
 /** Generate mutable contracts and concrete SmartDataObjects solely from compiled AIig contracts. */
@@ -166,11 +169,24 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         Class<?> locParent = locParents.isEmpty() ? null : locParents.get(0);
         LinkedHashMap<String, AIcdGetter> locOwn = fields(aReadContract.getDeclaredMethods(), aInputNames);
         LinkedHashMap<String, AIcdGetter> locAll = inheritedFields(aReadContract, aInputNames);
-        /* A multiply inherited contract cannot extend both concrete parent classes.
-         * Flatten its fields into a single concrete SDO while implementing every
-         * inherited mutable interface and keeping the original read-only diamond.
+        /* Generic mutable ancestors cannot be extended through an implementation
+         * that has already fixed their type arguments. A concrete subtype therefore
+         * implements its complete writable contract and its inherited fields directly.
+         * The mutable interface retains every parent edge, including diamonds.
          */
-        if (locParents.size() > 1) locOwn = locAll;
+        boolean locNeedsFlattenedImplementation = locParents.size() > 1;
+        if (locParent != null) {
+            LinkedHashMap<String, AIcdGetter> locParentFields = inheritedFields(locParent, aInputNames);
+            for (var locEntry : locParentFields.entrySet()) {
+                AIcdGetter locOverride = locAll.get(locEntry.getKey());
+                if (locOverride == null || referencedContract(locEntry.getValue().method())
+                        != referencedContract(locOverride.method())) {
+                    locNeedsFlattenedImplementation = true;
+                    break;
+                }
+            }
+        }
+        if (locNeedsFlattenedImplementation) locOwn = locAll;
         String locPackage = aReadContract.getPackageName();
         String locMutablePackage = appendedPackage(locPackage, aMutableSubpackage);
         String locConcretePackage = appendedPackage(locPackage, aConcreteSubpackage);
@@ -215,33 +231,97 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 + ", title = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.title())
                 + "\", description = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.description())
                 + "\", fingerprint = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.fingerprint())
-                + "\", namingConvention = \"" + escape(locMutableConvention) + "\")\n";
+                + "\", namingConvention = \"" + escape(locMutableConvention) + "\""
+                + ", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy."
+                + (locSourceAnnotation == null || locSourceAnnotation.setterInheritancePolicy()
+                    == AInFieldSetterInheritancePolicy.DEFAULT
+                        ? defaultSetterPolicy().name()
+                        : locSourceAnnotation.setterInheritancePolicy().name()) + ")\n";
         String locConcreteAnnotationLiteral = locAnnotationLiteral.replace(
                 "namingConvention = \"" + escape(locMutableConvention) + "\"",
                 "namingConvention = \"" + escape(locConcreteConvention) + "\"");
         String locXmlAnnotationLiteral = xmlTypeAnnotation(aReadContract.getDeclaredAnnotation(AIaXmlDataObject.class));
+        String locSmartAnnotationLiteral = smartTypeAnnotation(
+                aReadContract.getDeclaredAnnotation(eu.algites.lib.data.smartdataobject.AIaSmartDataObject.class));
         String locMutable = typeName(aReadContract, locMarker, true, aInputNames, aMutableNames, aConcreteNames);
         String locConcrete = typeName(aReadContract, locMarker, false, aInputNames, aMutableNames, aConcreteNames);
-        String locMutableParents = locParents.stream()
-                .map(aParent -> qualifiedName(aParent, typeName(aParent, locMarker, true,
-                        aInputNames, aMutableNames, aConcreteNames), aMutableSubpackage))
+        LinkedHashMap<String, AIcdGetter> locInherited = new LinkedHashMap<>();
+        for (Class<?> locAncestor : locParents)
+            merge(locInherited, inheritedFields(locAncestor, aInputNames));
+        LinkedHashMap<String, String> locTypeVariables = new LinkedHashMap<>();
+        LinkedHashMap<String, String> locFieldPolicies = new LinkedHashMap<>();
+        for (var locEntry : locAll.entrySet()) {
+            String locFieldName = locEntry.getKey();
+            AIcdGetter locDefinition = locEntry.getValue();
+            AInFieldSetterInheritancePolicy locPolicy = setterPolicy(locDefinition);
+            AIcdGetter locInheritedField = locInherited.get(locFieldName);
+            if (locInheritedField != null) {
+                AInFieldSetterInheritancePolicy locParentPolicy = setterPolicy(locInheritedField);
+                if (locParentPolicy != locPolicy) {
+                    if (locDefinition.field().setterInheritancePolicy() != AInFieldSetterInheritancePolicy.DEFAULT)
+                        throw new IllegalArgumentException("Setter inheritance policy of " + locFieldName
+                                + " conflicts with published parent contract " + locInheritedField.method().getDeclaringClass());
+                    locPolicy = locParentPolicy;
+                }
+                if (locParentPolicy == AInFieldSetterInheritancePolicy.INHERIT_AS_FIXED_PARAMETER
+                        && !locInheritedField.method().getGenericReturnType().getTypeName().equals(
+                                locDefinition.method().getGenericReturnType().getTypeName()))
+                    throw new IllegalArgumentException("Cannot narrow a fixed inherited setter parameter: " + locFieldName);
+            }
+            locFieldPolicies.put(locFieldName, locPolicy.name());
+            if (locPolicy == AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
+                    && referencedContract(locDefinition.method()) != null)
+                locTypeVariables.put(locFieldName, "T" + Character.toUpperCase(locFieldName.charAt(0)) + locFieldName.substring(1));
+        }
+        List<String> locTypeBounds = new ArrayList<>();
+        for (var locEntry : locTypeVariables.entrySet()) {
+            AIcdGetter locDefinition = locAll.get(locEntry.getKey());
+            Class<?> locTarget = referencedContract(locDefinition.method());
+            locTypeBounds.add(locEntry.getValue() + " extends " + qualifiedMutableValueName(locTarget,
+                    locMarker, aInputNames, aMutableNames, aConcreteNames, aMutableSubpackage));
+        }
+        String locGenericDeclaration = locTypeBounds.isEmpty() ? "" : "<" + String.join(", ", locTypeBounds) + ">";
+        List<String> locParentDeclarations = new ArrayList<>();
+        for (Class<?> locAncestor : locParents) {
+            List<String> locParentArguments = new ArrayList<>();
+            for (var locAncestorField : inheritedFields(locAncestor, aInputNames).entrySet()) {
+                if (setterPolicy(locAncestorField.getValue()) != AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
+                        || referencedContract(locAncestorField.getValue().method()) == null) continue;
+                String locVariable = locTypeVariables.get(locAncestorField.getKey());
+                if (locVariable == null) throw new IllegalArgumentException("Missing inherited setter type argument for "
+                        + locAncestorField.getKey() + " in " + aReadContract);
+                locParentArguments.add(locVariable);
+            }
+            String locParentType = qualifiedName(locAncestor, typeName(locAncestor, locMarker, true,
+                    aInputNames, aMutableNames, aConcreteNames), aMutableSubpackage);
+            locParentDeclarations.add(locParentType + (locParentArguments.isEmpty() ? ""
+                    : "<" + String.join(", ", locParentArguments) + ">"));
+        }
+        String locMutableParents = locParentDeclarations.stream()
                 .reduce("", (aLeft, aRight) -> aLeft + ", " + aRight);
-        String locConcreteParent = locParent == null || locParents.size() > 1
+        String locConcreteParent = locNeedsFlattenedImplementation || locParent == null
                 ? implementationBase(aReadContract)
                 : qualifiedName(locParent, typeName(locParent, locMarker, false,
                         aInputNames, aMutableNames, aConcreteNames), aConcreteSubpackage);
+        String locConcreteArguments = locTypeVariables.isEmpty() ? "" : "<" + String.join(", ",
+                locTypeVariables.keySet().stream().map(aName -> {
+                    Class<?> locTarget = referencedContract(locAll.get(aName).method());
+                    return qualifiedMutableValueName(locTarget, locMarker,
+                            aInputNames, aMutableNames, aConcreteNames, aMutableSubpackage);
+                }).toList()) + ">";
         StringBuilder locInterface = new StringBuilder("package " + locMutablePackage + ";\n\n"
                 + "/** Generated mutable contract derived from " + aReadContract.getSimpleName() + ". */\n"
                 + locAnnotationLiteral
                 + locXmlAnnotationLiteral
-                + "public interface " + locMutable + " extends " + aReadContract.getCanonicalName()
+                + locSmartAnnotationLiteral
+                + "public interface " + locMutable + locGenericDeclaration + " extends " + aReadContract.getCanonicalName()
                 + locMutableParents
                 + ", " + mutableBase(aReadContract) + " {\n");
         StringBuilder locImplementation = new StringBuilder("package " + locConcretePackage + ";\n\n"
                 + "/** Generated mutable implementation of " + aReadContract.getSimpleName() + ". */\n"
                 + locConcreteAnnotationLiteral
                 + "public class " + locConcrete + " extends " + locConcreteParent
-                + " implements " + locMutablePackage + "." + locMutable + " {\n"
+                + " implements " + locMutablePackage + "." + locMutable + locConcreteArguments + " {\n"
                 + "    /** Create an object whose raw fields are initially absent. */\n"
                 + "    public " + locConcrete + "() { super(); }\n"
                 + "    /** Reconstruct an identity-preserving typed SmartDataObject graph. */\n"
@@ -252,6 +332,10 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             String locName = fieldName(locField.method(), locField.field(), aInputNames);
             String locType = mutableValueType(locGetter, locMarker, aInputNames, aMutableNames,
                     aConcreteNames, aMutableSubpackage);
+            String locVariable = locTypeVariables.get(locName);
+            String locInterfaceType = locVariable == null ? locType
+                    : genericMutableValueType(locGetter, locVariable);
+
             String locSuffix = Character.toUpperCase(locName.charAt(0)) + locName.substring(1);
             AIcNameConventionCatalog_1 locAccessorCatalog = aMutableNames == null
                     ? standardNaming() : aMutableNames;
@@ -270,14 +354,23 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 throw new IllegalArgumentException("SDO parameter name does not match concrete naming profile: " + locParameter);
             String locLiteral = "\"" + escape(locName) + "\"";
             String locBoxed = boxed(locGetter.getReturnType(), locType);
+            locInterface.append("    /** Typed writable access to field ")
+                    .append(locName).append(" under the published setter policy. */\n");
+            locInterface.append("    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = \"")
+                    .append(escape(locName)).append("\", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.")
+                    .append(locField.field().presence().name()).append(", allowsNull = ")
+                    .append(locField.field().allowsNull())
+                    .append(", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.")
+                    .append(locFieldPolicies.get(locName)).append(")\n");
             locInterface.append("    ").append(fieldLabelAnnotation(locGetter, locName));
             locInterface.append("    ").append(xmlFieldAnnotation(locGetter));
             locInterface.append("    ").append(defaultValueAnnotation(locGetter));
-            locInterface.append("    @Override ").append(locType).append(' ')
+            locInterface.append("    ").append(smartFieldAnnotation(locGetter));
+            locInterface.append("    @Override ").append(locInterfaceType).append(' ')
                     .append(locGetter.getName()).append("();\n");
-            locInterface.append("    void ").append(locSetterName).append('(').append(locType).append(' ')
+            locInterface.append("    void ").append(locSetterName).append('(').append(locInterfaceType).append(' ')
                     .append(locParameter).append(");\n")
-                    .append("    ").append(locType).append(" get_").append(locSuffix).append("();\n")
+                    .append("    ").append(locInterfaceType).append(" get_").append(locSuffix).append("();\n")
                     .append("    boolean isPresent_").append(locSuffix).append("();\n")
                     .append("    void unset_").append(locSuffix).append("();\n");
             locImplementation.append("    @Override public ").append(locType).append(' ').append(locGetter.getName())
@@ -451,6 +544,36 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         if (AIiYamlDataObject.class.isAssignableFrom(aRead))
             return "eu.algites.lib.data.smartdataobject.impl.yamldefs.AIcYamlSmartDataObject";
         return "eu.algites.lib.data.smartdataobject.impl.standard.AIcSmartDataObject";
+    }
+
+    /**
+     * Preserve the source read contract's optional effective-read behavior on its
+     * generated writable interface. Runtime metadata resolves the most-derived
+     * annotated getter, so the policy must accompany the generated declaration.
+     *
+     * @param aMetadata explicit source-level SmartDataObject policy or {@code null}
+     * @return the annotation source, or an empty string when there is no override
+     */
+    private static String smartTypeAnnotation(
+            eu.algites.lib.data.smartdataobject.AIaSmartDataObject aMetadata) {
+        if (aMetadata == null) return "";
+        return "@eu.algites.lib.data.smartdataobject.AIaSmartDataObject(allowNonPresentRead = "
+                + aMetadata.allowNonPresentRead() + ")\n";
+    }
+
+    /**
+     * Preserve an explicit getter-level override, including {@code false}, so
+     * the generated mutable getter does not inherit a more permissive type default.
+     *
+     * @param aGetter original annotated read-only getter
+     * @return the Java annotation source, or an empty string when unspecified
+     */
+    private static String smartFieldAnnotation(Method aGetter) {
+        var locMetadata = aGetter.getDeclaredAnnotation(
+                eu.algites.lib.data.smartdataobject.AIaSmartDataObjectField.class);
+        if (locMetadata == null) return "";
+        return "@eu.algites.lib.data.smartdataobject.AIaSmartDataObjectField(allowNonPresentRead = "
+                + locMetadata.allowNonPresentRead() + ")\n";
     }
 
     /** Carry the XML QName and type/element distinction onto the mutable contract. */
@@ -683,6 +806,33 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 + locTarget.format(locRole, "file_name_suffix", locVars, locConvention);
     }
 
+    /** Determine the effective published setter inheritance policy of a reflected field. */
+    private static AInFieldSetterInheritancePolicy setterPolicy(AIcdGetter aField) {
+        AInFieldSetterInheritancePolicy locPolicy = aField.field().setterInheritancePolicy();
+        if (locPolicy != AInFieldSetterInheritancePolicy.DEFAULT) return locPolicy;
+        AIaDataObject locOwner = aField.method().getDeclaringClass().getDeclaredAnnotation(AIaDataObject.class);
+        if (locOwner != null && locOwner.setterInheritancePolicy() != AInFieldSetterInheritancePolicy.DEFAULT)
+            return locOwner.setterInheritancePolicy();
+        return defaultSetterPolicy();
+    }
+
+    /**
+     * Return the concrete default policy of an unannotated handwritten contract.
+     *
+     * @return the configured invocation default, or generic inheritance policy
+     */
+    private static AInFieldSetterInheritancePolicy defaultSetterPolicy() {
+        return AInFieldSetterInheritancePolicy.valueOf(System.getProperty(
+                "algites.sdocodegen.setterInheritancePolicy",
+                AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER.name()));
+    }
+
+    /** Express a mutable getter and setter through the same interface-level variable. */
+    private static String genericMutableValueType(Method aGetter, String aVariable) {
+        return java.util.List.class.isAssignableFrom(aGetter.getReturnType())
+                ? "java.util.List<? extends " + aVariable + ">" : aVariable;
+    }
+
     /**
      * Discovers the read-only contract referenced by one field, including a list element.
      *
@@ -715,11 +865,35 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIcNameConventionCatalog_1 aConcreteNames, String aMutableSubpackage) {
         Class<?> locReturn = aGetter.getReturnType();
         if (isReadContract(locReturn)) {
-            return qualifiedName(locReturn, typeName(locReturn, aMarker, true,
-                    aInput, aMutableNames, aConcreteNames), aMutableSubpackage);
+            return qualifiedMutableValueName(locReturn, aMarker,
+                    aInput, aMutableNames, aConcreteNames, aMutableSubpackage);
         }
-        /* Invariant generic collections cannot be narrowed in a Java override. */
+        if (java.util.List.class.isAssignableFrom(locReturn)) {
+            Class<?> locNested = referencedContract(aGetter);
+            if (locNested != null) {
+                return "java.util.List<? extends " + qualifiedMutableValueName(locNested, aMarker,
+                        aInput, aMutableNames, aConcreteNames, aMutableSubpackage) + ">";
+            }
+        }
         return aGetter.getGenericReturnType().getTypeName().replace('$', '.');
+    }
+
+    /**
+     * Qualify a mutable referenced contract with wildcard type arguments when the
+     * referenced writable interface is itself generic. This avoids exposing a raw
+     * generated interface in the public bound of another generated type variable.
+     */
+    private static String qualifiedMutableValueName(Class<?> aRead, String aMarker,
+            AIcNameConventionCatalog_1 aInput, AIcNameConventionCatalog_1 aMutableNames,
+            AIcNameConventionCatalog_1 aConcreteNames, String aSubpackage) {
+        String locName = qualifiedName(aRead, typeName(aRead, aMarker, true,
+                aInput, aMutableNames, aConcreteNames), aSubpackage);
+        long locCount = inheritedFields(aRead, aInput).values().stream()
+                .filter(aField -> setterPolicy(aField)
+                        == AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
+                        && referencedContract(aField.method()) != null).count();
+        if (locCount == 0) return locName;
+        return locName + "<" + String.join(", ", java.util.Collections.nCopies((int) locCount, "?")) + ">";
     }
 
     private static String qualifiedName(Class<?> aParent, String aReplacement, String aSubpackage) {

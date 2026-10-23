@@ -52,10 +52,12 @@ class AIcSchemaContractBindingsGenerator:
         configured = 'technology_output_naming_conventions' in manifest
         shared_names = None
         if configured:
-            files = []
-            for source in manifest.get('naming_convention_files', []):
-                files.append(source if source.startswith('resource:') else str(self._inside(repository, source)))
-            shared_names = AIcNameConventionCatalog_1.load_many(files)
+            from ._catalog_sources import expand_naming_catalogs
+            sources = [source if source.startswith(('classpath:', 'resource:'))
+                       else str(self._inside(repository, source))
+                       for source in manifest.get('naming_convention_files', [])]
+            with expand_naming_catalogs(sources) as files:
+                shared_names = AIcNameConventionCatalog_1.load_many(files)
         output_roots = {t: self._inside(repository, d) for t, d in manifest.get('technology_outputs', {}).items()}
         catalogs = {t: AIcNameConventionCatalog_1.load(self._inside(repository, file))
                     for t, file in manifest.get('technology_naming_profiles', {}).items()}
@@ -102,6 +104,7 @@ class AIcSchemaContractBindingsGenerator:
             for kind in ('jsondefs', 'yamldefs', 'xmldefs')]
         root_by_source = {}
         kind_by_source = {}
+        existing_source_directories = 0
         for source_input in source_roots:
             kind = source_input['kind']
             suffix = {'jsondefs': '.jsondef.schema.json', 'yamldefs': '.yamldef.schema.json', 'xmldefs': '.xsd'}[kind]
@@ -113,7 +116,9 @@ class AIcSchemaContractBindingsGenerator:
             else:
                 required_profile = None
             if not root.is_dir():
+                print(f'Defs Codegen: skipping configured {kind} input directory (not found): {root}', file=__import__('sys').stderr)
                 continue
+            existing_source_directories += 1
             for source in sorted(root.rglob('*')):
                 if not source.is_file() or not source.name.endswith(suffix):
                     continue
@@ -140,6 +145,10 @@ class AIcSchemaContractBindingsGenerator:
                         units.append(self.AIcdUnit(schema, '@type/' + name, name, {}, {}))
                 else:
                     self._collect(document, '', base, schema, document, overrides, units)
+        if existing_source_directories == 0:
+            print('Defs Codegen: no configured schema input directory exists; nothing to generate',
+                  file=__import__('sys').stderr)
+            return []
         discovered = {unit.schema + '#' + unit.pointer for unit in units}
         for key in overrides:
             if key not in discovered:

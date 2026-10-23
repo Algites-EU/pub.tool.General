@@ -6,6 +6,7 @@ both the input and the sole source of truth. Class inheritance is preserved.
 from __future__ import annotations
 
 import re
+import os
 import importlib
 from pathlib import Path
 import sys
@@ -18,10 +19,19 @@ from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object_namespace import
 from eu.algites.lib.data.dataobject.jsondefs.aii_json_data_object import AIiJsonDataObject
 from eu.algites.lib.data.dataobject.yamldefs.aii_yaml_data_object import AIiYamlDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
+from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy
 from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel
 from eu.algites.tool.codegen.sdo.aicd_generated_sdo_source import AIcdGeneratedSdoSource
 from eu.algites.tool.codegen.sdo.aicd_sdo_generation_result import AIcdSdoGenerationResult
 from eu.algites.tool.codegen.sdo.aii_sdo_codegen_service import AIiSdoCodegenService
+
+
+
+def _default_setter_inheritance_policy() -> AInFieldSetterInheritancePolicy:
+    """Native invocation fallback for unannotated handwritten contracts."""
+    return AInFieldSetterInheritancePolicy(os.environ.get(
+        'ALGITES_SDO_CODEGEN_SETTER_INHERITANCE_POLICY',
+        'INHERIT_AS_GENERIC_PARAMETER'))
 
 
 class AIcSdoCodegenService(AIiSdoCodegenService):
@@ -261,8 +271,60 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             f'from {mutable_package}.{stem_for(mutable_name, True)} import {mutable_name}',
             (f'from eu.algites.lib.data.smartdataobject.impl.{technology}.aic_{technology.removesuffix("defs")}_smart_data_object import {concrete_technology}' if technology else
             'from eu.algites.lib.data.smartdataobject.impl.standard.aic_smart_data_object import AIcSmartDataObject')]
+        def policy_for(field, owner):
+            explicit = field.setter_inheritance_policy
+            if explicit is not AInFieldSetterInheritancePolicy.DEFAULT:
+                return explicit
+            annotation = getattr(owner, '__data_object__', None)
+            contract_policy = (annotation.setter_inheritance_policy
+                               if annotation is not None else AInFieldSetterInheritancePolicy.DEFAULT)
+            return (contract_policy if contract_policy is not AInFieldSetterInheritancePolicy.DEFAULT
+                    else _default_setter_inheritance_policy())
+
+        generic_fields = {}
+        type_variables = {}
+        for field in all_fields.values():
+            getter = field.getter_name or accessor_name(read_contract, field, 'getter_method_name', 0)
+            nested = _nested_contract(read_contract, getter, field.name)
+            if nested is not None and policy_for(field, read_contract) is AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER:
+                type_variables[field.name] = 'T' + ''.join(part.capitalize() for part in re.split(r'[^a-zA-Z0-9]+', field.name))
+                generic_fields[field.name] = nested
+        # Any parent generic parameter must survive through this mutable descendant;
+        # concrete implementations cannot extend an already-specialized parent.
+        parent_parameter_names = {}
+        for ancestor in parents:
+            inherited_names = []
+            for base in reversed(ancestor.__mro__):
+                for field in base.__dict__.get('__data_object_fields__', ()):
+                    getter = field.getter_name or accessor_name(ancestor, field, 'getter_method_name', 0)
+                    if (_nested_contract(ancestor, getter, field.name) is not None
+                            and policy_for(field, ancestor) is AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER):
+                        if field.name not in inherited_names:
+                            inherited_names.append(field.name)
+            parent_parameter_names[ancestor] = inherited_names
+            for name in inherited_names:
+                current = all_fields[name]
+                if current.setter_inheritance_policy is AInFieldSetterInheritancePolicy.INHERIT_AS_FIXED_PARAMETER:
+                    raise ValueError('An inherited generic setter cannot become fixed: ' + name)
+                if name not in type_variables:
+                    getter = current.getter_name or accessor_name(read_contract, current, 'getter_method_name', 0)
+                    nested = _nested_contract(read_contract, getter, name)
+                    if nested is None:
+                        raise ValueError('An inherited generic setter cannot lose its value type: ' + name)
+                    type_variables[name] = 'T' + ''.join(part.capitalize() for part in re.split(r'[^a-zA-Z0-9]+', name))
+                    generic_fields[name] = nested
+        generic_arguments = ', '.join(type_variables.values())
+        generic_imports = ['from typing import TypeVar, Generic'] if type_variables else []
+        typevar_rows = [f'{var} = TypeVar({var!r}, bound={names_for(generic_fields[name][0])[0]!r})'
+                        for name, var in type_variables.items()]
+        parent_mutable_annotations = {}
+        for ancestor in parents:
+            entries = parent_parameter_names[ancestor]
+            parent_mutable_annotations[ancestor] = ('' if not entries else '['
+                 + ', '.join(type_variables[name] for name in entries) + ']')
+
         if len(parents) > 1:
-            mutable_bases = read_contract.__name__ + ', ' + ', '.join(names_for(p)[0] for p in parents) + ', ' + mutable_technology
+            mutable_bases = read_contract.__name__ + ', ' + ', '.join(names_for(p)[0] + parent_mutable_annotations[p] for p in parents) + ', ' + mutable_technology
             concrete_base = concrete_technology
             for inherited in parents:
                 parent_mut, _ = names_for(inherited)
@@ -273,11 +335,29 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             parent_pkg = parent.__module__.rsplit('.', 1)[0]
             mutable_lines.append(f'from {subpackage(parent_pkg, mutable_subpackage)}.{stem_for(parent_mut, True, inherited if len(parents)>1 else parent)} import {parent_mut}')
             concrete_lines.append(f'from {subpackage(parent_pkg, concrete_subpackage)}.{stem_for(parent_impl, False, parent)} import {parent_impl}')
-            mutable_bases = f'{read_contract.__name__}, {parent_mut}, {mutable_technology}'
-            concrete_base = parent_impl
+            mutable_bases = f'{read_contract.__name__}, {parent_mut}{parent_mutable_annotations[parent]}, {mutable_technology}'
+            concrete_base = concrete_technology if parent_parameter_names[parent] else parent_impl
+            if parent_parameter_names[parent]:
+                fields = tuple(all_fields.values())
         else:
             mutable_bases = f'{read_contract.__name__}, {mutable_technology}'
             concrete_base = concrete_technology
+        for ancestor in parents:
+            for base in reversed(ancestor.__mro__):
+                for field in base.__dict__.get('__data_object_fields__', ()):
+                    if policy_for(field, ancestor) is AInFieldSetterInheritancePolicy.INHERIT_AS_FIXED_PARAMETER:
+                        getter = field.getter_name or accessor_name(ancestor, field, 'getter_method_name', 0)
+                        ancestor_nested = _nested_contract(ancestor, getter, field.name)
+                        current = all_fields.get(field.name)
+                        if ancestor_nested is not None and current is not None:
+                            child_getter = current.getter_name or accessor_name(read_contract, current, 'getter_method_name', 0)
+                            child_nested = _nested_contract(read_contract, child_getter, current.name)
+                            if child_nested is None or child_nested[0] is not ancestor_nested[0]:
+                                raise ValueError('Cannot refine a fixed inherited setter parameter: ' + field.name)
+        if type_variables:
+            mutable_bases += ', Generic[' + generic_arguments + ']'
+            mutable_lines[2:2] = generic_imports
+            mutable_lines.extend([''] + typevar_rows)
         import re as _re
         inherited_definition = getattr(read_contract, '__data_object__', None)
         schema_id = getattr(inherited_definition, 'schema_id', '') if inherited_definition else ''
@@ -301,9 +381,11 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         inherited = inherited_definition or AIcdDataObject()
         annotation = (f'AIcdDataObject(schema_id={schema_id!r}, schema_version={schema_version}, '
             f'title={inherited.title!r}, description={inherited.description!r}, schema_url={inherited.schema_url!r}, '
-            f'fingerprint={inherited.fingerprint!r}, naming_convention={mutable_role or inherited.naming_convention!r})')
+            f'fingerprint={inherited.fingerprint!r}, naming_convention={mutable_role or inherited.naming_convention!r}, '
+            f'setter_inheritance_policy=AInFieldSetterInheritancePolicy.{(inherited.setter_inheritance_policy if inherited.setter_inheritance_policy is not AInFieldSetterInheritancePolicy.DEFAULT else _default_setter_inheritance_policy()).name})')
         mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject')
         mutable_lines.insert(5, 'from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel')
+        mutable_lines.insert(6, 'from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy')
         labels = {}
         for field in fields:
             getter = field.getter_name or accessor_name(read_contract, field, 'getter_method_name', 0)
@@ -358,8 +440,9 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 mutable_lines.append(f'        {field_name!r}: {encode_label(label)},')
             mutable_lines.append('    }')
         concrete_lines.insert(2, 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject')
-        concrete_lines.extend(['', '', f'class {concrete_name}({concrete_base}, {mutable_name}):',
-                               f'    __data_object__ = AIcdDataObject(schema_id={schema_id!r}, schema_version={schema_version}, naming_convention={concrete_role!r})',
+        concrete_lines.insert(3, 'from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy')
+        concrete_lines.extend(['', '', f'class {concrete_name}({concrete_base}, {mutable_name}' + ('' if not type_variables else '[' + ', '.join(repr(names_for(generic_fields[key][0])[0]) for key in type_variables) + ']') + '):',
+                               f'    __data_object__ = AIcdDataObject(schema_id={schema_id!r}, schema_version={schema_version}, naming_convention={concrete_role!r}, setter_inheritance_policy=AInFieldSetterInheritancePolicy.{(inherited.setter_inheritance_policy if inherited.setter_inheritance_policy is not AInFieldSetterInheritancePolicy.DEFAULT else _default_setter_inheritance_policy()).name})',
                                '    """Generated implementation; inherited fields use parent behavior."""'])
         mutable_imports = []
         concrete_imports = []
@@ -392,6 +475,9 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     nested_concrete_module = subpackage(nested_package, concrete_subpackage) + '.' + stem_for(nested_concrete, False, nested_details[0])
                     xml_nested_imports[name] = nested_concrete_module + ':' + nested_concrete
             typed_value = nested_type or 'object'
+            variable = type_variables.get(name)
+            interface_type = ((f'list[{variable}]' if nested_details[2] else variable)
+                              + (' | None' if nested_details[1] else '')) if variable else typed_value
             if nested_type is not None:
                 nested_class = nested_details[0]
                 nested_name = names_for(nested_class)[0]
@@ -401,10 +487,10 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 concrete_imports.append(f'from {subpackage(nested_package, mutable_subpackage)}.{nested_file} import {nested_name}')
             if nested_type is not None:
                 mutable_lines.extend(['', '    @abstractmethod',
-                    f'    def {getter}(self) -> {typed_value}: ...'])
+                    f'    def {getter}(self) -> {interface_type}: ...'])
             mutable_lines.extend(['', '    @abstractmethod',
-                f'    def {setter}(self, {parameter_name}: {typed_value}) -> None: ...',
-                '', '    @abstractmethod', f'    def get_{suffix}(self) -> {typed_value}: ...',
+                f'    def {setter}(self, {parameter_name}: {interface_type}) -> None: ...',
+                '', '    @abstractmethod', f'    def get_{suffix}(self) -> {interface_type}: ...',
                 '', '    @abstractmethod', f'    def isPresent_{suffix}(self) -> bool: ...',
                 '', '    @abstractmethod', f'    def unset_{suffix}(self) -> None: ...'])
             concrete_lines.extend(['', f'    def {getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',

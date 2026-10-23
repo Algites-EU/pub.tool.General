@@ -10,48 +10,15 @@ import sys
 
 from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
 from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from ._layered_settings import expand as expand_layered_settings
+from ._catalog_sources import expand_naming_catalogs
 
 _ROLES = {'common', 'xmldefs_type', 'xmldefs_element', 'yamldefs', 'jsondefs'}
 
 
 def _settings(arguments: list[str]) -> list[str]:
-    paths = [value.partition('=')[2] for value in arguments if value.startswith('--settings-file=')]
-    if len(paths) > 1:
-        raise ValueError('Only one --settings-file is permitted')
-    remaining = [value for value in arguments if not value.startswith('--settings-file=')]
-    if not paths and remaining:
-        return remaining
-    if paths:
-        content = Path(paths[0]).read_text(encoding='utf-8')
-    else:
-        name = 'algites-sdocodegen-python-default.settings'
-        candidate = Path('generators/code/sdocodegen/intf/src/product/config/eu/algites/tool/codegen/sdo') / name
-        if candidate.is_file():
-            content = candidate.read_text(encoding='utf-8')
-        else:
-            content = None
-            for provider in ('eu.algites.tool.codegen.sdo',
-                             'algites.pub.tool.general.generators.code.sdocodegen.intf'):
-                try:
-                    resource = importlib.resources.files(provider).joinpath(
-                        *(['eu', 'algites', 'tool', 'codegen', 'sdo', name]
-                          if provider.startswith('algites.') else [name]))
-                    if resource.is_file():
-                        content = resource.read_text(encoding='utf-8')
-                        break
-                except (ModuleNotFoundError, FileNotFoundError, TypeError):
-                    continue
-            if content is None:
-                raise FileNotFoundError('Packaged default SDO settings are unavailable: ' + name)
-    options = []
-    for number, line in enumerate(content.splitlines(), 1):
-        line = line.strip()
-        if not line or line.startswith('#'):
-            continue
-        if not line.startswith('--') or any(ch.isspace() for ch in line):
-            raise ValueError(f'Invalid SDO settings line {number}')
-        options.append(line)
-    return options + remaining
+    """Resolve packaged, classpath, invocation and CLI configuration layers."""
+    return expand_layered_settings(arguments, 'sdocodegen', 'python', 'sdo')
 
 
 def _write(root: Path, item, check: bool):
@@ -92,6 +59,8 @@ def main(args=None):
     parser.add_argument('--dointf-classpath', action='append', default=[])
     parser.add_argument('--sdointf-subpackage', default='')
     parser.add_argument('--sdoclass-subpackage', default='')
+    parser.add_argument('--setter-inheritance-policy', choices=(
+        'INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'))
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--clean-only', action='store_true')
     options = parser.parse_args(arguments)
@@ -117,10 +86,10 @@ def main(args=None):
         parser.error('Python DataObject input directory is required')
     if not options.naming_conventions_file:
         parser.error('At least one --naming-conventions-file is required')
-    resolved_catalogs = []
-    for value in options.naming_conventions_file:
-        resolved_catalogs.append(value if value.startswith('resource:') else str((root / value).resolve()))
-    catalog = AIcNameConventionCatalog_1.load_many(resolved_catalogs)
+    sources = [value if value.startswith(('classpath:', 'resource:'))
+               else str((root / value).resolve()) for value in options.naming_conventions_file]
+    with expand_naming_catalogs(sources) as resolved_catalogs:
+        catalog = AIcNameConventionCatalog_1.load_many(resolved_catalogs)
     profiles = [{}, {}, {}]
     for value in options.input_technology_naming_convention:
         parts = value.split(':', 2)
@@ -151,7 +120,8 @@ def main(args=None):
         _clean_sdo_outputs(catalog, mutable_root, concrete_root, profiles)
         return 0
     if not source_root.is_dir():
-        raise ValueError(f'SDO input directory does not exist: {source_root}')
+        print(f'SDO Codegen: skipping configured input directory (not found): {source_root}', file=sys.stderr)
+        return 0
     selected = {}
     for source in sorted(source_root.rglob('*.py')):
         matches = []
@@ -198,11 +168,22 @@ def main(args=None):
                 sys.path.insert(0, absolute)
                 added.append(absolute)
     try:
-        generated = AIcSdoCodegenService().generate_from_sources(
-            source_root, selected, naming=(*profiles, catalog),
-            mutable_subpackage=options.sdointf_subpackage,
-            concrete_subpackage=options.sdoclass_subpackage,
-            enabled_roles=set(profiles[0]) & set(profiles[1]) & set(profiles[2]))
+        policy_key = 'ALGITES_SDO_CODEGEN_SETTER_INHERITANCE_POLICY'
+        previous_policy = os.environ.get(policy_key)
+        if options.setter_inheritance_policy is not None:
+            os.environ[policy_key] = options.setter_inheritance_policy
+        try:
+            generated = AIcSdoCodegenService().generate_from_sources(
+                source_root, selected, naming=(*profiles, catalog),
+                mutable_subpackage=options.sdointf_subpackage,
+                concrete_subpackage=options.sdoclass_subpackage,
+                enabled_roles=set(profiles[0]) & set(profiles[1]) & set(profiles[2]))
+        finally:
+            if options.setter_inheritance_policy is not None:
+                if previous_policy is None:
+                    os.environ.pop(policy_key, None)
+                else:
+                    os.environ[policy_key] = previous_policy
     finally:
         for path in added:
             sys.path.remove(path)

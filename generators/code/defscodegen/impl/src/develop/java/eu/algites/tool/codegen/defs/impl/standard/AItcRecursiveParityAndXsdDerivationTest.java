@@ -57,7 +57,12 @@ public final class AItcRecursiveParityAndXsdDerivationTest {
         }
     }
 
-    /** Inline objects and choices are projected to existing repository-named units. */
+    /**
+     * Ensures nested object and choice array contracts preserve all dimensions and
+     * produce covariant Java read-only collections for future type refinement.
+     * Unlike scalar array projections, each generated contract array dimension
+     * must use {@code ? extends} so specialized getters can override ancestors.
+     */
     @Test
     public void AIcRenderNestedNamedContracts() {
         AIcdDataType locInline = AIcdDataType.array(AIcdDataType.array(
@@ -69,7 +74,7 @@ public final class AItcRecursiveParityAndXsdDerivationTest {
                 AIcAlgitesNamingProfiles_1.javaProfile());
         Assert.assertEquals(AIcRecursiveContractType.render(locField, locRequest,
                 new AIcGenerationNames(), true, new java.util.TreeSet<>()),
-                "java.util.List<java.util.List<AIigInvoiceLinesItemsItems_1>>");
+                "java.util.List<? extends java.util.List<? extends AIigInvoiceLinesItemsItems_1>>");
         AIcdDataType locChoice = AIcdDataType.array(AIcdDataType.choice(
                 AInDataTypeKind.ONE_OF, List.of(
                         AIcdDataType.atom(AInDataTypeKind.INTEGER, null),
@@ -77,7 +82,7 @@ public final class AItcRecursiveParityAndXsdDerivationTest {
         var locChoiceField = new AIcdPropertyDefinition("selection", locChoice, ((false) ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED), false, null, null, null);
         Assert.assertEquals(AIcRecursiveContractType.render(locChoiceField, locRequest,
                 new AIcGenerationNames(), true, new java.util.TreeSet<>()),
-                "java.util.List<AIigInvoiceSelectionItems_1>");
+                "java.util.List<? extends AIigInvoiceSelectionItems_1>");
     }
 
     /** A permitted same-schema attribute restriction must project prohibited use. */

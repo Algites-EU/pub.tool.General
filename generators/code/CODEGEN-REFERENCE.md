@@ -37,18 +37,18 @@ Both accept the same kebab-case option names. See
 invocation and the role/configuration contract.
 
 The key distinction is **one repeatable list of naming catalog files**, such
-as `--naming-conventions-file=resource:algites-java-name-conventions.yml`,
+as `--naming-conventions-file:java=classpath:algites-java-name-conventions.yml`,
 and **independent mappings of semantic roles to exact convention IDs**:
 
 | Parameter | Meaning |
 |---|---|
-| `--schema-input-dir=KIND:PATH` | Discover XMLDEFS, YAMLDEFS or JSONDEFS schemas. |
-| `--input-schema-naming-convention=KIND:ID` | Convention to parse input schema filenames. |
-| `--technology-dointf-output-dir=TECH:PATH` | Generated getter-interface root. |
-| `--output-interface-technology-naming-convention=TECH:ROLE:defsintf=ID` | Convention for a specific generated read-interface role. |
-| `--output-enum-technology-naming-convention=TECH:ID` | Independent naming for generated enums. |
-| `--naming-conventions-file=PATH` | Add a YAML catalog; repeatable, including `resource:NAME`. |
-| `--settings-file=PATH` | Load one option per line; explicit options may override matching settings. |
+| `--schema-input-dir:KIND=PATH` | Discover XMLDEFS, YAMLDEFS or JSONDEFS schemas. |
+| `--input-schema-naming-convention:KIND=ID` | Convention to parse input schema filenames. |
+| `--technology-dointf-output-dir:TECH=PATH` | Generated getter-interface root. |
+| `--output-interface-technology-naming-convention:TECH:ROLE:defsintf=ID` | Convention for a specific generated read-interface role. |
+| `--output-enum-technology-naming-convention:TECH=ID` | Independent naming for generated enums. |
+| `--naming-conventions-file:ENTRY_ID=PATH` | Add a YAML catalog; repeatable, including `classpath:NAME`. |
+| `--settings-file=PATH` | Overlay an invocation settings file on bundled and classpath defaults; explicit CLI arguments override matching keys. |
 | `--check`, `--clean-only` | Read-only verification or cleanup of generator-owned outputs. |
 
 The getter-interface roles are `common`, `xmldefs_type`, `xmldefs_element`,
@@ -125,16 +125,16 @@ See [SDO Codegen naming CLI](sdocodegen/CLI-NAMING-BATCH.md).
 
 | Parameter | Meaning |
 |---|---|
-| `--technology-dointf-input-dir=TECH:PATH` | Source directory of annotated getter interfaces. |
-| `--technology-sdointf-output-dir=TECH:PATH` | Mutable-interface output directory. |
-| `--technology-sdoimpl-output-dir=TECH:PATH` | Concrete-implementation output directory. |
-| `--input-technology-naming-convention=TECH:ROLE:defsintf=ID` | Name parser for read interfaces of a role. |
-| `--output-technology-naming-convention=TECH:ROLE:sdointf=ID,sdoclass=ID` | Independent output naming conventions. |
-| `--naming-conventions-file=PATH` | Repeatable shared YAML catalog or `resource:NAME`. |
+| `--technology-dointf-input-dir:TECH=PATH` | Source directory of annotated getter interfaces. |
+| `--technology-sdointf-output-dir:TECH=PATH` | Mutable-interface output directory. |
+| `--technology-sdoimpl-output-dir:TECH=PATH` | Concrete-implementation output directory. |
+| `--input-technology-naming-convention:TECH:ROLE:defsintf=ID` | Name parser for read interfaces of a role. |
+| `--output-technology-naming-convention:TECH:ROLE:sdointf=ID` and `--output-technology-naming-convention:TECH:ROLE:sdoclass=ID` | Independent output naming conventions. |
+| `--naming-conventions-file:ENTRY_ID=PATH` | Repeatable shared YAML catalog or `classpath:NAME`. |
 | `--sdointf-subpackage=SUFFIX`, `--sdoclass-subpackage=SUFFIX` | Optional, independent package suffixes; defaults are in settings. |
 | `--dointf-classpath=PATHS` | Java input-class dependencies, preserved from the old CLI. |
 | `--dointf-input-artifact=PATH`, `--dointf-input-class=TYPE` | Java only: JAR/classdir or class specifically selected for generation. |
-| `--settings-file=PATH`, `--check`, `--clean-only` | Settings, verification and cleanup. |
+| `--settings-file=PATH`, `--check`, `--clean-only` | Layered settings, verification and cleanup. |
 
 Java SDO uses source compilation/reflection and can also scan full compiled
 JARs and class directories. A modular JAR can be loaded for generation as a
@@ -240,13 +240,23 @@ Prefix strings alone are never sufficient for safe cleanup matching.
 | `Ambiguous filename` | Multiple naming profiles accept the complete filename. Fix the YAML rules (or select only relevant roles). |
 | `Unversioned schema is not allowed` | Schema filename matched a non-versioned profile. Supply a version or opt in with `--allow-unversioned-schemas`. |
 | `Cannot resolve generated reference package` | A schema reference does not resolve to one generated contract. Include its schema/input root or repair the reference. |
+| `Incompatible resolved pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT` | Codegen requires `AInFieldSetterInheritancePolicy` and `setterInheritancePolicy()` on both `AIaDataObject` and `AIaDataObjectField`. A resolved 1.1-SNAPSHOT may be older despite having the expected Maven version. In remote dependency mode publish the updated `pub.lib.General` to Cloudsmith before retrying; `--refresh-dependencies` cannot supply API absent from the remote artifact. Alternatively select source mode with a current sibling `pub.lib.General` checkout, which publishes the updated library to Maven Local before building generators. |
 | `Cannot compile DO sources for SDO reflection` | A source file has a compilation error or an external Java dependency is absent. Supply the dependency through the JVM or `--dointf-classpath`. |
 | `Missing or outdated generated ...` | `--check` compared expected output to the filesystem; run a normal generation to update it. |
 
 ## 6. Build, tests and migration
 
+The native Java tests use TestNG exclusively. TestNG tests in both `impl` and
+`cli` artifacts are discovered and executed by the Gradle `test` tasks; Java
+regression classes are not executable test `main` programs. The Defs Java/Python
+parity test is a TestNG test that produces its JVM reference outputs in the
+same Gradle test JVM and invokes the Python parity assertions as part of that
+TestNG test. SDO native Python pytest tests are also wired into the standalone
+bootstrap Gradle test lifecycle.
+
 The native Java TestNG and Python pytest tests live under
-`generators/code/{defscodegen,sdocodegen}/impl/src/develop/`. Regression
+`generators/code/{defscodegen,sdocodegen}/impl/src/develop/`, with additional
+Java CLI tests in the corresponding `cli/src/develop/java` trees. Regression
 coverage includes same-format duplicates across independent input roots,
 canonical-ID collisions, incompatible schema shapes, generated-source
 preservation on preflight failure, Java/Python type rendering and the
@@ -336,3 +346,97 @@ imported group/element references, wildcards, unrestricted restriction,
 outside the supported subset and must not be treated as silently equivalent
 to valid generated contracts. See
 [the technical limits and examples](defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md).
+
+## Writable setter parameter inheritance (1.1)
+
+`pub.lib.General/data/dataobject/intf` publishes
+`AInFieldSetterInheritancePolicy`, with values `DEFAULT`,
+`INHERIT_AS_GENERIC_PARAMETER`, and `INHERIT_AS_FIXED_PARAMETER`.
+Both the Java `@AIaDataObject` and `@AIaDataObjectField` annotations and their
+Python descriptor counterparts carry `setterInheritancePolicy` /
+`setter_inheritance_policy`. An explicit field value takes precedence over the
+contract value. `DEFAULT` defers to a generation-time setting; the emitted
+read-only contracts record the effective policy for consumption by another
+artifact. The built-in effective default is `INHERIT_AS_GENERIC_PARAMETER`.
+
+Native Defs and SDO Codegen now resolve one unified `.settings` hierarchy:
+
+1. Packaged `algites-{defs|sdo}codegen-{java|python}-default.settings`, with
+   `--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER`.
+2. **All** classpath/package resources named
+   `algites-{defs|sdo}codegen-{java|python}.settings`, combined by complete key.
+   Java enumerates all `ClassLoader.getResources` results; Python combines
+   `importlib.resources` with every matching `sys.path` directory. Earlier
+   classpath/sys.path entries have higher priority for duplicate keys; unique
+   entries from lower-priority sources are retained.
+3. An optional `--settings-file=PATH` for the concrete invocation.
+4. Explicit CLI options for the concrete invocation.
+
+The complete key before `=` determines override identity, including colon-
+separated qualifiers such as `--schema-input-dir:yamldefs` or
+`--naming-conventions-file:standard`. An empty value deletes the inherited
+entry. Repeatable options carry a stable entry ID. `classpath:NAME` locates a
+packaged naming catalog; a bare value denotes a filesystem path. The previous
+unqualified CLI syntax remains accepted for compatibility and is normalized
+before merging. A missing configured source directory is logged and skipped;
+when none of the configured source roots exist, no generated files are touched.
+
+The source annotation's explicit type/field policies take precedence over all
+CLI and `.settings` layers. The SDO CLI applies its policy default only to
+otherwise unspecified handwritten DataObject contracts; it never overwrites
+explicit policy metadata from Defs Codegen or a parent contract. Programmatic
+service calls without CLI settings retain a generic-inheritance fallback.
+`DEFAULT` is not a valid effective generator setting. No additional
+`.properties` policy configuration is used.
+
+Handwritten read contracts may declare the policy directly; this release does
+not define a new schema-language extension for per-property overrides in XSD,
+JSON Schema, or YAML Schema.
+
+For Java, `AIig` read-only collection getters expose covariant lists using
+`List<? extends Value>`, at every nested array level. The mutable `AIigd`
+interface introduces a type variable for each reference-valued field whose
+setter policy is `INHERIT_AS_GENERIC_PARAMETER`; its getter and setter share
+that variable, including `List<? extends TVariable>` for repeated values.
+The variable is bounded by the generated **technology-specific mutable**
+contract, selected through the naming catalog rather than inferred by
+concatenating marker strings. Descendant mutable contracts extend every
+corresponding parent mutable contract and propagate or narrow inherited type
+variables, including Java diamonds/multiple inheritance. A `FIXED` field does
+not introduce a variable: its inherited setter remains callable with the
+published parameter type, so an incompatible refined getter in a descendant
+is rejected before generation. No unchecked bridge setter is generated.
+
+A concrete `AIcgd` implementation fixes its writable generic arguments to
+its matching technology-specific mutable field contracts. Concrete-class
+inheritance is retained when the inherited field types are unchanged. When a
+narrowing would conflict with a concrete ancestor's already-specialized type
+arguments, the concrete class instead extends the technology-specific SDO
+base and implements all inherited fields directly. The *mutable-interface*
+inheritance still retains all parent edges. Python emits corresponding
+`typing.Generic`/`TypeVar`-based writable interfaces and concrete
+specializations; its runtime does not itself enforce static typing.
+
+The setter policy controls the signature and substitutability of a setter,
+not whether a Java method literally ceases to be inherited. Setter input
+validation remains the responsibility of the SDO runtime. When introducing
+new descendants in another artifact, consumers must compile against the
+published read contracts and mutable parent interfaces rather than
+reinterpreting local generator defaults for an already-published parent.
+
+## Portable classpath catalog locations
+
+`--naming-conventions-file:ENTRY_ID=classpath:NAME.yml` selects a naming
+catalog from **every** matching Java classloader resource or Python source.
+Python searches package resources through `importlib.resources` and also scans
+all direct `sys.path` directories. Catalogs are **combined**, not replaced:
+each distinct file contributes its naming definitions. Identical shared
+identifiers are deduplicated; conflicting definitions of the same naming ID
+are rejected by the naming catalog loader rather than silently overridden.
+A relative filesystem path without a prefix remains relative to the repository.
+
+Python reads referenced sibling catalogs such as `StandardConventionsFile`
+from the same source as the referring YAML file, including ZIP resources.
+Java uses each resource's own JAR/directory for referenced sibling catalogs.
+Classpath references accept only a simple YAML filename, not path traversal.
+The previous `resource:NAME.yml` spelling remains a compatibility alias.

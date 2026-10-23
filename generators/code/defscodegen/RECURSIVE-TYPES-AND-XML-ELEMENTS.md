@@ -158,7 +158,7 @@ Java and Python preserve nested arrays containing scalars, named references,
 inline objects, and named closed choices. Inline JSON/YAML objects and nested
 `oneOf`/`anyOf` are discovered as separate, versioned read-contract sources
 in the same business package. The enclosing getter/property refers to that
-actual generated type (for example `List<List<AIigInvoiceLinesItemsItems_1>>`
+actual generated type (for example `List<? extends List<? extends AIigInvoiceLinesItemsItems_1>>`
 or `tuple[tuple[AIigInvoiceLinesItemsItems_1, ...], ...]`). Closed-choice
 wrappers are generated as independent compilation units alongside the choice
 interface. Direct `$defs` references and nested array references resolve to

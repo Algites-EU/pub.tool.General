@@ -41,44 +41,17 @@ public final class AIcSdoCodegenCli {
      */
     public static void main(String[] aArguments) throws Exception {
         String[] locArgs = expandSettings(aArguments);
-        batch(locArgs);
+        String locPrevious = System.getProperty("algites.sdocodegen.setterInheritancePolicy");
+        try {
+            batch(locArgs);
+        } finally {
+            if (locPrevious == null) System.clearProperty("algites.sdocodegen.setterInheritancePolicy");
+            else System.setProperty("algites.sdocodegen.setterInheritancePolicy", locPrevious);
+        }
     }
 
     private static String[] expandSettings(String[] aArgs) throws IOException {
-        String locSettings = null;
-        List<String> locOverrides = new ArrayList<>();
-        for (String locArg : aArgs) {
-            if (locArg.startsWith("--settings-file=")) {
-                if (locSettings != null) throw new IllegalArgumentException("Multiple --settings-file arguments");
-                locSettings = locArg.substring("--settings-file=".length());
-            } else locOverrides.add(locArg);
-        }
-        if (locSettings == null && !locOverrides.isEmpty()) return aArgs;
-        String locContent;
-        if (locSettings != null) locContent = Files.readString(Path.of(locSettings));
-        else {
-            String locName = "algites-sdocodegen-java-default.settings";
-            Path locCheckout = Path.of("generators/code/sdocodegen/intf/src/product/config/eu/algites/tool/codegen/sdo", locName);
-            if (Files.isRegularFile(locCheckout)) locContent = Files.readString(locCheckout);
-            else {
-                try (var locStream = AIcSdoCodegenCli.class.getClassLoader().getResourceAsStream("eu/algites/tool/codegen/sdo/" + locName)) {
-                    if (locStream == null) throw new IOException("Missing packaged SDO defaults: " + locName);
-                    locContent = new String(locStream.readAllBytes(), StandardCharsets.UTF_8);
-                }
-            }
-        }
-        List<String> locExpanded = new ArrayList<>();
-        int locLineNumber = 0;
-        for (String locLine : locContent.lines().toList()) {
-            locLineNumber++;
-            locLine = locLine.strip();
-            if (locLine.isEmpty() || locLine.startsWith("#")) continue;
-            if (!locLine.startsWith("--") || locLine.chars().anyMatch(Character::isWhitespace))
-                throw new IllegalArgumentException("Malformed SDO settings line " + locLineNumber);
-            locExpanded.add(locLine);
-        }
-        locExpanded.addAll(locOverrides);
-        return locExpanded.toArray(String[]::new);
+        return AIcLayeredCodegenSettings.expand(aArgs, "sdocodegen", "java", "sdo");
     }
 
     private static void batch(String[] aArgs) throws Exception {
@@ -104,6 +77,12 @@ public final class AIcSdoCodegenCli {
             String locName = locOption.substring(2, locEquals);
             String locValue = locOption.substring(locEquals + 1);
             switch (locName) {
+                case "setter-inheritance-policy" -> {
+                    var locPolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.valueOf(locValue);
+                    if (locPolicy == eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.DEFAULT)
+                        throw new IllegalArgumentException("Explicit default setter policy must be concrete");
+                    System.setProperty("algites.sdocodegen.setterInheritancePolicy", locPolicy.name());
+                }
                 case "repository-root" -> locRepository = Path.of(locValue).toAbsolutePath().normalize();
                 case "naming-conventions-file" -> locCatalogSources.add(locValue);
                 case "dointf-classpath" -> locClassPathParts.addAll(Arrays.asList(
@@ -153,9 +132,12 @@ public final class AIcSdoCodegenCli {
         if (locMutableRoot == null || locConcreteRoot == null)
             throw new IllegalArgumentException("Configure both Java SDO output roots");
         List<String> locSources = new ArrayList<>();
-        for (String locItem : locCatalogSources)
-            locSources.add(locItem.startsWith("resource:") ? locItem : root(locRepository, locItem).toString());
-        AIcNameConventionCatalog_1 locNames = AIcNameConventionCatalog_1.loadAll(locSources);
+        for (String locItem : locCatalogSources) {
+            String locResolved = AIcNamingCatalogSource.normalize(locItem);
+            locSources.add(locResolved.startsWith("resource:")
+                    ? locResolved : root(locRepository, locResolved).toString());
+        }
+        AIcNameConventionCatalog_1 locNames = AIcNamingCatalogCollector.load(locSources);
         AIcNameConventionCatalog_1 locInputNames = locNames.withRoles(locInputRoles);
         AIcNameConventionCatalog_1 locMutableNames = locNames.withRoles(locMutableRoles);
         AIcNameConventionCatalog_1 locConcreteNames = locNames.withRoles(locConcreteRoles);
@@ -168,6 +150,8 @@ public final class AIcSdoCodegenCli {
         List<Path> locDependencies = new ArrayList<>();
         for (String locPart : locClassPathParts) locDependencies.add(root(locRepository, locPart));
         Path locSourceRoot = root(locRepository, locDirectories.get("technology-dointf-input-dir"));
+        if (locSourceRoot != null && !Files.isDirectory(locSourceRoot))
+            System.err.println("SDO Codegen: skipping configured input directory (not found): " + locSourceRoot);
         if (locSourceRoot != null && Files.isDirectory(locSourceRoot)) {
             List<Path> locContracts = new ArrayList<>();
             try (var locWalk = Files.walk(locSourceRoot)) {

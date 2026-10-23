@@ -101,6 +101,7 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
     """Compare independent renderers and verify first-stage repository ownership."""
 
     java_classpath = None
+    java_fixture_directory = None
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='defs-contract-parity-')
@@ -173,11 +174,7 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
                         model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(source, kind, profile))
                         item = AIcSchemaContractInterfaceGenerator().generate(AIcdCodeGenerationRequest(
                             model, target, 'api_parity', profile))
-                        location = self.root / 'api' / kind.value / target.value / stem
-                        subprocess.run(['java', '-cp', self.java_classpath,
-                            'eu.algites.tool.codegen.defs.impl.standard.AItcGeneratorImplementationParityTest',
-                            kind.name, target.name, str(source), 'api_parity', str(location)],
-                            check=True, capture_output=True)
+                        location = Path(self.java_fixture_directory) / kind.value / target.value / stem
                         files = [p for p in location.rglob('*') if p.is_file()]
                         self.assertEqual(len(files), 1)
                         self.assertEqual(files[0].relative_to(location).as_posix(), item.relative_path)
@@ -199,6 +196,8 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
 if __name__ == '__main__':
     cli = argparse.ArgumentParser()
     cli.add_argument('--java-classpath', required=True)
+    cli.add_argument('--java-fixture-directory', required=True)
     args = cli.parse_args()
     AItcGeneratorImplementationParityTest.java_classpath = args.java_classpath
+    AItcGeneratorImplementationParityTest.java_fixture_directory = args.java_fixture_directory
     unittest.main(argv=[sys.argv[0]])

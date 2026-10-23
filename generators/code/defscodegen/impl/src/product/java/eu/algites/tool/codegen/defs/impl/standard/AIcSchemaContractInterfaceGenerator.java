@@ -71,7 +71,9 @@ public final class AIcSchemaContractInterfaceGenerator {
                 + ", schemaVersion = " + (aRequest.definition().version() == null ? -1 : aRequest.definition().version())
                 + ", title = " + AIcScalarGeneration.jquote(visibleTitle(aRequest.definition().title(), aRequest.definition().logicalName()))
                 + ", description = " + AIcScalarGeneration.jquote(aRequest.definition().description() == null ? "" : aRequest.definition().description())
-                + ", namingConvention = " + AIcScalarGeneration.jquote(aRequest.namingConvention()) + ")");
+                + ", namingConvention = " + AIcScalarGeneration.jquote(aRequest.namingConvention())
+                + ", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy."
+                + AIcSetterInheritancePolicyConfiguration.effectiveDefault().name() + ")");
         if (aRequest.xmlTypeQName() != null) {
             String locQName = aRequest.xmlTypeQName();
             int locDelimiter = locQName.indexOf('}');
@@ -101,7 +103,10 @@ public final class AIcSchemaContractInterfaceGenerator {
             rows.add(fieldLabelAnnotation(property));
             rows.add("    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = "
                     + AIcScalarGeneration.jquote(property.sourceName())
-                    + ", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind." + property.presence().name() + ", allowsNull = " + property.nullable() + ")");
+                    + ", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind." + property.presence().name()
+                    + ", allowsNull = " + property.nullable()
+                    + ", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy."
+                    + AIcSetterInheritancePolicyConfiguration.effectiveDefault().name() + ")");
             if (property.xmlField() != null) {
                 var locXml = property.xmlField();
                 rows.add("    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "

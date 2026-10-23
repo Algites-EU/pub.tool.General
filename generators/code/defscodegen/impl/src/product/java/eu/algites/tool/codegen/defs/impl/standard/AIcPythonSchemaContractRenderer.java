@@ -53,7 +53,9 @@ final class AIcPythonSchemaContractRenderer {
             locMetadata.add("        AIcdDataObjectField(field_name=" + quote(locProperty.sourceName())
                     + ", presence=AInFieldPresenceKind." + locProperty.presence().name()
                     + ", allows_null=" + (locProperty.nullable() ? "True" : "False")
-                    + ", getter_name=" + quote(locGetterName) + "),");
+                    + ", getter_name=" + quote(locGetterName)
+                    + ", setter_inheritance_policy=AInFieldSetterInheritancePolicy."
+                    + AIcSetterInheritancePolicyConfiguration.effectiveDefault().name() + "),");
             if (locProperty.xmlField() != null) {
                 var locXml = locProperty.xmlField();
                 locXmlFields.add("        " + quote(locProperty.sourceName())
@@ -103,6 +105,7 @@ final class AIcPythonSchemaContractRenderer {
                 + "from " + baseModule(locDefinition.sourceKind()) + " import " + baseType(locDefinition.sourceKind()) + "\n"
                 + "from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n"
                 + "from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\n"
+                + "from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy\n"
                 + "from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\n"
                 + "from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel\n"
                 + locXmlImports + locXmlFieldImports
@@ -112,7 +115,9 @@ final class AIcPythonSchemaContractRenderer {
                 + ", schema_version=" + (locDefinition.version() == null ? -1 : locDefinition.version())
                 + ", title=" + quote(title(locDefinition.title(), locDefinition.logicalName()))
                 + ", description=" + quote(locDefinition.description() == null ? "" : locDefinition.description())
-                + ", naming_convention=" + quote(aRequest.namingConvention()) + ")\n"
+                + ", naming_convention=" + quote(aRequest.namingConvention())
+                + ", setter_inheritance_policy=AInFieldSetterInheritancePolicy."
+                + AIcSetterInheritancePolicyConfiguration.effectiveDefault().name() + ")\n"
                 + locXmlMetadata + locXmlFieldMetadata
                 + "    __data_object_fields__ = (\n" + String.join("\n", locMetadata)
                 + "\n    )\n\n    __field_labels__ = {\n" + String.join("\n", locLabels)

@@ -35,45 +35,17 @@ public final class AIcDefsCodegenCli {
      * @throws Exception when configuration, schema loading, or source generation fails
      */
     public static void main(String[] aArguments) throws Exception {
-        batch(expandSettings(aArguments));
+        String locPrevious = System.getProperty("algites.defscodegen.setterInheritancePolicy");
+        try {
+            batch(expandSettings(aArguments));
+        } finally {
+            if (locPrevious == null) System.clearProperty("algites.defscodegen.setterInheritancePolicy");
+            else System.setProperty("algites.defscodegen.setterInheritancePolicy", locPrevious);
+        }
     }
 
     private static String[] expandSettings(String[] aArgs) throws IOException {
-        String locSettings = null;
-        var locRemaining = new java.util.ArrayList<String>();
-        for (String locArg : aArgs) {
-            if (locArg.startsWith("--settings-file=")) {
-                if (locSettings != null) throw new IllegalArgumentException("Duplicate --settings-file");
-                locSettings = locArg.substring("--settings-file=".length());
-            } else locRemaining.add(locArg);
-        }
-        if (locSettings == null && !locRemaining.isEmpty()) return aArgs;
-        String locText;
-        if (locSettings != null) {
-            locText = Files.readString(Path.of(locSettings));
-        } else {
-            String locDefault = "algites-defscodegen-java-default.settings";
-            Path locCheckout = Path.of("generators/code/defscodegen/intf/src/product/config/eu/algites/tool/codegen/defs", locDefault);
-            if (Files.isRegularFile(locCheckout)) locText = Files.readString(locCheckout);
-            else {
-                var locResource = AIcDefsCodegenCli.class.getClassLoader().getResourceAsStream("eu/algites/tool/codegen/defs/" + locDefault);
-                if (locResource == null)
-                    throw new IOException("Missing packaged default Defs settings: " + locDefault);
-                try (locResource) { locText = new String(locResource.readAllBytes(), StandardCharsets.UTF_8); }
-            }
-        }
-        var locExpanded = new java.util.ArrayList<String>();
-        int locLineNo = 0;
-        for (String locLine : locText.lines().toList()) {
-            locLineNo++;
-            locLine = locLine.strip();
-            if (locLine.isEmpty() || locLine.startsWith("#")) continue;
-            if (!locLine.startsWith("--") || locLine.contains(" ") || locLine.startsWith("--settings-file"))
-                throw new IllegalArgumentException("Invalid settings option at line " + locLineNo);
-            locExpanded.add(locLine);
-        }
-        locExpanded.addAll(locRemaining);
-        return locExpanded.toArray(String[]::new);
+        return AIcLayeredCodegenSettings.expand(aArgs, "defscodegen", "java", "defs");
     }
 
     private static void batch(String[] aArgs) throws Exception {
@@ -100,6 +72,13 @@ public final class AIcDefsCodegenCli {
                 throw new IllegalArgumentException("Invalid batch argument: " + locArgument);
             String locKey = locArgument.substring(2, locEquals);
             String locValue = locArgument.substring(locEquals + 1);
+            if (locKey.equals("setter-inheritance-policy")) {
+                var locPolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.valueOf(locValue);
+                if (locPolicy == eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.DEFAULT)
+                    throw new IllegalArgumentException("Explicit default setter policy must be concrete");
+                System.setProperty("algites.defscodegen.setterInheritancePolicy", locPolicy.name());
+                continue;
+            }
             if (locKey.equals("repository-root")) {
                 locRepository = Path.of(locValue).toAbsolutePath().normalize(); continue;
             }

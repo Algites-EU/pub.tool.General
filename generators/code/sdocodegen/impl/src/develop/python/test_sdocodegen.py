@@ -91,9 +91,9 @@ def test_nested_data_object_getter_is_covariant(contracts):
     for contract in (parent, child):
         emit(generator.generate(contract), root)
     generated=generator.generate(AIigContainer)
-    assert 'def getChild(self) -> AIigdChild' in generated.mutable_interface.source
-    assert 'def setChild(self, a_value: AIigdChild)' in generated.mutable_interface.source
-    assert 'def get_Child(self) -> AIigdChild' in generated.mutable_interface.source
+    assert 'def getChild(self) -> TChild' in generated.mutable_interface.source
+    assert 'def setChild(self, a_value: TChild)' in generated.mutable_interface.source
+    assert 'def get_Child(self) -> TChild' in generated.mutable_interface.source
     emit(generated, root)
     Container=importlib.import_module(package+'.aicgd_container').AIcgdContainer
     Child=importlib.import_module(package+'.aicgd_child').AIcgdChild
@@ -139,8 +139,8 @@ def test_schema_nested_reference_passes_mutable_contract_to_sdo(tmp_path, monkey
     assert instance.getChild() is nested
     assert instance.get_Child().getName() == 'Nested'
     generated = generator.generate(read_container)
-    assert 'def getChild(self) -> AIigdChild_1' in generated.mutable_interface.source
-    assert 'def setChild(self, a_value: AIigdChild_1)' in generated.mutable_interface.source
+    assert 'def getChild(self) -> TChild' in generated.mutable_interface.source
+    assert 'def setChild(self, a_value: TChild)' in generated.mutable_interface.source
 
 
 def test_nullable_nested_contract_uses_nullable_mutable_return(contracts):
@@ -154,9 +154,9 @@ def test_nullable_nested_contract_uses_nullable_mutable_return(contracts):
     AIigNullable.__module__ = parent.__module__
     setattr(module, 'AIigNullable', AIigNullable)
     result = AIcSdoCodegenService().generate(AIigNullable)
-    assert 'def getChild(self) -> AIigdChild | None' in result.mutable_interface.source
-    assert 'def setChild(self, a_value: AIigdChild | None)' in result.mutable_interface.source
-    assert 'def get_Child(self) -> AIigdChild | None' in result.mutable_interface.source
+    assert 'def getChild(self) -> TChild | None' in result.mutable_interface.source
+    assert 'def setChild(self, a_value: TChild | None)' in result.mutable_interface.source
+    assert 'def get_Child(self) -> TChild | None' in result.mutable_interface.source
 
 
 def test_yaml_named_sdo_setter_parameter_follows_python_profile(contracts):

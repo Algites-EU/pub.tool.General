@@ -59,6 +59,7 @@ if [[ "$locDependencyMode" == source || "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DA
     for locRequiredSource in \
         'factory/cpdiscovery/intf/src/product/java/eu/algites/lib/factory/cpdiscovery/AIiCategoryProviderFactory.java' \
         'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/AInFieldPresenceKind.java' \
+        'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/AInFieldSetterInheritancePolicy.java' \
         'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.java' \
         'naming/convention/intf/src/product/java/eu/algites/lib/naming/convention/AIiNameConventionCatalog.java' \
         'naming/convention/algites/src/product/java/eu/algites/lib/naming/convention/impl/algites/AIcNameConventionCatalog_1.java' \
@@ -290,6 +291,7 @@ project(':cli') {
         implementation project(':impl')
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+        testImplementation 'org.testng:testng:7.11.0'
     }
 }
 
@@ -304,21 +306,73 @@ def verifyDataObjectDependency = tasks.register('verifyDataObjectDependency') {
             throw new GradleException("Expected one pub.lib.General_data.dataobject.intf artifact on bootstrap classpath; found ${artifact.size()}")
         }
         def archive = artifact[0].file
+        def contractPackage = 'eu.algites.lib.data.dataobject'
         def requiredClasses = [
             'eu/algites/lib/data/dataobject/AInFieldPresenceKind.class',
-            'eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.class'
+            'eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.class',
+            'eu/algites/lib/data/dataobject/AInFieldSetterInheritancePolicy.class',
+            'eu/algites/lib/data/dataobject/AIaDataObject.class',
+            'eu/algites/lib/data/dataobject/AIaDataObjectField.class'
         ]
-        def missing = []
+        def problems = []
         new java.util.zip.ZipFile(archive).withCloseable { zip ->
-            missing = requiredClasses.findAll { zip.getEntry(it) == null }
+            problems.addAll(requiredClasses.findAll { zip.getEntry(it) == null }
+                .collect { "missing class ${it}" })
         }
-        if (!missing.isEmpty()) {
-            throw new GradleException("Incompatible pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT: "
-                + "${archive} is missing ${missing}. Republish current pub.lib.General data/dataobject/intf "
-                + "to Maven Local, or rerun generators/code/bootstrap.sh with "
-                + "MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=source and a sibling pub.lib.General checkout.")
+        if (problems.isEmpty()) {
+            /* Inspect class signatures, not just archive entries: a mixed 1.1-SNAPSHOT
+             * can contain the enum while retaining older annotations without the
+             * setterInheritancePolicy element required by generated contracts. */
+            try {
+                new java.net.URLClassLoader([archive.toURI().toURL()] as URL[], (ClassLoader) null).withCloseable { loader ->
+                    def policy = loader.loadClass("${contractPackage}.AInFieldSetterInheritancePolicy")
+                    if (!policy.isEnum()) {
+                        problems.add("AInFieldSetterInheritancePolicy is not an enum")
+                    } else {
+                        def values = policy.enumConstants.collect { it.name() }
+                        ['DEFAULT', 'INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'].each { expected ->
+                            if (!values.contains(expected)) problems.add("missing setter policy constant ${expected}")
+                        }
+                    }
+                    ['AIaDataObject', 'AIaDataObjectField'].each { annotationName ->
+                        def annotation = loader.loadClass("${contractPackage}.${annotationName}")
+                        try {
+                            def member = annotation.getDeclaredMethod('setterInheritancePolicy')
+                            if (member.returnType != policy) {
+                                problems.add("${annotationName}.setterInheritancePolicy() returns an incompatible type")
+                            }
+                            if (member.defaultValue?.name() != 'DEFAULT') {
+                                problems.add("${annotationName}.setterInheritancePolicy() must default to DEFAULT")
+                            }
+                        } catch (NoSuchMethodException ignored) {
+                            problems.add("${annotationName} lacks setterInheritancePolicy()")
+                        }
+                    }
+                }
+            } catch (ReflectiveOperationException | LinkageError failure) {
+                problems.add("cannot inspect DataObject setter-policy API: ${failure.class.simpleName}: ${failure.message}")
+            }
         }
-        logger.lifecycle("Bootstrap data-object API verified: ${archive}")
+        if (!problems.isEmpty()) {
+            def mode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'
+            def remedy
+            if (mode == 'remote') {
+                remedy = [
+                    'Publish the updated pub.lib.General data/dataobject/intf 1.1-SNAPSHOT to the remote repository first,',
+                    'then rerun the Codegen bootstrap (remote mode automatically refreshes dependencies);',
+                    'or switch to MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=source using a current sibling pub.lib.General checkout.'
+                ].join(' ')
+            } else {
+                remedy = [
+                    'Build/publish the current pub.lib.General data/dataobject/intf 1.1-SNAPSHOT locally,',
+                    'or use MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=source with a current sibling checkout.'
+                ].join(' ')
+            }
+            throw new GradleException(
+                "Incompatible resolved pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT " +
+                "at ${archive}: ${problems.join('; ')}. ${remedy}")
+        }
+        logger.lifecycle("Bootstrap data-object API verified (setter policy and both annotations): ${archive}")
     }
 }
 project(':intf').tasks.named('compileJava') { dependsOn verifyDataObjectDependency }
@@ -380,6 +434,7 @@ project(':impl').tasks.withType(Test).configureEach {
     environment 'MODUSTRO_PYTHON_TEST_PATH', (
         (System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_PYTHON_PATH') ?: '').tokenize(File.pathSeparator) + [
             new File(module, 'intf/src/product/python').absolutePath,
+            new File(module, 'intf/src/product/config').absolutePath,
             new File(module, 'impl/src/product/python').absolutePath,
             parityPython.get().asFile.absolutePath
         ]
@@ -469,6 +524,7 @@ project(':cli') {
     dependencies {
         implementation project(':impl')
         implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+        testImplementation 'org.testng:testng:7.11.0'
     }
 }
 
@@ -496,9 +552,11 @@ def runSdoPython = tasks.register('testSdoPython', Exec) {
     environment 'PYTHONPATH', (
         (System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_PYTHON_PATH') ?: '').tokenize(File.pathSeparator) + [
             new File(module, 'intf/src/product/python').absolutePath,
+            new File(module, 'intf/src/product/config').absolutePath,
             new File(module, 'impl/src/product/python').absolutePath,
             new File(module, 'cli/src/product/python').absolutePath,
             new File(defsModule, 'intf/src/product/python').absolutePath,
+            new File(defsModule, 'intf/src/product/config').absolutePath,
             new File(defsModule, 'impl/src/product/python').absolutePath,
             sdoPython.get().asFile.absolutePath
         ]

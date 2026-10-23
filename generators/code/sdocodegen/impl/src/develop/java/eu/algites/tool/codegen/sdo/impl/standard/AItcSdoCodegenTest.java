@@ -134,9 +134,9 @@ public final class AItcSdoCodegenTest {
                 locFiles.add(locFile.toString());
             }
             if (locSources == locContainerSources) {
-                Assert.assertTrue(locSources.mutableInterface().source().contains("AIigdChild getChild()"));
+                Assert.assertTrue(locSources.mutableInterface().source().contains("TChild getChild()"));
                 Assert.assertTrue(locSources.mutableInterface().source().contains("setChild("));
-                Assert.assertTrue(locSources.mutableInterface().source().contains("AIigdChild get_Child()"));
+                Assert.assertTrue(locSources.mutableInterface().source().contains("TChild get_Child()"));
             }
         }
         var locArgs = new java.util.ArrayList<>(java.util.List.of(
@@ -277,6 +277,10 @@ public final class AItcSdoCodegenTest {
     @Test
     public void AIcGeneratedJavaHonorsSmartReadPolicy() throws Exception {
         var locGenerated = new AIcSdoCodegenService().generate(AIigReadPolicy.class, "d");
+        Assert.assertTrue(locGenerated.mutableInterface().source().contains(
+                "@eu.algites.lib.data.smartdataobject.AIaSmartDataObject(allowNonPresentRead = true)"));
+        Assert.assertTrue(locGenerated.mutableInterface().source().contains(
+                "@eu.algites.lib.data.smartdataobject.AIaSmartDataObjectField(allowNonPresentRead = false)"));
         Path locRoot = Files.createTempDirectory("sdo-policy-java-");
         Path locClasses = Files.createDirectory(locRoot.resolve("classes"));
         var locFiles = new java.util.ArrayList<String>();

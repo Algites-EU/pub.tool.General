@@ -22,7 +22,7 @@ def contract_type(prop, request, names, *, java=False, imports=None):
         kind = shape.kind
         if kind is AInDataTypeKind.ARRAY:
             inner = node(shape.element_type, logical + '-items')
-            return f'java.util.List<{inner}>' if java else f'tuple[{inner}, ...]'
+            return f'java.util.List<? extends {inner}>' if java else f'tuple[{inner}, ...]'
         reference = kind is AInDataTypeKind.REFERENCE
         inline = kind in (AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF,
                           AInDataTypeKind.ANY_OF, AInDataTypeKind.ENUM)

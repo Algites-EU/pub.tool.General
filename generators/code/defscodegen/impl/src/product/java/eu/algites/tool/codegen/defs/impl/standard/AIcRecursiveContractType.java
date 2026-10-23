@@ -31,7 +31,7 @@ final class AIcRecursiveContractType {
         if (aType.kind() == AInDataTypeKind.ARRAY) {
             String locMember = renderNode(aType.elementType(), aPath + "-items", aRequest,
                     aNames, aJava, aPythonImports);
-            return aJava ? "java.util.List<" + locMember + ">" : "tuple[" + locMember + ", ...]";
+            return aJava ? "java.util.List<? extends " + locMember + ">" : "tuple[" + locMember + ", ...]";
         }
         boolean locReference = aType.kind() == AInDataTypeKind.REFERENCE;
         boolean locInline = aType.kind() == AInDataTypeKind.OBJECT

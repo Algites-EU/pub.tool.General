@@ -51,10 +51,11 @@ public final class AIcSchemaContractBindingsGenerator {
             List<String> locCatalogFiles = new ArrayList<>();
             for (JsonNode locFile : manifest.path("naming_convention_files")) {
                 String locName = locFile.asText();
-                locCatalogFiles.add(locName.startsWith("resource:") ? locName
-                        : inside(repository, locName).toString());
+                String locResolved = AIcNamingCatalogSource.normalize(locName);
+                locCatalogFiles.add(locResolved.startsWith("resource:") ? locResolved
+                        : inside(repository, locResolved).toString());
             }
-            locSharedNames = AIcNameConventionCatalog_1.loadAll(locCatalogFiles);
+            locSharedNames = AIcNamingCatalogCollector.load(locCatalogFiles);
         }
         Map<String, Path> outputRoots = new LinkedHashMap<>();
         Map<String, AIcNameConventionCatalog_1> catalogs = new LinkedHashMap<>();
@@ -118,10 +119,16 @@ public final class AIcSchemaContractBindingsGenerator {
             for (String kind : List.of("jsondefs", "yamldefs", "xmldefs"))
                 sourceRoots.add(Map.entry(kind, intf.resolve("src/product/" + kind)));
         }
+        int locExistingSourceDirectories = 0;
         for (var sourceInput : sourceRoots) {
             String kind = sourceInput.getKey();
             Path root = sourceInput.getValue();
-            if (!Files.isDirectory(root)) continue;
+            if (!Files.isDirectory(root)) {
+                System.err.println("Defs Codegen: skipping configured " + kind
+                        + " input directory (not found): " + root);
+                continue;
+            }
+            locExistingSourceDirectories++;
             String suffix = switch (kind) {
                 case "jsondefs" -> ".jsondef.schema.json";
                 case "yamldefs" -> ".yamldef.schema.json";
@@ -157,6 +164,10 @@ public final class AIcSchemaContractBindingsGenerator {
                     } else collect(document, "", base, schema, document, overrides, units);
                 }
             }
+        }
+        if (locExistingSourceDirectories == 0) {
+            System.err.println("Defs Codegen: no configured schema input directory exists; nothing to generate");
+            return List.of();
         }
         /* Anonymous XML namespaces are document-local for generator symbol resolution.
          * Unqualified QNames from separate XSD documents do not identify one

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from ._layered_settings import expand as expand_layered_settings
 
 
 class AIcDefsCodegenCli:
@@ -15,57 +16,13 @@ class AIcDefsCodegenCli:
         """Generate from a named settings file or from explicit semantic-role arguments."""
         import sys
         args = list(sys.argv[1:] if args is None else args)
-        if not args or any(arg.startswith('--settings-file') for arg in args):
-            args = AIcDefsCodegenCli._expand_settings(args)
+        args = AIcDefsCodegenCli._expand_settings(args)
         return AIcDefsCodegenCli._batch(args)
 
     @staticmethod
     def _expand_settings(args: list[str]) -> list[str]:
-        """Expand line-oriented --settings-file; explicit CLI mappings override file mappings."""
-        import shlex
-        path = None
-        rest = []
-        for value in args:
-            if value.startswith('--settings-file='):
-                if path is not None:
-                    raise ValueError('--settings-file may be specified only once')
-                path = Path(value.partition('=')[2])
-            else:
-                rest.append(value)
-        if path is None and not rest:
-            name = 'algites-defscodegen-python-default.settings'
-            path = Path.cwd() / 'generators/code/defscodegen/intf/src/product/config/eu/algites/tool/codegen/defs' / name
-            if not path.is_file():
-                from importlib import resources
-                content = None
-                for provider in ('eu.algites.tool.codegen.defs',
-                                 'algites.pub.tool.general.generators.code.defscodegen.intf'):
-                    try:
-                        candidate = resources.files(provider).joinpath(
-                            *(['eu', 'algites', 'tool', 'codegen', 'defs', name]
-                              if provider.startswith('algites.') else [name]))
-                        if candidate.is_file():
-                            content = candidate.read_text(encoding='utf-8')
-                            break
-                    except (ModuleNotFoundError, FileNotFoundError, TypeError):
-                        continue
-                if content is None:
-                    raise FileNotFoundError('Packaged default Defs settings are unavailable: ' + name)
-            else:
-                content = path.read_text(encoding='utf-8')
-        elif path is not None:
-            content = path.read_text(encoding='utf-8')
-        else:
-            return rest
-        settings = []
-        for number, line in enumerate(content.splitlines(), 1):
-            parts = shlex.split(line, comments=True)
-            if not parts:
-                continue
-            if len(parts) != 1 or not parts[0].startswith('--') or parts[0].startswith('--settings-file'):
-                raise ValueError(f'Invalid settings option at line {number}: {line}')
-            settings.append(parts[0])
-        return settings + rest
+        """Load all configuration layers and convert qualified settings to CLI options."""
+        return expand_layered_settings(args, 'defscodegen', 'python', 'defs')
 
     @staticmethod
     def _batch(args: list[str]) -> int:
@@ -78,6 +35,7 @@ class AIcDefsCodegenCli:
         parser.add_argument('--output-interface-technology-naming-convention', action='append', default=[])
         parser.add_argument('--output-enum-technology-naming-convention', action='append', default=[])
         parser.add_argument('--naming-conventions-file', action='append', default=[])
+        parser.add_argument('--setter-inheritance-policy', choices=('INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'))
         parser.add_argument('--check', action='store_true')
         parser.add_argument('--clean-only', action='store_true')
         parser.add_argument('--allow-unversioned-schemas', action='store_true')
@@ -125,7 +83,18 @@ class AIcDefsCodegenCli:
             naming_convention_files=list(dict.fromkeys(options.naming_conventions_file)),
             languages=list(output_dirs), clean_only=options.clean_only,
             allow_unversioned_schemas=options.allow_unversioned_schemas)
-        results = AIcSchemaContractBindingsGenerator().generate_manifest(options.repository_root, manifest, options.check)
+        import os
+        original = os.environ.get('ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY')
+        if options.setter_inheritance_policy is not None:
+            os.environ['ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY'] = options.setter_inheritance_policy
+        try:
+            results = AIcSchemaContractBindingsGenerator().generate_manifest(options.repository_root, manifest, options.check)
+        finally:
+            if options.setter_inheritance_policy is not None:
+                if original is None:
+                    os.environ.pop('ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY', None)
+                else:
+                    os.environ['ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY'] = original
         for item in results:
             print(item['path'])
         return 0

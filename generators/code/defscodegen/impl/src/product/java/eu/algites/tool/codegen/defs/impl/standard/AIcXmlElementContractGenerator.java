@@ -63,7 +63,9 @@ public final class AIcXmlElementContractGenerator {
         String locAnnotation = "@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = "
                 + quote(aElement.namespace() + "#" + aElement.localName()) + ", schemaVersion = "
                 + (locVersion == null ? -1 : locVersion) + ", namingConvention = "
-                + quote(locElementConvention) + ")";
+                + quote(locElementConvention) + ", setterInheritancePolicy = "
+                + "eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy."
+                + AIcSetterInheritancePolicyConfiguration.effectiveDefault().name() + ")";
         String locXmlAnnotation = "@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject("
                 + "definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.ELEMENT, namespace = "
                 + quote(aElement.namespace()) + ", namespaceLocalName = " + quote(aElement.localName()) + ")";

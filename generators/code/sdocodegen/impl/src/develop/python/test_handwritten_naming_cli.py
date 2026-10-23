@@ -74,7 +74,7 @@ def test_shared_package_is_allowed_for_distinct_names(tmp_path: Path):
     lines = [line for line in settings.read_text().splitlines()
              if not line.startswith('--sdointf-subpackage=')
              and not line.startswith('--sdoclass-subpackage=')]
-    settings.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    settings.write_text('\n'.join(lines + ['--sdointf-subpackage=', '--sdoclass-subpackage=']) + '\n', encoding='utf-8')
     assert main([f'--settings-file={settings}']) == 0
     sources = sorted((tmp_path / 'generated' / 'exampleinvoice').glob('*.py'))
     assert len(sources) == 2

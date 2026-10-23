@@ -13,6 +13,7 @@ from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGener
 from eu.algites.tool.codegen.defs.aicd_generated_source import AIcdGeneratedSource
 from eu.algites.tool.codegen.defs.aicd_generated_type_identity import AIcdGeneratedTypeIdentity
 from ._recursive_contract_type import contract_type
+from ._setter_inheritance_policy_configuration import effective_default
 
 
 _TECHNOLOGY_DATA_OBJECT = {
@@ -126,7 +127,8 @@ class AIcSchemaContractInterfaceGenerator:
             metadata_rows.append('        AIcdDataObjectField(field_name=' + repr(prop.source_name)
                 + ', presence=AInFieldPresenceKind.' + prop.presence.name
                 + ', allows_null=' + str(bool(prop.nullable))
-                + ', getter_name=' + repr(getter_name) + '),')
+                + ', getter_name=' + repr(getter_name)
+                + ', setter_inheritance_policy=AInFieldSetterInheritancePolicy.' + effective_default().name + '),')
             getter_type = ''
             if reference is not None and not array and not reference.targets_enum:
                 getter_type = f' -> {kind_type}' + (' | None' if prop.nullable else '')
@@ -164,6 +166,7 @@ class AIcSchemaContractInterfaceGenerator:
             + f'from {base_module} import {base_type}\n'
             + 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n'
             + 'from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\n'
+            + 'from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy\n'
             + 'from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\n'
             + 'from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel\n'
             + xml_imports
@@ -172,7 +175,7 @@ class AIcSchemaContractInterfaceGenerator:
             + f'    __data_object__ = AIcdDataObject(schema_id={model.identity!r}, '
             + f'schema_version={model.version if model.version is not None else -1}, '
             + f'title={_visible_title(model.title, model.logical_name)!r}, description={(model.description or "")!r}, '
-            + f'naming_convention={request.naming_convention!r})\n'
+            + f'naming_convention={request.naming_convention!r}, setter_inheritance_policy=AInFieldSetterInheritancePolicy.{effective_default().name})\n'
             + xml_metadata
             + '    __data_object_fields__ = (\n' + '\n'.join(metadata_rows)
             + '\n    )\n\n    __field_labels__ = {\n' + '\n'.join(label_rows)
@@ -201,7 +204,8 @@ class AIcSchemaContractInterfaceGenerator:
             + str(model.version if model.version is not None else -1)
             + ', title = ' + _java_quote(_visible_title(model.title, model.logical_name))
             + ', description = ' + _java_quote(model.description or '')
-            + ', namingConvention = ' + _java_quote(request.naming_convention) + ')',
+            + ', namingConvention = ' + _java_quote(request.naming_convention)
+            + ', setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.' + effective_default().name + ')',
             f'public interface {interface} extends {extends} {{',
             '    /** Canonical schema ID independent of any representation-specific publication URL. */',
             f'    String CANONICAL_SOURCE_ID = {_java_quote(model.identity)};',
@@ -228,7 +232,8 @@ class AIcSchemaContractInterfaceGenerator:
                 '    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = '
                     + _java_quote(prop.source_name)
                     + ', presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.' + prop.presence.name
-                    + ', allowsNull = ' + str(bool(prop.nullable)).lower() + ')'])
+                    + ', allowsNull = ' + str(bool(prop.nullable)).lower()
+                    + ', setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.' + effective_default().name + ')'])
             if prop.xml_field is not None:
                 wire = prop.xml_field
                 rows.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField('
