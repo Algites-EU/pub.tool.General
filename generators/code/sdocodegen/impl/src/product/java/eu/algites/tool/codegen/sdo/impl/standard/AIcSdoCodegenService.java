@@ -344,6 +344,27 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             String locIdentifierConvention = semanticIdentifierConvention(locName);
             String locSetterName = locAccessorCatalog.format(locSetterProfile, "setter_method_name",
                     Map.of("identifier", locName), locIdentifierConvention);
+            String locMethodProfile = locAccessorCatalog.generatedMethodProfile();
+            String locRawGetter = locMethodProfile == null ? "get_" + locSuffix
+                    : locAccessorCatalog.format(locMethodProfile, "raw_getter_name",
+                            Map.of("identifier", locName), locIdentifierConvention);
+            String locPresenceChecker = locMethodProfile == null ? "isPresent_" + locSuffix
+                    : locAccessorCatalog.format(locMethodProfile, "raw_presence_checker_method_name",
+                            Map.of("identifier", locName), locIdentifierConvention);
+            String locUnsetter = locMethodProfile == null ? "unset_" + locSuffix
+                    : locAccessorCatalog.format(locMethodProfile, "raw_unsetter_name",
+                            Map.of("identifier", locName), locIdentifierConvention);
+            for (String locGenerated : List.of(locRawGetter, locPresenceChecker, locUnsetter)) {
+                if (!javax.lang.model.SourceVersion.isIdentifier(locGenerated)
+                        || javax.lang.model.SourceVersion.isKeyword(locGenerated))
+                    throw new IllegalArgumentException("Invalid generated SDO method identifier: " + locGenerated);
+            }
+            if (Set.of(locSetterName, locRawGetter, locPresenceChecker, locUnsetter).size() != 4
+                    || locGetter.getName().equals(locSetterName)
+                    || locGetter.getName().equals(locRawGetter)
+                    || locGetter.getName().equals(locPresenceChecker)
+                    || locGetter.getName().equals(locUnsetter))
+                throw new IllegalArgumentException("Conflicting generated field methods for " + locName);
             if (aConcreteNames != null && !aConcreteNames.matches(
                     locConcreteConvention, "setter_method_name", locSetterName))
                 throw new IllegalArgumentException("SDO setter name does not match concrete naming profile: " + locSetterName);
@@ -370,21 +391,21 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     .append(locGetter.getName()).append("();\n");
             locInterface.append("    void ").append(locSetterName).append('(').append(locInterfaceType).append(' ')
                     .append(locParameter).append(");\n")
-                    .append("    ").append(locInterfaceType).append(" get_").append(locSuffix).append("();\n")
-                    .append("    boolean isPresent_").append(locSuffix).append("();\n")
-                    .append("    void unset_").append(locSuffix).append("();\n");
+                    .append("    ").append(locInterfaceType).append(' ').append(locRawGetter).append("();\n")
+                    .append("    boolean ").append(locPresenceChecker).append("();\n")
+                    .append("    void ").append(locUnsetter).append("();\n");
             locImplementation.append("    @Override public ").append(locType).append(' ').append(locGetter.getName())
                     .append("() { return (").append(locBoxed).append(") get_EffectiveField(")
                     .append(locLiteral).append("); }\n")
                     .append("    @Override public void ").append(locSetterName).append('(').append(locType).append(' ')
                     .append(locParameter).append(") { set_RawField(").append(locLiteral).append(", ")
                     .append(locParameter).append("); }\n")
-                    .append("    @Override public ").append(locType).append(" get_").append(locSuffix)
+                    .append("    @Override public ").append(locType).append(' ').append(locRawGetter)
                     .append("() { return (").append(locBoxed).append(") get_RawField(")
                     .append(locLiteral).append("); }\n")
-                    .append("    @Override public boolean isPresent_").append(locSuffix)
+                    .append("    @Override public boolean ").append(locPresenceChecker)
                     .append("() { return isPresent_Field(").append(locLiteral).append("); }\n")
-                    .append("    @Override public void unset_").append(locSuffix)
+                    .append("    @Override public void ").append(locUnsetter)
                     .append("() { unset_Field(").append(locLiteral).append("); }\n");
         }
         if (AIiXmlDataObject.class.isAssignableFrom(aReadContract)) {

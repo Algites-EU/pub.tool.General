@@ -35,6 +35,7 @@ class AIcDefsCodegenCli:
         parser.add_argument('--output-interface-technology-naming-convention', action='append', default=[])
         parser.add_argument('--output-enum-technology-naming-convention', action='append', default=[])
         parser.add_argument('--naming-conventions-file', action='append', default=[])
+        parser.add_argument('--generated-dataobject-method-naming-convention', action='append', default=[])
         parser.add_argument('--setter-inheritance-policy', choices=('INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'))
         parser.add_argument('--check', action='store_true')
         parser.add_argument('--clean-only', action='store_true')
@@ -77,9 +78,12 @@ class AIcDefsCodegenCli:
             parser.error('At least one --naming-conventions-file is required')
         if options.check and options.clean_only:
             parser.error('--check conflicts with --clean-only')
+        method_profiles = split_map(options.generated_dataobject_method_naming_convention,
+                                    valid_targets, 'generated DataObject method naming convention')
         manifest = dict(artifact='.', schema_inputs=roots, schema_input_naming_conventions=inputs,
             technology_outputs=output_dirs, technology_output_naming_conventions=roles,
             technology_enum_output_naming_conventions=enumerations,
+            generated_dataobject_method_naming_conventions=method_profiles,
             naming_convention_files=list(dict.fromkeys(options.naming_conventions_file)),
             languages=list(output_dirs), clean_only=options.clean_only,
             allow_unversioned_schemas=options.allow_unversioned_schemas)

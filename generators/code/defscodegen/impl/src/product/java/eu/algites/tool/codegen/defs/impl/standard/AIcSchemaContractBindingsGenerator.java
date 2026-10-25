@@ -73,7 +73,10 @@ public final class AIcSchemaContractBindingsGenerator {
         if (locConfigured) {
             for (String locTechnology : outputRoots.keySet()) {
                 catalogs.put(locTechnology, locSharedNames);
-                targetProfiles.put(locTechnology, locSharedNames);
+                String locMethods = manifest.path("generated_dataobject_method_naming_conventions")
+                        .path(locTechnology).asText("");
+                targetProfiles.put(locTechnology, locMethods.isBlank()
+                        ? locSharedNames : locSharedNames.withGeneratedMethodProfile(locMethods));
             }
             for (var locEntry : iterable(manifest.path("schema_input_naming_conventions").fields()))
                 sourceCatalogs.put(locEntry.getKey(), locSharedNames);
@@ -533,8 +536,13 @@ public final class AIcSchemaContractBindingsGenerator {
                     }
                 }
                 if (locConfigured && !first.contractRole().equals("common")
-                        && merged.dataType().kind() == AInDataTypeKind.OBJECT) {
+                        && (merged.dataType().kind() == AInDataTypeKind.OBJECT
+                            || merged.dataType().kind() == AInDataTypeKind.ONE_OF
+                            || merged.dataType().kind() == AInDataTypeKind.ANY_OF
+                            || merged.dataType().kind() == AInDataTypeKind.REFERENCE)
+                        && locIndex == 0) {
                     AIcdUnit locOrigin = unitIndex.get(first.definition().sourceResource());
+                    if (locOrigin == null) locOrigin = unitIndex.get(first.definition().sourceResource() + "#");
                     if (locOrigin != null) {
                         var locCommon = unitRequests.get(targetText + "#common#" + locOrigin.schema()
                                 + "#" + locOrigin.pointer());
@@ -542,8 +550,17 @@ public final class AIcSchemaContractBindingsGenerator {
                             var locCommonPreview = new AIcSchemaContractInterfaceGenerator().generate(locCommon);
                             if (targetText.equals("java")) {
                                 String locDeclaration = "public interface " + pair.typeName() + " extends ";
-                                locSource = locSource.replace(locDeclaration, locDeclaration
-                                        + locCommon.packageName() + "." + locCommonPreview.typeName() + ", ");
+                                if (merged.dataType().kind() == AInDataTypeKind.OBJECT
+                                        || merged.dataType().kind() == AInDataTypeKind.REFERENCE) {
+                                    locSource = locSource.replace(locDeclaration, locDeclaration
+                                            + locCommon.packageName() + "." + locCommonPreview.typeName() + ", ");
+                                } else {
+                                    String locChoiceDeclaration = "public sealed interface " + pair.typeName() + " permits ";
+                                    locSource = locSource.replace(locChoiceDeclaration,
+                                            "public sealed interface " + pair.typeName() + " extends "
+                                            + locCommon.packageName() + "." + locCommonPreview.typeName()
+                                            + " permits ");
+                                }
                             } else {
                                 String locStem = Path.of(locCommonPreview.relativePath()).getFileName()
                                         .toString().replaceFirst("\\.py$", "");
@@ -551,8 +568,14 @@ public final class AIcSchemaContractBindingsGenerator {
                                         "from __future__ import annotations\nfrom " + locCommon.packageName()
                                                 + "." + locStem + " import " + locCommonPreview.typeName() + "\n");
                                 String locDeclaration = "class " + pair.typeName() + "(";
-                                locSource = locSource.replace(locDeclaration,
-                                        locDeclaration + locCommonPreview.typeName() + ", ");
+                                if (locSource.contains(locDeclaration)) {
+                                    locSource = locSource.replace(locDeclaration,
+                                            locDeclaration + locCommonPreview.typeName() + ", ");
+                                } else {
+                                    String locChoiceDeclaration = "class " + pair.typeName() + ":";
+                                    locSource = locSource.replace(locChoiceDeclaration,
+                                            "class " + pair.typeName() + "(" + locCommonPreview.typeName() + "):");
+                                }
                             }
                         }
                     }

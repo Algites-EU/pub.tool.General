@@ -14,7 +14,7 @@ def test_handwritten_contract_uses_annotated_convention_not_filename(tmp_path: P
     # Resolve the resource through its installed package rather than relying on a checkout.
     from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
     packaged = AIcNameConventionCatalog_1.load_resource('algites-python-name-conventions.yml')
-    profile = dict(packaged._config['NameConventions']['algites-python-gen-intf-versioned_1'])
+    profile = dict(packaged._config['SourceStructureNameConventions']['NameConventions']['algites-python-gen-intf-versioned_1'])
     profile['StructureNaming'] = dict(profile['StructureNaming'])
     profile['StructureNaming']['main_container_name'] = 'handwritten-container_1'
     custom = {'IdentifierConventions': dict(packaged._config['IdentifierConventions']),
@@ -65,6 +65,9 @@ class ContractInvoice_1(AIiYamlDataObject):
     assert any('naming_convention=\'algites-python-gen-data-yaml-class-versioned_1\'' in p.read_text()
                for p in files)
     assert all('invoice_models.py' not in str(p) for p in files)
+    assert any('def _getRaw_Code(self)' in p.read_text() for p in files)
+    assert any('def _isPresent_Code(self)' in p.read_text() for p in files)
+    assert any('def _unset_Code(self)' in p.read_text() for p in files)
 
 
 def test_shared_package_is_allowed_for_distinct_names(tmp_path: Path):

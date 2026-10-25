@@ -113,6 +113,15 @@ final class AIcJsonSchemaReader {
              * A recursive child (for example FinalizationActions[]) is represented
              * by its named reference, not an infinitely nested inline object. */
             AIcdDataType locCanonicalType = recursiveType(node, request, visited);
+            if (locCanonicalType.kind() != AInDataTypeKind.REFERENCE
+                    && referenced.has("allOf") && referenced.path("allOf").size() == 1
+                    && referenced.path("allOf").get(0).has("$ref")
+                    && !referenced.has("properties") && !referenced.has("type")) {
+                /* An anchored allOf wrapper can be a local nominal alias.
+                 * Its optional validation facets still live in the source schema. */
+                locCanonicalType = recursiveType(referenced.path("allOf").get(0),
+                        new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited);
+            }
             if (locCanonicalType.kind() == AInDataTypeKind.REFERENCE)
                 return new AIcdPropertyDefinition(name, locCanonicalType,
                         required ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED

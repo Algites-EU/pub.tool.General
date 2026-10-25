@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="eu.algites.tool.codegen.common.naming.data-object-naming-conventions" version="1" xmlns:common="eu.algites.lib.naming.convention.common-naming-conventions">
+  <xs:annotation>
+    <xs:documentation>Generated DataObject method naming profiles sharing the common naming composition toolkit.</xs:documentation>
+  </xs:annotation>
+  <xs:import namespace="eu.algites.lib.naming.convention.common-naming-conventions" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd" />
+  <xs:complexType name="data-object-naming-conventions">
+    <xs:complexContent>
+      <xs:extension base="common:common-naming-conventions">
+        <xs:sequence>
+          <xs:element name="GeneratedDataObjectMethodNameConventions">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="NameConventions" type="xs:anyType" />
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+</xs:schema>

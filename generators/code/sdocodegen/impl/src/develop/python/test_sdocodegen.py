@@ -283,3 +283,34 @@ def test_custom_getter_without_explicit_getter_metadata_uses_selected_convention
     assert 'def get_Name(self' in result.mutable_interface.source
     assert 'def isPresent_Name(self' in result.mutable_interface.source
     assert 'def unset_Name(self' in result.mutable_interface.source
+
+
+def test_shared_generated_method_profile_controls_real_sdo_emission(contracts, tmp_path):
+    """Custom naming composition must change emitted field methods without implicit prefixes."""
+    import yaml
+    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+
+    _, parent, _ = contracts
+    root = Path(__file__).resolve().parents[8]
+    library = root / 'pub.lib.General/naming/convention/algites/src/product/config/eu/algites/lib/naming/convention'
+    tool = root / 'pub.tool.General/generators/code/common/src/product/config/eu/algites/lib/naming/convention'
+    config = yaml.safe_load((tool / 'algites-python-codegen-method-conventions.yml').read_text())
+    config['NameCompositions']['custom-sdo-raw-getter'] = {'Segments': [
+        {'Kind': 'constant_string', 'Value': 'rawValue'},
+        {'Kind': 'identifier', 'Convention': 'upper_camel_case_1'},
+    ]}
+    config['GeneratedDataObjectMethodNameConventions']['NameConventions'][
+        'algites-python-codegen-standard_1']['StructureNaming'][
+        'raw_getter_name'] = 'custom-sdo-raw-getter'
+    custom_file = tmp_path / 'custom-sdo-methods.yml'
+    custom_file.write_text(yaml.safe_dump(config), encoding='utf-8')
+    catalog = AIcNameConventionCatalog_1.load_many([
+        library / 'algites-python-name-conventions.yml', custom_file,
+    ]).with_generated_method_profile('algites-python-codegen-standard_1')
+    parent.__name__ = 'AIigParent_1'
+    generated = AIcSdoCodegenService().generate(parent, naming=(catalog, catalog, catalog, catalog))
+    assert 'def rawValueName(self)' in generated.mutable_interface.source
+    assert 'def rawValueName(self)' in generated.implementation.source
+    assert 'def _isPresent_Name(self)' in generated.mutable_interface.source
+    assert 'def _unset_Name(self)' in generated.mutable_interface.source
+    assert 'def _getRaw_Name(self)' not in generated.implementation.source

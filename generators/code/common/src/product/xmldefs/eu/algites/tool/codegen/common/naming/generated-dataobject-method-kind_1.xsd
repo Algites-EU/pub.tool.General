@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="eu.algites.tool.codegen.common.naming.generated-dataobject-method-kind" version="1">
+  <xs:annotation>
+    <xs:documentation>Five method naming roles shared between Defs and SDO generators.</xs:documentation>
+  </xs:annotation>
+  <xs:simpleType name="generated-dataobject-method-kind">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="standard_getter_name" />
+      <xs:enumeration value="standard_setter_name" />
+      <xs:enumeration value="raw_getter_name" />
+      <xs:enumeration value="raw_presence_checker_method_name" />
+      <xs:enumeration value="raw_unsetter_name" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

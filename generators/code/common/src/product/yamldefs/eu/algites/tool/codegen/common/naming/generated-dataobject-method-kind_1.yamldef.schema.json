@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-method-kind_1.yamldef.schema.json",
+  "type": "string",
+  "title": "Generated DataObject method naming role",
+  "enum": [
+    "standard_getter_name",
+    "standard_setter_name",
+    "raw_getter_name",
+    "raw_presence_checker_method_name",
+    "raw_unsetter_name"
+  ],
+  "description": "Roles for field-specific methods shared between Defs and SDO generators."
+}

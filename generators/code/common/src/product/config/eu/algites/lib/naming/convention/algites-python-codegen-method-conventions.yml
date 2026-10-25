@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
+NameCompositions:
+  algites-python-sdo-raw-getter_1:
+    Segments:
+    - Kind: constant_string
+      Value: _getRaw_
+    - Kind: identifier
+      Convention: upper_camel_case_1
+  algites-python-sdo-presence_1:
+    Segments:
+    - Kind: constant_string
+      Value: _isPresent_
+    - Kind: identifier
+      Convention: upper_camel_case_1
+  algites-python-sdo-unsetter_1:
+    Segments:
+    - Kind: constant_string
+      Value: _unset_
+    - Kind: identifier
+      Convention: upper_camel_case_1
+GeneratedDataObjectMethodNameConventions:
+  NameConventions:
+    algites-python-codegen-standard_1:
+      StructureNaming:
+        standard_getter_name: python-getter-method-name_1
+        standard_setter_name: python-setter-method-name_1
+        raw_getter_name: algites-python-sdo-raw-getter_1
+        raw_presence_checker_method_name: algites-python-sdo-presence_1
+        raw_unsetter_name: algites-python-sdo-unsetter_1

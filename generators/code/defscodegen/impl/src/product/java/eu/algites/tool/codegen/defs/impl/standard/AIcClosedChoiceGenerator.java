@@ -115,11 +115,11 @@ public final class AIcClosedChoiceGenerator {
         String locMain = locJava
                 ? "package " + locPackage + ";\n\n/** Generated closed " + locMode + " schema contract. */\n"
                     + locXmlMetadata
-                    + "public sealed interface " + locName +
+                    + (aRequest.contractRole().equals("common") ? "public interface " : "public sealed interface ") + locName +
                         (aRequest.definition().sourceKind() == AInDefinitionSourceKind.XMLDEFS
                             ? " extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject" : "")
-                        + " permits "
-                    + String.join(", ", locNamed.stream().map(AIcdNamedVariant::recordName).toList()) + " {\n}\n"
+                        + (aRequest.contractRole().equals("common") ? "" : " permits "
+                    + String.join(", ", locNamed.stream().map(AIcdNamedVariant::recordName).toList())) + " {\n}\n"
                 : "from __future__ import annotations\n"
                     + (aRequest.definition().sourceKind() == AInDefinitionSourceKind.XMLDEFS
                         ? "from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject\n" : "")

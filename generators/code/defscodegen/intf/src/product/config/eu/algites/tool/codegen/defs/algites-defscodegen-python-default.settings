@@ -22,3 +22,5 @@
 --naming-conventions-file:yamldefs=classpath:algites-yamldef-name-conventions.yml
 --naming-conventions-file:jsondefs=classpath:algites-jsondef-name-conventions.yml
 --setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER
+--naming-conventions-file:generated_dataobject=classpath:algites-python-codegen-method-conventions.yml
+--generated-dataobject-method-naming-convention:python=algites-python-codegen-standard_1

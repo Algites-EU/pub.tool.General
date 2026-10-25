@@ -56,6 +56,7 @@ def main(args=None):
     parser.add_argument('--input-technology-naming-convention', action='append', default=[])
     parser.add_argument('--output-technology-naming-convention', action='append', default=[])
     parser.add_argument('--naming-conventions-file', action='append', default=[])
+    parser.add_argument('--generated-dataobject-method-naming-convention', action='append', default=[])
     parser.add_argument('--dointf-classpath', action='append', default=[])
     parser.add_argument('--sdointf-subpackage', default='')
     parser.add_argument('--sdoclass-subpackage', default='')
@@ -90,6 +91,12 @@ def main(args=None):
                else str((root / value).resolve()) for value in options.naming_conventions_file]
     with expand_naming_catalogs(sources) as resolved_catalogs:
         catalog = AIcNameConventionCatalog_1.load_many(resolved_catalogs)
+    for entry in options.generated_dataobject_method_naming_convention:
+        technology, sep, profile = entry.partition(':')
+        if not sep or not profile or technology not in ('java', 'python'):
+            parser.error(f'Invalid generated method naming profile: {entry}')
+        if technology == 'python':
+            catalog = catalog.with_generated_method_profile(profile)
     profiles = [{}, {}, {}]
     for value in options.input_technology_naming_convention:
         parts = value.split(':', 2)

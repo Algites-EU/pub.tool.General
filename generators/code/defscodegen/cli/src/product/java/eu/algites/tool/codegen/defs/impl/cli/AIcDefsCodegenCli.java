@@ -55,6 +55,7 @@ public final class AIcDefsCodegenCli {
         ObjectNode locOutputDirs = locManifest.putObject("technology_outputs");
         ObjectNode locRoles = locManifest.putObject("technology_output_naming_conventions");
         ObjectNode locEnums = locManifest.putObject("technology_enum_output_naming_conventions");
+        ObjectNode locMethods = locManifest.putObject("generated_dataobject_method_naming_conventions");
         ArrayNode locCatalogFiles = locManifest.putArray("naming_convention_files");
         Path locRepository = Path.of(".").toAbsolutePath().normalize();
         boolean locCheck = false;
@@ -95,6 +96,11 @@ public final class AIcDefsCodegenCli {
                         throw new IllegalArgumentException("Unknown schema kind: " + locPair[0]);
                     if (locKey.equals("schema-input-dir")) locInputs.put(locPair[0], locPair[1]);
                     else locInputProfiles.put(locPair[0], locPair[1]);
+                }
+                case "generated-dataobject-method-naming-convention" -> {
+                    if (!Set.of("java", "python").contains(locPair[0]))
+                        throw new IllegalArgumentException("Unknown target technology: " + locPair[0]);
+                    locMethods.put(locPair[0], locPair[1]);
                 }
                 case "technology-dointf-output-dir", "output-enum-technology-naming-convention" -> {
                     if (!Set.of("java", "python").contains(locPair[0]))

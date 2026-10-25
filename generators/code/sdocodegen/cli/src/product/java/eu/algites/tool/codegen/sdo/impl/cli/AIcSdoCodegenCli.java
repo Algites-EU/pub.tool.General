@@ -66,6 +66,7 @@ public final class AIcSdoCodegenCli {
         List<String> locClassPathParts = new ArrayList<>();
         String locMutableSubpackage = "";
         String locConcreteSubpackage = "";
+        String locGeneratedMethodsProfile = null;
         boolean locCheck = false;
         boolean locClean = false;
         for (String locOption : aArgs) {
@@ -85,6 +86,14 @@ public final class AIcSdoCodegenCli {
                 }
                 case "repository-root" -> locRepository = Path.of(locValue).toAbsolutePath().normalize();
                 case "naming-conventions-file" -> locCatalogSources.add(locValue);
+                case "generated-dataobject-method-naming-convention" -> {
+                    String[] locSelected = locValue.split(":", 2);
+                    if (locSelected.length != 2 || locSelected[1].isBlank())
+                        throw new IllegalArgumentException("Expected technology:method-profile: " + locValue);
+                    if (locSelected[0].equals("java")) locGeneratedMethodsProfile = locSelected[1];
+                    else if (!locSelected[0].equals("python"))
+                        throw new IllegalArgumentException("Unsupported technology: " + locSelected[0]);
+                }
                 case "dointf-classpath" -> locClassPathParts.addAll(Arrays.asList(
                         locValue.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))));
                 case "dointf-input-artifact" -> locArtifacts.add(locValue);
@@ -138,6 +147,8 @@ public final class AIcSdoCodegenCli {
                     ? locResolved : root(locRepository, locResolved).toString());
         }
         AIcNameConventionCatalog_1 locNames = AIcNamingCatalogCollector.load(locSources);
+        if (locGeneratedMethodsProfile != null)
+            locNames = locNames.withGeneratedMethodProfile(locGeneratedMethodsProfile);
         AIcNameConventionCatalog_1 locInputNames = locNames.withRoles(locInputRoles);
         AIcNameConventionCatalog_1 locMutableNames = locNames.withRoles(locMutableRoles);
         AIcNameConventionCatalog_1 locConcreteNames = locNames.withRoles(locConcreteRoles);

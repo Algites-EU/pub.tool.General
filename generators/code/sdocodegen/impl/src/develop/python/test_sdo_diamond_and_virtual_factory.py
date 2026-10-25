@@ -1,3 +1,4 @@
+from eu.algites.lib.data.smartdataobject.ain_sdo_field_value_loading_mode import AInSdoFieldValueLoadingMode
 """Diamond-inherited SDO contracts retain all parents and their concrete runtime identity."""
 import importlib
 from pathlib import Path
@@ -54,7 +55,7 @@ def test_diamond_contract_generated_and_constructed(tmp_path, monkeypatch):
     value.setC('c')
     value.setD('d')
     assert value.getName() == 'shared'
-    mapping = value.toMapping_RawValues()
+    mapping = value._toMapping(AInSdoFieldValueLoadingMode.RAW_VALUES)
     assert mapping['Name'].value_representation == 'shared'
     duplicate = AIsSmartDataObjectFactory.from_mapping(cls, mapping)
     assert duplicate.getName() == 'shared'

@@ -455,6 +455,22 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             name = descriptor.name
             getter = descriptor.getter_name or accessor_name(read_contract, descriptor, 'getter_method_name', 0)
             suffix = name[:1].upper() + name[1:]
+            method_catalog = catalog() if naming is not None else None
+            if method_catalog is not None and method_catalog._generated_method_profile:
+                method_profile = method_catalog._generated_method_profile
+                identifier, source_convention = semantic_identifier(name)
+                def method_name(kind):
+                    return method_catalog.format(method_profile, kind,
+                                                 {'identifier': identifier}, source_convention)
+                raw_getter = method_name('raw_getter_name')
+                presence_checker = method_name('raw_presence_checker_method_name')
+                unsetter = method_name('raw_unsetter_name')
+            else:
+                raw_getter, presence_checker, unsetter = ('get_' + suffix,
+                    'isPresent_' + suffix, 'unset_' + suffix)
+            if (len({getter, raw_getter, presence_checker, unsetter}) != 4
+                    or not all(item.isidentifier() for item in (raw_getter, presence_checker, unsetter))):
+                raise ValueError('Conflicting or invalid SDO method names for ' + name)
             # A setter is named independently from its read getter and from the raw SDO API.
             setter = accessor_name(read_contract, descriptor, 'setter_method_name', 1)
             if naming is not None and not (catalog() or naming[2]).matches(
@@ -490,18 +506,18 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     f'    def {getter}(self) -> {interface_type}: ...'])
             mutable_lines.extend(['', '    @abstractmethod',
                 f'    def {setter}(self, {parameter_name}: {interface_type}) -> None: ...',
-                '', '    @abstractmethod', f'    def get_{suffix}(self) -> {interface_type}: ...',
-                '', '    @abstractmethod', f'    def isPresent_{suffix}(self) -> bool: ...',
-                '', '    @abstractmethod', f'    def unset_{suffix}(self) -> None: ...'])
+                '', '    @abstractmethod', f'    def {raw_getter}(self) -> {interface_type}: ...',
+                '', '    @abstractmethod', f'    def {presence_checker}(self) -> bool: ...',
+                '', '    @abstractmethod', f'    def {unsetter}(self) -> None: ...'])
             concrete_lines.extend(['', f'    def {getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
                 f'        return self.get_EffectiveField({name!r})',
                 '', f'    def {setter}(self, {parameter_name}' + (f': {typed_value}' if nested_type else '') + '):',
                 f'        self.set_RawField({name!r}, {parameter_name})',
-                '', f'    def get_{suffix}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
+                '', f'    def {raw_getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
                 f'        return self.get_RawField({name!r})',
-                '', f'    def isPresent_{suffix}(self):',
+                '', f'    def {presence_checker}(self):',
                 f'        return self.isPresent_Field({name!r})',
-                '', f'    def unset_{suffix}(self):',
+                '', f'    def {unsetter}(self):',
                 f'        self.unset_Field({name!r})'])
         if technology == 'xmldefs':
             mutable_lines.append('    __xml_repeated_fields__ = ' + repr(tuple(sorted(xml_repeated))))

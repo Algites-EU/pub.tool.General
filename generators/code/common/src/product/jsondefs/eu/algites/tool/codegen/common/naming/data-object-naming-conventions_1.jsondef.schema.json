@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.jsondef.schema.json",
+  "title": "DataObject method naming conventions",
+  "allOf": [
+    {
+      "$ref": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "GeneratedDataObjectMethodNameConventions": {
+          "type": "object",
+          "properties": {
+            "NameConventions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "StructureNaming": {
+                    "type": "object",
+                    "propertyNames": {
+                      "$ref": "generated-dataobject-method-kind_1.jsondef.schema.json"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "minProperties": 5,
+                    "maxProperties": 5,
+                    "required": [
+                      "standard_getter_name",
+                      "standard_setter_name",
+                      "raw_getter_name",
+                      "raw_presence_checker_method_name",
+                      "raw_unsetter_name"
+                    ]
+                  }
+                },
+                "required": [
+                  "StructureNaming"
+                ]
+              }
+            }
+          },
+          "required": [
+            "NameConventions"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "GeneratedDataObjectMethodNameConventions"
+      ]
+    }
+  ],
+  "description": "Method naming profiles using the common naming composition toolkit."
+}

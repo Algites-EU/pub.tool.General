@@ -82,6 +82,16 @@ class AIcJsonSchemaReader:
                 # Named $defs objects/choices are nominal, even when a child
                 # property refers to the containing definition recursively.
                 canonical_type = self._recursive_type(schema, request, visited)
+                # A single-reference allOf wrapper (typically a named anchor)
+                # projects to its nominal contract, not an ungenerated inline type.
+                aliases = referenced.get('allOf')
+                if (canonical_type.kind is not AInDataTypeKind.REFERENCE
+                        and isinstance(aliases, list) and len(aliases) == 1
+                        and isinstance(aliases[0], Mapping) and '$ref' in aliases[0]
+                        and 'properties' not in referenced and 'type' not in referenced):
+                    canonical_type = self._recursive_type(aliases[0],
+                        AIcdDefinitionLoadRequest(target_path, request.source_kind,
+                            request.naming_profile), visited)
                 if canonical_type.kind is AInDataTypeKind.REFERENCE:
                     return AIcdPropertyDefinition(str(name), canonical_type,
                         AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED,

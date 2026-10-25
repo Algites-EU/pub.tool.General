@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build all native Python Codegen distributions outside Modustro conventions.
 
-The six product descriptors are authoritative for package dependencies; staging
+The seven product descriptors are authoritative for package dependencies; staging
 collects only the corresponding artifact's Python sources and package resources.
 No generated sources are edited and no source-tree pyproject is created.
 """
@@ -91,7 +91,7 @@ def descriptor_dependencies(data: dict, version: str, python_release: str) -> li
             artifact_id = item["ArtifactId"]
             name = normalized_distribution(artifact_id) if kind == "modustro" else artifact_id.lower().replace("_", "-")
             if kind == "modustro" and artifact_id.startswith(BOOTSTRAP_NAME + "."):
-                # The six Codegen wheels form one bootstrap snapshot; never mix
+                # All seven Codegen wheels form one bootstrap snapshot; never mix
                 # current intf/impl/cli with an older compatible-range snapshot.
                 spec = "==" + python_release
             else:
@@ -100,15 +100,17 @@ def descriptor_dependencies(data: dict, version: str, python_release: str) -> li
     return list(dict.fromkeys(dependencies))
 
 
-def stage_artifact(repository: Path, work: Path, generator: str, part: str, version: str, python_release: str) -> tuple[str, Path]:
+def stage_artifact(repository: Path, work: Path, generator: str, part: str | None, version: str, python_release: str) -> tuple[str, Path]:
     """Construct an isolated PEP 420 setuptools project from one source artifact."""
-    artifact = repository / "generators" / "code" / generator / part
+    artifact = repository / "generators" / "code" / generator
+    if part is not None:
+        artifact = artifact / part
     document = yaml.safe_load((artifact / "modustro-artifact.yml").read_text(encoding="utf-8"))
     technologies = document["Artifact"]["TechnologyKinds"]
     if "python" not in technologies:
         raise ValueError(f"{artifact} does not declare a Python product")
-    name = normalized_distribution(f"{BOOTSTRAP_NAME}.{generator}.{part}")
-    project = work / f"{generator}-{part}"
+    name = normalized_distribution(f"{BOOTSTRAP_NAME}.{generator}" + (f".{part}" if part else ""))
+    project = work / (f"{generator}-{part}" if part else generator)
     root = project / "src"
     root.mkdir(parents=True)
     count = 0
@@ -148,7 +150,7 @@ def stage_artifact(repository: Path, work: Path, generator: str, part: str, vers
     return name, project
 
 
-def verify_wheel(wheel: Path, name: str, generator: str, part: str, release: str) -> None:
+def verify_wheel(wheel: Path, name: str, generator: str, part: str | None, release: str) -> None:
     """Validate metadata, product files, default settings, and new CLI contract."""
     with zipfile.ZipFile(wheel) as archive:
         entries = archive.namelist()
@@ -160,6 +162,12 @@ def verify_wheel(wheel: Path, name: str, generator: str, part: str, release: str
             raise ValueError(f"Incorrect wheel identity/version: {wheel}")
         if not any(path.endswith(".py") and path.startswith("eu/algites/tool/codegen/") for path in entries):
             raise ValueError(f"Wheel has no Codegen Python sources: {wheel}")
+        if generator == "common":
+            for language in ("java", "python"):
+                resource = ("eu/algites/lib/naming/convention/"
+                            f"algites-{language}-codegen-method-conventions.yml")
+                if resource not in entries:
+                    raise ValueError(f"Missing shared naming catalog in common wheel: {resource}")
         if part == "intf":
             settings = f"eu/algites/tool/codegen/{'defs' if generator == 'defscodegen' else 'sdo'}/algites-{generator}-python-default.settings"
             if settings not in entries:
@@ -186,7 +194,7 @@ def verify_sdist(sdist: Path) -> None:
 
 
 def main() -> None:
-    """Build and verify all six distributions before exposing an upload manifest."""
+    """Build and verify the common plus six generator distributions before upload."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", type=Path, required=True)
     parser.add_argument("--maven-version", required=True)
@@ -204,21 +212,22 @@ def main() -> None:
         distribution_dir = stage / "dist"
         distribution_dir.mkdir()
         rows = []
-        for generator in GENERATORS:
-            for part in PARTS:
-                name, project = stage_artifact(repository, stage, generator, part, options.maven_version, release)
-                before = set(distribution_dir.iterdir())
-                subprocess.run([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(distribution_dir)],
-                               cwd=project, check=True)
-                created = set(distribution_dir.iterdir()) - before
-                wheels = [path for path in created if path.name.endswith(".whl")]
-                sdists = [path for path in created if path.name.endswith(".tar.gz")]
-                if len(wheels) != 1 or len(sdists) != 1:
-                    raise RuntimeError(f"Expected wheel+sdist for {name}; got {sorted(created)}")
-                verify_wheel(wheels[0], name, generator, part, release)
-                verify_sdist(sdists[0])
-                rows.append((wheels[0].name, sdists[0].name))
-                print(f"Verified Python bootstrap distribution: {name} {release}", flush=True)
+        artifacts = [("common", None)] + [(generator, part)
+                                         for generator in GENERATORS for part in PARTS]
+        for generator, part in artifacts:
+            name, project = stage_artifact(repository, stage, generator, part, options.maven_version, release)
+            before = set(distribution_dir.iterdir())
+            subprocess.run([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(distribution_dir)],
+                           cwd=project, check=True)
+            created = set(distribution_dir.iterdir()) - before
+            wheels = [path for path in created if path.name.endswith(".whl")]
+            sdists = [path for path in created if path.name.endswith(".tar.gz")]
+            if len(wheels) != 1 or len(sdists) != 1:
+                raise RuntimeError(f"Expected wheel+sdist for {name}; got {sorted(created)}")
+            verify_wheel(wheels[0], name, generator, part, release)
+            verify_sdist(sdists[0])
+            rows.append((wheels[0].name, sdists[0].name))
+            print(f"Verified Python bootstrap distribution: {name} {release}", flush=True)
         # Commit only after every package has been built and verified. On a failed
         # build, an earlier prepared collection remains untouched.
         backup = output.parent / (output.name + ".previous")

@@ -67,7 +67,10 @@ class AIcSchemaContractBindingsGenerator:
                            for k, file in manifest.get('schema_input_naming_profiles', {}).items()}
         if configured:
             catalogs = {language: shared_names for language in output_roots}
-            target_profiles = dict(catalogs)
+            method_profiles = manifest.get('generated_dataobject_method_naming_conventions', {})
+            target_profiles = {language: shared_names.with_generated_method_profile(method_profiles[language])
+                               if language in method_profiles else shared_names
+                               for language in output_roots}
             source_catalogs = {kind: shared_names for kind in manifest.get('schema_input_naming_conventions', {})}
         if explicit and not configured:
             for technology in output_roots:
@@ -423,7 +426,9 @@ class AIcSchemaContractBindingsGenerator:
                         end = rendered.index('):', start)
                         rendered = (rendered[:end] + ', ' + ', '.join(name for name, _ in additional_parents)
                                     + rendered[end:])
-                if configured and first.contract_role != 'common' and merged.data_type.kind is AInDataTypeKind.OBJECT:
+                if (configured and first.contract_role != 'common' and index == 0 and merged.data_type.kind in (
+                        AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF,
+                        AInDataTypeKind.ANY_OF, AInDataTypeKind.REFERENCE)):
                     origin = units_by_resource.get(first.definition.source_resource)
                     common = (unit_requests.get((language, 'common', origin.schema, origin.pointer))
                               if origin is not None else None)
@@ -431,15 +436,26 @@ class AIcSchemaContractBindingsGenerator:
                         preview = generator.generate(common)
                         if language == 'java':
                             declaration = f'public interface {pair.type_name} extends '
-                            rendered = rendered.replace(declaration, declaration +
-                                common.package_name + '.' + preview.type_name + ', ')
+                            if merged.data_type.kind in (AInDataTypeKind.OBJECT, AInDataTypeKind.REFERENCE):
+                                rendered = rendered.replace(declaration, declaration +
+                                    common.package_name + '.' + preview.type_name + ', ')
+                            else:
+                                declaration = f'public sealed interface {pair.type_name} permits '
+                                rendered = rendered.replace(declaration,
+                                    f'public sealed interface {pair.type_name} extends '
+                                    + common.package_name + '.' + preview.type_name + ' permits ')
                         else:
                             stem = preview.relative_path.rsplit('/', 1)[-1].removesuffix('.py')
                             rendered = rendered.replace('from __future__ import annotations\n',
                                 'from __future__ import annotations\nfrom ' + common.package_name +
                                 '.' + stem + ' import ' + preview.type_name + '\n')
                             declaration = f'class {pair.type_name}('
-                            rendered = rendered.replace(declaration, declaration + preview.type_name + ', ')
+                            if declaration in rendered:
+                                rendered = rendered.replace(declaration,
+                                    declaration + preview.type_name + ', ')
+                            else:
+                                rendered = rendered.replace(f'class {pair.type_name}:',
+                                    f'class {pair.type_name}({preview.type_name}):')
                 rendered = self._qualify_references(rendered, first, requests, True, choice_reference)
                 if first.xml_type_qname is not None and first.contract_role != 'common' and index == 0 and merged.data_type.kind in (
                         AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):

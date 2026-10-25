@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
 $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
 Artifact:
   TechnologyKinds: [java, python]
@@ -6,6 +8,9 @@ Artifact:
 Dependencies:
   - DependencyKind: modustro
     Items:
+      - GroupId: eu.algites.tool.codegen
+        ArtifactId: pub.tool.General_generators.code.common
+        Usages: [product_implementation]
       - GroupId: eu.algites.lib.common
         ArtifactId: pub.lib.General_common
         Usages: [product_api]

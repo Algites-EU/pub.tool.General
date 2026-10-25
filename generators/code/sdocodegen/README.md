@@ -111,19 +111,27 @@ base. These base classes may be behaviorally empty but establish the final
 extension hierarchy. Remaining limitations are documented in
 [Defs Codegen recursive types](../defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md).
 
-## Future possible extension of SDO generator
+## Shared generated DataObject method naming
 
-The standard generated DataObject getter and setter names are controlled by the
-`getter_method_name` and `setter_method_name` structures of the selected
-Java/Python naming convention. They are independent of the **raw SDO access API**:
-`get_<Field>`, `isPresent_<Field>`, `unset_<Field>` and the fixed runtime methods
-such as `get_EffectiveField`, `get_RawField`, and `set_RawField`.
+Both Defs Codegen and SDO Codegen accept one `GeneratedDataObjectMethodNameConventions.NameConventions`
+profile, defined in the shared `generators/code/common` artifact. The five method roles are
+`standard_getter_name`, `standard_setter_name`, `raw_getter_name`,
+`raw_presence_checker_method_name`, and `raw_unsetter_name`.
+The profile refers to the established `NameCompositions` catalog, not to a second
+method-name formatting implementation. By default the raw methods begin with `_`;
+this prefix is a part of the selected composition and is not injected by the generator.
+Existing source-structure naming profiles remain separately available under
+`SourceStructureNameConventions.NameConventions`.
 
-A possible **future extension** is a separate, opt-in *SDO naming convention*
-for generated raw field-access/presence/unset methods. Such a profile would need
-its own semantic method roles and must consistently update declarations,
-implementations, references and compatibility expectations in Java and Python.
-It must not reuse `getter_method_name` or `setter_method_name`, since those
-apply to the regular DataObject API. **This extension is not implemented or
-scheduled by the current migration**: the raw SDO API and its names remain
-unchanged.
+The name profiles affect only generated field-specific method names, never the fixed
+system-level SDO API. `_toMapping(AInSdoFieldValueLoadingMode)` and
+`_getValidationIssues(AInSdoFieldValueLoadingMode)` explicitly require either
+`RAW_VALUES` or `EFFECTIVE_VALUES`. A future SDO marshaller will likewise require
+an explicit loading mode; unmarshalling records only physically present source values.
+
+The same method profile must be selected for a Defs-generated DO contract and its
+SDO generation, especially when these are built in separate artifacts. The default
+settings files include the packaged shared Java/Python profiles. Java and Python
+SDO interface and implementation packages can independently be adjusted through
+`--sdointf-subpackage` and `--sdoclass-subpackage`; an empty suffix uses the
+original DO package.

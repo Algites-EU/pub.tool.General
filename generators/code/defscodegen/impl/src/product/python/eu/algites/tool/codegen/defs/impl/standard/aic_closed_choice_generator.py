@@ -102,10 +102,9 @@ class AIcClosedChoiceGenerator:
             main = ('package ' + request.package_name + ';\n\n'
                 '/** Generated closed ' + kind + ' schema contract. */\n'
                 + xml_annotation
-                + 'public sealed interface ' + cls
+                + ('public interface ' if request.contract_role == 'common' else 'public sealed interface ') + cls
                 + (' extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject' if model.source_kind is AInDefinitionSourceKind.XMLDEFS else '')
-                + ' permits ' 
-                + ', '.join(wrapper for wrapper, *_ in variants) + ' {\n}\n')
+                + ('' if request.contract_role == 'common' else ' permits ' + ', '.join(wrapper for wrapper, *_ in variants)) + ' {\n}\n')
         else:
             xml_import = ('from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject\n'
                 if model.source_kind is AInDefinitionSourceKind.XMLDEFS else '')
