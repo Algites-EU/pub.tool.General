@@ -42,7 +42,9 @@ def _schema(root, branch, kind, identity='urn:example:customer:1', *, field_type
     destination = root / 'schemas' / branch / kind / 'example'
     destination.mkdir(parents=True, exist_ok=True)
     source = destination / ('customer_1.' + suffix)
-    content = {'type': 'object', '$id': identity, 'description': description,
+    content = {'type': 'object', '$id': 'https://defs.example.invalid/definitions/customer_1',
+               '$x-algites-schema-id': identity, '$x-algites-schema-version': 1,
+               'description': description,
                'properties': {'Name': {'type': field_type}}, 'required': ['Name']}
     source.write_text(json.dumps(content), encoding='utf-8')
     return source
@@ -124,6 +126,7 @@ def test_missing_ids_use_implicit_package_name_version_and_pointer(prepared):
     for source in (first, second):
         document = json.loads(source.read_text(encoding='utf-8'))
         document.pop('$id')
+        document.pop('$x-algites-schema-id')
         source.write_text(json.dumps(document), encoding='utf-8')
     result = AIcSchemaContractBindingsGenerator().generate_manifest(
         prepared, _manifest(prepared, [('yamldefs', first), ('yamldefs', second)]))
@@ -131,10 +134,26 @@ def test_missing_ids_use_implicit_package_name_version_and_pointer(prepared):
     assert _output(prepared).exists()
 
 
+def test_different_schema_urls_do_not_change_implicit_logical_identity(prepared):
+    """A JSON Schema $id is a publication URL, not an Algites logical schema ID."""
+    first = _schema(prepared, 'a', 'yamldefs')
+    second = _schema(prepared, 'b', 'yamldefs')
+    for source in (first, second):
+        document = json.loads(source.read_text(encoding='utf-8'))
+        document.pop('$x-algites-schema-id')
+        document['$id'] = 'https://schemas.example.test/' + source.parents[2].name + '/customer_1'
+        source.write_text(json.dumps(document), encoding='utf-8')
+    result = AIcSchemaContractBindingsGenerator().generate_manifest(
+        prepared, _manifest(prepared, [('yamldefs', first), ('yamldefs', second)]))
+    assert len(result) == 2
+    assert _output(prepared).is_file()
+
+
 def test_xsd_without_namespace_can_merge_with_implicit_json_identity(prepared):
     json_source = _schema(prepared, 'a', 'jsondefs')
     document = json.loads(json_source.read_text(encoding='utf-8'))
     document.pop('$id')
+    document.pop('$x-algites-schema-id')
     json_source.write_text(json.dumps(document), encoding='utf-8')
     xsd = prepared / 'schemas/b/xmldefs/example'
     xsd.mkdir(parents=True)

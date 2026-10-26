@@ -190,3 +190,27 @@ This is a deliberately conservative subset. XSD nested/repeated particles,
 full XSD type inheritance, and removal of legacy flat model projections are
 not yet implemented. Full repository-level Gradle/JPMS verification remains
 a separate integration requirement.
+
+## Schema metadata naming conventions
+
+The selected `SourceStructureNameConventions` profile determines six properties:
+`schema_source_schema_{url,identifier,version}` specify where to read metadata
+inside the **source schema**, whereas `data_source_schema_{url,identifier,version}`
+select their names in **instance documents**. An enabled destination property
+requires a nonempty corresponding source property in the catalog. Empty target
+property names explicitly suppress serialization, not collection of the logical
+ID/version in the canonical contract model.
+
+The built-in Algites JSONDEFS/YAMLDEFS profiles read `$id`,
+`$x-algites-schema-id`, and `$x-algites-schema-version` and emit `$schema`
+only. `$schema` remains reserved for the JSON Schema dialect in the definitions.
+The same mapping is propagated to the Python `__data_object__` descriptor and
+Java `@AIaDataObject` annotation, and from read contracts into generated SDOs.
+Independent source families retain their own publication URLs even when the
+same logical canonical type is shared.
+
+Edit the source definitions, conventions and generators, **not** `java.gen` or
+`python.gen` directly. Regenerate them through the usual Modustro bootstrap
+following a clean stage. In particular, applying this change to existing
+published artifacts requires regenerating the annotations before expecting the
+new `$schema` metadata on runtime objects.

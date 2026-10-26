@@ -5,11 +5,11 @@
   </xs:annotation>
   <xs:simpleType name="generated-dataobject-method-kind">
     <xs:restriction base="xs:string">
-      <xs:enumeration value="standard_getter_name" />
-      <xs:enumeration value="standard_setter_name" />
-      <xs:enumeration value="raw_getter_name" />
-      <xs:enumeration value="raw_presence_checker_method_name" />
-      <xs:enumeration value="raw_unsetter_name" />
+      <xs:enumeration value="standard_getter" />
+      <xs:enumeration value="standard_setter" />
+      <xs:enumeration value="raw_getter" />
+      <xs:enumeration value="raw_presence_checker_method" />
+      <xs:enumeration value="raw_unsetter" />
     </xs:restriction>
   </xs:simpleType>
 </xs:schema>

@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/pltf/modustro/builder/common/document-common-metadata_1.jsondef.schema.json",
   "x-algites-definition-version": 1,
+  "$x-algites-schema-id": "urn:algites:example:jsondefs:document-common-metadata:1",
   "title": "Modustro Builder JSON Document Common Metadata v1",
   "description": "Common technical metadata accepted by Algites/Modustro JSON root documents.",
   "type": "object",
@@ -13,5 +14,5 @@
       "description": "Optional absolute URI of the schema describing this root document."
     }
   },
-  "x-algites-schema-version": 1
+  "$x-algites-schema-version": 1
 }

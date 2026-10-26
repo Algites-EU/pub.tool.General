@@ -51,8 +51,8 @@
     "SourceKind"
   ],
   "description": "Defines how defs-codegen interprets one supported source-definition family.",
-  "x-algites-schema-id": "eu.algites.tool.codegen.defs.input-profile",
-  "x-algites-schema-version": 1,
+  "$x-algites-schema-id": "eu.algites.tool.codegen.defs.input-profile",
+  "$x-algites-schema-version": 1,
   "title": "Input profile",
   "x-jsondefs-id": "eu.algites.tool.codegen.defs.input-profile",
   "x-jsondefs-version": 1

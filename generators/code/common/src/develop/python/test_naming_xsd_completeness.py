@@ -26,8 +26,8 @@ def test_xsd_parity_and_publication_metadata():
 def test_xsd_method_roles_and_common_base():
     root = MODULE / 'src/product/xmldefs/eu/algites/tool/codegen/common/naming'
     roles = (root / 'generated-dataobject-method-kind_1.xsd').read_text()
-    for role in ('standard_getter_name', 'standard_setter_name', 'raw_getter_name',
-                 'raw_presence_checker_method_name', 'raw_unsetter_name'):
+    for role in ('standard_getter', 'standard_setter', 'raw_getter',
+                 'raw_presence_checker_method', 'raw_unsetter'):
         assert role in roles
     profiles = (root / 'data-object-naming-conventions_1.xsd').read_text()
     assert 'GeneratedDataObjectMethodNameConventions' in profiles
@@ -37,7 +37,7 @@ def test_xsd_method_roles_and_common_base():
 
 def test_method_catalogs_contain_declared_schema_identifiers():
     """Both shipped DO/SDO catalogs keep the complete three-line schema header."""
-    catalog_root = MODULE / 'src/product/config/eu/algites/lib/naming/convention'
+    catalog_root = MODULE.parents[1] / 'code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
     for technology in ('java', 'python'):
         path = catalog_root / f'algites-{technology}-codegen-method-conventions.yml'
         lines = path.read_text(encoding='utf-8').splitlines()

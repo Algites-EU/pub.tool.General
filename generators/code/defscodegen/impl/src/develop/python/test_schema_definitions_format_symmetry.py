@@ -23,5 +23,5 @@ def test_published_public_schema_families_are_symmetric():
                 schema = json.loads(path.read_text())
                 assert schema['$schema'] == 'https://json-schema.org/draft/2020-12/schema'
                 assert schema['$id'].endswith('/' + kind + '/' + base.as_posix() + '/' + path.name)
-                assert schema.get('x-algites-schema-id') == 'eu.algites.tool.codegen.defs.' + stem
-                assert schema.get('x-algites-schema-version') == 1
+                assert schema.get('$x-algites-schema-id') == 'eu.algites.tool.codegen.defs.' + stem
+                assert schema.get('$x-algites-schema-version') == 1

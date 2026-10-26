@@ -2,19 +2,19 @@
 # $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
 $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
 NameCompositions:
-  algites-java-sdo-raw-getter_1:
+  standard-postfix-python-sdo-raw-getter_1:
     Segments:
     - Kind: constant_string
       Value: _getRaw_
     - Kind: identifier
       Convention: upper_camel_case_1
-  algites-java-sdo-presence_1:
+  standard-postfix-python-sdo-presence_1:
     Segments:
     - Kind: constant_string
       Value: _isPresent_
     - Kind: identifier
       Convention: upper_camel_case_1
-  algites-java-sdo-unsetter_1:
+  standard-postfix-python-sdo-unsetter_1:
     Segments:
     - Kind: constant_string
       Value: _unset_
@@ -22,10 +22,16 @@ NameCompositions:
       Convention: upper_camel_case_1
 GeneratedDataObjectMethodNameConventions:
   NameConventions:
-    algites-java-codegen-standard_1:
+    standard-postfix-python-codegen-standard_1:
       StructureNaming:
-        standard_getter_name: java-getter-method-name_1
-        standard_setter_name: java-setter-method-name_1
-        raw_getter_name: algites-java-sdo-raw-getter_1
-        raw_presence_checker_method_name: algites-java-sdo-presence_1
-        raw_unsetter_name: algites-java-sdo-unsetter_1
+        standard_getter: python-getter-method-name_1
+        standard_setter: python-setter-method-name_1
+        raw_getter: standard-postfix-python-sdo-raw-getter_1
+        raw_presence_checker_method: standard-postfix-python-sdo-presence_1
+        raw_unsetter: standard-postfix-python-sdo-unsetter_1
+      schema_source_schema_url: $id
+      schema_source_schema_identifier: $x-algites-schema-id
+      schema_source_schema_version: $x-algites-schema-version
+      data_source_schema_url: $schema
+      data_source_schema_identifier: ''
+      data_source_schema_version: ''

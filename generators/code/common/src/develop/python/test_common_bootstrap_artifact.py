@@ -21,14 +21,16 @@ def _dist_module():
     return module
 
 
-def test_common_python_distribution_stages_both_method_profiles(tmp_path: Path):
-    """The common distribution must ship its own profiles, not rely on a checkout."""
+def test_common_python_distribution_does_not_stage_method_profiles(tmp_path: Path):
+    """The neutral Codegen common module must not activate an Algites profile."""
     module = _dist_module()
     name, stage = module.stage_artifact(
         _REPOSITORY, tmp_path, 'common', None, '1.1-SNAPSHOT', '1.1.dev20261024000000000')
     assert name == 'eu-algites-pub-tool-general-generators-code-common'
+    assert not list((stage / 'src').rglob('*-codegen-method-conventions.yml'))
     for technology in ('java', 'python'):
-        resource = (stage / 'src/eu/algites/lib/naming/convention'
+        resource = (_REPOSITORY / 'generators/code/profile/algites/src/product/config'
+                    / 'eu/algites/lib/naming/convention'
                     / f'algites-{technology}-codegen-method-conventions.yml')
         assert resource.is_file()
         assert 'GeneratedDataObjectMethodNameConventions:' in resource.read_text(encoding='utf-8')
@@ -53,4 +55,6 @@ def test_gradle_bootstrap_includes_common_in_both_java_builds():
     assert contents.count("project(':common').projectDir") == 2
     assert contents.count("project(':common') {\n    sourceSets.main.resources.srcDirs") == 2
     assert contents.count("implementation project(':common')") >= 2
-    assert "for locGenerator in common defscodegen sdocodegen; do" in contents
+    assert "for locGenerator in common profile defscodegen sdocodegen; do" in contents
+    assert contents.count("project(':profile-algites').projectDir") == 2
+    assert contents.count("implementation project(':profile-algites')") == 2

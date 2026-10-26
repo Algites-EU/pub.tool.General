@@ -14,7 +14,8 @@ public final class AItcOverlappingSchemaInputsTest {
         Files.createDirectories(locFolder);
         Path locSource = locFolder.resolve("customer_1.yamldef.schema.json");
         ObjectNode locDocument = new ObjectMapper().createObjectNode();
-        locDocument.put("$id", aIdentity);
+        locDocument.put("$id", "https://schemas.example.test/" + aBranch + "/customer_1.yamldef.schema.json");
+        locDocument.put("$x-algites-schema-id", aIdentity);
         locDocument.put("type", "object");
         locDocument.putObject("properties").putObject("Name").put("type", aFieldType);
         locDocument.putArray("required").add("Name");
@@ -54,6 +55,27 @@ public final class AItcOverlappingSchemaInputsTest {
         Path locSecond = schema(locRoot, "second", "urn:other:customer:1", "string");
         Assert.expectThrows(IllegalArgumentException.class, () -> new AIcSchemaContractBindingsGenerator()
                 .generateManifest(locRoot, manifest(locRoot, locFirst, locSecond), false));
+    }
+
+    /**
+     * Distinct JSON Schema publication URLs do not imply distinct semantic schema IDs.
+     * When the configured logical-ID source property is absent, the contract identity
+     * comes from the source name and version in both input files.
+     */
+    @Test
+    public void AIcDistinctPublicationUrlsRemainOneImplicitIdentity() throws Exception {
+        Path locRoot = Files.createTempDirectory("defs-published-url-aliases-");
+        Path locFirst = schema(locRoot, "first", "urn:example:customer:1", "string");
+        Path locSecond = schema(locRoot, "second", "urn:other:customer:1", "string");
+        ObjectMapper locMapper = new ObjectMapper();
+        for (Path locSource : new Path[] {locFirst, locSecond}) {
+            ObjectNode locDocument = (ObjectNode) locMapper.readTree(locSource.toFile());
+            locDocument.remove("$x-algites-schema-id");
+            Files.writeString(locSource, locDocument.toString());
+        }
+        var locGenerator = new AIcSchemaContractBindingsGenerator();
+        Assert.assertEquals(locGenerator.generateManifest(locRoot, manifest(locRoot, locFirst, locSecond), false).size(), 2);
+        Assert.assertTrue(Files.isRegularFile(locRoot.resolve("src/product/java.gen/example/AIigCustomer_1.java")));
     }
 
     /** Equal identity with incompatible field types is a structural conflict. */

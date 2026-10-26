@@ -42,23 +42,32 @@ final class AIcJsonSchemaReader {
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory()).enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
 
     AIcdCanonicalDefinition read(JsonNode root, AIcdDefinitionLoadRequest request, AInDefinitionSourceKind sourceKind, String idExtension, String versionExtension, String nameExtension) {
+        return read(root, request, sourceKind, idExtension, versionExtension, nameExtension, "");
+    }
+
+    /** Reads a schema with explicit metadata names selected by the source naming convention. */
+    AIcdCanonicalDefinition read(JsonNode root, AIcdDefinitionLoadRequest request, AInDefinitionSourceKind sourceKind,
+            String idExtension, String versionExtension, String nameExtension, String urlExtension) {
         Integer explicitVersion = integer(root, versionExtension);
         AIcdParsedVersionedName parsed = identities.fromFileName(request, explicitVersion);
         String logicalName = text(root, nameExtension);
         if (logicalName == null || logicalName.isBlank()) logicalName = parsed.logicalName();
         /* Algites logical SchemaId must never be reconstructed from JSON Schema $id,
          * which is a URI resource identifier and may be the published SchemaUrl. */
-        String identity = text(root, "x-algites-schema-id");
-        if (identity == null || identity.isBlank()) identity = text(root, idExtension);
-        if (identity == null || identity.isBlank()) identity = text(root, "$id");
+        String identity = text(root, idExtension);
+        /* The JSON Schema $id identifies a resource URL, not a logical schema ID.
+         * In the absence of an explicitly declared logical ID, use the parsed
+         * definition name instead of silently treating a URL as an identifier. */
         if (identity == null || identity.isBlank()) identity = parsed.logicalName();
         Integer version = explicitVersion != null ? explicitVersion : parsed.version();
+        String schemaUrl = text(root, urlExtension);
+        if (schemaUrl == null) schemaUrl = "";
         String description = text(root, "description");
         String title = text(root, "title");
         root = structural(root, request, new HashSet<>());
         List<AIcdEnumValueDefinition> enumValues = enumValues(root);
         if (!enumValues.isEmpty()) {
-            return new AIcdCanonicalDefinition(identity, version, logicalName, sourceKind, request.path().toString(), description, AIcdDataType.atom(AInDataTypeKind.ENUM, AIcdValueConstraints.empty()), enumValues, title);
+            return new AIcdCanonicalDefinition(identity, version, logicalName, sourceKind, request.path().toString(), description, AIcdDataType.atom(AInDataTypeKind.ENUM, AIcdValueConstraints.empty()), enumValues, title, schemaUrl);
         }
         String type = text(root, "type");
         if ("object".equals(type) || root.has("properties")) {
@@ -74,9 +83,9 @@ final class AIcJsonSchemaReader {
                     properties.add(property(name, props.get(name), required.contains(name), request));
                 }
             }
-            return new AIcdCanonicalDefinition(identity, version, logicalName, sourceKind, request.path().toString(), description, recursiveType(root, request), List.of(), title);
+            return new AIcdCanonicalDefinition(identity, version, logicalName, sourceKind, request.path().toString(), description, recursiveType(root, request), List.of(), title, schemaUrl);
         }
-        return new AIcdCanonicalDefinition(identity, version, logicalName, sourceKind, request.path().toString(), description, recursiveType(root, request), List.of(), title);
+        return new AIcdCanonicalDefinition(identity, version, logicalName, sourceKind, request.path().toString(), description, recursiveType(root, request), List.of(), title, schemaUrl);
     }
 
     private AIcdPropertyDefinition property(String name, JsonNode node, boolean required, AIcdDefinitionLoadRequest request) {

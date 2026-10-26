@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
+NameCompositions:
+  standard-prefix-python-sdo-raw-getter_1:
+    Segments:
+    - Kind: constant_string
+      Value: _getRaw_
+    - Kind: identifier
+      Convention: upper_camel_case_1
+  standard-prefix-python-sdo-presence_1:
+    Segments:
+    - Kind: constant_string
+      Value: _isPresent_
+    - Kind: identifier
+      Convention: upper_camel_case_1
+  standard-prefix-python-sdo-unsetter_1:
+    Segments:
+    - Kind: constant_string
+      Value: _unset_
+    - Kind: identifier
+      Convention: upper_camel_case_1
+GeneratedDataObjectMethodNameConventions:
+  NameConventions:
+    standard-prefix-python-codegen-standard_1:
+      StructureNaming:
+        standard_getter: python-getter-method-name_1
+        standard_setter: python-setter-method-name_1
+        raw_getter: standard-prefix-python-sdo-raw-getter_1
+        raw_presence_checker_method: standard-prefix-python-sdo-presence_1
+        raw_unsetter: standard-prefix-python-sdo-unsetter_1
+      schema_source_schema_url: $id
+      schema_source_schema_identifier: $x-algites-schema-id
+      schema_source_schema_version: $x-algites-schema-version
+      data_source_schema_url: $schema
+      data_source_schema_identifier: ''
+      data_source_schema_version: ''

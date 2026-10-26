@@ -18,6 +18,15 @@ class AIcdCanonicalDefinition:
     data_type: AIcdDataType
     enum_values: tuple[AIcdEnumValueDefinition, ...] = ()
     title: str | None = None
+    schema_url: str = ''
+    data_source_schema_url_field: str = ''
+    data_source_schema_identifier_field: str = ''
+    data_source_schema_version_field: str = ''
+    # None means no explicit source naming profile was provided (legacy caller).
+    # Empty string explicitly disables the corresponding source annotation field.
+    schema_source_schema_url_field: str | None = None
+    schema_source_schema_identifier_field: str | None = None
+    schema_source_schema_version_field: str | None = None
 
     def __post_init__(self):
         if not self.identity or not self.logical_name or not self.source_resource or self.data_type is None:

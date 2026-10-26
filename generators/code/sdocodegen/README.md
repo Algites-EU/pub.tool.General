@@ -115,8 +115,8 @@ extension hierarchy. Remaining limitations are documented in
 
 Both Defs Codegen and SDO Codegen accept one `GeneratedDataObjectMethodNameConventions.NameConventions`
 profile, defined in the shared `generators/code/common` artifact. The five method roles are
-`standard_getter_name`, `standard_setter_name`, `raw_getter_name`,
-`raw_presence_checker_method_name`, and `raw_unsetter_name`.
+`standard_getter`, `standard_setter`, `raw_getter`,
+`raw_presence_checker_method`, and `raw_unsetter`.
 The profile refers to the established `NameCompositions` catalog, not to a second
 method-name formatting implementation. By default the raw methods begin with `_`;
 this prefix is a part of the selected composition and is not injected by the generator.

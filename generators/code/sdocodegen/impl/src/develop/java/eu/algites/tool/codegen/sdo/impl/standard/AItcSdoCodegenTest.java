@@ -411,4 +411,47 @@ public final class AItcSdoCodegenTest {
         Assert.assertTrue(locXml.contains("namespaceLocalName = \"key\""));
         Assert.assertFalse(locXml.contains("AIaOpenChoice"));
     }
+
+    /**
+     * A selected naming profile controls whether each low-level SDO method is
+     * exposed at all. The generator must not manufacture technical raw getters,
+     * presence checkers or unsetters when their composition is absent or blank.
+     */
+    @Test
+    public void AIcOmittedRawMethodCompositionsSuppressGeneratedMethods() throws Exception {
+        Path locDirectory = Files.createTempDirectory("sdo-no-raw-methods-");
+        Path locCatalogFile = locDirectory.resolve("sdo-methods.yml");
+        Files.writeString(locCatalogFile, """
+                GeneratedDataObjectMethodNameConventions:
+                  NameConventions:
+                    test-no-raw-methods_1:
+                      StructureNaming:
+                        standard_getter: java-getter-method-name_1
+                        standard_setter: java-setter-method-name_1
+                        raw_getter: ""
+                """);
+        var locCatalog = eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1.loadAll(
+                java.util.List.of("resource:algites-java-name-conventions.yml", locCatalogFile.toString()));
+        var locInput = locCatalog.withRoles(java.util.Map.of("common", "algites-java-gen-intf-versioned_1"));
+        var locMutable = locCatalog.withRoles(java.util.Map.of("common", "algites-java-gen-data-intf-versioned_1"))
+                .withGeneratedMethodProfile("test-no-raw-methods_1");
+        var locConcrete = locCatalog.withRoles(java.util.Map.of("common", "algites-java-gen-data-class-versioned_1"));
+        var locResult = new AIcSdoCodegenService().generate(AIigOptional_1.class, "d",
+                locInput, locMutable, locConcrete);
+        for (var locSource : java.util.List.of(locResult.mutableInterface().source(),
+                locResult.implementation().source())) {
+            Assert.assertFalse(locSource.contains("_getRaw_"));
+            Assert.assertFalse(locSource.contains("_isPresent_"));
+            Assert.assertFalse(locSource.contains("_unset_"));
+            Assert.assertTrue(locSource.contains("setName("));
+        }
+    }
+
+    /** Fixture with a versioned source name for explicit naming-profile selection. */
+    @AIaDataObject(schemaId = "test:optional", schemaVersion = 1)
+    public interface AIigOptional_1 extends AIiDataObject {
+        /** Read the sole optional field. */
+        @AIaDataObjectField(fieldName = "Name")
+        String getName();
+    }
 }

@@ -28,7 +28,7 @@
   ],
   "description": "Example YAML canonical enum definition for a resource-endpoint action.",
   "$id": "urn:algites:development:resource-endpoint-action_1.yamldef",
-  "x-algites-schema-id": "example.resource-endpoint-action",
-  "x-algites-schema-version": 1,
+  "$x-algites-schema-id": "example.resource-endpoint-action",
+  "$x-algites-schema-version": 1,
   "title": "Resource endpoint action"
 }

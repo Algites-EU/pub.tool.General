@@ -10,12 +10,12 @@ ROOT = Path(__file__).resolve().parents[7]
 LIB = ROOT / 'pub.lib.General'
 TOOL = ROOT / 'pub.tool.General'
 LIB_CONFIG = LIB / 'naming/convention/algites/src/product/config/eu/algites/lib/naming/convention'
-METHOD_CONFIG = TOOL / 'generators/code/common/src/product/config/eu/algites/lib/naming/convention'
-EXPECTED = {'standard_getter_name': 'getName',
-            'standard_setter_name': 'setName',
-            'raw_getter_name': '_getRaw_Name',
-            'raw_presence_checker_method_name': '_isPresent_Name',
-            'raw_unsetter_name': '_unset_Name'}
+METHOD_CONFIG = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
+EXPECTED = {'standard_getter': 'getName',
+            'standard_setter': 'setName',
+            'raw_getter': '_getRaw_Name',
+            'raw_presence_checker_method': '_isPresent_Name',
+            'raw_unsetter': '_unset_Name'}
 
 
 @pytest.mark.parametrize('technology', ('java', 'python'))
@@ -45,14 +45,14 @@ def test_user_defined_composition_is_not_forced_to_add_technical_prefix(tmp_path
                      {'Kind': 'identifier', 'Convention': 'upper_camel_case_1'}]}
     mapping = selected['GeneratedDataObjectMethodNameConventions']['NameConventions']
     item = mapping.pop('algites-python-codegen-standard_1')
-    item['StructureNaming']['raw_presence_checker_method_name'] = 'custom-presence'
+    item['StructureNaming']['raw_presence_checker_method'] = 'custom-presence'
     mapping['user-profile'] = item
     override = tmp_path / 'custom.yml'
     override.write_text(yaml.safe_dump(selected))
     catalog = AIcNameConventionCatalog_1.load_many([
         LIB_CONFIG / 'algites-python-name-conventions.yml', override])
     catalog = catalog.with_generated_method_profile('user-profile')
-    assert catalog.format('user-profile', 'raw_presence_checker_method_name',
+    assert catalog.format('user-profile', 'raw_presence_checker_method',
                           {'identifier': 'Name'}, 'upper_camel_case_1') == 'presentName'
     assert catalog.format('algites-python-gen-intf-versioned_1', 'getter_method_name',
                           {'identifier':'Name'}, 'upper_camel_case_1') == 'getName'
@@ -102,7 +102,10 @@ def test_both_catalog_families_validate_against_composed_schemas(family, technol
         validator.validate(instance)
         if catalog_type == 'methods':
             instance['GeneratedDataObjectMethodNameConventions']['NameConventions'][
-                f'algites-{technology}-codegen-standard_1']['StructureNaming'].pop('raw_unsetter_name')
+                f'algites-{technology}-codegen-standard_1']['StructureNaming'].pop('raw_unsetter')
+            assert validator.is_valid(instance)  # Optional raw methods must remain schema-valid.
+            instance['GeneratedDataObjectMethodNameConventions']['NameConventions'][
+                f'algites-{technology}-codegen-standard_1']['StructureNaming'].pop('standard_getter')
             assert not validator.is_valid(instance)
 
 
@@ -125,17 +128,47 @@ def test_unresolved_cross_catalog_composition_is_reported(technology):
     profile = f'algites-{technology}-codegen-standard_1'
     catalog = catalog.with_generated_method_profile(profile)
     with pytest.raises(ValueError, match='Unknown NameFragment or NameComposition'):
-        catalog.format(profile, 'standard_getter_name',
+        catalog.format(profile, 'standard_getter',
                        {'identifier': 'Name'}, 'upper_camel_case_1')
 
 
 @pytest.mark.parametrize('technology', ('java', 'python'))
 @pytest.mark.parametrize('generator', ('defs', 'sdo'))
 def test_default_settings_load_both_method_and_source_catalogs(technology, generator):
-    """Builtin settings must provide cross-catalog references for both codegens."""
+    """Algites build profile supplies the cross-catalog references for both codegens."""
     artifact = 'defscodegen' if generator == 'defs' else 'sdocodegen'
-    path = (TOOL / f'generators/code/{artifact}/intf/src/product/config/eu/'
-            f'algites/tool/codegen/{generator}/algites-{artifact}-{technology}-default.settings')
+    path = (TOOL / f'generators/code/profile/algites/src/product/config/eu/'
+            f'algites/tool/codegen/{generator}/algites-{artifact}-{technology}.settings')
     settings = path.read_text(encoding='utf-8')
     assert f'classpath:algites-{technology}-name-conventions.yml' in settings
     assert f'classpath:algites-{technology}-codegen-method-conventions.yml' in settings
+
+@pytest.mark.parametrize('suffix', ('url', 'identifier', 'version'))
+def test_method_catalog_rejects_enabled_wire_field_without_schema_source(tmp_path, suffix):
+    """The output mapping cannot emit a schema value which has no declared source."""
+    instance = yaml.safe_load((METHOD_CONFIG/'algites-python-codegen-method-conventions.yml').read_text())
+    method = instance['GeneratedDataObjectMethodNameConventions']['NameConventions'][
+        'algites-python-codegen-standard_1']
+    method[f'schema_source_schema_{suffix}'] = ''
+    method[f'data_source_schema_{suffix}'] = f'$output_{suffix}'
+    path = tmp_path/'inconsistent.yml'
+    path.write_text(yaml.safe_dump(instance), encoding='utf-8')
+    with pytest.raises(ValueError, match=f'data_source_schema_{suffix} requires schema_source_schema_{suffix}'):
+        AIcNameConventionCatalog_1.load(path)
+
+
+@pytest.mark.parametrize('technology', ('java', 'python'))
+def test_default_method_profile_metadata_matches_algites(technology):
+    """The selected output method profile includes all six explicit wire mappings."""
+    source = yaml.safe_load((METHOD_CONFIG/f'algites-{technology}-codegen-method-conventions.yml').read_text())
+    name = f'algites-{technology}-codegen-standard_1'
+    method = source['GeneratedDataObjectMethodNameConventions']['NameConventions'][name]
+    assert {key: method[key] for key in ('schema_source_schema_url',
+        'schema_source_schema_identifier', 'schema_source_schema_version',
+        'data_source_schema_url', 'data_source_schema_identifier',
+        'data_source_schema_version')} == {
+            'schema_source_schema_url': '$id',
+            'schema_source_schema_identifier': '$x-algites-schema-id',
+            'schema_source_schema_version': '$x-algites-schema-version',
+            'data_source_schema_url': '$schema',
+            'data_source_schema_identifier': '', 'data_source_schema_version': ''}

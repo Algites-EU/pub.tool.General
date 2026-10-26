@@ -106,7 +106,9 @@ class AIcSchemaContractBindingsGenerator:
             {'kind': kind, 'directory': str(intf / 'src/product' / kind)}
             for kind in ('jsondefs', 'yamldefs', 'xmldefs')]
         root_by_source = {}
+        profile_by_source = {}
         kind_by_source = {}
+        declared_identity_by_source = {}
         existing_source_directories = 0
         for source_input in source_roots:
             kind = source_input['kind']
@@ -138,9 +140,17 @@ class AIcSchemaContractBindingsGenerator:
                         {loc_profile} if loc_profile else None)
                     if recognized is None:
                         raise ValueError('Schema filename violates input naming profile: ' + schema)
+                    profile_by_source[schema] = recognized.convention_name
                     if not configured and required_profile is not None and recognized.convention_name != required_profile:
                         raise ValueError('Unversioned schema is not allowed: ' + schema)
                 document = {} if kind == 'xmldefs' else load_schema(source)
+                if kind != 'xmldefs':
+                    source_catalog = source_catalogs.get(kind) or AIcNameConventionCatalog_1.load_resource(
+                        f'algites-{kind[:-1]}-name-conventions.yml')
+                    source_profile = profile_by_source.get(schema, f'algites-{kind[:-1]}-schema-versioned_1')
+                    id_field = source_catalog.schema_metadata_fields(source_profile).get(
+                        'schema_source_schema_identifier', '')
+                    declared_identity_by_source[schema] = bool(id_field and document.get(id_field))
                 base = re.sub(r'_[0-9]+$', '', source.name[:-len(suffix)])
                 if kind == 'xmldefs':
                     units.append(self.AIcdUnit(schema, '', base, {}, {}))
@@ -192,10 +202,23 @@ class AIcSchemaContractBindingsGenerator:
             if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*', package):
                 raise ValueError(f'Schema must have a legal package path: {unit.schema}')
             projection = deepcopy(unit.node)
+            fields = {}
             if kind != 'xmldefs':
                 if '$defs' in unit.document:
                     projection['$defs'] = unit.document['$defs']
-                projection['x-jsondefs-id'] = (unit.document.get('x-yamldefs-id') or unit.document.get('x-jsondefs-id') or unit.document.get('$id') or unit.schema) + ('#' + unit.pointer if unit.pointer else '')
+                source_catalog = source_catalogs.get(kind) or AIcNameConventionCatalog_1.load_resource(
+                    f'algites-{kind[:-1]}-name-conventions.yml')
+                source_profile = profile_by_source.get(unit.schema, f'algites-{kind[:-1]}-schema-versioned_1')
+                fields = source_catalog.schema_metadata_fields(source_profile) if source_catalog and source_profile else {}
+                id_key = fields.get('schema_source_schema_identifier', '')
+                version_key = fields.get('schema_source_schema_version', '')
+                url_key = fields.get('schema_source_schema_url', '')
+                declared_id = str(unit.document.get(id_key) or unit.name) if id_key else unit.name
+                projection['x-jsondefs-id'] = declared_id + ('#' + unit.pointer if unit.pointer else '')
+                if version_key and version_key in unit.document:
+                    projection['x-jsondefs-version'] = unit.document[version_key]
+                if url_key and url_key in unit.document:
+                    projection['$id'] = unit.document[url_key]
                 projection['x-jsondefs-name'] = unit.name
             parent_units = self._parent_units(unit, unit_index, repository) if kind != 'xmldefs' else ()
             for language in manifest['languages']:
@@ -209,8 +232,34 @@ class AIcSchemaContractBindingsGenerator:
                     definition = (AIcXmlDefsFrontend().load_named_type(load, unit.pointer[6:])
                                   if unit.pointer.startswith('@type/') else AIcXmlDefsFrontend().load(load))
                 else:
-                    definition = reader.read(projection, load, load.source_kind, 'x-jsondefs-id', 'x-jsondefs-version', 'x-jsondefs-name')
-                definition = replace(definition, source_resource=unit.schema + ('#' + unit.pointer if unit.pointer else ''))
+                    definition = reader.read(projection, load, load.source_kind, 'x-jsondefs-id', 'x-jsondefs-version', 'x-jsondefs-name', '$id')
+                # Source naming decides which schema properties were read; the
+                # selected method/output profile independently controls wire emission.
+                # XMLDEFS do not use JSON/YAML document-header mappings. Preserve
+                # legacy XML contract annotations instead of applying JSON metadata
+                # requirements to an XSD without such source fields.
+                output_fields = ({} if kind == 'xmldefs' else
+                    profile.schema_metadata_fields(profile._generated_method_profile)
+                    if profile._generated_method_profile else fields)
+                for suffix in ('url', 'identifier', 'version'):
+                    output_key = f'data_source_schema_{suffix}'
+                    if output_fields.get(output_key) and (
+                            not fields.get(f'schema_source_schema_{suffix}')
+                            or not output_fields.get(f'schema_source_schema_{suffix}')):
+                        raise ValueError(f'{unit.schema}: {output_key} has no schema source')
+                definition = replace(definition, source_resource=unit.schema + ('#' + unit.pointer if unit.pointer else ''),
+                    data_source_schema_url_field=output_fields.get('data_source_schema_url', ''),
+                    data_source_schema_identifier_field=output_fields.get('data_source_schema_identifier', ''),
+                    data_source_schema_version_field=output_fields.get('data_source_schema_version', ''),
+                    schema_source_schema_url_field=(None if kind == 'xmldefs' else
+                        fields.get('schema_source_schema_url', '')
+                        if output_fields.get('schema_source_schema_url') else ''),
+                    schema_source_schema_identifier_field=(None if kind == 'xmldefs' else
+                        fields.get('schema_source_schema_identifier', '')
+                        if output_fields.get('schema_source_schema_identifier') else ''),
+                    schema_source_schema_version_field=(None if kind == 'xmldefs' else
+                        fields.get('schema_source_schema_version', '')
+                        if output_fields.get('schema_source_schema_version') else ''))
                 xml_type_qname = (('{' + AIcXmlDefsFrontend().schema_namespace(load) + '}' + unit.pointer[6:])
                     if unit.pointer.startswith('@type/') else AIcXmlDefsFrontend().root_type_qname(load)) if kind == 'xmldefs' else None
                 if xml_type_qname is not None and xml_type_qname.endswith('}__root__'):
@@ -298,8 +347,8 @@ class AIcSchemaContractBindingsGenerator:
             first = representations[0]
             common_role = first.contract_role == 'common'
             identities = {(self._common_identity(r.definition, r.package_name,
-                          self._canonical_identity(r.definition, r.package_name, units_by_resource))
-                          if common_role else self._canonical_identity(r.definition, r.package_name, units_by_resource))
+                          self._canonical_identity(r.definition, r.package_name, units_by_resource, declared_identity_by_source))
+                          if common_role else self._canonical_identity(r.definition, r.package_name, units_by_resource, declared_identity_by_source))
                           for r in representations}
             if common_role:
                 explicit = {item for item in identities if item[0] != 'implicit'}
@@ -568,13 +617,11 @@ class AIcSchemaContractBindingsGenerator:
         return result
 
     @staticmethod
-    def _canonical_identity(definition, package_name, units_by_resource):
+    def _canonical_identity(definition, package_name, units_by_resource, declared_identity_by_source):
         """Normalize only format-specific publication aliases, never arbitrary schema IDs."""
         origin = units_by_resource[definition.source_resource]
-        document = origin.document
-        explicit_id = (document.get('x-yamldefs-id') or document.get('x-jsondefs-id')
-                       or document.get('$id')) if document else None
-        if not explicit_id and (definition.source_kind is not AInDefinitionSourceKind.XMLDEFS
+        if not declared_identity_by_source.get(origin.schema, False) and (
+                definition.source_kind is not AInDefinitionSourceKind.XMLDEFS
                                 or definition.identity == definition.logical_name):
             return ('implicit', package_name, definition.logical_name, definition.version, origin.pointer)
         identity = str(definition.identity)

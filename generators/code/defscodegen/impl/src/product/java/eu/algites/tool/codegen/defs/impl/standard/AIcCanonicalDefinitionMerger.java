@@ -55,7 +55,10 @@ public final class AIcCanonicalDefinitionMerger {
                 + aDefinition.identity() + " (" + aDefinition.sourceResource() + ")").distinct()
                 .collect(Collectors.joining("; "));
         return new AIcdCanonicalDefinition(locFirst.identity(), locFirst.version(), locFirst.logicalName(), locFirst.sourceKind(), locFirst.sourceResource(), (locDescription == null ? "" : locDescription + "\n\n") + "Canonical representations: " + locOrigins, (locFirst.dataType().kind() == eu.algites.tool.codegen.defs.AInDataTypeKind.OBJECT ? locFirst.dataType().withProperties(locProperties) : locFirst.dataType()), locValues, AIcFirstTitle(locFirst.title(), aDefinitions.stream()
-                        .map(AIcdCanonicalDefinition::title).toList()));
+                        .map(AIcdCanonicalDefinition::title).toList()), locFirst.schemaUrl(),
+                        locFirst.dataSourceSchemaUrlField(), locFirst.dataSourceSchemaIdentifierField(),
+                        locFirst.dataSourceSchemaVersionField(), locFirst.schemaSourceSchemaUrlField(),
+                        locFirst.schemaSourceSchemaIdentifierField(), locFirst.schemaSourceSchemaVersionField());
     }
 
     /**

@@ -90,6 +90,10 @@ def merge_common(definitions):
             break
     origins = '; '.join(dict.fromkeys(f'{d.source_kind.name}: {d.identity} ({d.source_resource})'
                                        for d in definitions))
+    # The common contract has no one representation-specific publication URL.
+    # The JSONDEFS/YAMLDEFS specialized contracts retain their own URL mappings.
     return replace(first, identity=identity, data_type=data_type,
+        schema_url='', data_source_schema_url_field='',
+        data_source_schema_identifier_field='', data_source_schema_version_field='',
         description=(first.description + '\n\n' if first.description else '')
                     + 'Common representations: ' + origins)

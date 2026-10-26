@@ -110,7 +110,9 @@ public final class AIcSchemaContractBindingsGenerator {
             return List.of();
         }
         Map<String, Path> rootBySchema = new LinkedHashMap<>();
+        Map<String, String> profileBySchema = new LinkedHashMap<>();
         Map<String, String> kindBySchema = new LinkedHashMap<>();
+        Map<String, Boolean> declaredIdentityBySchema = new LinkedHashMap<>();
         Map<String, JsonNode> overrides = new LinkedHashMap<>();
         for (JsonNode entry : manifest.path("bindings")) overrides.put(entry.required("schema").asText() + "#" + entry.path("pointer").asText(), entry);
         List<AIcdUnit> units = new ArrayList<>();
@@ -152,12 +154,23 @@ public final class AIcSchemaContractBindingsGenerator {
                         var named = sourceCatalog.recognizeFilename(source.getFileName().toString(),
                                 locRequired == null ? null : Set.of(locRequired));
                         if (named == null) throw new IllegalArgumentException("Invalid schema filename: " + schema);
+                        profileBySchema.put(schema, named.conventionName());
                         String sourceName = kind.substring(0, kind.length() - 1);
                         if (!locConfigured && !manifest.path("allow_unversioned_schemas").asBoolean()
                                 && !named.conventionName().equals("algites-" + sourceName + "-schema-versioned_1"))
                             throw new IllegalArgumentException("Unversioned schema is not allowed: " + schema);
                     }
                     JsonNode document = kind.equals("xmldefs") ? mapper.createObjectNode() : mapper.readTree(source.toFile());
+                    if (!kind.equals("xmldefs")) {
+                        AIcNameConventionCatalog_1 locCatalog = sourceCatalogs.get(kind);
+                        if (locCatalog == null) locCatalog = AIcNameConventionCatalog_1.loadResource(
+                                "algites-" + (kind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
+                        String locSourceProfile = profileBySchema.getOrDefault(schema,
+                                "algites-" + (kind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1");
+                        String locIdField = locCatalog.schemaMetadataField(locSourceProfile, "schema_source", "identifier");
+                        declaredIdentityBySchema.put(schema, !locIdField.isBlank()
+                                && !document.path(locIdField).asText("").isBlank());
+                    }
                     String base = source.getFileName().toString().substring(0, source.getFileName().toString().length() - suffix.length()).replaceFirst("_[0-9]+$", "");
                     if (kind.equals("xmldefs")) {
                         units.add(new AIcdUnit(schema, "", base, mapper.createObjectNode(), document));
@@ -224,10 +237,24 @@ public final class AIcSchemaContractBindingsGenerator {
             ObjectNode projection = ((ObjectNode) unit.node).deepCopy();
             if (!sourceKind.equals("xmldefs")) {
                 if (unit.document.has("$defs")) projection.set("$defs", unit.document.get("$defs"));
-                String declaredId = unit.document.path("x-yamldefs-id").asText("");
-                if (declaredId.isEmpty()) declaredId = unit.document.path("x-jsondefs-id").asText("");
-                if (declaredId.isEmpty()) declaredId = unit.document.path("$id").asText(unit.schema);
-                projection.put("x-jsondefs-id", declaredId + (unit.pointer.isEmpty() ? "" : "#" + unit.pointer));
+                AIcNameConventionCatalog_1 locSourceCatalog = sourceCatalogs.get(sourceKind);
+                if (locSourceCatalog == null) locSourceCatalog = AIcNameConventionCatalog_1.loadResource(
+                        "algites-" + (sourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
+                String locSourceProfile = profileBySchema.getOrDefault(unit.schema,
+                        "algites-" + (sourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1");
+                String locIdKey = locSourceCatalog != null && !locSourceProfile.isBlank()
+                        ? locSourceCatalog.schemaMetadataField(locSourceProfile, "schema_source", "identifier") : "";
+                String locVersionKey = locSourceCatalog != null && !locSourceProfile.isBlank()
+                        ? locSourceCatalog.schemaMetadataField(locSourceProfile, "schema_source", "version") : "";
+                String locUrlKey = locSourceCatalog != null && !locSourceProfile.isBlank()
+                        ? locSourceCatalog.schemaMetadataField(locSourceProfile, "schema_source", "url") : "";
+                String locDeclaredId = locIdKey.isEmpty() ? "" : unit.document.path(locIdKey).asText("");
+                if (locDeclaredId.isBlank()) locDeclaredId = unit.name;
+                projection.put("x-jsondefs-id", locDeclaredId + (unit.pointer.isEmpty() ? "" : "#" + unit.pointer));
+                if (!locVersionKey.isEmpty() && unit.document.has(locVersionKey))
+                    projection.set("x-jsondefs-version", unit.document.get(locVersionKey));
+                if (!locUrlKey.isEmpty() && unit.document.has(locUrlKey))
+                    projection.set("$id", unit.document.get(locUrlKey));
                 projection.put("x-jsondefs-name", unit.name);
             }
             List<AIcdUnit> parentUnits = sourceKind.equals("xmldefs") ? List.of() : parentUnits(unit, unitIndex, repository);
@@ -251,8 +278,20 @@ public final class AIcSchemaContractBindingsGenerator {
                         ? (unit.pointer().startsWith("@type/")
                             ? new AIcXmlDefsFrontend().loadNamedType(load, unit.pointer().substring(6))
                             : new AIcXmlDefsFrontend().load(load))
-                        : reader.read(projection, load, load.sourceKind(), "x-jsondefs-id", "x-jsondefs-version", "x-jsondefs-name");
-                var definition = new AIcdCanonicalDefinition(loaded.identity(), loaded.version(), loaded.logicalName(), loaded.sourceKind(), unit.schema + (unit.pointer.isEmpty() ? "" : "#" + unit.pointer), loaded.description(), loaded.dataType(), loaded.enumValues(), loaded.title());
+                        : reader.read(projection, load, load.sourceKind(), "x-jsondefs-id", "x-jsondefs-version", "x-jsondefs-name", "$id");
+                var definition = new AIcdCanonicalDefinition(loaded.identity(), loaded.version(), loaded.logicalName(), loaded.sourceKind(), unit.schema + (unit.pointer.isEmpty() ? "" : "#" + unit.pointer), loaded.description(), loaded.dataType(), loaded.enumValues(), loaded.title(), loaded.schemaUrl(),
+                        sourceKind.equals("xmldefs") ? "" : outputMetadataField(baseProfile, sourceCatalogs.get(sourceKind), sourceKind,
+                                profileBySchema.get(unit.schema), "url"),
+                        sourceKind.equals("xmldefs") ? "" : outputMetadataField(baseProfile, sourceCatalogs.get(sourceKind), sourceKind,
+                                profileBySchema.get(unit.schema), "identifier"),
+                        sourceKind.equals("xmldefs") ? "" : outputMetadataField(baseProfile, sourceCatalogs.get(sourceKind), sourceKind,
+                                profileBySchema.get(unit.schema), "version"),
+                        sourceKind.equals("xmldefs") ? null : sourceAnnotationField(baseProfile, sourceCatalogs.get(sourceKind), sourceKind,
+                                profileBySchema.get(unit.schema), "url"),
+                        sourceKind.equals("xmldefs") ? null : sourceAnnotationField(baseProfile, sourceCatalogs.get(sourceKind), sourceKind,
+                                profileBySchema.get(unit.schema), "identifier"),
+                        sourceKind.equals("xmldefs") ? null : sourceAnnotationField(baseProfile, sourceCatalogs.get(sourceKind), sourceKind,
+                                profileBySchema.get(unit.schema), "version"));
                 String locXmlTypeQName = sourceKind.equals("xmldefs")
                         ? (unit.pointer().startsWith("@type/")
                             ? "{" + new AIcXmlDefsFrontend().schemaNamespace(load) + "}" + unit.pointer().substring(6)
@@ -353,12 +392,12 @@ public final class AIcSchemaContractBindingsGenerator {
         for (var representations : requests.values()) {
             var first = representations.get(0);
             long identityCount = representations.stream().map(r -> canonicalIdentity(
-                    r.definition(), r.packageName(), unitIndex)).distinct().count();
+                    r.definition(), r.packageName(), unitIndex, declaredIdentityBySchema)).distinct().count();
             boolean locIsCommonRole = first.contractRole().equals("common");
             if (locIsCommonRole) {
                 var locIdentities = representations.stream().map(r ->
                         AIcCommonContractProjection.canonicalIdentity(r.definition(), r.packageName(),
-                            canonicalIdentity(r.definition(), r.packageName(), unitIndex))).toList();
+                            canonicalIdentity(r.definition(), r.packageName(), unitIndex, declaredIdentityBySchema))).toList();
                 var locExplicit = locIdentities.stream().filter(aIdentity ->
                         !((List<?>) aIdentity).get(0).equals("implicit")).distinct().toList();
                 identityCount = locExplicit.isEmpty() ? locIdentities.stream().distinct().count() : locExplicit.size();
@@ -742,17 +781,25 @@ public final class AIcSchemaContractBindingsGenerator {
         return () -> aIterator;
     }
 
-    /** Distinguishes semantic schema IDs from format-specific publication URL aliases. */
+    /**
+     * Classifies identity using the source naming convention, not JSON Schema {@code $id}.
+     * An input URL identifies a published schema resource and must not turn an otherwise
+     * implicit logical name into a separately declared semantic identity.
+     *
+     * @param definition loaded schema definition
+     * @param packageName destination package for an implicit identity
+     * @param unitIndex schema units by source resource
+     * @param declaredIdentityBySchema whether the configured logical-ID source field has a value
+     * @return stable explicit or implicit canonical identity key
+     */
     private static Object canonicalIdentity(AIcdCanonicalDefinition definition, String packageName,
-                                            Map<String, AIcdUnit> unitIndex) {
+                                            Map<String, AIcdUnit> unitIndex,
+                                            Map<String, Boolean> declaredIdentityBySchema) {
         AIcdUnit origin = unitIndex.get(definition.sourceResource());
         if (origin == null) origin = unitIndex.get(definition.sourceResource() + "#");
         if (origin == null) throw new IllegalArgumentException("Unknown canonical source " + definition.sourceResource());
-        JsonNode document = origin.document();
-        String explicit = document.path("x-yamldefs-id").asText("");
-        if (explicit.isEmpty()) explicit = document.path("x-jsondefs-id").asText("");
-        if (explicit.isEmpty()) explicit = document.path("$id").asText("");
-        if (explicit.isEmpty() && (definition.sourceKind() != AInDefinitionSourceKind.XMLDEFS
+        if (!Boolean.TRUE.equals(declaredIdentityBySchema.get(origin.schema()))
+                && (definition.sourceKind() != AInDefinitionSourceKind.XMLDEFS
                 || definition.identity().equals(definition.logicalName())))
             return java.util.Arrays.asList("implicit", packageName, definition.logicalName(), definition.version(), origin.pointer());
         String identity = definition.identity()
@@ -983,4 +1030,97 @@ public final class AIcSchemaContractBindingsGenerator {
         System.out.println(json ? generator.mapper.writerWithDefaultPrettyPrinter().writeValueAsString(result)
             : (check ? "Verified " : "Generated ") + result.size() + " schema representations.");
     }
+    /**
+     * Resolves the configured source-schema annotation member for one metadata kind.
+     * Both the selected schema input and the output method naming profile must
+     * permit extraction. A blank source disables the generated annotation member.
+     *
+     * @param aTarget output naming catalog
+     * @param aSourceCatalog input naming catalog, possibly null for default
+     * @param aSourceKind schema family
+     * @param aSourceProfile selected source profile, possibly null for default
+     * @param aKind metadata kind
+     * @return declared source metadata field, or empty if disabled
+     * @throws IOException if a required source catalog resource is unavailable
+     */
+    private static String sourceAnnotationField(AIiNameConventionCatalog aTarget,
+            AIcNameConventionCatalog_1 aSourceCatalog, String aSourceKind,
+            String aSourceProfile, String aKind) throws IOException {
+        AIcNameConventionCatalog_1 locSource = aSourceCatalog != null ? aSourceCatalog
+                : AIcNameConventionCatalog_1.loadResource("algites-"
+                    + (aSourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
+        String locProfile = aSourceProfile != null ? aSourceProfile : "algites-"
+                + (aSourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1";
+        String locValue = locSource.schemaMetadataField(locProfile, "schema_source", aKind);
+        if (aTarget instanceof AIcNameConventionCatalog_1 locCatalog
+                && locCatalog.generatedMethodProfile() != null
+                && locCatalog.schemaMetadataField(locCatalog.generatedMethodProfile(),
+                    "schema_source", aKind).isBlank()) return "";
+        return locValue;
+    }
+
+    /**
+     * Selects the instance-document metadata field from the generated-method
+     * naming profile, independently of the input schema's logical identity.
+     * A profile may suppress any field with an empty mapping. Enabling a target
+     * without the corresponding input and output source mappings is rejected.
+     * Legacy callers without a selected generated-method profile retain their
+     * input catalog's instance-metadata conventions.
+     *
+     * @param aTarget target naming catalog, possibly without a method profile
+     * @param aSourceCatalog catalog chosen for the schema input, if supplied
+     * @param aSourceKind source schema technology
+     * @param aSourceProfile source name convention, or null for Algites default
+     * @param aKind metadata kind: url, identifier or version
+     * @return configured target field, or empty string when suppressed
+     * @throws IOException if a required default input catalog cannot be read
+     * @throws IllegalArgumentException if an output target lacks a source mapping
+     */
+    private static String outputMetadataField(AIiNameConventionCatalog aTarget,
+            AIcNameConventionCatalog_1 aSourceCatalog, String aSourceKind,
+            String aSourceProfile, String aKind) throws IOException {
+        String locSourceTarget = locSourceMetadataField(aSourceCatalog, aSourceKind, aSourceProfile, aKind);
+        if (!(aTarget instanceof AIcNameConventionCatalog_1 locCatalog)
+                || locCatalog.generatedMethodProfile() == null) return locSourceTarget;
+        String locMethodProfile = locCatalog.generatedMethodProfile();
+        String locTarget = locCatalog.schemaMetadataField(locMethodProfile, "data_source", aKind);
+        if (!locTarget.isBlank()) {
+            String locMethodSource = locCatalog.schemaMetadataField(locMethodProfile, "schema_source", aKind);
+            AIcNameConventionCatalog_1 locSource = aSourceCatalog != null ? aSourceCatalog
+                    : AIcNameConventionCatalog_1.loadResource("algites-"
+                        + (aSourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
+            String locInputProfile = aSourceProfile == null ? "algites-"
+                    + (aSourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1"
+                    : aSourceProfile;
+            if (locMethodSource.isBlank() || locSource.schemaMetadataField(locInputProfile,
+                    "schema_source", aKind).isBlank())
+                throw new IllegalArgumentException("data_source_schema_" + aKind
+                        + " has no schema_source_schema_" + aKind);
+        }
+        return locTarget;
+    }
+
+    /**
+     * Looks up the instance metadata field from the source-profile catalog for
+     * compatibility with generators that do not select an output method profile.
+     * Does not infer a target name from the schema ID or the schema URL.
+     *
+     * @param sourceCatalog optional input naming catalog
+     * @param sourceKind source family used for the standard catalog fallback
+     * @param profile selected source profile, or null for the standard profile
+     * @param kind metadata kind: url, identifier, or version
+     * @return configured instance metadata field or empty string when disabled
+     * @throws IOException if the standard input catalog resource is unavailable
+     */
+    private static String locSourceMetadataField(AIcNameConventionCatalog_1 sourceCatalog,
+            String sourceKind, String profile, String kind) throws IOException {
+        AIcNameConventionCatalog_1 locCatalog = sourceCatalog != null ? sourceCatalog
+                : AIcNameConventionCatalog_1.loadResource("algites-"
+                    + (sourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
+        String locProfile = profile != null ? profile : "algites-"
+                + (sourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1";
+        return locCatalog.schemaMetadataField(locProfile, "data_source", kind);
+    }
+
+
 }

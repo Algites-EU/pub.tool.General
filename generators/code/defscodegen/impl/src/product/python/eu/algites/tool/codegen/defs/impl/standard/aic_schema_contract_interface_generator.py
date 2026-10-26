@@ -172,9 +172,15 @@ class AIcSchemaContractInterfaceGenerator:
             + xml_imports
             + '\n'.join(sorted(ref_imports)) + '\n\n' + helpers
             + f'class {interface}({parent_name}):\n'
-            + f'    __data_object__ = AIcdDataObject(schema_id={model.identity!r}, '
-            + f'schema_version={model.version if model.version is not None else -1}, '
-            + f'title={_visible_title(model.title, model.logical_name)!r}, description={(model.description or "")!r}, '
+            + '    __data_object__ = AIcdDataObject('
+            + (f'schema_id={model.identity!r}, ' if model.schema_source_schema_identifier_field != '' else '')
+            + (f'schema_version={model.version if model.version is not None else -1}, ' if model.schema_source_schema_version_field != '' else '')
+            + (f'schema_url={model.schema_url!r}, ' if model.schema_source_schema_url_field != '' else '')
+            + f'title={_visible_title(model.title, model.logical_name)!r}'
+            + (f', data_source_schema_url_field={model.data_source_schema_url_field!r}' if model.data_source_schema_url_field else '')
+            + (f', data_source_schema_identifier_field={model.data_source_schema_identifier_field!r}' if model.data_source_schema_identifier_field else '')
+            + (f', data_source_schema_version_field={model.data_source_schema_version_field!r}' if model.data_source_schema_version_field else '')
+            + f', description={(model.description or "")!r}, '
             + f'naming_convention={request.naming_convention!r}, setter_inheritance_policy=AInFieldSetterInheritancePolicy.{effective_default().name})\n'
             + xml_metadata
             + '    __data_object_fields__ = (\n' + '\n'.join(metadata_rows)
@@ -199,10 +205,14 @@ class AIcSchemaContractInterfaceGenerator:
             ('eu.algites.lib.data.dataobject.AIiDataObject' if request.contract_role == 'common' else
                 _TECHNOLOGY_DATA_OBJECT[model.source_kind][2]))
         rows = [f'package {request.package_name};', '', '/** Generated schema contract. Do not edit manually. */',
-            '@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = '
-            + _java_quote(model.identity) + ', schemaVersion = '
-            + str(model.version if model.version is not None else -1)
-            + ', title = ' + _java_quote(_visible_title(model.title, model.logical_name))
+            '@eu.algites.lib.data.dataobject.AIaDataObject('
+            + ('schemaId = ' + _java_quote(model.identity) + ', ' if model.schema_source_schema_identifier_field != '' else '')
+            + ('schemaVersion = ' + str(model.version if model.version is not None else -1) + ', ' if model.schema_source_schema_version_field != '' else '')
+            + ('schemaUrl = ' + _java_quote(model.schema_url) + ', ' if model.schema_source_schema_url_field != '' else '')
+            + 'title = ' + _java_quote(_visible_title(model.title, model.logical_name))
+            + (', dataSourceSchemaUrlField = ' + _java_quote(model.data_source_schema_url_field) if model.data_source_schema_url_field else '')
+            + (', dataSourceSchemaIdentifierField = ' + _java_quote(model.data_source_schema_identifier_field) if model.data_source_schema_identifier_field else '')
+            + (', dataSourceSchemaVersionField = ' + _java_quote(model.data_source_schema_version_field) if model.data_source_schema_version_field else '')
             + ', description = ' + _java_quote(model.description or '')
             + ', namingConvention = ' + _java_quote(request.naming_convention)
             + ', setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.' + effective_default().name + ')',
@@ -211,6 +221,8 @@ class AIcSchemaContractInterfaceGenerator:
             f'    String CANONICAL_SOURCE_ID = {_java_quote(model.identity)};',
             '    /** Version identifying the canonical schema definition. */',
             f'    Integer CANONICAL_SOURCE_VERSION = {_java_integer(model.version)};',
+            '    /** Published URL of the schema representation, separate from its logical identifier. */',
+            f'    String CANONICAL_SOURCE_URL = {_java_quote(model.schema_url)};',
             '    /** Definition source resource retained for provenance and diagnostics. */',
             f'    String CANONICAL_SOURCE_RESOURCE = {_java_quote(model.source_resource)};']
         if request.xml_type_qname is not None:

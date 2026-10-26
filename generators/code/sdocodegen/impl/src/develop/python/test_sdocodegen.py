@@ -293,7 +293,7 @@ def test_shared_generated_method_profile_controls_real_sdo_emission(contracts, t
     _, parent, _ = contracts
     root = Path(__file__).resolve().parents[8]
     library = root / 'pub.lib.General/naming/convention/algites/src/product/config/eu/algites/lib/naming/convention'
-    tool = root / 'pub.tool.General/generators/code/common/src/product/config/eu/algites/lib/naming/convention'
+    tool = root / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
     config = yaml.safe_load((tool / 'algites-python-codegen-method-conventions.yml').read_text())
     config['NameCompositions']['custom-sdo-raw-getter'] = {'Segments': [
         {'Kind': 'constant_string', 'Value': 'rawValue'},
@@ -301,7 +301,7 @@ def test_shared_generated_method_profile_controls_real_sdo_emission(contracts, t
     ]}
     config['GeneratedDataObjectMethodNameConventions']['NameConventions'][
         'algites-python-codegen-standard_1']['StructureNaming'][
-        'raw_getter_name'] = 'custom-sdo-raw-getter'
+        'raw_getter'] = 'custom-sdo-raw-getter'
     custom_file = tmp_path / 'custom-sdo-methods.yml'
     custom_file.write_text(yaml.safe_dump(config), encoding='utf-8')
     catalog = AIcNameConventionCatalog_1.load_many([
@@ -314,3 +314,37 @@ def test_shared_generated_method_profile_controls_real_sdo_emission(contracts, t
     assert 'def _isPresent_Name(self)' in generated.mutable_interface.source
     assert 'def _unset_Name(self)' in generated.mutable_interface.source
     assert 'def _getRaw_Name(self)' not in generated.implementation.source
+
+@pytest.mark.parametrize('disabled', ('raw_getter', 'raw_presence_checker_method',
+                                     'raw_unsetter', 'all'))
+def test_unconfigured_raw_methods_are_not_emitted(contracts, tmp_path, disabled):
+    """Absent or empty raw compositions omit both the abstract and concrete method."""
+    import yaml
+    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+
+    _, parent, _ = contracts
+    repository = Path(__file__).resolve().parents[8]
+    lib = repository / 'pub.lib.General/naming/convention/algites/src/product/config/eu/algites/lib/naming/convention'
+    shared = repository / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
+    source = yaml.safe_load((shared / 'algites-python-codegen-method-conventions.yml').read_text())
+    rules = source['GeneratedDataObjectMethodNameConventions']['NameConventions'][
+        'algites-python-codegen-standard_1']['StructureNaming']
+    keys = ('raw_getter', 'raw_presence_checker_method', 'raw_unsetter')
+    if disabled == 'all':
+        for key in keys:
+            rules.pop(key)
+    else:
+        rules[disabled] = ''
+    filename = tmp_path / 'optional-raw.yml'
+    filename.write_text(yaml.safe_dump(source), encoding='utf-8')
+    catalog = AIcNameConventionCatalog_1.load_many([
+        lib / 'algites-python-name-conventions.yml', filename,
+    ]).with_generated_method_profile('algites-python-codegen-standard_1')
+    parent.__name__ = 'AIigParent_1'
+    result = AIcSdoCodegenService().generate(parent, naming=(catalog, catalog, catalog, catalog))
+    for key, name in zip(keys, ('_getRaw_Name', '_isPresent_Name', '_unset_Name')):
+        active = disabled != 'all' and key != disabled
+        for output in (result.mutable_interface.source, result.implementation.source):
+            assert (f'def {name}(' in output) == active
+    assert 'def setName(' in result.mutable_interface.source
+    assert 'def getName(' in result.implementation.source

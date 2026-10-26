@@ -4,11 +4,11 @@
   "type": "string",
   "title": "Generated DataObject method naming role",
   "enum": [
-    "standard_getter_name",
-    "standard_setter_name",
-    "raw_getter_name",
-    "raw_presence_checker_method_name",
-    "raw_unsetter_name"
+    "standard_getter",
+    "standard_setter",
+    "raw_getter",
+    "raw_presence_checker_method",
+    "raw_unsetter"
   ],
   "description": "Roles for field-specific methods shared between Defs and SDO generators."
 }

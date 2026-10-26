@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+# $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+Artifact:
+  TechnologyKinds:
+  - java
+  - python
+  Name: Code generation profile standardprefix
+  Description: Build-time Java and Python settings for Defs/SDO generators.
+Dependencies:
+- DependencyKind: modustro
+  Items:
+  - GroupId: eu.algites.lib.naming
+    ArtifactId: pub.lib.General_naming.convention.standardprefix
+    Usages:
+    - product_api
+    VersionRequirement:
+      Exact: 1.1-SNAPSHOT

@@ -30,25 +30,27 @@ class AIcJsonSchemaReader:
         """Initialize this service instance."""
         self.identities = AIcDefinitionIdentityResolver()
 
-    def read(self, root: Mapping[str, Any], request: AIcdDefinitionLoadRequest, source_kind, id_extension, version_extension, name_extension):
+    def read(self, root: Mapping[str, Any], request: AIcdDefinitionLoadRequest, source_kind, id_extension, version_extension, name_extension, url_extension=""):
         """Read a JSON-Schema-shaped definition into the normalized canonical model."""
         explicit_version = root.get(version_extension) if isinstance(root.get(version_extension), int) else None
         parsed = self.identities.from_file(request, explicit_version)
         logical_name = str(root.get(name_extension) or parsed.logical_name)
-        identity = str(root.get("x-algites-schema-id") or root.get(id_extension) or root.get("$id") or parsed.logical_name)
+        # JSON Schema $id is a resource URI, not a logical schema identifier.
+        identity = str(root.get(id_extension) or parsed.logical_name)
         version = explicit_version if explicit_version is not None else parsed.version
+        schema_url = str(root.get(url_extension) or "") if url_extension else ""
         description = root.get("description") if isinstance(root.get("description"), str) else None
         title = root.get("title") if isinstance(root.get("title"), str) else None
         root = self._structural(root, request, set())
         enum_values = self._enum_values(root)
         if enum_values:
-            return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, AIcdDataType(AInDataTypeKind.ENUM), enum_values, title)
+            return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, AIcdDataType(AInDataTypeKind.ENUM), enum_values, title, schema_url)
         properties = root.get("properties")
         if root.get("type") == "object" or isinstance(properties, Mapping):
             required = set(root.get("required", ()))
             result = tuple(self._property(name, schema, name in required, request) for name, schema in (properties or {}).items())
-            return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, self._recursive_type(root, request), (), title)
-        return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, self._recursive_type(root, request), (), title)
+            return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, self._recursive_type(root, request), (), title, schema_url)
+        return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, self._recursive_type(root, request), (), title, schema_url)
 
     def _property(self, name, schema, required, request, visited=None):
         """Normalize one source property definition."""

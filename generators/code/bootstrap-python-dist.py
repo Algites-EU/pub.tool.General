@@ -163,11 +163,20 @@ def verify_wheel(wheel: Path, name: str, generator: str, part: str | None, relea
         if not any(path.endswith(".py") and path.startswith("eu/algites/tool/codegen/") for path in entries):
             raise ValueError(f"Wheel has no Codegen Python sources: {wheel}")
         if generator == "common":
+            if any(path.endswith("-codegen-method-conventions.yml") for path in entries):
+                raise ValueError("Neutral common wheel unexpectedly contains a naming profile")
+        if generator == "profile":
             for language in ("java", "python"):
                 resource = ("eu/algites/lib/naming/convention/"
-                            f"algites-{language}-codegen-method-conventions.yml")
+                            f"{part}-{language}-codegen-method-conventions.yml")
                 if resource not in entries:
-                    raise ValueError(f"Missing shared naming catalog in common wheel: {resource}")
+                    raise ValueError(f"Missing {part} method catalog in profile wheel: {resource}")
+            for target in ("java", "python"):
+                for implementation in ("defs", "sdo"):
+                    entry = (f"eu/algites/tool/codegen/{implementation}/"
+                             f"algites-{'defscodegen' if implementation == 'defs' else 'sdocodegen'}-{target}.settings")
+                    if entry not in entries:
+                        raise ValueError(f"Missing {part} profile settings in wheel: {entry}")
         if part == "intf":
             settings = f"eu/algites/tool/codegen/{'defs' if generator == 'defscodegen' else 'sdo'}/algites-{generator}-python-default.settings"
             if settings not in entries:
@@ -194,13 +203,15 @@ def verify_sdist(sdist: Path) -> None:
 
 
 def main() -> None:
-    """Build and verify the common plus six generator distributions before upload."""
+    """Build and verify generator distributions and selected naming profiles."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", type=Path, required=True)
     parser.add_argument("--maven-version", required=True)
     parser.add_argument("--python-version")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--only-profiles", action="store_true",
+                        help="Build the three standalone generator profiles only")
     options = parser.parse_args()
     repository = options.repository.resolve(strict=True)
     output = options.output.absolute()
@@ -212,8 +223,11 @@ def main() -> None:
         distribution_dir = stage / "dist"
         distribution_dir.mkdir()
         rows = []
-        artifacts = [("common", None)] + [(generator, part)
-                                         for generator in GENERATORS for part in PARTS]
+        if options.only_profiles:
+            artifacts = [("profile", name) for name in ("algites", "standardprefix", "standardpostfix")]
+        else:
+            artifacts = [("common", None)] + [(generator, part)
+                                             for generator in GENERATORS for part in PARTS] + [("profile", "algites")]
         for generator, part in artifacts:
             name, project = stage_artifact(repository, stage, generator, part, options.maven_version, release)
             before = set(distribution_dir.iterdir())

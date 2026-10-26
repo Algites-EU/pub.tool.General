@@ -221,11 +221,12 @@ trap 'rm -rf -- "${locBootstrapDir}"' EXIT
 # Break the self-hosting dependency: build the generator without loading repository conventions that use it.
 cat > "${locBootstrapDir}/settings.gradle" <<'GRADLE'
 rootProject.name = 'modustro-defscodegen-bootstrap'
-include 'intf', 'impl', 'cli', 'common'
+include 'intf', 'impl', 'cli', 'common', 'profile-algites'
 ['intf', 'impl', 'cli'].each { name ->
     project(":" + name).projectDir = new File(System.getenv('_TMP_MODUSTRO_DEFS_MODULE'), name)
 }
 project(':common').projectDir = new File(System.getenv('_TMP_MODUSTRO_DEFS_MODULE'), '../common').canonicalFile
+project(':profile-algites').projectDir = new File(System.getenv('_TMP_MODUSTRO_DEFS_MODULE'), '../profile/algites').canonicalFile
 GRADLE
 cat > "${locBootstrapDir}/build.gradle" <<'GRADLE'
 def locBootstrapOutput = new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'gradle/defscodegen')
@@ -265,7 +266,9 @@ subprojects {
         publications {
             mavenJava(MavenPublication) {
                 from components.java
-                artifactId = project.name == 'common' ? 'pub.tool.General_generators.code.common' : 'pub.tool.General_generators.code.defscodegen.' + project.name
+                artifactId = project.name == 'common' ? 'pub.tool.General_generators.code.common' :
+                             project.name == 'profile-algites' ? 'pub.tool.General_generators.code.profile.algites' :
+                             'pub.tool.General_generators.code.defscodegen.' + project.name
             }
         }
     }
@@ -276,6 +279,15 @@ project(':common') {
     sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/yamldefs',
                                          'src/product/jsondefs', 'src/product/xmldefs']
 }
+// Until the Builder understands build-source dependency usages, provide the
+// Algites profile explicitly on the generator bootstrap runtime classpath.
+// The standard profiles have separate standalone bootstraps.
+project(':profile-algites') {
+    sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/resources']
+    dependencies {
+        api 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+    }
+}
 project(':intf') {
     dependencies {
         api 'eu.algites.lib.naming:pub.lib.General_naming.convention.intf:1.1-SNAPSHOT'
@@ -285,6 +297,7 @@ project(':intf') {
 project(':impl') {
     dependencies {
         implementation project(':common')
+        implementation project(':profile-algites')
         api project(':intf')
         api 'eu.algites.lib.data:pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT'
         api 'eu.algites.lib.common:pub.lib.General_common:1.1-SNAPSHOT'
@@ -442,6 +455,7 @@ project(':impl').tasks.withType(Test).configureEach {
     environment 'MODUSTRO_PYTHON_TEST_PATH', (
         (System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_PYTHON_PATH') ?: '').tokenize(File.pathSeparator) + [
             new File(module, '../common/src/product/config').canonicalPath,
+            new File(module, '../profile/algites/src/product/config').canonicalPath,
             new File(module, 'intf/src/product/python').absolutePath,
             new File(module, 'intf/src/product/config').absolutePath,
             new File(module, 'impl/src/product/python').absolutePath,
@@ -472,11 +486,12 @@ trap 'rm -rf -- "${locBootstrapDirectory}"' EXIT
 # Bootstrap without loading the self-hosting Builder conventions.
 cat > "${locBootstrapDirectory}/settings.gradle" <<'GRADLE'
 rootProject.name = 'modustro-sdocodegen-bootstrap'
-include 'intf', 'impl', 'cli', 'common'
+include 'intf', 'impl', 'cli', 'common', 'profile-algites'
 ['intf', 'impl', 'cli'].each { name ->
     project(":" + name).projectDir = new File(System.getenv('_TMP_MODUSTRO_SDO_MODULE'), name)
 }
 project(':common').projectDir = new File(System.getenv('_TMP_MODUSTRO_SDO_MODULE'), '../common').canonicalFile
+project(':profile-algites').projectDir = new File(System.getenv('_TMP_MODUSTRO_SDO_MODULE'), '../profile/algites').canonicalFile
 GRADLE
 cat > "${locBootstrapDirectory}/build.gradle" <<'GRADLE'
 def locBootstrapOutput = new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'gradle/sdocodegen')
@@ -513,7 +528,9 @@ subprojects {
         publications {
             mavenJava(MavenPublication) {
                 from components.java
-                artifactId = project.name == 'common' ? 'pub.tool.General_generators.code.common' : 'pub.tool.General_generators.code.sdocodegen.' + project.name
+                artifactId = project.name == 'common' ? 'pub.tool.General_generators.code.common' :
+                             project.name == 'profile-algites' ? 'pub.tool.General_generators.code.profile.algites' :
+                             'pub.tool.General_generators.code.sdocodegen.' + project.name
             }
         }
     }
@@ -524,12 +541,22 @@ project(':common') {
     sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/yamldefs',
                                          'src/product/jsondefs', 'src/product/xmldefs']
 }
+// Until the Builder understands build-source dependency usages, provide the
+// Algites profile explicitly on the generator bootstrap runtime classpath.
+// The standard profiles have separate standalone bootstraps.
+project(':profile-algites') {
+    sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/resources']
+    dependencies {
+        api 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+    }
+}
 project(':intf') {
     dependencies { api 'eu.algites.lib.data:pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT' }
 }
 project(':impl') {
     dependencies {
         implementation project(':common')
+        implementation project(':profile-algites')
         api project(':intf')
         api 'eu.algites.lib.common:pub.lib.General_common:1.1-SNAPSHOT'
         implementation 'eu.algites.lib.data:pub.lib.General_data.smartdataobject.impl:1.1-SNAPSHOT'
@@ -569,6 +596,7 @@ def runSdoPython = tasks.register('testSdoPython', Exec) {
     environment 'PYTHONPATH', (
         (System.getenv('MODUSTRO_BOOTSTRAP_GENERAL_PYTHON_PATH') ?: '').tokenize(File.pathSeparator) + [
             new File(module, '../common/src/product/config').canonicalPath,
+            new File(module, '../profile/algites/src/product/config').canonicalPath,
             new File(module, 'intf/src/product/python').absolutePath,
             new File(module, 'intf/src/product/config').absolutePath,
             new File(module, 'impl/src/product/python').absolutePath,
@@ -609,8 +637,8 @@ locRepo="${MODUSTRO_CODEGEN_BOOTSTRAP_CLOUDSMITH_REPO:-algites/java-snapshots-pu
 locPythonRepo="${MODUSTRO_CODEGEN_BOOTSTRAP_PYTHON_CLOUDSMITH_REPO:-algites/python-snapshots-pub}"
 locPythonOutput="$locBuildRoot/python-dist"
 locPythonManifest="$locBuildRoot/python-packages.tsv"
-# The seven native Python distributions must come from the same current source
-# tree as the seven Maven artifacts. Test-only Python imports are not publication.
+# Eight native Python distributions must come from the same current source
+# tree as the eight Maven artifacts (including the explicit Algites profile). Test-only Python imports are not publication.
 # Prepare and verify all wheels and sdists before any Cloudsmith upload.
 locPythonBuildExecutable="${MODUSTRO_BOOTSTRAP_PYTHON_BUILD_EXECUTABLE:-}"
 if [[ -z "$locPythonBuildExecutable" ]]; then
@@ -628,8 +656,10 @@ fi
 "$locPythonBuildExecutable" "$locCodeDirectory/bootstrap-python-dist.py" "${locPythonBuildArgs[@]}"
 locMavenRoot="${HOME}/.m2/repository/eu/algites/tool/codegen"
 locManifest="$locTemporaryDirectory/packages.tsv"
-for locGenerator in common defscodegen sdocodegen; do
-    if [[ "$locGenerator" == common ]]; then locParts=(common); else locParts=(intf impl cli); fi
+for locGenerator in common profile defscodegen sdocodegen; do
+    if [[ "$locGenerator" == common ]]; then locParts=(common);
+    elif [[ "$locGenerator" == profile ]]; then locParts=(algites);
+    else locParts=(intf impl cli); fi
     for locPart in "${locParts[@]}"; do
         if [[ "$locGenerator" == common ]]; then
             locArtifactId="pub.tool.General_generators.code.common"
@@ -643,18 +673,17 @@ for locGenerator in common defscodegen sdocodegen; do
                 exit 1
             }
         done
-        if [[ "$locGenerator" == common ]]; then
-            "${ALGITES_PYTHON_EXECUTABLE:-python3}" - "$locLocation.jar" <<'VERIFY_COMMON_JAR'
+        if [[ "$locGenerator" == profile ]]; then
+            "${ALGITES_PYTHON_EXECUTABLE:-python3}" - "$locLocation.jar" <<'VERIFY_PROFILE_JAR'
 import sys
 import zipfile
-
 with zipfile.ZipFile(sys.argv[1]) as archive:
     for language in ('java', 'python'):
         resource = ('eu/algites/lib/naming/convention/'
                     f'algites-{language}-codegen-method-conventions.yml')
         if resource not in archive.namelist():
-            raise SystemExit(f'Missing shared naming catalog in Maven JAR: {resource}')
-VERIFY_COMMON_JAR
+            raise SystemExit(f'Missing Algites profile catalog in Maven JAR: {resource}')
+VERIFY_PROFILE_JAR
         fi
         printf '%s\t%s\t%s\t%s\n' "$locLocation.jar" "$locLocation.pom" \
             "$locLocation.module" "$locLocation-sources.jar" >> "$locManifest"
@@ -668,7 +697,7 @@ if [[ "${MODUSTRO_BOOTSTRAP_PREPARE_ONLY:-0}" == 1 ]]; then
     if [[ "$locOutput/python-packages.tsv" != "$locPythonManifest" ]]; then
         cp "$locPythonManifest" "$locOutput/python-packages.tsv"
     fi
-    echo "Validated seven Maven packages and seven Python wheels with sdists; preparation-only manifests: $locOutput/packages.tsv and $locOutput/python-packages.tsv"
+    echo "Validated eight Maven packages and eight Python wheels with sdists; preparation-only manifests: $locOutput/packages.tsv and $locOutput/python-packages.tsv"
     exit 0
 fi
 

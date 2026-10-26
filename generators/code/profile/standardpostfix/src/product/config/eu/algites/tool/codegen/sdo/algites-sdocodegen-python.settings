@@ -1,0 +1,23 @@
+# standardpostfix build-time naming profile for sdocodegen / python
+--input-technology-naming-convention:python:common:defsintf=standard-postfix-python-gen-intf-versioned_1
+--output-technology-naming-convention:python:common:sdointf=standard-postfix-python-gen-data-intf-versioned_1
+--output-technology-naming-convention:python:common:sdoclass=standard-postfix-python-gen-data-class-versioned_1
+--input-technology-naming-convention:python:xmldefs_type:defsintf=standard-postfix-python-gen-xml-type-intf-versioned_1
+--output-technology-naming-convention:python:xmldefs_type:sdointf=standard-postfix-python-gen-data-xml-type-intf-versioned_1
+--output-technology-naming-convention:python:xmldefs_type:sdoclass=standard-postfix-python-gen-data-xml-type-class-versioned_1
+--input-technology-naming-convention:python:xmldefs_element:defsintf=standard-postfix-python-gen-xml-element-intf-versioned_1
+--output-technology-naming-convention:python:xmldefs_element:sdointf=standard-postfix-python-gen-data-xml-element-intf-versioned_1
+--output-technology-naming-convention:python:xmldefs_element:sdoclass=standard-postfix-python-gen-data-xml-element-class-versioned_1
+--input-technology-naming-convention:python:yamldefs:defsintf=standard-postfix-python-gen-yaml-intf-versioned_1
+--output-technology-naming-convention:python:yamldefs:sdointf=standard-postfix-python-gen-data-yaml-intf-versioned_1
+--output-technology-naming-convention:python:yamldefs:sdoclass=standard-postfix-python-gen-data-yaml-class-versioned_1
+--input-technology-naming-convention:python:jsondefs:defsintf=standard-postfix-python-gen-json-intf-versioned_1
+--output-technology-naming-convention:python:jsondefs:sdointf=standard-postfix-python-gen-data-json-intf-versioned_1
+--output-technology-naming-convention:python:jsondefs:sdoclass=standard-postfix-python-gen-data-json-class-versioned_1
+--naming-conventions-file:standard=classpath:standard-conventions.yml
+--naming-conventions-file:python=classpath:standard-postfix-python-name-conventions.yml
+--naming-conventions-file:xmldefs=classpath:standard-postfix-xmldef-name-conventions.yml
+--naming-conventions-file:yamldefs=classpath:standard-postfix-yamldef-name-conventions.yml
+--naming-conventions-file:jsondefs=classpath:standard-postfix-jsondef-name-conventions.yml
+--naming-conventions-file:generated_dataobject=classpath:standardpostfix-python-codegen-method-conventions.yml
+--generated-dataobject-method-naming-convention:python=standard-postfix-python-codegen-standard_1

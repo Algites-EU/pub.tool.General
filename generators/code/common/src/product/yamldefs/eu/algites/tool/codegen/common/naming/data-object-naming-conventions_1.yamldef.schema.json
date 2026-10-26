@@ -26,19 +26,155 @@
                     "additionalProperties": {
                       "type": "string"
                     },
-                    "minProperties": 5,
-                    "maxProperties": 5,
                     "required": [
-                      "standard_getter_name",
-                      "standard_setter_name",
-                      "raw_getter_name",
-                      "raw_presence_checker_method_name",
-                      "raw_unsetter_name"
-                    ]
+                      "standard_getter",
+                      "standard_setter"
+                    ],
+                    "description": "Standard getters/setters are required; absent or empty raw method roles disable generation of the corresponding method.",
+                    "properties": {
+                      "standard_getter": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Required generated accessor composition ID."
+                      },
+                      "standard_setter": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Required generated accessor composition ID."
+                      }
+                    }
+                  },
+                  "schema_source_schema_url": {
+                    "type": "string",
+                    "default": "",
+                    "title": "Schema source schema url",
+                    "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
+                  },
+                  "schema_source_schema_identifier": {
+                    "type": "string",
+                    "default": "",
+                    "title": "Schema source schema identifier",
+                    "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
+                  },
+                  "schema_source_schema_version": {
+                    "type": "string",
+                    "default": "",
+                    "title": "Schema source schema version",
+                    "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
+                  },
+                  "data_source_schema_url": {
+                    "type": "string",
+                    "default": "",
+                    "title": "Data source schema url",
+                    "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
+                  },
+                  "data_source_schema_identifier": {
+                    "type": "string",
+                    "default": "",
+                    "title": "Data source schema identifier",
+                    "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
+                  },
+                  "data_source_schema_version": {
+                    "type": "string",
+                    "default": "",
+                    "title": "Data source schema version",
+                    "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
                   }
                 },
                 "required": [
                   "StructureNaming"
+                ],
+                "allOf": [
+                  {
+                    "if": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "required": [
+                              "schema_source_schema_url"
+                            ]
+                          }
+                        },
+                        {
+                          "properties": {
+                            "schema_source_schema_url": {
+                              "const": ""
+                            }
+                          },
+                          "required": [
+                            "schema_source_schema_url"
+                          ]
+                        }
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "data_source_schema_url": {
+                          "const": ""
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "required": [
+                              "schema_source_schema_identifier"
+                            ]
+                          }
+                        },
+                        {
+                          "properties": {
+                            "schema_source_schema_identifier": {
+                              "const": ""
+                            }
+                          },
+                          "required": [
+                            "schema_source_schema_identifier"
+                          ]
+                        }
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "data_source_schema_identifier": {
+                          "const": ""
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "required": [
+                              "schema_source_schema_version"
+                            ]
+                          }
+                        },
+                        {
+                          "properties": {
+                            "schema_source_schema_version": {
+                              "const": ""
+                            }
+                          },
+                          "required": [
+                            "schema_source_schema_version"
+                          ]
+                        }
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "data_source_schema_version": {
+                          "const": ""
+                        }
+                      }
+                    }
+                  }
                 ]
               }
             }

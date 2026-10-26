@@ -66,10 +66,17 @@ public final class AIcSchemaContractInterfaceGenerator {
         String path = aRequest.packageName().replace('.', '/') + "/";
         List<String> rows = new ArrayList<>();
         rows.add("package " + aRequest.packageName() + ";\n\n/** Generated schema contract. Do not edit manually. */");
-        rows.add("@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = "
-                + AIcScalarGeneration.jquote(aRequest.definition().identity())
-                + ", schemaVersion = " + (aRequest.definition().version() == null ? -1 : aRequest.definition().version())
-                + ", title = " + AIcScalarGeneration.jquote(visibleTitle(aRequest.definition().title(), aRequest.definition().logicalName()))
+        rows.add("@eu.algites.lib.data.dataobject.AIaDataObject("
+                + ("".equals(aRequest.definition().schemaSourceSchemaIdentifierField()) ? "" : "schemaId = "
+                    + AIcScalarGeneration.jquote(aRequest.definition().identity()) + ", ")
+                + ("".equals(aRequest.definition().schemaSourceSchemaVersionField()) ? "" : "schemaVersion = "
+                    + (aRequest.definition().version() == null ? -1 : aRequest.definition().version()) + ", ")
+                + ("".equals(aRequest.definition().schemaSourceSchemaUrlField()) ? "" : "schemaUrl = "
+                    + AIcScalarGeneration.jquote(aRequest.definition().schemaUrl()) + ", ")
+                + "title = " + AIcScalarGeneration.jquote(visibleTitle(aRequest.definition().title(), aRequest.definition().logicalName()))
+                + (aRequest.definition().dataSourceSchemaUrlField().isEmpty() ? "" : ", dataSourceSchemaUrlField = " + AIcScalarGeneration.jquote(aRequest.definition().dataSourceSchemaUrlField()))
+                + (aRequest.definition().dataSourceSchemaIdentifierField().isEmpty() ? "" : ", dataSourceSchemaIdentifierField = " + AIcScalarGeneration.jquote(aRequest.definition().dataSourceSchemaIdentifierField()))
+                + (aRequest.definition().dataSourceSchemaVersionField().isEmpty() ? "" : ", dataSourceSchemaVersionField = " + AIcScalarGeneration.jquote(aRequest.definition().dataSourceSchemaVersionField()))
                 + ", description = " + AIcScalarGeneration.jquote(aRequest.definition().description() == null ? "" : aRequest.definition().description())
                 + ", namingConvention = " + AIcScalarGeneration.jquote(aRequest.namingConvention())
                 + ", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy."
@@ -87,6 +94,8 @@ public final class AIcSchemaContractInterfaceGenerator {
         rows.add("    String CANONICAL_SOURCE_ID = " + AIcScalarGeneration.jquote(aRequest.definition().identity()) + ";");
         rows.add("    /** Version identifying the canonical schema definition. */");
         rows.add("    Integer CANONICAL_SOURCE_VERSION = " + aRequest.definition().version() + ";");
+        rows.add("    /** Published URL of the schema representation, separate from its logical identifier. */");
+        rows.add("    String CANONICAL_SOURCE_URL = " + AIcScalarGeneration.jquote(aRequest.definition().schemaUrl()) + ";");
         rows.add("    /** Definition source resource retained for provenance and diagnostics. */");
         rows.add("    String CANONICAL_SOURCE_RESOURCE = " + AIcScalarGeneration.jquote(aRequest.definition().sourceResource()) + ";");
         int locXmlOrder = 0;

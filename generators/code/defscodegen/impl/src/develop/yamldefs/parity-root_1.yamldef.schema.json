@@ -245,5 +245,5 @@
     "boundedDecimal"
   ],
   "additionalProperties": false,
-  "x-algites-schema-version": 1
+  "$x-algites-schema-version": 1
 }

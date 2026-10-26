@@ -111,9 +111,14 @@ final class AIcPythonSchemaContractRenderer {
                 + locXmlImports + locXmlFieldImports
                 + String.join("\n", locImports) + "\n\n" + locHelpers
                 + "class " + locName + "(" + baseType(locDefinition.sourceKind()) + ", ABC):\n"
-                + "    __data_object__ = AIcdDataObject(schema_id=" + quote(locDefinition.identity())
-                + ", schema_version=" + (locDefinition.version() == null ? -1 : locDefinition.version())
-                + ", title=" + quote(title(locDefinition.title(), locDefinition.logicalName()))
+                + "    __data_object__ = AIcdDataObject("
+                + ("".equals(locDefinition.schemaSourceSchemaIdentifierField()) ? "" : "schema_id=" + quote(locDefinition.identity()) + ", ")
+                + ("".equals(locDefinition.schemaSourceSchemaVersionField()) ? "" : "schema_version=" + (locDefinition.version() == null ? -1 : locDefinition.version()) + ", ")
+                + ("".equals(locDefinition.schemaSourceSchemaUrlField()) ? "" : "schema_url=" + quote(locDefinition.schemaUrl()) + ", ")
+                + "title=" + quote(title(locDefinition.title(), locDefinition.logicalName()))
+                + (locDefinition.dataSourceSchemaUrlField().isEmpty() ? "" : ", data_source_schema_url_field=" + quote(locDefinition.dataSourceSchemaUrlField()))
+                + (locDefinition.dataSourceSchemaIdentifierField().isEmpty() ? "" : ", data_source_schema_identifier_field=" + quote(locDefinition.dataSourceSchemaIdentifierField()))
+                + (locDefinition.dataSourceSchemaVersionField().isEmpty() ? "" : ", data_source_schema_version_field=" + quote(locDefinition.dataSourceSchemaVersionField()))
                 + ", description=" + quote(locDefinition.description() == null ? "" : locDefinition.description())
                 + ", naming_convention=" + quote(aRequest.namingConvention())
                 + ", setter_inheritance_policy=AInFieldSetterInheritancePolicy."

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.jsondef.schema.json",
-  "x-algites-schema-id": "eu.algites.tool.codegen.defs.schema-field-bindings",
-  "x-algites-schema-version": 1,
+  "$x-algites-schema-id": "eu.algites.tool.codegen.defs.schema-field-bindings",
+  "$x-algites-schema-version": 1,
   "title": "Algites Schema Field Bindings",
   "description": "Generator instructions identifying canonical JSON Schema resources and optional field-binding projections.",
   "type": "object",
@@ -12,7 +12,7 @@
       "type": "string",
       "const": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.jsondef.schema.json",
       "title": "$schema",
-      "description": "Specifies the $schema associated with this definition."
+      "description": "Specifies the schema URL associated with this document."
     },
     "artifact": {
       "type": "string",

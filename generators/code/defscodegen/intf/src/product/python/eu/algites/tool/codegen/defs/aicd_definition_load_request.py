@@ -17,3 +17,4 @@ class AIcdDefinitionLoadRequest:
     path: Path
     source_kind: AInDefinitionSourceKind
     naming_profile: AIcNameConventionCatalog_1
+    source_naming_profile: str = ""

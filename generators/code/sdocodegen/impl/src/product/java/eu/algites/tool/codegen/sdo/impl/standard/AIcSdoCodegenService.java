@@ -225,10 +225,20 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 throw new IllegalArgumentException("Handwritten DataObject requires schemaVersion: " + aReadContract);
             locSchemaVersion = Integer.parseInt(locVersion);
         }
-        String locAnnotationLiteral = "@eu.algites.lib.data.dataobject.AIaDataObject(schemaId = \""
-                + escape(locSchemaId) + "\", schemaVersion = " + locSchemaVersion
-                + ", schemaUrl = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.schemaUrl()) + "\""
-                + ", title = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.title())
+        String locAnnotationLiteral = "@eu.algites.lib.data.dataobject.AIaDataObject("
+                + (locSourceAnnotation != null && locSourceAnnotation.schemaId().isBlank() ? ""
+                        : "schemaId = \"" + escape(locSchemaId) + "\", ")
+                + (locSourceAnnotation != null && locSourceAnnotation.schemaVersion() < 0 ? ""
+                        : "schemaVersion = " + locSchemaVersion + ", ")
+                + (locSourceAnnotation == null || locSourceAnnotation.schemaUrl().isBlank() ? ""
+                        : "schemaUrl = \"" + escape(locSourceAnnotation.schemaUrl()) + "\", ")
+                + (locSourceAnnotation == null || locSourceAnnotation.dataSourceSchemaUrlField().isBlank() ? ""
+                        : "dataSourceSchemaUrlField = \"" + escape(locSourceAnnotation.dataSourceSchemaUrlField()) + "\", ")
+                + (locSourceAnnotation == null || locSourceAnnotation.dataSourceSchemaIdentifierField().isBlank() ? ""
+                        : "dataSourceSchemaIdentifierField = \"" + escape(locSourceAnnotation.dataSourceSchemaIdentifierField()) + "\", ")
+                + (locSourceAnnotation == null || locSourceAnnotation.dataSourceSchemaVersionField().isBlank() ? ""
+                        : "dataSourceSchemaVersionField = \"" + escape(locSourceAnnotation.dataSourceSchemaVersionField()) + "\", ")
+                + "title = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.title())
                 + "\", description = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.description())
                 + "\", fingerprint = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.fingerprint())
                 + "\", namingConvention = \"" + escape(locMutableConvention) + "\""
@@ -346,24 +356,28 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     Map.of("identifier", locName), locIdentifierConvention);
             String locMethodProfile = locAccessorCatalog.generatedMethodProfile();
             String locRawGetter = locMethodProfile == null ? "get_" + locSuffix
-                    : locAccessorCatalog.format(locMethodProfile, "raw_getter_name",
+                    : locAccessorCatalog.generatedMethodReference("raw_getter") == null ? null
+                    : locAccessorCatalog.format(locMethodProfile, "raw_getter",
                             Map.of("identifier", locName), locIdentifierConvention);
             String locPresenceChecker = locMethodProfile == null ? "isPresent_" + locSuffix
-                    : locAccessorCatalog.format(locMethodProfile, "raw_presence_checker_method_name",
+                    : locAccessorCatalog.generatedMethodReference("raw_presence_checker_method") == null ? null
+                    : locAccessorCatalog.format(locMethodProfile, "raw_presence_checker_method",
                             Map.of("identifier", locName), locIdentifierConvention);
             String locUnsetter = locMethodProfile == null ? "unset_" + locSuffix
-                    : locAccessorCatalog.format(locMethodProfile, "raw_unsetter_name",
+                    : locAccessorCatalog.generatedMethodReference("raw_unsetter") == null ? null
+                    : locAccessorCatalog.format(locMethodProfile, "raw_unsetter",
                             Map.of("identifier", locName), locIdentifierConvention);
-            for (String locGenerated : List.of(locRawGetter, locPresenceChecker, locUnsetter)) {
+            var locGeneratedNames = new java.util.ArrayList<String>();
+            locGeneratedNames.add(locSetterName);
+            for (String locGenerated : new String[] {locRawGetter, locPresenceChecker, locUnsetter}) {
+                if (locGenerated == null) continue;
                 if (!javax.lang.model.SourceVersion.isIdentifier(locGenerated)
                         || javax.lang.model.SourceVersion.isKeyword(locGenerated))
                     throw new IllegalArgumentException("Invalid generated SDO method identifier: " + locGenerated);
+                locGeneratedNames.add(locGenerated);
             }
-            if (Set.of(locSetterName, locRawGetter, locPresenceChecker, locUnsetter).size() != 4
-                    || locGetter.getName().equals(locSetterName)
-                    || locGetter.getName().equals(locRawGetter)
-                    || locGetter.getName().equals(locPresenceChecker)
-                    || locGetter.getName().equals(locUnsetter))
+            if (new java.util.HashSet<>(locGeneratedNames).size() != locGeneratedNames.size()
+                    || locGeneratedNames.contains(locGetter.getName()))
                 throw new IllegalArgumentException("Conflicting generated field methods for " + locName);
             if (aConcreteNames != null && !aConcreteNames.matches(
                     locConcreteConvention, "setter_method_name", locSetterName))
@@ -391,22 +405,30 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     .append(locGetter.getName()).append("();\n");
             locInterface.append("    void ").append(locSetterName).append('(').append(locInterfaceType).append(' ')
                     .append(locParameter).append(");\n")
-                    .append("    ").append(locInterfaceType).append(' ').append(locRawGetter).append("();\n")
-                    .append("    boolean ").append(locPresenceChecker).append("();\n")
-                    .append("    void ").append(locUnsetter).append("();\n");
+                    ;
+            if (locRawGetter != null)
+                locInterface.append("    ").append(locInterfaceType).append(' ').append(locRawGetter).append("();\n");
+            if (locPresenceChecker != null)
+                locInterface.append("    boolean ").append(locPresenceChecker).append("();\n");
+            if (locUnsetter != null)
+                locInterface.append("    void ").append(locUnsetter).append("();\n");
             locImplementation.append("    @Override public ").append(locType).append(' ').append(locGetter.getName())
                     .append("() { return (").append(locBoxed).append(") get_EffectiveField(")
                     .append(locLiteral).append("); }\n")
                     .append("    @Override public void ").append(locSetterName).append('(').append(locType).append(' ')
                     .append(locParameter).append(") { set_RawField(").append(locLiteral).append(", ")
                     .append(locParameter).append("); }\n")
-                    .append("    @Override public ").append(locType).append(' ').append(locRawGetter)
-                    .append("() { return (").append(locBoxed).append(") get_RawField(")
-                    .append(locLiteral).append("); }\n")
-                    .append("    @Override public boolean ").append(locPresenceChecker)
-                    .append("() { return isPresent_Field(").append(locLiteral).append("); }\n")
-                    .append("    @Override public void ").append(locUnsetter)
-                    .append("() { unset_Field(").append(locLiteral).append("); }\n");
+                    ;
+            if (locRawGetter != null)
+                locImplementation.append("    @Override public ").append(locType).append(' ').append(locRawGetter)
+                        .append("() { return (").append(locBoxed).append(") get_RawField(")
+                        .append(locLiteral).append("); }\n");
+            if (locPresenceChecker != null)
+                locImplementation.append("    @Override public boolean ").append(locPresenceChecker)
+                        .append("() { return isPresent_Field(").append(locLiteral).append("); }\n");
+            if (locUnsetter != null)
+                locImplementation.append("    @Override public void ").append(locUnsetter)
+                        .append("() { unset_Field(").append(locLiteral).append("); }\n");
         }
         if (AIiXmlDataObject.class.isAssignableFrom(aReadContract)) {
             locImplementation.append("    /**\n")

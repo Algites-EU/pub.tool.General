@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="eu.algites.tool.codegen.common.naming.data-object-naming-conventions" version="1" xmlns:common="eu.algites.lib.naming.convention.common-naming-conventions">
   <xs:annotation>
-    <xs:documentation>Generated DataObject method naming profiles sharing the common naming composition toolkit.</xs:documentation>
+    <xs:documentation>Generated DataObject method profiles extend common naming compositions. Their StructureNaming map contains mandatory standard_getter and standard_setter; optional raw_getter, raw_presence_checker_method and raw_unsetter; and six optional schema_source_schema_* and data_source_schema_* string fields, which must be paired. Dynamic keys are validated by JSONDEFS/YAMLDEFS definitions.</xs:documentation>
   </xs:annotation>
   <xs:import namespace="eu.algites.lib.naming.convention.common-naming-conventions" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd" />
   <xs:complexType name="data-object-naming-conventions">
@@ -11,7 +11,13 @@
           <xs:element name="GeneratedDataObjectMethodNameConventions">
             <xs:complexType>
               <xs:sequence>
-                <xs:element name="NameConventions" type="xs:anyType" />
+                <xs:element name="NameConventions">
+                  <xs:complexType>
+                    <xs:sequence>
+                      <xs:any minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:element>
               </xs:sequence>
             </xs:complexType>
           </xs:element>

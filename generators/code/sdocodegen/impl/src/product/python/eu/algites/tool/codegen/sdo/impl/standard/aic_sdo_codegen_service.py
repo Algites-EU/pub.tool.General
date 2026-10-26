@@ -379,10 +379,19 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 raise ValueError('SchemaVersion is required for an unversioned handwritten AIig')
             schema_version = int(parsed.group(2))
         inherited = inherited_definition or AIcdDataObject()
-        annotation = (f'AIcdDataObject(schema_id={schema_id!r}, schema_version={schema_version}, '
-            f'title={inherited.title!r}, description={inherited.description!r}, schema_url={inherited.schema_url!r}, '
-            f'fingerprint={inherited.fingerprint!r}, naming_convention={mutable_role or inherited.naming_convention!r}, '
-            f'setter_inheritance_policy=AInFieldSetterInheritancePolicy.{(inherited.setter_inheritance_policy if inherited.setter_inheritance_policy is not AInFieldSetterInheritancePolicy.DEFAULT else _default_setter_inheritance_policy()).name})')
+        # Only source-declared schema metadata is copied into the mutable SDO
+        # contract. Generated types still retain their independent canonical
+        # identity for naming, even when a source member was disabled.
+        annotation = ('AIcdDataObject('
+            + (f'schema_id={schema_id!r}, ' if inherited_definition is None or inherited.schema_id else '')
+            + (f'schema_version={schema_version}, ' if inherited_definition is None or inherited.schema_version >= 0 else '')
+            + (f'schema_url={inherited.schema_url!r}, ' if inherited.schema_url else '')
+            + (f'data_source_schema_url_field={inherited.data_source_schema_url_field!r}, ' if inherited.data_source_schema_url_field else '')
+            + (f'data_source_schema_identifier_field={inherited.data_source_schema_identifier_field!r}, ' if inherited.data_source_schema_identifier_field else '')
+            + (f'data_source_schema_version_field={inherited.data_source_schema_version_field!r}, ' if inherited.data_source_schema_version_field else '')
+            + f'title={inherited.title!r}, description={inherited.description!r}, '
+            + f'fingerprint={inherited.fingerprint!r}, naming_convention={mutable_role or inherited.naming_convention!r}, '
+            + f'setter_inheritance_policy=AInFieldSetterInheritancePolicy.{(inherited.setter_inheritance_policy if inherited.setter_inheritance_policy is not AInFieldSetterInheritancePolicy.DEFAULT else _default_setter_inheritance_policy()).name})')
         mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject')
         mutable_lines.insert(5, 'from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel')
         mutable_lines.insert(6, 'from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy')
@@ -460,16 +469,20 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 method_profile = method_catalog._generated_method_profile
                 identifier, source_convention = semantic_identifier(name)
                 def method_name(kind):
+                    if method_catalog.generated_method_reference(kind) is None:
+                        return None
                     return method_catalog.format(method_profile, kind,
                                                  {'identifier': identifier}, source_convention)
-                raw_getter = method_name('raw_getter_name')
-                presence_checker = method_name('raw_presence_checker_method_name')
-                unsetter = method_name('raw_unsetter_name')
+                raw_getter = method_name('raw_getter')
+                presence_checker = method_name('raw_presence_checker_method')
+                unsetter = method_name('raw_unsetter')
             else:
                 raw_getter, presence_checker, unsetter = ('get_' + suffix,
                     'isPresent_' + suffix, 'unset_' + suffix)
-            if (len({getter, raw_getter, presence_checker, unsetter}) != 4
-                    or not all(item.isidentifier() for item in (raw_getter, presence_checker, unsetter))):
+            active_methods = [item for item in (getter, raw_getter, presence_checker, unsetter)
+                              if item is not None]
+            if (len(set(active_methods)) != len(active_methods)
+                    or not all(item.isidentifier() for item in active_methods)):
                 raise ValueError('Conflicting or invalid SDO method names for ' + name)
             # A setter is named independently from its read getter and from the raw SDO API.
             setter = accessor_name(read_contract, descriptor, 'setter_method_name', 1)
@@ -505,20 +518,26 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 mutable_lines.extend(['', '    @abstractmethod',
                     f'    def {getter}(self) -> {interface_type}: ...'])
             mutable_lines.extend(['', '    @abstractmethod',
-                f'    def {setter}(self, {parameter_name}: {interface_type}) -> None: ...',
-                '', '    @abstractmethod', f'    def {raw_getter}(self) -> {interface_type}: ...',
-                '', '    @abstractmethod', f'    def {presence_checker}(self) -> bool: ...',
-                '', '    @abstractmethod', f'    def {unsetter}(self) -> None: ...'])
+                f'    def {setter}(self, {parameter_name}: {interface_type}) -> None: ...'])
             concrete_lines.extend(['', f'    def {getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
                 f'        return self.get_EffectiveField({name!r})',
                 '', f'    def {setter}(self, {parameter_name}' + (f': {typed_value}' if nested_type else '') + '):',
-                f'        self.set_RawField({name!r}, {parameter_name})',
-                '', f'    def {raw_getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
-                f'        return self.get_RawField({name!r})',
-                '', f'    def {presence_checker}(self):',
-                f'        return self.isPresent_Field({name!r})',
-                '', f'    def {unsetter}(self):',
-                f'        self.unset_Field({name!r})'])
+                f'        self.set_RawField({name!r}, {parameter_name})'])
+            if raw_getter is not None:
+                mutable_lines.extend(['', '    @abstractmethod',
+                    f'    def {raw_getter}(self) -> {interface_type}: ...'])
+                concrete_lines.extend(['', f'    def {raw_getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
+                    f'        return self.get_RawField({name!r})'])
+            if presence_checker is not None:
+                mutable_lines.extend(['', '    @abstractmethod',
+                    f'    def {presence_checker}(self) -> bool: ...'])
+                concrete_lines.extend(['', f'    def {presence_checker}(self):',
+                    f'        return self.isPresent_Field({name!r})'])
+            if unsetter is not None:
+                mutable_lines.extend(['', '    @abstractmethod',
+                    f'    def {unsetter}(self) -> None: ...'])
+                concrete_lines.extend(['', f'    def {unsetter}(self):',
+                    f'        self.unset_Field({name!r})'])
         if technology == 'xmldefs':
             mutable_lines.append('    __xml_repeated_fields__ = ' + repr(tuple(sorted(xml_repeated))))
             concrete_lines.append('    __xml_field_type_imports__ = ' + repr(xml_nested_imports))

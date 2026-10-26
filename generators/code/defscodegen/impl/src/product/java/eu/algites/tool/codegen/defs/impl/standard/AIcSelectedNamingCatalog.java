@@ -43,6 +43,10 @@ final class AIcSelectedNamingCatalog implements AIiNameConventionCatalog {
     }
 
     /** {@inheritDoc} */
+    @Override public String schemaMetadataField(String aProfile, String aSide, String aKind) {
+        return catalog.schemaMetadataField(aProfile, aSide, aKind);
+    }
+    /** {@inheritDoc} */
     @Override public Set<String> names() { return catalog.names(); }
     /** {@inheritDoc} */
     @Override public String format(String aProfile, String aStructure, Map<String, String> aValues,
