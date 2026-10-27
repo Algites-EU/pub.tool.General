@@ -61,8 +61,8 @@ used; standard settings supply the mapping explicitly. A missing role
 mapping suppresses generation of that role, subject to consistency of
 referenced contracts. Standard Algites settings cover all families but do not
 restrict custom naming identifiers. Without arguments, Java and Python CLIs respectively select
-`algites-defscodegen-java-default.settings` and
-`algites-defscodegen-python-default.settings` from their shared `src/product/config`
+`defscodegen-java-default.settings` and
+`defscodegen-python-default.settings` from their shared `src/product/config`
 package folder. The default configuration generates only the corresponding
 technology, not both.
 
@@ -148,8 +148,8 @@ used to reverse-parse its name. No `sourceContract` field is required: Java
 inheritance and Python bases already express that relationship.
 
 With zero arguments, each SDO CLI selects its technology-specific settings:
-`algites-sdocodegen-java-default.settings` for Java and
-`algites-sdocodegen-python-default.settings` for Python; it selects separate `impl.intf` and
+`sdocodegen-java-default.settings` for Java and
+`sdocodegen-python-default.settings` for Python; it selects separate `impl.intf` and
 `impl` output subpackages to avoid split-package conflicts between different
 JPMS modules. As with Defs, missing role mappings mean no output for that
 role; IDs in custom catalogs need not carry an `_1` suffix.
@@ -277,7 +277,7 @@ JVM/Gradle integration tests in CI with published `pub.lib.General` 1.1-SNAPSHOT
 ### User-defined naming variables example
 
 The `pub.lib.General` naming catalog contains a tested pair of files,
-`naming/convention/algites/src/product/config/eu/algites/lib/naming/convention/example-input.yml`
+`naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/example-input.yml`
 and `example-output.yml`. They illustrate the native YAML engine's `variable`
 segments and the nested `(?<version>(?<major>...)\.(?<minor>...))` captures.
 For example, `customer_address--eu_west--beta--2.7.demo.schema` can be

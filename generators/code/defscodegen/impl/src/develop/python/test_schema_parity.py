@@ -1,3 +1,4 @@
+from explicit_legacy_naming import rendering_catalog
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 """Cross-format contracts plus independent checks of generated runtime behavior."""
 from dataclasses import replace
@@ -10,11 +11,11 @@ import sys
 import typing
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
 from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
+from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
@@ -28,7 +29,7 @@ FORMATS = ((AInDefinitionSourceKind.YAMLDEFS, 'yamldefs', 'yamldef.schema.json')
 def load(stem, kind, folder, suffix):
     return AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(
         Path(__file__).parents[1] / folder / f'{stem}_1.{suffix}', kind,
-        AIcAlgitesNamingProfiles_1.python_profile()))
+        AIcAlgitesNamingProfiles.python_profile()))
 
 
 def normalize(model):
@@ -44,7 +45,7 @@ def test_equivalent_models_and_complete_outputs(stem):
     merged = AIcCanonicalDefinitionMerger.merge(models)
     assert all(model.identity in merged.description for model in models)
     for target in AInCodeGenerationTarget:
-        profile = AIcAlgitesNamingProfiles_1.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles_1.python_profile()
+        profile = AIcAlgitesNamingProfiles.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles.python_profile()
         outputs = [AIcDefaultDefsCodegenService().generate(AIcdCodeGenerationRequest(
             normalize(model), target, 'parity_generated', profile)) for model in models]
         assert outputs[0] == outputs[1] == outputs[2]
@@ -74,13 +75,13 @@ def test_schema_field_name_constants_across_all_definition_kinds():
     for fmt in FORMATS:
         model = load('parity-root', *fmt)
         java_source = service.generate(AIcdCodeGenerationRequest(
-            model, AInCodeGenerationTarget.JAVA, 'parity_generated', AIcAlgitesNamingProfiles_1.java_profile())).source
+            model, AInCodeGenerationTarget.JAVA, 'parity_generated', AIcAlgitesNamingProfiles.java_profile())).source
         assert 'public static final String SCHEMA_FIELD_NAME__OPTIONAL_TEXT = "optionalText";' in java_source
         assert '<strong>Field Name:</strong> {@code optionalText}<br/>' in java_source
         assert '<strong>Field Description:</strong> Optional text value.' in java_source
 
         python_source = service.generate(AIcdCodeGenerationRequest(
-            model, AInCodeGenerationTarget.PYTHON, 'parity_generated', AIcAlgitesNamingProfiles_1.python_profile())).source
+            model, AInCodeGenerationTarget.PYTHON, 'parity_generated', AIcAlgitesNamingProfiles.python_profile())).source
         assert "SCHEMA_FIELD_NAME__OPTIONAL_TEXT = 'optionalText'" in python_source
         assert '**Field Name:** ``optionalText``' in python_source
         assert '**Field Description:** Optional text value.' in python_source
@@ -89,22 +90,22 @@ def test_schema_field_name_constants_across_all_definition_kinds():
 def test_schema_field_constant_uses_entire_selected_constant_convention():
     """A custom constant style must affect both words groups, but keep the empty group."""
     import copy
-    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+    from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
     from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
 
     names = AIcGenerationNames()
     for language, target in (('java', AInCodeGenerationTarget.JAVA),
                              ('python', AInCodeGenerationTarget.PYTHON)):
-        standard = getattr(AIcAlgitesNamingProfiles_1, f'{language}_profile')()
+        standard = getattr(AIcAlgitesNamingProfiles, f'{language}_profile')()
         # The general convention describes only the lexical format of an identifier.
         assert standard.composition('constant-name_1') == (
             {'Kind': 'identifier', 'Convention': 'upper_snake_case_1'},)
-        assert names.schema_field_name_constant('optionalText', standard) == 'SCHEMA_FIELD_NAME__OPTIONAL_TEXT'
-        assert names.schema_field_name_constant('$schema', standard) == 'SCHEMA_FIELD_NAME__SCHEMA'
+        assert names.schema_field_name_constant('optionalText', rendering_catalog(standard, language)) == 'SCHEMA_FIELD_NAME__OPTIONAL_TEXT'
+        assert names.schema_field_name_constant('$schema', rendering_catalog(standard, language)) == 'SCHEMA_FIELD_NAME__SCHEMA'
         custom_data = copy.deepcopy(standard._config)
         custom_data['NameCompositions']['constant-name_1']['Segments'][0]['Convention'] = 'upper_camel_case_1'
-        custom = AIcNameConventionCatalog_1(custom_data)
-        assert names.schema_field_name_constant('optionalText', custom) == 'SchemaFieldName__OptionalText'
+        custom = AIcNameConventionCatalog(custom_data)
+        assert names.schema_field_name_constant('optionalText', rendering_catalog(custom, language)) == 'SchemaFieldName__OptionalText'
         model = load('parity-root', *FORMATS[1])
         output = AIcDefaultDefsCodegenService().generate(AIcdCodeGenerationRequest(
             model, target, 'parity_generated', custom)).source
@@ -114,7 +115,7 @@ def test_schema_field_constant_uses_entire_selected_constant_convention():
 
 def generate_package(tmp_path, target):
     service = AIcDefaultDefsCodegenService()
-    profile = AIcAlgitesNamingProfiles_1.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles_1.python_profile()
+    profile = AIcAlgitesNamingProfiles.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles.python_profile()
     paths = []
     for stem in STEMS:
         output = service.generate(AIcdCodeGenerationRequest(load(stem, *FORMATS[2]), target, 'parity_generated', profile))
@@ -179,7 +180,7 @@ def test_schema_decimal_facets_remain_exact(tmp_path, kind, suffix):
     path = tmp_path / f'exact_1.{suffix}'
     boundary = '0.12345678901234567890123456789'
     path.write_text('{"type":"object","properties":{"value":{"type":"number","minimum":'+boundary+'}}}')
-    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles_1.python_profile()))
+    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles.python_profile()))
     assert model.data_type.properties[0].data_type.constraints.minimum == boundary
 
 
@@ -199,7 +200,7 @@ def test_urn_subschema_and_anchor_resolution(tmp_path):
     (definitions / 'leaf_1.yamldef.schema.json').write_text('{"$id":"urn:tests:leaf:1","$defs":{"value":{"$anchor":"Content","type":"integer","minimum":1}},"type":"object","properties":{}}')
     path = definitions / 'root_1.yamldef.schema.json'
     path.write_text('{"type":"object","properties":{"inline":{"$ref":"urn:tests:leaf:1#Content"},"leaf":{"$ref":"urn:tests:leaf:1"}}}')
-    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,AInDefinitionSourceKind.YAMLDEFS,AIcAlgitesNamingProfiles_1.python_profile()))
+    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,AInDefinitionSourceKind.YAMLDEFS,AIcAlgitesNamingProfiles.python_profile()))
     assert model.data_type.properties[0].data_type.kind is AInDataTypeKind.INTEGER
     assert model.data_type.properties[0].data_type.constraints.minimum == '1'
     assert model.data_type.properties[1].data_type.referenced_definition().logical_name == 'leaf'
@@ -209,6 +210,40 @@ def test_scalar_root_preserves_type_and_facets(tmp_path):
     for kind, folder, suffix in FORMATS:
         path = tmp_path / f'scalar_1.{suffix}'
         path.write_text('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:simpleType name="Value"><xs:restriction base="xs:decimal"><xs:minInclusive value="0.1234567890123456789"/></xs:restriction></xs:simpleType></xs:schema>' if kind is AInDefinitionSourceKind.XMLDEFS else '{"type":"number","minimum":0.1234567890123456789}')
-        model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles_1.python_profile()))
+        model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles.python_profile()))
         assert model.data_type.kind is AInDataTypeKind.NUMBER
         assert model.data_type.constraints.minimum == '0.1234567890123456789'
+
+
+def test_malformed_naming_profile_does_not_trigger_source_field_fallback():
+    """A broken selected profile is not a reason to retry with another name convention."""
+    from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
+
+    class RejectingCatalog:
+        def selected(self, role):
+            return 'configured-profile'
+
+        def format(self, profile, structure, variables, source_convention):
+            assert profile == 'configured-profile'
+            if source_convention == 'lower_camel_case_1':
+                raise ValueError('invalid configured naming rule')
+            return 'incorrectly-recovered'
+
+    with pytest.raises(ValueError, match='invalid configured naming rule'):
+        AIcGenerationNames().getter_name('customerName', RejectingCatalog())
+
+
+def test_special_schema_field_normalizes_before_profile_formatting():
+    """The literal $schema field is legal data, not a missing-profile fallback."""
+    from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
+
+    class CapturingCatalog:
+        def selected(self, role):
+            return 'configured-profile'
+
+        def format(self, profile, structure, variables, source_convention):
+            assert profile == 'configured-profile'
+            assert source_convention == 'lower_kebab_case_1'
+            return variables['identifier']
+
+    assert AIcGenerationNames().getter_name('$schema', CapturingCatalog()) == 'schema'

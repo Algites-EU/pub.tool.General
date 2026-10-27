@@ -1,7 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1;
+import eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
 import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
@@ -30,7 +30,7 @@ public final class AItcRecursiveNamedDefinitionsTest {
         Path locSchemaFile = Files.createTempDirectory("recursive-finalization-").resolve("recursive-finalization_1.jsondef.schema.json");
         Files.writeString(locSchemaFile, locSchema);
         var locRequest = new AIcdDefinitionLoadRequest(locSchemaFile,
-                AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles_1.javaProfile());
+                AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles.javaProfile());
         var locResult = new AIcJsonSchemaReader().read(new ObjectMapper().readTree(locSchema),
                 locRequest, AInDefinitionSourceKind.JSONDEFS,
                 "x-jsondefs-id", "x-jsondefs-version", "x-jsondefs-name");
@@ -52,7 +52,7 @@ public final class AItcRecursiveNamedDefinitionsTest {
         Path locPath = Files.createTempDirectory("recursive-choice-").resolve("recursive-choice_1.jsondef.schema.json");
         Files.writeString(locPath, locSchema);
         var locRequest = new AIcdDefinitionLoadRequest(locPath,
-                AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles_1.javaProfile());
+                AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles.javaProfile());
         var locResult = new AIcJsonSchemaReader().read(new ObjectMapper().readTree(locSchema),
                 locRequest, AInDefinitionSourceKind.JSONDEFS,
                 "x-jsondefs-id", "x-jsondefs-version", "x-jsondefs-name");
@@ -74,7 +74,7 @@ public final class AItcRecursiveNamedDefinitionsTest {
         Path locPath = Files.createTempDirectory("recursive-alias-").resolve("recursive-alias_1.jsondef.schema.json");
         Files.writeString(locPath, locSchema);
         var locRequest = new AIcdDefinitionLoadRequest(locPath,
-                AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles_1.javaProfile());
+                AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles.javaProfile());
         var locNode = new ObjectMapper().readTree(locSchema);
         var locFailure = Assert.expectThrows(IllegalArgumentException.class,
                 () -> new AIcJsonSchemaReader().read(locNode,

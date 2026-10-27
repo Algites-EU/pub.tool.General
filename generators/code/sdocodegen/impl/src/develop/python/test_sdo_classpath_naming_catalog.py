@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 from eu.algites.tool.codegen.sdo.impl.cli._catalog_sources import resolve_naming_catalog
 
 
@@ -59,7 +59,7 @@ def test_direct_sys_path_overrides_importlib_and_reads_sibling(monkeypatch, tmp_
     resolved = resolve_naming_catalog('classpath:demo.yml')
     assert resolved == str((first / 'demo.yml').resolve())
     assert resolve_naming_catalog('resource:demo.yml') == resolved
-    catalog = AIcNameConventionCatalog_1.load_many([resolved])
+    catalog = AIcNameConventionCatalog.load_many([resolved])
     assert 'selected' in catalog._config['NameFragments']
     assert 'wrong' not in catalog._config['NameFragments']
     assert 'custom' in catalog._config['IdentifierConventions']
@@ -77,7 +77,7 @@ def test_missing_or_unsafe_classpath_catalog(monkeypatch, tmp_path):
 def test_all_matching_catalogs_are_combined(monkeypatch, tmp_path):
     """A classpath catalog name loads every provider and sys.path copy."""
     from eu.algites.tool.codegen.sdo.impl.cli import _catalog_sources
-    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+    from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
     packaged = tmp_path / 'packaged'
     first = tmp_path / 'first'
     second = tmp_path / 'second'
@@ -97,7 +97,7 @@ def test_all_matching_catalogs_are_combined(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, 'path', [str(first), str(second)])
     with _catalog_sources.expand_naming_catalogs(['classpath:multiple.yml']) as sources:
         assert len(sources) == 3
-        catalog = AIcNameConventionCatalog_1.load_many(sources)
+        catalog = AIcNameConventionCatalog.load_many(sources)
         assert set(catalog._config['NameFragments']) == {
             'packagedOnly', 'firstOnly', 'secondOnly'}
 
@@ -114,4 +114,4 @@ def test_conflicting_classpath_catalog_definitions_fail(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, 'path', [str(first), str(second)])
     with _catalog_sources.expand_naming_catalogs(['classpath:overlap.yml']) as sources:
         with pytest.raises(ValueError, match='Conflicting naming definition'):
-            AIcNameConventionCatalog_1.load_many(sources)
+            AIcNameConventionCatalog.load_many(sources)

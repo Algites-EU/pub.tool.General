@@ -32,9 +32,9 @@ public final class AItcGeneratorImplementationParityTest {
                 "eu.algites.tool.codegen.defs.impl.standard.AIcSchemaContractBindingsGenerator",
                 "eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest",
                 "eu.algites.lib.naming.convention.AIiNameConventionCatalog",
-                "eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1",
+                "eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles",
                 "eu.algites.tool.codegen.defs.AInDefsNameRole",
-                "eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1",
+                "eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog",
                 "com.fasterxml.jackson.databind.ObjectMapper", "com.fasterxml.jackson.core.JsonFactory",
                 "com.fasterxml.jackson.annotation.JsonCreator", "com.fasterxml.jackson.dataformat.yaml.YAMLFactory",
                 "org.yaml.snakeyaml.Yaml"}) {
@@ -94,8 +94,8 @@ public final class AItcGeneratorImplementationParityTest {
                     ? "xsd" : (locKindName.equals("jsondefs") ? "jsondef.schema.json" : "yamldef.schema.json");
             for (AInCodeGenerationTarget locTarget : AInCodeGenerationTarget.values()) {
                 var locProfile = locTarget == AInCodeGenerationTarget.PYTHON
-                        ? eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1.pythonProfile()
-                        : eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1.javaProfile();
+                        ? eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles.pythonProfile()
+                        : eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles.javaProfile();
                 for (String locStem : new String[] {
                         "parity-root", "parity-child", "parity-leaf", "parity-status", "parity-builtins"}) {
                     Path locSchema = aArtifact.resolve("src/develop")

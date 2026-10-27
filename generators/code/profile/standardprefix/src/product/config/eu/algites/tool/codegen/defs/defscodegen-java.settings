@@ -1,0 +1,18 @@
+# standardprefix build-time naming profile for defscodegen / java
+--input-schema-naming-convention:xmldefs=standard-prefix-xmldef-schema-versioned_1
+--input-schema-naming-convention:yamldefs=standard-prefix-yamldef-schema-versioned_1
+--input-schema-naming-convention:jsondefs=standard-prefix-jsondef-schema-versioned_1
+--output-interface-technology-naming-convention:java:common:defsintf=standard-prefix-java-gen-intf-versioned_1
+--output-interface-technology-naming-convention:java:xmldefs_type:defsintf=standard-prefix-java-gen-xml-type-intf-versioned_1
+--output-interface-technology-naming-convention:java:xmldefs_element:defsintf=standard-prefix-java-gen-xml-element-intf-versioned_1
+--output-interface-technology-naming-convention:java:xmldefs_namespace:defsintf=standard-prefix-java-gen-xml-namespace-intf_1
+--output-interface-technology-naming-convention:java:yamldefs:defsintf=standard-prefix-java-gen-yaml-intf-versioned_1
+--output-interface-technology-naming-convention:java:jsondefs:defsintf=standard-prefix-java-gen-json-intf-versioned_1
+--output-enum-technology-naming-convention:java=standard-prefix-java-gen-enum-versioned_1
+--naming-conventions-file:standard=classpath:standard-conventions.yml
+--naming-conventions-file:java=classpath:standard-prefix-java-name-conventions.yml
+--naming-conventions-file:xmldefs=classpath:standard-prefix-xmldef-name-conventions.yml
+--naming-conventions-file:yamldefs=classpath:standard-prefix-yamldef-name-conventions.yml
+--naming-conventions-file:jsondefs=classpath:standard-prefix-jsondef-name-conventions.yml
+--naming-conventions-file:generated_dataobject=classpath:standardprefix-java-codegen-method-conventions.yml
+--generated-dataobject-method-naming-convention:java=standard-prefix-java-codegen-standard_1

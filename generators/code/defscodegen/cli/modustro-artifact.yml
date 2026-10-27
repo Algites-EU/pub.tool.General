@@ -16,10 +16,6 @@ Dependencies:
       - GroupId: eu.algites.tool.codegen
         ArtifactId: pub.tool.General_generators.code.defscodegen.impl
         Usages: [product_implementation]
-      - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.convention.algites
-        Usages: [product_implementation]
-        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
   - DependencyKind: java
     Items:
       - GroupId: com.fasterxml.jackson.core

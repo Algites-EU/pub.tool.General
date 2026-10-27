@@ -4,7 +4,7 @@ import importlib
 import sys
 from pathlib import Path
 import pytest
-from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from explicit_sdo_fixture import configured_service, explicit_generic_manifest
 
 
 def _write(folder: Path, module: str, body: str):
@@ -57,7 +57,7 @@ class AIigD(AIigC):
     monkeypatch.syspath_prepend(str(tmp_path))
     classes = [getattr(importlib.import_module(f'{package}.aiig_{key.lower()}'), f'AIig{key}')
                for key in 'ABCD']
-    generator = AIcSdoCodegenService()
+    generator = configured_service()
     results = [generator.generate(cls) for cls in classes]
     for generated in results:
         _emit(tmp_path, generated)
@@ -98,4 +98,4 @@ def test_fixed_setter_rejects_refined_getter(tmp_path, monkeypatch):
     AIigC.getA.__annotations__['return'] = AIigA
     AIigD.getA.__annotations__['return'] = AIigB
     with pytest.raises(ValueError, match='fixed inherited setter'):
-        AIcSdoCodegenService().generate(AIigD)
+        configured_service().generate(AIigD)

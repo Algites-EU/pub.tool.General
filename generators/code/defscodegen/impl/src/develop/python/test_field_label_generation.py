@@ -1,10 +1,11 @@
+from explicit_legacy_naming import catalog, source_convention, output_convention, rendering_catalog
 """Regression coverage for schema titles and generated localizable field metadata."""
 from pathlib import Path
 import json
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
+from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
@@ -17,14 +18,15 @@ def test_schema_titles_flow_into_both_language_contracts(tmp_path: Path):
         'description':'Stored credential metadata.', 'properties': {
         'CertificatePrivateKey': {'type':'string', 'title':'Certificate private key',
             'description':'Private key used by the certificate.'}}}), encoding='utf-8')
-    profile = AIcAlgitesNamingProfiles_1.python_profile()
-    canonical = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, profile))
+    profile = catalog('python')
+    canonical = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, profile, "algites-jsondef-schema-versioned_1"))
     assert canonical.title == 'Credential properties'
     assert canonical.data_type.properties[0].title == 'Certificate private key'
     for target in (AInCodeGenerationTarget.JAVA, AInCodeGenerationTarget.PYTHON):
-        names = AIcAlgitesNamingProfiles_1.java_profile() if target is AInCodeGenerationTarget.JAVA else profile
+        names = catalog('java') if target is AInCodeGenerationTarget.JAVA else profile
         source = AIcSchemaContractInterfaceGenerator().generate(
-            AIcdCodeGenerationRequest(canonical, target, 'example.test', names)).source
+            AIcdCodeGenerationRequest(canonical, target, 'example.test', rendering_catalog(names, 'java' if target is AInCodeGenerationTarget.JAVA else 'python'), None,
+                output_convention('java' if target is AInCodeGenerationTarget.JAVA else 'python', 'interface'), 'jsondefs')).source
         assert 'Certificate private key' in source
         assert 'Private key used by the certificate.' in source
         assert 'AIaFieldLabel.FIELD_DESCRIPTION' in source
@@ -51,7 +53,7 @@ def test_xsd_title_and_enum_value_metadata(tmp_path: Path):
   </xs:simpleType>
 </xs:schema>''', encoding='utf-8')
     model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,
-        AInDefinitionSourceKind.XMLDEFS, AIcAlgitesNamingProfiles_1.python_profile()))
+        AInDefinitionSourceKind.XMLDEFS, catalog('python'), "algites-xmldef-schema-versioned_1"))
     assert model.title == 'Access permissions'
     assert model.enum_values[0].title == 'Read only'
     assert model.enum_values[0].description == 'Allows access without modifications.'
@@ -67,7 +69,7 @@ def test_published_xmldefs_contract_schemas_preserve_titles_and_descriptions():
         meta = path.with_name(path.name + '.meta.yml').read_text(encoding='utf-8')
         assert f'GlobalPublicationPathId: eu/algites/tool/codegen/defs/{name}_1.xsd' in meta
         obj = AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-            AIcAlgitesNamingProfiles_1.python_profile()))
+            catalog('python'), "algites-xmldef-schema-versioned_1"))
         assert obj.title and obj.description
         assert obj.data_type.properties
         assert all(field.title and field.description for field in obj.data_type.properties)

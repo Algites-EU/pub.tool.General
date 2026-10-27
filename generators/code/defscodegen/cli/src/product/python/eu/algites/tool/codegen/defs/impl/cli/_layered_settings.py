@@ -11,7 +11,7 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
     if len(file_options) > 1:
         raise ValueError('Only one --settings-file is permitted')
     remainder = [value for value in arguments if not value.startswith('--settings-file=')]
-    name = f'algites-{generator}-{technology}-default.settings'
+    name = f'{generator}-{technology}-default.settings'
     base = Path(f'generators/code/{generator}/intf/src/product/config/eu/algites/tool/codegen/{package}')
     def resource_text(name: str, required: bool) -> str | None:
         resource_path = Path('eu/algites/tool/codegen') / package / name
@@ -33,7 +33,7 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
         return None
 
     sources: list[tuple[str, str]] = [(name, resource_text(name, True) or '')]
-    override_name = f'algites-{generator}-{technology}.settings'
+    override_name = f'{generator}-{technology}.settings'
     override_path = Path('eu/algites/tool/codegen') / package / override_name
     seen_files: set[Path] = set()
     overrides: list[tuple[str, str]] = []

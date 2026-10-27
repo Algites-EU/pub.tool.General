@@ -4,8 +4,8 @@ import json
 import pytest
 from jsonschema import Draft202012Validator
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
@@ -36,7 +36,7 @@ def test_named_choice_reference_and_closed_object_presence(tmp_path, kind, front
     path = tmp_path / f'security-bootstrap_1.{suffix}.schema.json'
     document = _schema()
     path.write_text(json.dumps(document), encoding='utf-8')
-    request = AIcdDefinitionLoadRequest(path, kind, AIcAlgitesNamingProfiles_1.python_profile())
+    request = AIcdDefinitionLoadRequest(path, kind, AIcAlgitesNamingProfiles.python_profile())
     definition = frontend().load(request)
     ref = definition.data_type.properties[0].data_type.reference
     assert ref is not None
@@ -62,7 +62,7 @@ def test_arbitrary_any_of_is_not_silently_rewritten_as_object(tmp_path):
     path.write_text(json.dumps(schema), encoding='utf-8')
     reader = AIcJsonSchemaReader()
     request = AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS,
-        AIcAlgitesNamingProfiles_1.python_profile())
+        AIcAlgitesNamingProfiles.python_profile())
     assert reader._recursive_type(schema, request).kind is AInDataTypeKind.ANY_OF
 
 
@@ -71,7 +71,7 @@ def test_explicit_min_properties_remains_canonical(tmp_path):
     schema = {'type': 'object', 'properties': {'A': {'type': 'string'}}, 'minProperties': 1}
     path.write_text(json.dumps(schema), encoding='utf-8')
     definition = AIcJsonDefsFrontend().load(AIcdDefinitionLoadRequest(path,
-        AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles_1.python_profile()))
+        AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles.python_profile()))
     assert definition.data_type.constraints.min_properties == 1
 
 
@@ -85,19 +85,20 @@ def test_json_yaml_named_choice_canonical_parity(tmp_path):
     ):
         path = tmp_path / f'security-bootstrap_1.{suffix}.schema.json'
         path.write_text(json.dumps(_schema()), encoding='utf-8')
-        request = AIcdDefinitionLoadRequest(path, kind, AIcAlgitesNamingProfiles_1.python_profile())
+        request = AIcdDefinitionLoadRequest(path, kind, AIcAlgitesNamingProfiles.python_profile())
         representations.append(frontend().load(request))
     AIcCanonicalDefinitionMerger.validate(representations)
 
 
 def test_referenced_choice_and_object_variant_generate_for_both_technologies(tmp_path):
     from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from explicit_naming_fixture import explicit_legacy_generic_manifest
 
     folder = tmp_path / 'intf/src/product/jsondefs/example/choices'
     folder.mkdir(parents=True)
     (folder / 'security-bootstrap_1.jsondef.schema.json').write_text(json.dumps(_schema()), encoding='utf-8')
     manifest = tmp_path / 'bindings.json'
-    manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['java', 'python']}))
+    manifest.write_text(json.dumps(explicit_legacy_generic_manifest({'artifact': 'intf', 'languages': ['java', 'python']})))
     generated = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     assert len(generated) == 6
     java = tmp_path / 'intf/src/product/java.gen/example/choices'

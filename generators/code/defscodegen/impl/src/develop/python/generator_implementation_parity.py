@@ -15,6 +15,7 @@ import sys
 import tempfile
 import unittest
 
+from explicit_naming_fixture import explicit_algites_manifest
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 
@@ -22,8 +23,8 @@ def create_fixture(root):
     """Exercise scalar types, nested objects, enums, unions and cross-package references."""
     manifest = root / 'bindings.json'
     override_schema = 'intf/src/product/jsondefs/example/contracts/root_1.jsondef.schema.json'
-    manifest.write_text(json.dumps(dict(artifact='intf', implementation_artifact='impl', languages=['python', 'java'],
-        bindings=[dict(schema=override_schema, pointer='/$defs/valueSource', name='shared-value-source', common_one_of_fields=True)])), encoding='utf-8')
+    manifest.write_text(json.dumps(explicit_algites_manifest(dict(artifact='intf', implementation_artifact='impl', languages=['python', 'java'],
+        bindings=[dict(schema=override_schema, pointer='/$defs/valueSource', name='shared-value-source', common_one_of_fields=True)]))), encoding='utf-8')
     for kind, suffix in (('jsondefs', 'jsondef.schema.json'), ('yamldefs', 'yamldef.schema.json')):
         directory = root / 'intf/src/product' / kind / 'example'
         contracts = directory / 'contracts'; contracts.mkdir(parents=True)
@@ -155,7 +156,7 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
             self.assertEqual(before, self._outputs(name))
 
     def test_all_frontends_and_targets(self):
-        from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+        from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
         from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
         from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
         from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
@@ -166,8 +167,8 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
                              (AInDefinitionSourceKind.YAMLDEFS, 'yamldef.schema.json'),
                              (AInDefinitionSourceKind.XMLDEFS, 'xsd')):
             for target in AInCodeGenerationTarget:
-                profile = (AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON
-                    else AIcAlgitesNamingProfiles_1.java_profile())
+                profile = (AIcAlgitesNamingProfiles.python_profile() if target is AInCodeGenerationTarget.PYTHON
+                    else AIcAlgitesNamingProfiles.java_profile())
                 for stem in ('parity-root', 'parity-child', 'parity-leaf', 'parity-status', 'parity-builtins'):
                     with self.subTest(kind=kind, target=target, stem=stem):
                         source = resources / kind.value / (stem + '_1.' + suffix)

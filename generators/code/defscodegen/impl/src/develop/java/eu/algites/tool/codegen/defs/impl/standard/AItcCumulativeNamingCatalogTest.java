@@ -1,6 +1,6 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
-import eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1;
+import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +42,7 @@ public final class AItcCumulativeNamingCatalogTest {
         try (URLClassLoader locClassPath = new URLClassLoader(new URL[] {
                 locDirectory.toUri().toURL(), locJar.toUri().toURL()}, locBefore)) {
             Thread.currentThread().setContextClassLoader(locClassPath);
-            AIcNameConventionCatalog_1 locMerged = AIcNamingCatalogCollector.load(
+            AIcNameConventionCatalog locMerged = AIcNamingCatalogCollector.load(
                     List.of("classpath:multi.yml"));
             if (!locMerged.names().contains("directory-id")
                     || !locMerged.names().contains("archive-id"))

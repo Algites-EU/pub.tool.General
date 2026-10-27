@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
@@ -19,7 +19,7 @@ def _load(tmp_path: Path, base: str, derived: str, *, base_type='xs:decimal', fi
       <xs:element name="root" type="tns:Container"/>
     </xs:schema>''')
     request = AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-        AIcAlgitesNamingProfiles_1.python_profile())
+        AIcAlgitesNamingProfiles.python_profile())
     return AIcXmlDefsFrontend().load(request)
 
 
@@ -75,7 +75,7 @@ def test_complex_content_attribute_restriction_cannot_discard_base_facets(tmp_pa
       <xs:element name="root" type="tns:Derived"/>
     </xs:schema>''')
     request = AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-        AIcAlgitesNamingProfiles_1.python_profile())
+        AIcAlgitesNamingProfiles.python_profile())
     with pytest.raises(ValueError, match='minLength'):
         AIcXmlDefsFrontend().load(request)
 
@@ -92,7 +92,7 @@ def test_prohibited_attribute_without_explicit_type_keeps_base_constraints(tmp_p
       <xs:element name="root" type="tns:Derived"/>
     </xs:schema>''')
     request = AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-        AIcAlgitesNamingProfiles_1.python_profile())
+        AIcAlgitesNamingProfiles.python_profile())
     model = AIcXmlDefsFrontend().load(request)
     field = model.data_type.properties[0]
     from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind

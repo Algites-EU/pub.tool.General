@@ -31,7 +31,7 @@ The repository name `General` is a repository classification only. It is intenti
 
 ### Naming validator CLI
 
-The naming validator CLI validates names directly with the YAML-backed `pub.lib.General_naming.convention.algites` catalog.
+The naming validator CLI validates names directly with the YAML-backed `pub.lib.General_naming.convention.profile.algites` catalog.
 
 - GroupId: `eu.algites.tool.naming`
 - package namespace: `eu.algites.tool.naming.validator`

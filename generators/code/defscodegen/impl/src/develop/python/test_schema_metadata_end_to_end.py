@@ -52,7 +52,7 @@ def test_custom_source_profile_enables_explicit_data_document_id_and_version(tmp
     """Non-default mappings are carried through into annotated Python contracts."""
     import shutil
     import yaml
-    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+    from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 
     schema_root = tmp_path / 'src/product/jsondefs/example/contracts'
     schema_root.mkdir(parents=True)
@@ -63,7 +63,7 @@ def test_custom_source_profile_enables_explicit_data_document_id_and_version(tmp
         '$x-algites-schema-version': 1,
         'type': 'object', 'properties': {'Name': {'type': 'string'}}
     }))
-    original = AIcNameConventionCatalog_1.load_resource('algites-jsondef-name-conventions.yml')
+    original = AIcNameConventionCatalog.load_resource('algites-jsondef-name-conventions.yml')
     # The public profile API must reflect the edited catalog, not embedded Algites constants.
     assert original.schema_metadata_fields('algites-jsondef-schema-versioned_1')['data_source_schema_identifier'] == ''
     from eu.algites.tool.codegen.defs.impl.standard._catalog_sources import expand_naming_catalogs

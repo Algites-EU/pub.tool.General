@@ -9,25 +9,15 @@ class AIcGenerationNames:
     """Names generated sources through the supplied YAML-backed catalog."""
 
     @staticmethod
-    def _technology(profile) -> str:
-        if any(name.startswith('algites-java-') for name in profile.names):
-            return 'java'
-        if any(name.startswith('algites-python-') for name in profile.names):
-            return 'python'
-        raise ValueError('Missing Java/Python naming roles in catalog')
+    def _selected(profile, kind):
+        """Resolve a mandatory role supplied explicitly by the active naming profile."""
+        if not hasattr(profile, 'selected'):
+            raise ValueError(f'No output naming profile configured for role {kind}')
+        return profile.selected(kind)
 
     def render(self, logical_name, version, profile, kind):
         """Render a canonical type or file name using the requested naming role."""
-        role = ('enum' if kind in (AInDefsNameRole.ENUM_TYPE, AInDefsNameRole.ENUM_TYPE_FILE_STEM)
-                else 'xml-element-intf' if kind in (AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE, AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)
-                else 'xml-namespace-intf' if kind in (AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE, AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM)
-                else 'intf' if kind in (AInDefsNameRole.INTERFACE_TYPE, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
-                else 'data-class' if kind in (AInDefsNameRole.DATA_TYPE, AInDefsNameRole.DATA_TYPE_FILE_STEM)
-                else None)
-        if role is None:
-            raise ValueError(f'Unsupported type-name role: {kind}')
-        profile_name = (profile.selected(kind) if hasattr(profile, 'selected') else
-            f'algites-{self._technology(profile)}-gen-{role}' + ('-versioned_1' if version is not None else '_1'))
+        profile_name = self._selected(profile, kind)
         structure = 'file_name_stem' if kind in (AInDefsNameRole.DATA_TYPE_FILE_STEM,
             AInDefsNameRole.ENUM_TYPE_FILE_STEM, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
             AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM,
@@ -48,19 +38,34 @@ class AIcGenerationNames:
         """Return the generated source-file stem according to the naming profile."""
         return self.render(definition.logical_name, definition.version, profile, kind)
 
+    @staticmethod
+    def _recognized_source_field(name: str) -> bool:
+        """Identify lexical field names supported by the built-in source conventions.
+
+        Arbitrary JSON/YAML property keys (notably ``$schema``) remain legal,
+        but naming-catalog errors must never be mistaken for such property keys.
+        """
+        return any(re.fullmatch(pattern, name) is not None for pattern in (
+            r'[A-Z][A-Za-z0-9]*',
+            r'[a-z][A-Za-z0-9]*',
+            r'[a-z][a-z0-9]*(?:_[a-z0-9]+)+',
+            r'[a-z][a-z0-9]*(?:-[a-z0-9]+)+',
+        ))
+
     def _field(self, source_name, profile, structure, source_convention,
                role=AInDefsNameRole.INTERFACE_TYPE):
-        role = (profile.selected(role) if hasattr(profile, 'selected') else
-            f'algites-{self._technology(profile)}-gen-intf-versioned_1')
-        try:
-            return profile.format(role, structure, {'identifier': source_name}, source_convention)
-        except ValueError:
-            # JSON-Schema system properties such as $schema are legal data keys,
-            # but not program-language identifiers; normalize them at this boundary.
+        """Format a data field; never catch errors raised by its naming profile."""
+        selected_role = self._selected(profile, role)
+        if not self._recognized_source_field(source_name):
+            # Only invalid *source field lexemes* are normalized. A broken or
+            # missing profile must fail instead of activating a naming fallback.
             normalized = re.sub(r'[^A-Za-z0-9]+', '-', source_name).strip('-').lower()
             if not normalized or normalized[0].isdigit():
                 normalized = 'field-' + normalized
-            return profile.format(role, structure, {'identifier': normalized}, 'lower_kebab_case_1')
+            source_name = normalized
+            source_convention = 'lower_kebab_case_1'
+        return profile.format(selected_role, structure,
+                              {'identifier': source_name}, source_convention)
 
     @staticmethod
     def _source_field_convention(source_name: str) -> str:

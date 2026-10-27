@@ -5,12 +5,12 @@ import subprocess
 import sys
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
-from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from generator_implementation_parity import create_fixture
@@ -20,8 +20,8 @@ from generator_implementation_parity import create_fixture
 @pytest.mark.parametrize('kind,suffix', [(AInDefinitionSourceKind.JSONDEFS,'jsondef.schema.json'),
     (AInDefinitionSourceKind.YAMLDEFS,'yamldef.schema.json'), (AInDefinitionSourceKind.XMLDEFS,'xsd')])
 def test_native_read_contract_without_dto(target, kind, suffix):
-    profile = (AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON
-        else AIcAlgitesNamingProfiles_1.java_profile())
+    profile = (AIcAlgitesNamingProfiles.python_profile() if target is AInCodeGenerationTarget.PYTHON
+        else AIcAlgitesNamingProfiles.java_profile())
     source = Path(__file__).parents[1] / kind.value / f'parity-child_1.{suffix}'
     model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(source, kind, profile))
     output = AIcSchemaContractInterfaceGenerator().generate(
@@ -37,8 +37,8 @@ def test_native_read_contract_without_dto(target, kind, suffix):
 
 @pytest.mark.parametrize('target', list(AInCodeGenerationTarget))
 def test_enums_share_a_single_native_source(target):
-    profile = (AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON
-        else AIcAlgitesNamingProfiles_1.java_profile())
+    profile = (AIcAlgitesNamingProfiles.python_profile() if target is AInCodeGenerationTarget.PYTHON
+        else AIcAlgitesNamingProfiles.java_profile())
     source = Path(__file__).parents[1] / 'jsondefs/parity-status_1.jsondef.schema.json'
     request = AIcdCodeGenerationRequest(AIcDefaultDefsCodegenService().load(
         AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.JSONDEFS, profile)),
@@ -74,5 +74,5 @@ def test_canonical_references_ignore_transient_build_copies(tmp_path,kind,suffix
     consumer = tmp_path / 'consumer/src/product' / kind.value;consumer.mkdir(parents=True)
     schema = consumer / ('root_1.'+suffix)
     schema.write_text('{"type":"object","properties":{"leaf":{"$ref":"urn:tests:owned-leaf:1"}}}')
-    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(schema,kind,AIcAlgitesNamingProfiles_1.python_profile()))
+    model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(schema,kind,AIcAlgitesNamingProfiles.python_profile()))
     assert model.data_type.properties[0].data_type.referenced_definition().logical_name == 'leaf'

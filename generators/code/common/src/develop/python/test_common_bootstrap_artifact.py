@@ -57,4 +57,37 @@ def test_gradle_bootstrap_includes_common_in_both_java_builds():
     assert contents.count("implementation project(':common')") >= 2
     assert "for locGenerator in common profile defscodegen sdocodegen; do" in contents
     assert contents.count("project(':profile-algites').projectDir") == 2
-    assert contents.count("implementation project(':profile-algites')") == 2
+    assert contents.count("testImplementation project(':profile-algites')") >= 2
+    assert "implementation project(':profile-algites')" not in contents.replace("testImplementation project(':profile-algites')", "")
+
+@pytest.mark.parametrize('generator,part', [
+    ('profile', 'algites'),
+    ('profile', 'standardprefix'),
+    ('profile', 'standardpostfix'),
+    ('defscodegen', 'intf'),
+    ('sdocodegen', 'intf'),
+])
+def test_bootstrap_wheel_verifies_neutral_settings_names(tmp_path: Path, generator: str, part: str):
+    """Distribution checks must follow renamed settings, not historical Algites filenames."""
+    import zipfile
+
+    module = _dist_module()
+    release = '1.1.dev20261026000000000'
+    name = module.normalized_distribution(f'pub.tool.General_generators.code.{generator}.{part}')
+    wheel = tmp_path / 'staged.whl'
+    with zipfile.ZipFile(wheel, 'w') as archive:
+        archive.writestr(f'{name.replace("-", "_")}-{release}.dist-info/METADATA',
+                         f'Metadata-Version: 2.1\nName: {name}\nVersion: {release}\n')
+        archive.writestr('eu/algites/tool/codegen/marker.py', '')
+        if generator == 'profile':
+            for technology in ('java', 'python'):
+                archive.writestr(
+                    f'eu/algites/lib/naming/convention/{part}-{technology}-codegen-method-conventions.yml', '')
+                for family, basename in (('defs', 'defscodegen'), ('sdo', 'sdocodegen')):
+                    archive.writestr(
+                        f'eu/algites/tool/codegen/{family}/{basename}-{technology}.settings', '')
+        else:
+            family = 'defs' if generator == 'defscodegen' else 'sdo'
+            archive.writestr(
+                f'eu/algites/tool/codegen/{family}/{generator}-python-default.settings', '')
+    module.verify_wheel(wheel, name, generator, part, release)

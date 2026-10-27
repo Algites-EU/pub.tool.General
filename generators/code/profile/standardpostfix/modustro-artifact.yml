@@ -11,7 +11,7 @@ Dependencies:
 - DependencyKind: modustro
   Items:
   - GroupId: eu.algites.lib.naming
-    ArtifactId: pub.lib.General_naming.convention.standardpostfix
+    ArtifactId: pub.lib.General_naming.convention.profile.standardpostfix
     Usages:
     - product_api
     VersionRequirement:

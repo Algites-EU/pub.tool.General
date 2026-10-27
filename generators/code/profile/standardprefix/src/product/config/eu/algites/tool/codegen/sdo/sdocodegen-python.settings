@@ -1,0 +1,23 @@
+# standardprefix build-time naming profile for sdocodegen / python
+--input-technology-naming-convention:python:common:defsintf=standard-prefix-python-gen-intf-versioned_1
+--output-technology-naming-convention:python:common:sdointf=standard-prefix-python-gen-data-intf-versioned_1
+--output-technology-naming-convention:python:common:sdoclass=standard-prefix-python-gen-data-class-versioned_1
+--input-technology-naming-convention:python:xmldefs_type:defsintf=standard-prefix-python-gen-xml-type-intf-versioned_1
+--output-technology-naming-convention:python:xmldefs_type:sdointf=standard-prefix-python-gen-data-xml-type-intf-versioned_1
+--output-technology-naming-convention:python:xmldefs_type:sdoclass=standard-prefix-python-gen-data-xml-type-class-versioned_1
+--input-technology-naming-convention:python:xmldefs_element:defsintf=standard-prefix-python-gen-xml-element-intf-versioned_1
+--output-technology-naming-convention:python:xmldefs_element:sdointf=standard-prefix-python-gen-data-xml-element-intf-versioned_1
+--output-technology-naming-convention:python:xmldefs_element:sdoclass=standard-prefix-python-gen-data-xml-element-class-versioned_1
+--input-technology-naming-convention:python:yamldefs:defsintf=standard-prefix-python-gen-yaml-intf-versioned_1
+--output-technology-naming-convention:python:yamldefs:sdointf=standard-prefix-python-gen-data-yaml-intf-versioned_1
+--output-technology-naming-convention:python:yamldefs:sdoclass=standard-prefix-python-gen-data-yaml-class-versioned_1
+--input-technology-naming-convention:python:jsondefs:defsintf=standard-prefix-python-gen-json-intf-versioned_1
+--output-technology-naming-convention:python:jsondefs:sdointf=standard-prefix-python-gen-data-json-intf-versioned_1
+--output-technology-naming-convention:python:jsondefs:sdoclass=standard-prefix-python-gen-data-json-class-versioned_1
+--naming-conventions-file:standard=classpath:standard-conventions.yml
+--naming-conventions-file:python=classpath:standard-prefix-python-name-conventions.yml
+--naming-conventions-file:xmldefs=classpath:standard-prefix-xmldef-name-conventions.yml
+--naming-conventions-file:yamldefs=classpath:standard-prefix-yamldef-name-conventions.yml
+--naming-conventions-file:jsondefs=classpath:standard-prefix-jsondef-name-conventions.yml
+--naming-conventions-file:generated_dataobject=classpath:standardprefix-python-codegen-method-conventions.yml
+--generated-dataobject-method-naming-convention:python=standard-prefix-python-codegen-standard_1

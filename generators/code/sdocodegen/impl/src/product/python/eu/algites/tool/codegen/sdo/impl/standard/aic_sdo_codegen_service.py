@@ -1,6 +1,6 @@
 """Generate SmartDataObject types from imported, annotated read-only contracts.
 
-No schema readers or definition types are imported: the normalized AIig contract is
+No schema readers or definition types are imported: the normalized read-only data-object contract is
 both the input and the sole source of truth. Class inheritance is preserved.
 """
 from __future__ import annotations
@@ -35,12 +35,12 @@ def _default_setter_inheritance_policy() -> AInFieldSetterInheritancePolicy:
 
 
 class AIcSdoCodegenService(AIiSdoCodegenService):
-    """Generate SDOs from annotated AIig or handwritten AIi read-only contracts."""
+    """Generate SDOs from annotated or handwritten read-only data-object contracts."""
 
     def generate_from_sources(self, source_root: Path, contracts: dict[Path, str],
                               marker: str = 'd', naming=None, mutable_subpackage: str = '', concrete_subpackage: str = '',
                               enabled_roles: set[str] | None = None) -> dict[Path, AIcdSdoGenerationResult]:
-        """Import AIig modules from source roots and reuse the reflection-based generator.
+        """Import read-only contract modules from source roots and reuse the reflection-based generator.
 
         No separate packaging or Python build step is needed. Relative imports from
         sibling generated contracts work through the temporary import search entry.
@@ -98,9 +98,11 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
 
     def generate(self, read_contract: type, marker: str = 'd', naming=None, mutable_subpackage: str = '', concrete_subpackage: str = '') -> AIcdSdoGenerationResult:
         """Generate native SDO types while preserving inherited field and label annotations."""
+        if naming is None or len(naming) not in (3, 4):
+            raise ValueError('Missing explicit SDO input/mutable/implementation naming profiles')
         if not isclass(read_contract) or not issubclass(read_contract, AIiDataObject) or read_contract.__module__.startswith("eu.algites.lib.data.dataobject"):
             # Source-family marker types are infrastructure, not generated schema contracts.
-            raise ValueError('Read contract must be an AIig subclass of AIiDataObject')
+            raise ValueError('Read contract must extend AIiDataObject')
         if not re.fullmatch(r'[a-z][a-z0-9]*', marker):
             raise ValueError(f'Invalid mutable implementation marker: {marker!r}')
         if '.' not in read_contract.__module__:
@@ -148,35 +150,16 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 if not result:
                     raise ValueError(f'No configured SDO naming convention for {role}/{index}')
                 return result
-            return {'common': ('algites-python-gen-intf-versioned_1',
-                               'algites-python-gen-data-intf-versioned_1',
-                               'algites-python-gen-data-class-versioned_1'),
-                    'xmldefs_element': ('algites-python-gen-xml-element-intf-versioned_1',
-                                        'algites-python-gen-data-xml-element-intf-versioned_1',
-                                        'algites-python-gen-data-xml-element-class-versioned_1')}.get(role, (
-                    'algites-python-gen-intf-versioned_1',
-                    'algites-python-gen-data-intf-versioned_1',
-                    'algites-python-gen-data-class-versioned_1'))[index]
+            raise ValueError(f'SDO naming profile for role {role}/{index} must be explicitly selected')
 
         def catalog():
             return naming[3] if naming is not None and len(naming) == 4 else None
 
-        default_catalog = None
-
         def accessor_profile(contract, index):
-            """Select the explicit profile, or the technology's packaged default."""
-            nonlocal default_catalog
-            if naming is not None:
-                return (catalog() or naming[index]), selected(contract, index)
-            if default_catalog is None:
-                from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
-                default_catalog = AIcNameConventionCatalog_1.standard('python')
-            role = role_for(contract)
-            category = {'common': '', 'xmldefs_type': 'xml-type-',
-                        'xmldefs_element': 'xml-element-', 'yamldefs': 'yaml-',
-                        'jsondefs': 'json-'}[role]
-            output = 'data-' if index == 1 else ''
-            return default_catalog, f'algites-python-gen-{output}{category}intf-versioned_1'
+            """Require configured naming catalogs and roles for every generated accessor."""
+            if naming is None:
+                raise ValueError('Missing required SDO generator naming profile')
+            return (catalog() or naming[index]), selected(contract, index)
 
         def semantic_identifier(name):
             """Describe the input field identifier; accessor syntax belongs to the catalog."""
@@ -191,9 +174,6 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                                           {'identifier': identifier}, source_convention)
 
         def names_for(contract):
-            if naming is None:
-                tail = contract.__name__[4 if contract.__name__.startswith('AIig') else 3:]
-                return 'AIig' + marker + tail, 'AIcg' + marker + tail
             input_catalog = catalog() or naming[0]
             source = getattr(contract, '__data_object__', None)
             source_profile = getattr(source, 'naming_convention', '') or selected(contract, 0)
@@ -204,8 +184,6 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                                           input_catalog.identifier_convention(source_profile, 'main_container_name')))
 
         def stem_for(type_name, is_mutable, contract=None):
-            if naming is None:
-                return _snake(type_name, marker)
             target = contract or read_contract
             profile = selected(target, 1 if is_mutable else 2)
             all_catalog = catalog() or naming[1 if is_mutable else 2]
@@ -214,8 +192,6 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                                       all_catalog.identifier_convention(profile, 'main_container_name'))
 
         def extension_for(is_mutable):
-            if naming is None:
-                return '.py'
             profile = selected(read_contract, 1 if is_mutable else 2)
             all_catalog = catalog() or naming[1 if is_mutable else 2]
             return all_catalog.format(profile, 'file_name_suffix', {})
@@ -362,22 +338,25 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         inherited_definition = getattr(read_contract, '__data_object__', None)
         schema_id = getattr(inherited_definition, 'schema_id', '') if inherited_definition else ''
         schema_version = getattr(inherited_definition, 'schema_version', -1) if inherited_definition else -1
-        parsed = _re.fullmatch(r'AIi(?:g)?(.+?)(?:_([1-9][0-9]*))?', read_contract.__name__)
+        input_catalog = catalog() or naming[0]
+        selected_source_profile = (getattr(inherited_definition, 'naming_convention', '')
+                                   or input_role)
+        details = input_catalog.parse(selected_source_profile, 'main_container_name',
+                                      read_contract.__name__)
         if not schema_id:
-            if not parsed:
-                raise ValueError('Cannot derive SchemaId from contract name')
-            if naming is not None:
-                read_name = read_contract.__name__
-                details = (catalog() or naming[0]).parse(getattr(inherited_definition, 'naming_convention', '') or input_role, 'main_container_name', read_name)
-                logical = (catalog() or naming[0]).convert_identifier(details['identifier'],
-                    'upper_camel_case_1', 'lower_kebab_case_1')
-            else:
-                logical = _re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', parsed.group(1)).lower()
+            identifier = details.get('identifier')
+            if not identifier:
+                raise ValueError('Input naming convention does not identify the contract: '
+                                 + selected_source_profile)
+            lexical = input_catalog.identifier_convention(selected_source_profile,
+                                                          'main_container_name')
+            logical = input_catalog.convert_identifier(identifier, lexical, 'lower_kebab_case_1')
             schema_id = read_contract.__module__.rsplit('.', 1)[0] + '.' + logical
         if schema_version < 0:
-            if not parsed or parsed.group(2) is None:
-                raise ValueError('SchemaVersion is required for an unversioned handwritten AIig')
-            schema_version = int(parsed.group(2))
+            version = details.get('version')
+            if not version or not str(version).isdigit() or int(version) <= 0:
+                raise ValueError('SchemaVersion requires explicit metadata or a versioned input naming profile')
+            schema_version = int(version)
         inherited = inherited_definition or AIcdDataObject()
         # Only source-declared schema metadata is copied into the mutable SDO
         # contract. Generated types still retain their independent canonical
@@ -572,15 +551,6 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 concrete_module + '.' + concrete_name, 'SMART_DATA_OBJECT_TYPE', source_id, source_version))
 
 
-def _snake(type_name: str, marker: str) -> str:
-    """Preserve AIig/AIcg plus marker as a single naming-profile prefix."""
-    if type_name.startswith('AIig' + marker):
-        return 'aiig' + marker + '_' + _camel_to_snake(type_name[4 + len(marker):])
-    if type_name.startswith('AIcg' + marker):
-        return 'aicg' + marker + '_' + _camel_to_snake(type_name[4 + len(marker):])
-    return _camel_to_snake(type_name)
-
-
 def _camel_to_snake(value: str) -> str:
     return re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', value).lower()
 
@@ -629,7 +599,7 @@ def _nested_contract(read_contract: type, getter: str, field_name: str = '') -> 
         if args:
             repeated = True
             annotation, _ = _unwrap_optional(args[0])
-    if isclass(annotation) and annotation.__name__.startswith('AIig') and issubclass(annotation, AIiDataObject):
+    if isclass(annotation) and issubclass(annotation, AIiDataObject) and not annotation.__module__.startswith('eu.algites.lib.data.dataobject'):
         return annotation, nullable, repeated
     return None
 

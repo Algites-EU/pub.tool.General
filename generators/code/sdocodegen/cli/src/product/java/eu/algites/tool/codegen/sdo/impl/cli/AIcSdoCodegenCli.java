@@ -1,7 +1,7 @@
 package eu.algites.tool.codegen.sdo.impl.cli;
 
 import eu.algites.lib.data.dataobject.AIiDataObject;
-import eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1;
+import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import eu.algites.tool.codegen.sdo.AIcdGeneratedSdoSource;
 import eu.algites.tool.codegen.sdo.AIcdSdoGenerationResult;
 import eu.algites.tool.codegen.sdo.impl.standard.AIcSdoCodegenService;
@@ -146,12 +146,12 @@ public final class AIcSdoCodegenCli {
             locSources.add(locResolved.startsWith("resource:")
                     ? locResolved : root(locRepository, locResolved).toString());
         }
-        AIcNameConventionCatalog_1 locNames = AIcNamingCatalogCollector.load(locSources);
+        AIcNameConventionCatalog locNames = AIcNamingCatalogCollector.load(locSources);
         if (locGeneratedMethodsProfile != null)
             locNames = locNames.withGeneratedMethodProfile(locGeneratedMethodsProfile);
-        AIcNameConventionCatalog_1 locInputNames = locNames.withRoles(locInputRoles);
-        AIcNameConventionCatalog_1 locMutableNames = locNames.withRoles(locMutableRoles);
-        AIcNameConventionCatalog_1 locConcreteNames = locNames.withRoles(locConcreteRoles);
+        AIcNameConventionCatalog locInputNames = locNames.withRoles(locInputRoles);
+        AIcNameConventionCatalog locMutableNames = locNames.withRoles(locMutableRoles);
+        AIcNameConventionCatalog locConcreteNames = locNames.withRoles(locConcreteRoles);
         if (locClean) {
             cleanOutputs(locMutableRoot, locConcreteRoot, locNames, locMutableRoles, locConcreteRoles);
             return;
@@ -245,7 +245,7 @@ public final class AIcSdoCodegenCli {
      * @throws IOException if an existing generated output cannot be removed
      */
     private static void cleanOutputs(Path aMutableRoot, Path aConcreteRoot,
-            AIcNameConventionCatalog_1 aCatalog, Map<String, String> aMutableRoles,
+            AIcNameConventionCatalog aCatalog, Map<String, String> aMutableRoles,
             Map<String, String> aConcreteRoles) throws IOException {
         if (aMutableRoot.equals(aConcreteRoot)) {
             Set<String> locConventions = new LinkedHashSet<>(aMutableRoles.values());

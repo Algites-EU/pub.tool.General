@@ -1,9 +1,16 @@
+from explicit_naming_fixture import explicit_algites_manifest
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 """Schemas generate annotated Java/Python contracts only; SDO has separate ownership."""
 import json
 from pathlib import Path
 import pytest
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+
+
+def _explicit(manifest):
+    """Make a fixture's configured naming profile explicit before generation."""
+    manifest.write_text(json.dumps(explicit_algites_manifest(json.loads(manifest.read_text()))))
+    return manifest
 
 
 def _fixture(root):
@@ -21,31 +28,33 @@ def _fixture(root):
 def test_contract_only_repository_two_technologies(tmp_path):
     manifest = _fixture(tmp_path)
     generator = AIcSchemaContractBindingsGenerator()
-    outputs = generator.generate_repository(tmp_path, manifest)
+    outputs = generator.generate_repository(tmp_path, _explicit(manifest))
     assert {o['language'] for o in outputs} == {'java','python'}
-    assert len(outputs)==2
+    assert len(outputs)==4  # common and JSON technology contracts in each language
     py=(tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').read_text()
     java=(tmp_path/'intf/src/product/java.gen/example/contracts/AIigExample_1.java').read_text()
     assert 'AIcdDataObjectField' in py and 'AIcdDataObject(' in py
     assert 'AIaDataObjectField' in java and 'AIaDataObject(' in java
     assert '@abstractmethod\n    def getName' in py
-    assert 'AIiJsonDataObject' in java and 'AIiJsonDataObject' in py
+    java_representations = '\n'.join(file.read_text() for file in (tmp_path/'intf/src/product/java.gen').rglob('*.java'))
+    python_representations = '\n'.join(file.read_text() for file in (tmp_path/'intf/src/product/python.gen').rglob('*.py'))
+    assert 'AIiJsonDataObject' in java_representations and 'AIiJsonDataObject' in python_representations
     assert not (tmp_path/'impl').exists()
-    assert generator.generate_repository(tmp_path, manifest, check=True) == outputs
+    assert generator.generate_repository(tmp_path, _explicit(manifest), check=True) == outputs
     (tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').unlink()
     with pytest.raises(ValueError, match='outdated'):
-        generator.generate_repository(tmp_path, manifest, check=True)
+        generator.generate_repository(tmp_path, _explicit(manifest), check=True)
 
 
 def test_contract_stale_ownership(tmp_path):
     manifest=_fixture(tmp_path)
     generator=AIcSchemaContractBindingsGenerator()
-    generator.generate_repository(tmp_path,manifest)
+    generator.generate_repository(tmp_path,_explicit(manifest))
     artifact=tmp_path/'intf/src/product/python.gen/example/contracts'
     foreign=artifact/'not_ours.py';foreign.write_text('x=1\n')
     schema=tmp_path/'intf/src/product/jsondefs/example/contracts/example_1.jsondef.schema.json'
     schema.write_text(json.dumps({'type':'object','properties':{'Renamed':{'type':'string'}}}))
-    generator.generate_repository(tmp_path,manifest)
+    generator.generate_repository(tmp_path,_explicit(manifest))
     assert foreign.read_text()=='x=1\n'
     assert not (tmp_path/'impl').exists()
 
@@ -63,7 +72,7 @@ def test_schema_allof_creates_inherited_java_and_python_contracts(tmp_path):
     manifest=tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python'],'bindings':[]}))
     generator=AIcSchemaContractBindingsGenerator()
-    output=generator.generate_repository(tmp_path,manifest)
+    output=generator.generate_repository(tmp_path,_explicit(manifest))
     assert len(output)>=4
     java=(tmp_path/'intf/src/product/java.gen/example/contracts/AIigChild_1.java').read_text()
     python=(tmp_path/'intf/src/product/python.gen/example/contracts/aiig_child_1.py').read_text()
@@ -71,7 +80,7 @@ def test_schema_allof_creates_inherited_java_and_python_contracts(tmp_path):
     assert 'class AIigChild_1(AIigParent_1):' in python
     assert ' getCount()' in java and ' getName()' not in java
     assert 'def getCount' in python and 'def getName' not in python
-    assert generator.generate_repository(tmp_path,manifest,check=True)==output
+    assert generator.generate_repository(tmp_path,_explicit(manifest),check=True)==output
 
 
 def test_allof_rejects_missing_parent_contract(tmp_path):
@@ -82,7 +91,7 @@ def test_allof_rejects_missing_parent_contract(tmp_path):
         {'$ref':'missing_1.jsondef.schema.json'},
         {'type':'object','properties':{'Count':{'type':'integer'}}}]}))
     with pytest.raises(ValueError,match='parent is not an emitted contract'):
-        AIcSchemaContractBindingsGenerator().generate_repository(tmp_path,manifest)
+        AIcSchemaContractBindingsGenerator().generate_repository(tmp_path,_explicit(manifest))
 
 
 def test_manifest_discovers_xsd_in_both_languages(tmp_path):
@@ -99,15 +108,15 @@ def test_manifest_discovers_xsd_in_both_languages(tmp_path):
     manifest=tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python'],'bindings':[]}))
     generator=AIcSchemaContractBindingsGenerator()
-    result=generator.generate_repository(tmp_path,manifest)
-    assert len(result)==6  # includes XML namespace contract for each target
+    result=generator.generate_repository(tmp_path,_explicit(manifest))
+    assert len(result)==8  # common plus XML type/element/namespace contracts
     java=(tmp_path/'intf/src/product/java.gen/example/contracts/AIigExample_1.java').read_text()
     python=(tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').read_text()
     assert ' getName()' in java and ' getCount()' in java
     assert 'def getName' in python and 'def getCount' in python
     assert 'AIaDataObjectField' in java and 'AIcdDataObjectField' in python
     assert not (tmp_path/'impl').exists()
-    generator.generate_repository(tmp_path,manifest,check=True)
+    generator.generate_repository(tmp_path,_explicit(manifest),check=True)
 
 
 def test_json_yaml_xsd_merge_the_same_logical_contract(tmp_path):
@@ -134,15 +143,17 @@ def test_json_yaml_xsd_merge_the_same_logical_contract(tmp_path):
     manifest = tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python'],'bindings':[]}))
     generator = AIcSchemaContractBindingsGenerator()
-    result = generator.generate_repository(tmp_path,manifest)
-    assert len(result) == 10  # includes XML namespace contract for each target
+    result = generator.generate_repository(tmp_path,_explicit(manifest))
+    assert len(result) == 16  # representation-specific and common contracts for both targets
     java = (tmp_path/'intf/src/product/java.gen/example/contracts/AIigExample_1.java').read_text()
     python = (tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').read_text()
     assert java.count('public interface AIigExample_1') == 1
-    assert 'Canonical representations:' in java and 'XMLDEFS' in java
+    all_java = '\n'.join(path.read_text() for path in
+        (tmp_path/'intf/src/product/java.gen/example/contracts').glob('*.java'))
+    assert 'XMLDEFS' in all_java and 'AIigExample_1' in all_java
     assert '__data_object_fields__' in python
     assert not (tmp_path/'impl').exists()
-    generator.generate_repository(tmp_path,manifest,check=True)
+    generator.generate_repository(tmp_path,_explicit(manifest),check=True)
 
 
 
@@ -156,7 +167,7 @@ def test_xsd_root_attribute_becomes_canonical_field(tmp_path):
         </xs:complexType></xs:schema>''')
     manifest=tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python']}))
-    generated = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
+    generated = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _explicit(manifest))
     assert generated
     java = (tmp_path/'intf/src/product/java.gen/example/contracts/AIigSample_1.java').read_text()
     python = (tmp_path/'intf/src/product/python.gen/example/contracts/aiig_sample_1.py').read_text()
@@ -165,10 +176,10 @@ def test_xsd_root_attribute_becomes_canonical_field(tmp_path):
     from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
     from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
     from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-    from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+    from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
     path = root/'sample_1.xsd'
     contract = AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-        AIcAlgitesNamingProfiles_1.python_profile()))
+        AIcAlgitesNamingProfiles.python_profile()))
     assert [(p.source_name, (p.presence is AInFieldPresenceKind.REQUIRED)) for p in contract.data_type.properties] == [('Value', True), ('Code', True)]
 
 
@@ -186,13 +197,13 @@ def test_json_yaml_inheritance_merge_keeps_one_parent(tmp_path):
     manifest=tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python']}))
     generator=AIcSchemaContractBindingsGenerator()
-    results=generator.generate_repository(tmp_path,manifest)
+    results=generator.generate_repository(tmp_path,_explicit(manifest))
     assert len(results)>=8
     java=(tmp_path/'intf/src/product/java.gen/example/contracts/AIigChild_1.java').read_text()
     python=(tmp_path/'intf/src/product/python.gen/example/contracts/aiig_child_1.py').read_text()
     assert 'extends example.contracts.AIigParent_1 {' in java
     assert 'class AIigChild_1(AIigParent_1)' in python
-    generator.generate_repository(tmp_path,manifest,check=True)
+    generator.generate_repository(tmp_path,_explicit(manifest),check=True)
 
 
 def test_repository_manifest_xsd_import_graph_and_enums(tmp_path):
@@ -212,14 +223,14 @@ def test_repository_manifest_xsd_import_graph_and_enums(tmp_path):
     manifest = tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python']}))
     generator = AIcSchemaContractBindingsGenerator()
-    result = generator.generate_repository(tmp_path,manifest)
+    result = generator.generate_repository(tmp_path,_explicit(manifest))
     # Additional named XSD simple types are now emitted independently, not discarded.
-    assert len(result) == 32  # includes one XML namespace per distinct URI and language
+    assert len(result) == 44  # independently configured common and XML role outputs
     assert {'AIigParityRoot_1','AIigParityChild_1','AIigParityLeaf_1',
             'AIngParityStatus_1', 'AIngNotationValue_1'} <= {
         row['type'] for row in result}
     assert not (tmp_path/'impl').exists()
-    generator.generate_repository(tmp_path,manifest,check=True)
+    generator.generate_repository(tmp_path,_explicit(manifest),check=True)
 
 
 def test_two_allof_contract_parents_preserve_both_inheritance_paths(tmp_path):
@@ -241,7 +252,7 @@ def test_two_allof_contract_parents_preserve_both_inheritance_paths(tmp_path):
     }))
     manifest = tmp_path / 'bindings.json'
     manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['java', 'python'], 'bindings': []}))
-    result = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
+    result = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _explicit(manifest))
     assert result
     java = (tmp_path / 'intf/src/product/java.gen/example/contracts/AIigDocument_1.java').read_text()
     python = (tmp_path / 'intf/src/product/python.gen/example/contracts/aiig_document_1.py').read_text()
@@ -249,24 +260,32 @@ def test_two_allof_contract_parents_preserve_both_inheritance_paths(tmp_path):
     assert 'class AIigDocument_1(AIigMetadata_1, AIigDocumentDefinitionDocumentContent_1):' in python
     assert 'getSchemaId()' not in java and 'getName()' not in java
     assert 'def getSchemaId' not in python and 'def getName' not in python
-    AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest, check=True)
+    AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _explicit(manifest), check=True)
 
 
 def test_user_defined_getter_composition_reaches_generated_java_and_python(tmp_path, monkeypatch):
     """Both languages must render a custom getter prefix from the chosen YAML role."""
-    from copy import deepcopy
-    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+    import yaml
+    from eu.algites.tool.codegen.defs.impl.standard._catalog_sources import expand_naming_catalogs
 
-    standard = AIcNameConventionCatalog_1.standard
-    def custom_catalog(language):
-        source = standard(language)
-        config = deepcopy(source._config)
-        if language in ('java', 'python'):
-            config['NameCompositions'][f'{language}-getter-method-name_1']['Segments'][0]['Value'] = 'read'
-        return AIcNameConventionCatalog_1(config)
-
-    monkeypatch.setattr(AIcNameConventionCatalog_1, 'standard', staticmethod(custom_catalog))
+    catalog_dir = tmp_path / 'catalogs'
+    catalog_dir.mkdir()
+    with expand_naming_catalogs(['resource:standard-conventions.yml']) as files:
+        (catalog_dir/'standard-conventions.yml').write_text(Path(files[0]).read_text())
+    for language in ('java', 'python'):
+        source = f'algites-{language}-name-conventions.yml'
+        with expand_naming_catalogs([f'resource:{source}']) as files:
+            config = yaml.safe_load(Path(files[0]).read_text())
+        config['NameCompositions'][f'{language}-getter-method-name_1']['Segments'][0]['Value'] = 'read'
+        (catalog_dir / source).write_text(yaml.safe_dump(config))
     manifest = _fixture(tmp_path)
+    document = explicit_algites_manifest(json.loads(manifest.read_text()))
+    document['naming_convention_files'] = [
+        entry if entry not in ('resource:algites-java-name-conventions.yml',
+                               'resource:algites-python-name-conventions.yml')
+        else entry.replace('resource:', 'catalogs/')
+        for entry in document['naming_convention_files']]
+    manifest.write_text(json.dumps(document))
     AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     java = (tmp_path / 'intf/src/product/java.gen/example/contracts/AIigExample_1.java').read_text()
     python = (tmp_path / 'intf/src/product/python.gen/example/contracts/aiig_example_1.py').read_text()
@@ -279,11 +298,14 @@ def test_user_defined_getter_composition_reaches_generated_java_and_python(tmp_p
 
 def test_accessor_names_preserve_input_field_word_boundaries_without_fixed_output_syntax():
     """Schema camel/snake/kebab source names retain their meaning through configured profiles."""
-    from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+    from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
     from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
 
     names = AIcGenerationNames()
-    profiles = AIcAlgitesNamingProfiles_1.python_profile()
+    from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+    from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
+    profiles = AIcSelectedNamingCatalog(AIcAlgitesNamingProfiles.python_profile(),
+        {AInDefsNameRole.INTERFACE_TYPE: 'algites-python-gen-intf-versioned_1'})
     for source in ('customerId', 'CustomerId', 'customer_id', 'customer-id'):
         assert names.getter_name(source, profiles) == 'getCustomerId'
         assert names.setter_name(source, profiles) == 'setCustomerId'

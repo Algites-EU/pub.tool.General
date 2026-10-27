@@ -11,6 +11,6 @@ Dependencies:
   - DependencyKind: modustro
     Items:
       - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.convention.algites
-        ArtifactId: pub.lib.General_naming.convention.algites
+        ArtifactId: pub.lib.General_naming.convention.profile.algites
+        ArtifactId: pub.lib.General_naming.convention.profile.algites
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }

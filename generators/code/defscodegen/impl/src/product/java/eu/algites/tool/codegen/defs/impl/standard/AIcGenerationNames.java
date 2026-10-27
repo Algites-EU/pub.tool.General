@@ -8,28 +8,16 @@ import java.util.Map;
 
 /** Resolves all rendered names from the selected YAML NameCompositions. */
 final class AIcGenerationNames {
-    private static String technology(AIiNameConventionCatalog aCatalog) {
-        if (aCatalog.names().stream().anyMatch(aName -> aName.startsWith("algites-java-"))) return "java";
-        if (aCatalog.names().stream().anyMatch(aName -> aName.startsWith("algites-python-"))) return "python";
-        throw new IllegalArgumentException("No recognized standard technology naming roles in catalog");
-    }
-
-    private static String role(AInDefsNameRole aRole) {
-        return switch (aRole) {
-            case ENUM_TYPE, ENUM_TYPE_FILE_STEM -> "enum";
-            case INTERFACE_TYPE, INTERFACE_TYPE_FILE_STEM -> "intf";
-            case XML_ELEMENT_INTERFACE_TYPE, XML_ELEMENT_INTERFACE_TYPE_FILE_STEM -> "xml-element-intf";
-            case XML_NAMESPACE_INTERFACE_TYPE, XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM -> "xml-namespace-intf";
-            case DATA_TYPE, DATA_TYPE_FILE_STEM -> "data-class";
-            default -> throw new IllegalArgumentException("Not a generated type role: " + aRole);
-        };
+    /** Require a semantic naming-role binding supplied by the active generator profile. */
+    private static String selected(AIiNameConventionCatalog aCatalog, AInDefsNameRole aRole) {
+        if (!(aCatalog instanceof AIcSelectedNamingCatalog locSelected))
+            throw new IllegalArgumentException("No output naming profile configured for role " + aRole);
+        return locSelected.selected(aRole);
     }
 
     private static String type(AIiNameConventionCatalog aCatalog, String aIdentifier, Integer aVersion,
             AInDefsNameRole aRole, String aStructure) {
-        String locPrefix = "algites-" + technology(aCatalog) + "-gen-" + role(aRole);
-        String locProfile = aCatalog instanceof AIcSelectedNamingCatalog locSelected
-                ? locSelected.selected(aRole) : locPrefix + (aVersion == null ? "_1" : "-versioned_1");
+        String locProfile = selected(aCatalog, aRole);
         /* Derived schema-pointer ordinals must not imitate a filename version suffix. */
         String locIdentifier = aIdentifier.replaceAll("(?<=[a-z])-(?=[0-9]+(?:-|$))", "");
         Map<String, String> locVariables = aVersion == null
@@ -51,21 +39,42 @@ final class AIcGenerationNames {
                 aKind.name().endsWith("FILE_STEM") ? "file_name_stem" : "main_container_name");
     }
 
+    /**
+     * Formats a source field according to the selected naming structure.
+     *
+     * <p>JSON/YAML field names may include punctuation, such as {@code $schema}.
+     * Only those non-identifier lexical forms are normalized. Errors reported
+     * by the configured naming profile are always propagated unchanged.
+     *
+     * @param aProfile explicitly selected naming catalog
+     * @param aName original field key from the data schema
+     * @param aStructure named target structure (field/getter/setter/constant)
+     * @param aSourceConvention expected source lexical naming convention
+     * @param aRole required target semantic role
+     * @return name formatted according to the configured naming composition
+     */
     private static String property(AIiNameConventionCatalog aProfile, String aName, String aStructure,
             String aSourceConvention, AInDefsNameRole aRole) {
-        String locRole = aProfile instanceof AIcSelectedNamingCatalog locSelected
-                ? locSelected.selected(aRole)
-                : "algites-" + technology(aProfile) + "-gen-intf-versioned_1";
-        try {
-            return aProfile.format(locRole, aStructure, Map.of("identifier", aName), aSourceConvention);
-        } catch (IllegalArgumentException aError) {
-            /* JSON-Schema allows properties such as $schema that are not source identifiers. */
-            String locNormalized = aName.replaceAll("[^A-Za-z0-9]+", "-").replaceAll("^-|-$", "")
+        String locRole = selected(aProfile, aRole);
+        String locSourceName = aName;
+        String locSourceConvention = aSourceConvention;
+        if (!recognizedSourceField(aName)) {
+            /* Normalize wire-level punctuation, never a missing or broken naming profile. */
+            locSourceName = aName.replaceAll("[^A-Za-z0-9]+", "-").replaceAll("^-|-$", "")
                     .toLowerCase(java.util.Locale.ROOT);
-            if (locNormalized.isEmpty() || Character.isDigit(locNormalized.charAt(0)))
-                locNormalized = "field-" + locNormalized;
-            return aProfile.format(locRole, aStructure, Map.of("identifier", locNormalized), "lower_kebab_case_1");
+            if (locSourceName.isEmpty() || Character.isDigit(locSourceName.charAt(0)))
+                locSourceName = "field-" + locSourceName;
+            locSourceConvention = "lower_kebab_case_1";
         }
+        return aProfile.format(locRole, aStructure, Map.of("identifier", locSourceName), locSourceConvention);
+    }
+
+    /** Return whether the field key matches one of the supported source lexical conventions. */
+    private static boolean recognizedSourceField(String aName) {
+        return aName.matches("[A-Z][A-Za-z0-9]*")
+                || aName.matches("[a-z][A-Za-z0-9]*")
+                || aName.matches("[a-z][a-z0-9]*(?:_[a-z0-9]+)+")
+                || aName.matches("[a-z][a-z0-9]*(?:-[a-z0-9]+)+");
     }
 
     /**

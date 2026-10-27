@@ -44,7 +44,7 @@ public final class AItcGeneratedXmlDeserializationTest {
      */
     @Test
     public void AIcGeneratedNestedXmlMaterializerCompilesAndRuns() throws Exception {
-        var locGenerator = new AIcSdoCodegenService();
+        var locGenerator = new AItcConfiguredSdoCodegenService();
         var locRoot = Files.createTempDirectory("algites-xml-generated-");
         var locSources = new java.util.ArrayList<String>();
         for (Class<?> locRead : List.of(AIigItem_1.class, AIigOrder_1.class)) {

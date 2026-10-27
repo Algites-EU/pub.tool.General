@@ -4,7 +4,6 @@ from eu.algites.tool.codegen.defs.impl.standard._schema_loading import load_sche
 import json
 from eu.algites.tool.codegen.defs.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
 
 class AIcJsonDefsFrontend:
     """Loads json defs definitions into the normalized canonical model."""
@@ -17,17 +16,10 @@ class AIcJsonDefsFrontend:
     def load(self, request):
         """Load one source definition into the normalized canonical-definition model."""
         root = load_schema(request.path)
-        default = AIcNameConventionCatalog_1.load_resource('algites-jsondef-name-conventions.yml')
         profile = request.source_naming_profile
         catalog = request.naming_profile
-        if not profile:
-            matched = default.recognize_filename(request.path.name)
-            profile = matched.convention_name if matched is not None else ''
-            catalog = default
-        elif profile not in catalog.names():
-            if profile not in default.names():
-                raise ValueError(f'Unknown source naming profile: {profile}')
-            catalog = default
+        if not profile or catalog is None or profile not in catalog.names:
+            raise ValueError(f'Missing configured {self.source_kind} source naming convention: {request.path}')
         fields = catalog.schema_metadata_fields(profile) if profile else {}
         return self._reader.read(root, request, self.source_kind,
             fields.get('schema_source_schema_identifier', ''),

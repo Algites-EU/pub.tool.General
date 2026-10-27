@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
@@ -25,7 +25,7 @@ def test_xml_element_records_its_own_naming_convention(tmp_path: Path):
         <xs:element name="invoice" type="InvoiceType"/>
     </xs:schema>''', encoding='utf-8')
     for language in ('java', 'python'):
-        catalog = AIcNameConventionCatalog_1.standard(language)
+        catalog = AIcNameConventionCatalog.load_resource(f'algites-{language}-name-conventions.yml')
         type_id = f'algites-{language}-gen-xml-type-intf-versioned_1'
         element_id = f'algites-{language}-gen-xml-element-intf-versioned_1'
         profile = AIcSelectedNamingCatalog(catalog, {

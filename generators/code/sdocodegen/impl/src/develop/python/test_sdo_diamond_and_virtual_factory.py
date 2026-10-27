@@ -3,7 +3,7 @@ from eu.algites.lib.data.smartdataobject.ain_sdo_field_value_loading_mode import
 import importlib
 from pathlib import Path
 
-from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from explicit_sdo_fixture import configured_service, explicit_generic_manifest
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
@@ -37,7 +37,7 @@ def test_diamond_contract_generated_and_constructed(tmp_path, monkeypatch):
             f'    __data_object_fields__ = (AIcdDataObjectField({field!r}, getter_name={"get"+field!r}),)\n'
             f'    def get{field}(self): raise NotImplementedError\n')
     monkeypatch.syspath_prepend(str(tmp_path))
-    generator = AIcSdoCodegenService()
+    generator = configured_service()
     for suffix in contracts:
         module = importlib.import_module(f'{package}.aiig_{suffix.lower()}_1')
         result = generator.generate(getattr(module, f'AIig{suffix}_1'))

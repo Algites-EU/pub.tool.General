@@ -70,3 +70,21 @@ def test_source_mode_rejects_outdated_general_checkout():
     source = BOOTSTRAP.read_text(encoding='utf-8')
     required_sources = source.split('for locRequiredSource in \\', 1)[1].split('; do', 1)[0]
     assert 'AInFieldSetterInheritancePolicy.java' in required_sources
+
+
+def test_naming_catalog_preflight_uses_test_runtime_classpath():
+    """The naming profile is a testImplementation dependency, not a runtime one."""
+    source = BOOTSTRAP.read_text(encoding='utf-8')
+    assert "testImplementation project(':profile-algites')" in source
+    task = source.split("def verifyNamingCatalog = tasks.register(", 1)[1].split(
+        "project(':impl').tasks.withType(Test)", 1
+    )[0]
+    assert "project(':impl').configurations.testRuntimeClasspath" in task
+    assert "project(':impl').configurations.runtimeClasspath" not in task
+    assert "it.moduleVersion.id.group == 'eu.algites.lib.naming'" in task
+    assert "it.moduleVersion.id.name == 'pub.lib.General_naming.convention.profile.algites'" in task
+    for language in ('java', 'python'):
+        assert f"algites-{language}-name-conventions.yml" in task
+    assert "xml-element-intf" in task
+    assert "Outdated pub.lib.General naming catalog" in task
+    assert 'dependsOn prepareParityPython, verifyNamingCatalog' in source

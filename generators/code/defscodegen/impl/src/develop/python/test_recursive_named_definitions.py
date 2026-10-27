@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
@@ -15,7 +15,7 @@ def _read(tmp_path, schema):
     path.write_text(json.dumps(schema), encoding='utf-8')
     return AIcJsonSchemaReader().read(schema,
         AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS,
-            AIcAlgitesNamingProfiles_1.python_profile()),
+            AIcAlgitesNamingProfiles.python_profile()),
         AInDefinitionSourceKind.JSONDEFS, 'x-jsondefs-id', 'x-jsondefs-version', 'x-jsondefs-name')
 
 

@@ -52,7 +52,7 @@ def test_classpath_settings_overlay_and_explicit_priority(monkeypatch, tmp_path)
     monkeypatch.chdir(Path(__file__).resolve().parents[7])
     resource = (tmp_path / 'eu/algites/tool/codegen/defs')
     resource.mkdir(parents=True)
-    (resource / 'algites-defscodegen-python.settings').write_text(
+    (resource / 'defscodegen-python.settings').write_text(
         '--setter-inheritance-policy=INHERIT_AS_FIXED_PARAMETER\n'
         '--schema-input-dir:xmldefs=\n')
     monkeypatch.syspath_prepend(str(tmp_path))
@@ -73,7 +73,7 @@ def test_all_sys_path_settings_are_merged_before_explicit_invocation(monkeypatch
     second = tmp_path / 'second'
     for directory in (first, second):
         (directory / 'eu/algites/tool/codegen/defs').mkdir(parents=True)
-    name = 'algites-defscodegen-python.settings'
+    name = 'defscodegen-python.settings'
     (second / 'eu/algites/tool/codegen/defs/' / name).write_text(
         '--setter-inheritance-policy=INHERIT_AS_FIXED_PARAMETER\n'
         '--naming-conventions-file:second=classpath:second-catalog.yml\n')
@@ -103,7 +103,7 @@ def test_packaged_and_direct_sys_path_settings_accumulate(monkeypatch, tmp_path)
     monkeypatch.chdir(Path(__file__).resolve().parents[7])
     packaged = tmp_path / 'packaged'
     packaged.mkdir()
-    name = 'algites-defscodegen-python.settings'
+    name = 'defscodegen-python.settings'
     (packaged / name).write_text('--naming-conventions-file:packaged=classpath:package-only.yml\n')
     original = _layered_settings.importlib.resources.files
 

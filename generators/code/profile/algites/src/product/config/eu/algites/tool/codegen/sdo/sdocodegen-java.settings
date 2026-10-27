@@ -1,0 +1,23 @@
+# algites build-time naming profile for sdocodegen / java
+--input-technology-naming-convention:java:common:defsintf=algites-java-gen-intf-versioned_1
+--output-technology-naming-convention:java:common:sdointf=algites-java-gen-data-intf-versioned_1
+--output-technology-naming-convention:java:common:sdoclass=algites-java-gen-data-class-versioned_1
+--input-technology-naming-convention:java:xmldefs_type:defsintf=algites-java-gen-xml-type-intf-versioned_1
+--output-technology-naming-convention:java:xmldefs_type:sdointf=algites-java-gen-data-xml-type-intf-versioned_1
+--output-technology-naming-convention:java:xmldefs_type:sdoclass=algites-java-gen-data-xml-type-class-versioned_1
+--input-technology-naming-convention:java:xmldefs_element:defsintf=algites-java-gen-xml-element-intf-versioned_1
+--output-technology-naming-convention:java:xmldefs_element:sdointf=algites-java-gen-data-xml-element-intf-versioned_1
+--output-technology-naming-convention:java:xmldefs_element:sdoclass=algites-java-gen-data-xml-element-class-versioned_1
+--input-technology-naming-convention:java:yamldefs:defsintf=algites-java-gen-yaml-intf-versioned_1
+--output-technology-naming-convention:java:yamldefs:sdointf=algites-java-gen-data-yaml-intf-versioned_1
+--output-technology-naming-convention:java:yamldefs:sdoclass=algites-java-gen-data-yaml-class-versioned_1
+--input-technology-naming-convention:java:jsondefs:defsintf=algites-java-gen-json-intf-versioned_1
+--output-technology-naming-convention:java:jsondefs:sdointf=algites-java-gen-data-json-intf-versioned_1
+--output-technology-naming-convention:java:jsondefs:sdoclass=algites-java-gen-data-json-class-versioned_1
+--naming-conventions-file:standard=classpath:standard-conventions.yml
+--naming-conventions-file:java=classpath:algites-java-name-conventions.yml
+--naming-conventions-file:xmldefs=classpath:algites-xmldef-name-conventions.yml
+--naming-conventions-file:yamldefs=classpath:algites-yamldef-name-conventions.yml
+--naming-conventions-file:jsondefs=classpath:algites-jsondef-name-conventions.yml
+--naming-conventions-file:generated_dataobject=classpath:algites-java-codegen-method-conventions.yml
+--generated-dataobject-method-naming-convention:java=algites-java-codegen-standard_1

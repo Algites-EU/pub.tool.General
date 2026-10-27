@@ -6,14 +6,15 @@ import json
 
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
 from eu.algites.tool.codegen.defs.impl.standard.aic_yaml_defs_frontend import AIcYamlDefsFrontend
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from explicit_naming_fixture import explicit_legacy_generic_manifest
 
 
 CHOICE = '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
@@ -29,7 +30,7 @@ CHOICE = '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
 def test_xml_closed_choice_preserves_qname_in_recursive_alternatives(tmp_path):
     xsd = tmp_path / 'payment_1.xsd'
     xsd.write_text(CHOICE)
-    profile = AIcAlgitesNamingProfiles_1.python_profile()
+    profile = AIcAlgitesNamingProfiles.python_profile()
     definition = AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(
         xsd, AInDefinitionSourceKind.XMLDEFS, profile))
     assert definition.data_type.kind is AInDataTypeKind.ONE_OF
@@ -43,7 +44,7 @@ def test_xml_closed_choice_generates_namespace_contracts_per_language(tmp_path, 
     sources.mkdir(parents=True)
     (sources / 'payment_1.xsd').write_text(CHOICE)
     manifest = tmp_path / 'generate.json'
-    manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['java', 'python']}))
+    manifest.write_text(json.dumps(explicit_legacy_generic_manifest({'artifact': 'intf', 'languages': ['java', 'python']})))
     generated = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     assert len(generated) == 6
     java = tmp_path / 'intf/src/product/java.gen/example/choice'
@@ -63,7 +64,7 @@ def test_xml_closed_choice_generates_namespace_contracts_per_language(tmp_path, 
     assert contract.AIigPayment_1.__xml_data_object__.namespace_local_name == 'PaymentChoice'
     branch = importlib.import_module('example.choice.aiig_payment_one_of0_1')
     assert branch.AIigPaymentOneOf0_1.__xml_data_object_fields__['cash'].namespace == 'urn:choice:regression'
-    importlib.import_module('example.choice.aicgd_payment_alternative1_1')
+    importlib.import_module('example.choice.aiig_payment_alternative1_1')
     element = importlib.import_module('example.choice.aiig__xe_payment_1')
     assert element.AIig_xePayment_1.__xml_data_object__.namespace_local_name == 'payment'
 
@@ -86,7 +87,7 @@ def test_allof_redeclaration_must_not_replace_incompatible_shape(tmp_path, schem
     source_kind = AInDefinitionSourceKind.JSONDEFS if schema_type == 'jsondefs' else AInDefinitionSourceKind.YAMLDEFS
     with pytest.raises(ValueError, match='Conflicting allOf property schema'):
         frontend.load(AIcdDefinitionLoadRequest(child, source_kind,
-            AIcAlgitesNamingProfiles_1.python_profile()))
+            AIcAlgitesNamingProfiles.python_profile()))
 
 
 def test_recursive_reference_requires_explicit_identity():
@@ -104,7 +105,7 @@ def test_xml_choice_alternatives_are_compared_recursively(tmp_path):
     left.write_text(CHOICE)
     right.write_text(CHOICE.replace('name="wire" type="xs:string"',
                                    'name="wire" type="xs:integer"'))
-    profile = AIcAlgitesNamingProfiles_1.python_profile()
+    profile = AIcAlgitesNamingProfiles.python_profile()
     frontend = AIcXmlDefsFrontend()
     first = frontend.load(AIcdDefinitionLoadRequest(left, AInDefinitionSourceKind.XMLDEFS, profile))
     second = frontend.load(AIcdDefinitionLoadRequest(right, AInDefinitionSourceKind.XMLDEFS, profile))

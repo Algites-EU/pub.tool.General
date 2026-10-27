@@ -53,9 +53,9 @@ Baseline: modustro-three-repositories-getter-setter-naming-final-20261021.zip
 ## File delta relative to baseline
 
 Changed (7):
-- `pub.lib.General/naming/convention/algites/src/develop/python/test_name_convention_catalog_1.py`
-- `pub.lib.General/naming/convention/algites/src/product/config/eu/algites/lib/naming/convention/algites-java-name-conventions.yml`
-- `pub.lib.General/naming/convention/algites/src/product/config/eu/algites/lib/naming/convention/algites-python-name-conventions.yml`
+- `pub.lib.General/naming/convention/profile/algites/src/develop/python/test_name_convention_catalog_1.py`
+- `pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/algites-java-name-conventions.yml`
+- `pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/algites-python-name-conventions.yml`
 - `pub.tool.General/generators/code/defscodegen/impl/src/develop/java/eu/algites/tool/codegen/defs/impl/standard/AItcSchemaParityTest.java`
 - `pub.tool.General/generators/code/defscodegen/impl/src/develop/python/test_schema_parity.py`
 - `pub.tool.General/generators/code/defscodegen/impl/src/product/java/eu/algites/tool/codegen/defs/impl/standard/AIcGenerationNames.java`

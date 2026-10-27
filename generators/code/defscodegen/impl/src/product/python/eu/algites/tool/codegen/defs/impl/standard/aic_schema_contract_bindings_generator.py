@@ -8,9 +8,8 @@ from pathlib import Path
 import re
 from urllib.parse import urlsplit, unquote
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
-from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 from eu.algites.tool.codegen.defs.impl.standard._schema_loading import load_schema
 from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
@@ -57,13 +56,13 @@ class AIcSchemaContractBindingsGenerator:
                        else str(self._inside(repository, source))
                        for source in manifest.get('naming_convention_files', [])]
             with expand_naming_catalogs(sources) as files:
-                shared_names = AIcNameConventionCatalog_1.load_many(files)
+                shared_names = AIcNameConventionCatalog.load_many(files)
         output_roots = {t: self._inside(repository, d) for t, d in manifest.get('technology_outputs', {}).items()}
-        catalogs = {t: AIcNameConventionCatalog_1.load(self._inside(repository, file))
+        catalogs = {t: AIcNameConventionCatalog.load(self._inside(repository, file))
                     for t, file in manifest.get('technology_naming_profiles', {}).items()}
-        target_profiles = {t: AIcNameConventionCatalog_1.load(self._inside(repository, file))
+        target_profiles = {t: AIcNameConventionCatalog.load(self._inside(repository, file))
                            for t, file in manifest.get('technology_naming_profiles', {}).items()}
-        source_catalogs = {k: AIcNameConventionCatalog_1.load(self._inside(repository, file))
+        source_catalogs = {k: AIcNameConventionCatalog.load(self._inside(repository, file))
                            for k, file in manifest.get('schema_input_naming_profiles', {}).items()}
         if configured:
             catalogs = {language: shared_names for language in output_roots}
@@ -72,6 +71,8 @@ class AIcSchemaContractBindingsGenerator:
                                if language in method_profiles else shared_names
                                for language in output_roots}
             source_catalogs = {kind: shared_names for kind in manifest.get('schema_input_naming_conventions', {})}
+        if not configured and not manifest.get('technology_naming_profiles'):
+            raise ValueError('No explicit output naming catalog configured')
         if explicit and not configured:
             for technology in output_roots:
                 if technology not in catalogs:
@@ -116,10 +117,6 @@ class AIcSchemaContractBindingsGenerator:
             root = Path(source_input['directory']).resolve() if Path(source_input['directory']).is_absolute() else self._inside(repository, source_input['directory'])
             if not root.is_relative_to(repository):
                 raise ValueError('Schema root escapes repository: ' + str(root))
-            if kind in source_catalogs and not manifest.get('allow_unversioned_schemas', False):
-                required_profile = f'algites-{kind[:-1] if kind != "xmldefs" else "xmldef"}-schema-versioned_1'
-            else:
-                required_profile = None
             if not root.is_dir():
                 print(f'Defs Codegen: skipping configured {kind} input directory (not found): {root}', file=__import__('sys').stderr)
                 continue
@@ -141,13 +138,14 @@ class AIcSchemaContractBindingsGenerator:
                     if recognized is None:
                         raise ValueError('Schema filename violates input naming profile: ' + schema)
                     profile_by_source[schema] = recognized.convention_name
-                    if not configured and required_profile is not None and recognized.convention_name != required_profile:
+                    if not manifest.get('allow_unversioned_schemas', False) and 'version' not in recognized.variables:
                         raise ValueError('Unversioned schema is not allowed: ' + schema)
                 document = {} if kind == 'xmldefs' else load_schema(source)
                 if kind != 'xmldefs':
-                    source_catalog = source_catalogs.get(kind) or AIcNameConventionCatalog_1.load_resource(
-                        f'algites-{kind[:-1]}-name-conventions.yml')
-                    source_profile = profile_by_source.get(schema, f'algites-{kind[:-1]}-schema-versioned_1')
+                    source_catalog = source_catalogs.get(kind)
+                    source_profile = profile_by_source.get(schema)
+                    if source_catalog is None or not source_profile:
+                        raise ValueError('Missing source naming catalog/profile for ' + schema)
                     id_field = source_catalog.schema_metadata_fields(source_profile).get(
                         'schema_source_schema_identifier', '')
                     declared_identity_by_source[schema] = bool(id_field and document.get(id_field))
@@ -177,8 +175,10 @@ class AIcSchemaContractBindingsGenerator:
             if kind_by_source[unit.schema] != 'xmldefs':
                 continue
             source = self._inside(repository, unit.schema)
+            if not target_profiles:
+                raise ValueError('No output naming profile configured')
             load = AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS,
-                AIcAlgitesNamingProfiles_1.python_profile())
+                next(iter(target_profiles.values())))
             qname = ('{' + xml_scope_frontend.schema_namespace(load) + '}' + unit.pointer[6:]
                 if unit.pointer.startswith('@type/') else xml_scope_frontend.root_type_qname(load))
             if qname.startswith('{}'):
@@ -206,9 +206,10 @@ class AIcSchemaContractBindingsGenerator:
             if kind != 'xmldefs':
                 if '$defs' in unit.document:
                     projection['$defs'] = unit.document['$defs']
-                source_catalog = source_catalogs.get(kind) or AIcNameConventionCatalog_1.load_resource(
-                    f'algites-{kind[:-1]}-name-conventions.yml')
-                source_profile = profile_by_source.get(unit.schema, f'algites-{kind[:-1]}-schema-versioned_1')
+                source_catalog = source_catalogs.get(kind)
+                source_profile = profile_by_source.get(unit.schema)
+                if source_catalog is None or not source_profile:
+                    raise ValueError('Missing source naming catalog/profile for ' + unit.schema)
                 fields = source_catalog.schema_metadata_fields(source_profile) if source_catalog and source_profile else {}
                 id_key = fields.get('schema_source_schema_identifier', '')
                 version_key = fields.get('schema_source_schema_version', '')
@@ -223,8 +224,9 @@ class AIcSchemaContractBindingsGenerator:
             parent_units = self._parent_units(unit, unit_index, repository) if kind != 'xmldefs' else ()
             for language in manifest['languages']:
                 target = AInCodeGenerationTarget(language)
-                profile = target_profiles.get(language) or (AIcAlgitesNamingProfiles_1.python_profile()
-                            if target is AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles_1.java_profile())
+                profile = target_profiles.get(language)
+                if profile is None:
+                    raise ValueError(f'No output naming profile configured for {language}')
                 load = AIcdDefinitionLoadRequest(source,
                     {'yamldefs': AInDefinitionSourceKind.YAMLDEFS, 'jsondefs': AInDefinitionSourceKind.JSONDEFS,
                      'xmldefs': AInDefinitionSourceKind.XMLDEFS}[kind], profile)
@@ -279,11 +281,11 @@ class AIcSchemaContractBindingsGenerator:
                         if element_id:
                             entries.update({kind: element_id for kind in (AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE,
                                 AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)})
-                        namespace_id = configured_roles.get('xmldefs_namespace',
-                            f'algites-{language}-gen-xml-namespace-intf_1')
-                        entries.update({kind: namespace_id for kind in
-                            (AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE,
-                             AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM)})
+                        namespace_id = configured_roles.get('xmldefs_namespace')
+                        if namespace_id:
+                            entries.update({kind: namespace_id for kind in
+                                (AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE,
+                                 AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM)})
                         enum_id = manifest.get('technology_enum_output_naming_conventions', {}).get(language, selected_id)
                         entries.update({kind: enum_id for kind in (AInDefsNameRole.ENUM_TYPE,
                             AInDefsNameRole.ENUM_TYPE_FILE_STEM)})

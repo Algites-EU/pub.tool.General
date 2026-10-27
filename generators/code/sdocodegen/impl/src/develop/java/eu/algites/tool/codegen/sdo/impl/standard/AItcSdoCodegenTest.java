@@ -29,7 +29,7 @@ public final class AItcSdoCodegenTest {
     /** New types must preserve the exact inheritance and work with real pub.lib.General runtime. */
     @Test
     public void AIcGeneratesAndCompilesInheritedTypes() throws Exception {
-        var locGenerator = new AIcSdoCodegenService();
+        var locGenerator = new AItcConfiguredSdoCodegenService();
         var locParent = locGenerator.generate(AIigParent.class, "d");
         var locChild = locGenerator.generate(AIigChild.class, "d");
         Path locDirectory = Files.createTempDirectory("sdocodegen-java-test");
@@ -60,7 +60,7 @@ public final class AItcSdoCodegenTest {
             Assert.assertEquals(locType.getMethod("getName").invoke(locInstance), "Alpha");
             Assert.assertEquals(locType.getMethod("getCount").invoke(locInstance), 7);
             Assert.assertEquals(locType.getMethod("is_ByRawValuesValid").invoke(locInstance), true);
-            locType.getMethod("unset_Count").invoke(locInstance);
+            locType.getMethod("_unset_Count").invoke(locInstance);
             Assert.assertEquals(locType.getMethod("is_ByRawValuesValid").invoke(locInstance), false);
         }
     }
@@ -89,7 +89,7 @@ public final class AItcSdoCodegenTest {
                     Integer getCount();
                 }
                 """);
-        var locGenerated = new AIcSdoCodegenService().generateFromSources(locRoot,
+        var locGenerated = new AItcConfiguredSdoCodegenService().generateFromSources(locRoot,
                 java.util.List.of(locBase, locChild), "d", java.util.List.of());
         Assert.assertEquals(locGenerated.size(), 2);
         Assert.assertTrue(locGenerated.get(locChild.toRealPath()).mutableInterface().source()
@@ -105,7 +105,7 @@ public final class AItcSdoCodegenTest {
         Path locSource = locRoot.resolve("AIigBroken_1.java");
         Files.writeString(locSource, "public interface AIigBroken_1 { this is not Java; }");
         Assert.expectThrows(IllegalArgumentException.class,
-                () -> new AIcSdoCodegenService().generateFromSources(locRoot,
+                () -> new AItcConfiguredSdoCodegenService().generateFromSources(locRoot,
                         java.util.List.of(locSource), "d", java.util.List.of()));
     }
 
@@ -119,7 +119,7 @@ public final class AItcSdoCodegenTest {
     /** Compiles real generated source and checks nested getter/setter reflection signatures. */
     @Test
     public void AIcCovariantNestedDataObject() throws Exception {
-        var locGenerator = new AIcSdoCodegenService();
+        var locGenerator = new AItcConfiguredSdoCodegenService();
         Path locRoot = Files.createTempDirectory("sdo-nested-java-");
         Path locClasses = Files.createDirectory(locRoot.resolve("classes"));
         var locFiles = new java.util.ArrayList<String>();
@@ -136,7 +136,7 @@ public final class AItcSdoCodegenTest {
             if (locSources == locContainerSources) {
                 Assert.assertTrue(locSources.mutableInterface().source().contains("TChild getChild()"));
                 Assert.assertTrue(locSources.mutableInterface().source().contains("setChild("));
-                Assert.assertTrue(locSources.mutableInterface().source().contains("TChild get_Child()"));
+                Assert.assertTrue(locSources.mutableInterface().source().contains("TChild _getRaw_Child()"));
             }
         }
         var locArgs = new java.util.ArrayList<>(java.util.List.of(
@@ -155,7 +155,7 @@ public final class AItcSdoCodegenTest {
             var locInstance = locContainer.getConstructor().newInstance();
             locContainer.getMethod("setChild", locMutableChild).invoke(locInstance, locChild);
             Assert.assertEquals(locContainer.getMethod("getChild").invoke(locInstance), locChild);
-            Assert.assertEquals(locContainer.getMethod("get_Child").invoke(locInstance), locChild);
+            Assert.assertEquals(locContainer.getMethod("_getRaw_Child").invoke(locInstance), locChild);
         }
     }
 
@@ -163,7 +163,7 @@ public final class AItcSdoCodegenTest {
     @Test
     public void AIcRejectsConflictingInheritance() {
         Assert.expectThrows(IllegalArgumentException.class,
-                () -> new AIcSdoCodegenService().generate(AIigBadChild.class, "d"));
+                () -> new AItcConfiguredSdoCodegenService().generate(AIigBadChild.class, "d"));
     }
 
     /** Intentionally incompatible redeclaration of an inherited field. */
@@ -176,11 +176,11 @@ public final class AItcSdoCodegenTest {
     /** An alternate implementation marker changes both names without changing the read contract. */
     @Test
     public void AIcSupportsDifferentImplementationMarker() {
-        var locResult = new AIcSdoCodegenService().generate(AIigParent.class, "sdo");
-        Assert.assertEquals(locResult.mutableInterface().typeName(), "AIigsdoParent");
-        Assert.assertEquals(locResult.implementation().typeName(), "AIcgsdoParent");
+        var locResult = new AItcConfiguredSdoCodegenService().generate(AIigParent.class, "sdo");
+        Assert.assertEquals(locResult.mutableInterface().typeName(), "AIigdParent");
+        Assert.assertEquals(locResult.implementation().typeName(), "AIcgdParent");
         Assert.expectThrows(IllegalArgumentException.class,
-                () -> new AIcSdoCodegenService().generate(AIigParent.class, "../"));
+                () -> new AItcConfiguredSdoCodegenService().generate(AIigParent.class, "../"));
     }
 
     /** The YAML-backed Java generation uses the selected interface/class and parameter naming conventions. */
@@ -193,14 +193,14 @@ public final class AItcSdoCodegenTest {
     /** A YAML naming catalog configures the common read-contract role independently of schema technology. */
     @Test
     public void AIcYamlNamingControlsGeneratedSdo() throws Exception {
-        var locCatalog = eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1.standard("java");
+        var locCatalog = eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog.loadResource("algites-java-name-conventions.yml");
         var locInputNames = locCatalog.withRoles(java.util.Map.of(
                 "common", "algites-java-gen-intf-versioned_1"));
         var locMutableNames = locCatalog.withRoles(java.util.Map.of(
                 "common", "algites-java-gen-data-intf-versioned_1"));
         var locConcreteNames = locCatalog.withRoles(java.util.Map.of(
                 "common", "algites-java-gen-data-class-versioned_1"));
-        var locResult = new AIcSdoCodegenService().generate(AIigCatalogCustomer_1.class, "d",
+        var locResult = new AItcConfiguredSdoCodegenService().generate(AIigCatalogCustomer_1.class, "d",
                 locInputNames, locMutableNames, locConcreteNames);
         Assert.assertEquals(locResult.mutableInterface().typeName(), "AIigdCatalogCustomer_1");
         Assert.assertEquals(locResult.implementation().typeName(), "AIcgdCatalogCustomer_1");
@@ -224,14 +224,14 @@ public final class AItcSdoCodegenTest {
     /** Technology-specific output role selection must not implicitly require a common interface. */
     @Test
     public void AIcYamlTechnologyRoleDoesNotRequireCommon() throws Exception {
-        var locCatalog = eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1.standard("java");
+        var locCatalog = eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog.loadResource("algites-java-name-conventions.yml");
         var locInputNames = locCatalog.withRoles(java.util.Map.of(
                 "yamldefs", "algites-java-gen-yaml-intf-versioned_1"));
         var locMutableNames = locCatalog.withRoles(java.util.Map.of(
                 "yamldefs", "algites-java-gen-data-yaml-intf-versioned_1"));
         var locConcreteNames = locCatalog.withRoles(java.util.Map.of(
                 "yamldefs", "algites-java-gen-data-yaml-class-versioned_1"));
-        var locResult = new AIcSdoCodegenService().generate(AIig_yCatalogCustomer_1.class, "d",
+        var locResult = new AItcConfiguredSdoCodegenService().generate(AIig_yCatalogCustomer_1.class, "d",
                 locInputNames, locMutableNames, locConcreteNames);
         Assert.assertEquals(locResult.mutableInterface().typeName(), "AIigd_yCatalogCustomer_1");
         Assert.assertEquals(locResult.implementation().typeName(), "AIcgd_yCatalogCustomer_1");
@@ -252,14 +252,14 @@ public final class AItcSdoCodegenTest {
     /** The standard naming profile converts snake-case field identifiers without a hardcoded setter suffix. */
     @Test
     public void AIcSetterConvertsSemanticFieldNameUsingTheNamingProfile() {
-        var locResult = new AIcSdoCodegenService().generate(AIigSemanticField.class, "d");
+        var locResult = new AItcConfiguredSdoCodegenService().generate(AIigSemanticField.class, "d");
         Assert.assertTrue(locResult.mutableInterface().source().contains("setCustomerId(java.lang.String aCustomerId)"));
         Assert.assertTrue(locResult.implementation().source().contains("setCustomerId(java.lang.String aCustomerId)"));
         Assert.assertFalse(locResult.implementation().source().contains("setCustomer_id("));
         /* Fixed raw SDO methods are intentionally independent of getter/setter conventions. */
-        Assert.assertTrue(locResult.mutableInterface().source().contains("get_Customer_id()"));
-        Assert.assertTrue(locResult.mutableInterface().source().contains("isPresent_Customer_id()"));
-        Assert.assertTrue(locResult.mutableInterface().source().contains("unset_Customer_id()"));
+        Assert.assertTrue(locResult.mutableInterface().source().contains("_getRaw_Customer_id()"));
+        Assert.assertTrue(locResult.mutableInterface().source().contains("_isPresent_Customer_id()"));
+        Assert.assertTrue(locResult.mutableInterface().source().contains("_unset_Customer_id()"));
     }
 
     /** Generated Java SmartDOs honor interface defaults and explicit getter overrides. */
@@ -276,7 +276,7 @@ public final class AItcSdoCodegenTest {
 
     @Test
     public void AIcGeneratedJavaHonorsSmartReadPolicy() throws Exception {
-        var locGenerated = new AIcSdoCodegenService().generate(AIigReadPolicy.class, "d");
+        var locGenerated = new AItcConfiguredSdoCodegenService().generate(AIigReadPolicy.class, "d");
         Assert.assertTrue(locGenerated.mutableInterface().source().contains(
                 "@eu.algites.lib.data.smartdataobject.AIaSmartDataObject(allowNonPresentRead = true)"));
         Assert.assertTrue(locGenerated.mutableInterface().source().contains(
@@ -300,8 +300,8 @@ public final class AItcSdoCodegenTest {
             var locType = locLoader.loadClass(locGenerated.implementation().fullyQualifiedTypeName());
             var locInstance = locType.getConstructor().newInstance();
             Assert.assertNull(locType.getMethod("getSoft").invoke(locInstance));
-            Assert.assertNull(locType.getMethod("get_Soft").invoke(locInstance));
-            Assert.assertEquals(locType.getMethod("isPresent_Soft").invoke(locInstance), false);
+            Assert.assertNull(locType.getMethod("_getRaw_Soft").invoke(locInstance));
+            Assert.assertEquals(locType.getMethod("_isPresent_Soft").invoke(locInstance), false);
             Assert.assertEquals(locType.getMethod("is_ByRawValuesValid").invoke(locInstance), false);
             var locException = Assert.expectThrows(InvocationTargetException.class,
                     () -> locType.getMethod("getStrict").invoke(locInstance));
@@ -317,7 +317,7 @@ public final class AItcSdoCodegenTest {
 
     @Test
     public void AIcInfersOmittedFieldNameFromGetter() {
-        var locGenerated = new AIcSdoCodegenService().generate(AIigInferredName.class, "d");
+        var locGenerated = new AItcConfiguredSdoCodegenService().generate(AIigInferredName.class, "d");
         Assert.assertTrue(locGenerated.implementation().source().contains("get_EffectiveField(\"Inferred\")"));
         Assert.assertTrue(locGenerated.implementation().source().contains("set_RawField(\"Inferred\""));
     }
@@ -348,7 +348,7 @@ public final class AItcSdoCodegenTest {
     /** Verify that SDO interfaces keep custom resolvers and synthesize missing field labels. */
     @Test
     public void AIcPreservesFieldLabelMetadata() {
-        String locSource = new AIcSdoCodegenService()
+        String locSource = new AItcConfiguredSdoCodegenService()
                 .generate(AIiLocalizedDocument_1.class, "d").mutableInterface().source();
         Assert.assertTrue(locSource.contains("Document title"));
         Assert.assertTrue(locSource.contains("factoryCategory = \"localized\""));
@@ -391,7 +391,7 @@ public final class AItcSdoCodegenTest {
     /** Verify all technology markers and concrete inheritance roots survive generation. */
     @Test
     public void AIcPreservesTechnologySpecificSdoLineages() {
-        var locGenerator = new AIcSdoCodegenService();
+        var locGenerator = new AItcConfiguredSdoCodegenService();
         for (var locCase : java.util.List.of(
                 new Object[] {AIigTechnologyJson_1.class, "Json"},
                 new Object[] {AIigTechnologyYaml_1.class, "Yaml"},
@@ -430,13 +430,13 @@ public final class AItcSdoCodegenTest {
                         standard_setter: java-setter-method-name_1
                         raw_getter: ""
                 """);
-        var locCatalog = eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1.loadAll(
+        var locCatalog = eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog.loadAll(
                 java.util.List.of("resource:algites-java-name-conventions.yml", locCatalogFile.toString()));
         var locInput = locCatalog.withRoles(java.util.Map.of("common", "algites-java-gen-intf-versioned_1"));
         var locMutable = locCatalog.withRoles(java.util.Map.of("common", "algites-java-gen-data-intf-versioned_1"))
                 .withGeneratedMethodProfile("test-no-raw-methods_1");
         var locConcrete = locCatalog.withRoles(java.util.Map.of("common", "algites-java-gen-data-class-versioned_1"));
-        var locResult = new AIcSdoCodegenService().generate(AIigOptional_1.class, "d",
+        var locResult = new AItcConfiguredSdoCodegenService().generate(AIigOptional_1.class, "d",
                 locInput, locMutable, locConcrete);
         for (var locSource : java.util.List.of(locResult.mutableInterface().source(),
                 locResult.implementation().source())) {

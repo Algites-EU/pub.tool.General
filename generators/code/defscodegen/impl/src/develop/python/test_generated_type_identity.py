@@ -1,11 +1,12 @@
+from explicit_legacy_naming import catalog, source_convention, output_convention, rendering_catalog
 """Qualified type identities from General are independent of AAC binding formatting."""
 from pathlib import Path
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
+from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
@@ -18,12 +19,13 @@ def test_python_java_schema_contract_identities():
     }
     reader=AIcJsonSchemaReader()
     for target, ext in ((AInCodeGenerationTarget.PYTHON,'.py'),(AInCodeGenerationTarget.JAVA,'.java')):
-        profile=(AIcAlgitesNamingProfiles_1.python_profile() if target is AInCodeGenerationTarget.PYTHON
-                 else AIcAlgitesNamingProfiles_1.java_profile())
+        profile=(catalog('python') if target is AInCodeGenerationTarget.PYTHON
+                 else catalog('java'))
         load=AIcdDefinitionLoadRequest(Path('example_2.json'),AInDefinitionSourceKind.JSONDEFS,profile)
         definition=reader.read(schema,load,AInDefinitionSourceKind.JSONDEFS,
                                'x-aac-schema-id','x-aac-schema-version','x-jsondefs-name')
-        request=AIcdCodeGenerationRequest(definition,target,'eu.algites.example',profile)
+        request=AIcdCodeGenerationRequest(definition,target,'eu.algites.example',rendering_catalog(profile, 'java' if target is AInCodeGenerationTarget.JAVA else 'python'),None,
+            output_convention('java' if target is AInCodeGenerationTarget.JAVA else 'python','interface'),'jsondefs')
         source=AIcSchemaContractInterfaceGenerator().generate(request)
         identity=source.primary_type
         assert identity.type_name==source.type_name

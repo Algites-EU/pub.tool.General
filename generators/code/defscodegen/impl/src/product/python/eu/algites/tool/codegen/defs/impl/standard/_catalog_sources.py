@@ -13,11 +13,18 @@ import sys
 
 
 _RESOURCE_PREFIXES = ('classpath:', 'resource:')
-_PROVIDERS = (
-    ('eu.algites.lib.naming.convention', ()),
-    ('algites.pub.lib.general.naming.convention.algites',
-     ('eu', 'algites', 'lib', 'naming', 'convention')),
-)
+def _providers():
+    """Discover installed naming-profile resource namespaces without selecting a vendor."""
+    yield ('eu.algites.lib.naming.convention', ())
+    from importlib.metadata import distributions
+    for distribution in distributions():
+        name = distribution.metadata.get('Name', '').replace('_', '-').lower()
+        if not name.startswith('eu-algites-pub-lib-general-naming-convention-'):
+            continue
+        suffix = name.removeprefix('eu-algites-pub-lib-general-naming-convention-')
+        yield (f'algites.pub.lib.general.naming.convention.{suffix}',
+               ('eu', 'algites', 'lib', 'naming', 'convention'))
+
 
 
 def resolve_naming_catalog(source: str) -> str:
@@ -36,7 +43,7 @@ def resolve_naming_catalog(source: str) -> str:
         raise ValueError(f'Invalid classpath naming catalog filename: {name!r}')
 
     packaged = False
-    for package, subpath in _PROVIDERS:
+    for package, subpath in _providers():
         try:
             candidate = importlib.resources.files(package).joinpath(*subpath, name)
             if candidate.is_file():
@@ -110,7 +117,7 @@ def expand_naming_catalogs(sources):
             if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.yml', name):
                 raise ValueError(f'Invalid classpath naming catalog filename: {name!r}')
             matched = False
-            for package, subpath in _PROVIDERS:
+            for package, subpath in _providers():
                 try:
                     provider_root = importlib.resources.files(package).joinpath(*subpath)
                     candidate = provider_root.joinpath(name)

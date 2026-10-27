@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from explicit_naming_fixture import explicit_legacy_generic_manifest
 
 
 def test_same_file_complex_type_extension_emits_two_types_and_one_element(tmp_path, monkeypatch):
@@ -24,7 +25,7 @@ def test_same_file_complex_type_extension_emits_two_types_and_one_element(tmp_pa
         <xs:element name="derivedElement" type="tns:DerivedType"/>
     </xs:schema>''')
     manifest = tmp_path / 'manifest.json'
-    manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['java', 'python']}))
+    manifest.write_text(json.dumps(explicit_legacy_generic_manifest({'artifact': 'intf', 'languages': ['java', 'python']})))
     generated = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     assert len(generated) == 8  # two types, one global element and one XML namespace per target
     java_dir = tmp_path / 'intf/src/product/java.gen/example/types'

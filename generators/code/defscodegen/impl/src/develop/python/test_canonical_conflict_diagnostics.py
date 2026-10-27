@@ -11,6 +11,17 @@ from eu.algites.tool.codegen.defs.impl.standard.aic_json_defs_frontend import AI
 from eu.algites.tool.codegen.defs.impl.standard.aic_yaml_defs_frontend import AIcYamlDefsFrontend
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
+
+
+def _input_catalog():
+    """Read explicit JSON/YAML/XML schema naming definitions for published fixture files."""
+    base = Path(__file__).resolve().parents[8] / (
+        'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention')
+    return AIcNameConventionCatalog.load_many([
+        base/f'algites-{name}-name-conventions.yml'
+        for name in ('python', 'jsondef', 'yamldef', 'xmldef')])
+
 
 ROOT = Path(__file__).parents[4] / 'intf/src/product'
 FORMATS = (
@@ -25,7 +36,8 @@ def test_published_formats_compatible_and_documentation_edits_detected(stem):
     models = []
     for directory, extension, frontend, kind in FORMATS:
         source = ROOT / directory / 'eu/algites/tool/codegen/defs' / f'{stem}_1.{extension}'
-        models.append(frontend().load(AIcdDefinitionLoadRequest(source, kind, None)))
+        models.append(frontend().load(AIcdDefinitionLoadRequest(source, kind, _input_catalog(),
+            f'algites-{directory[:-1]}-schema-versioned_1')))
     AIcCanonicalDefinitionMerger.merge_strict(models)
     original = models[1]
     first = original.data_type.properties[0]
@@ -47,7 +59,8 @@ def test_schema_field_bindings_multi_format_merges_without_leaking_source_schema
     definitions = []
     for folder, extension, frontend, kind in FORMATS:
         source = ROOT / folder / 'eu/algites/tool/codegen/defs' / f'schema-field-bindings_1.{extension}'
-        definitions.append(frontend().load(AIcdDefinitionLoadRequest(source, kind, None)))
+        definitions.append(frontend().load(AIcdDefinitionLoadRequest(source, kind, _input_catalog(),
+            f'algites-{folder[:-1]}-schema-versioned_1')))
     assert definitions[0].data_type.properties[0].data_type.constraints.enum_values
     assert definitions[1].data_type.properties[0].data_type.constraints.enum_values
     merged = AIcCanonicalDefinitionMerger.merge_strict(definitions, ROOT)

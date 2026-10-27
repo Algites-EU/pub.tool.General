@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
@@ -21,7 +21,7 @@ def test_unsupported_schema_children_cannot_be_discarded(tmp_path: Path, particl
         <xs:complexType name="Contract">''' + particle + '''</xs:complexType>
         </xs:schema>''')
     request = AIcdDefinitionLoadRequest(xsd, AInDefinitionSourceKind.XMLDEFS,
-                                        AIcAlgitesNamingProfiles_1.python_profile())
+                                        AIcAlgitesNamingProfiles.python_profile())
     with pytest.raises(ValueError, match='Unsupported XSD content model child'):
         AIcXmlDefsFrontend().load(request)
 
@@ -30,7 +30,7 @@ def test_unrelated_xml_document_is_not_interpreted_as_xsd(tmp_path: Path):
     document = tmp_path / 'wrong_1.xsd'
     document.write_text('<root><child/></root>')
     request = AIcdDefinitionLoadRequest(document, AInDefinitionSourceKind.XMLDEFS,
-                                        AIcAlgitesNamingProfiles_1.python_profile())
+                                        AIcAlgitesNamingProfiles.python_profile())
     with pytest.raises(ValueError, match='Expected XML Schema root'):
         AIcXmlDefsFrontend().load(request)
 
@@ -46,7 +46,7 @@ def test_conditional_element_types_must_not_be_flattened(tmp_path: Path):
       </xs:sequence></xs:complexType>
     </xs:schema>''')
     request = AIcdDefinitionLoadRequest(schema, AInDefinitionSourceKind.XMLDEFS,
-                                        AIcAlgitesNamingProfiles_1.python_profile())
+                                        AIcAlgitesNamingProfiles.python_profile())
     with pytest.raises(ValueError, match='Unsupported XSD conditional element type'):
         AIcXmlDefsFrontend().load(request)
 
@@ -61,6 +61,6 @@ def test_schema_wide_derivation_override_must_not_be_ignored(tmp_path: Path, dir
         <xs:element name="A" type="xs:string"/>
       </xs:sequence></xs:complexType></xs:schema>''')
     request = AIcdDefinitionLoadRequest(schema, AInDefinitionSourceKind.XMLDEFS,
-                                        AIcAlgitesNamingProfiles_1.python_profile())
+                                        AIcAlgitesNamingProfiles.python_profile())
     with pytest.raises(ValueError, match='Unsupported XSD schema directive'):
         AIcXmlDefsFrontend().load(request)

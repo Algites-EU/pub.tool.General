@@ -20,9 +20,10 @@ public final class AItcSchemaContractBindingsSmokeTest {
         Files.writeString(locManifest, """
             {"artifact":"intf","languages":["python","java"],"bindings":[]}
             """);
+        AItcExplicitNamingProfiles.enrich(locManifest);
         var locGenerator = new AIcSchemaContractBindingsGenerator();
         var locOutput = locGenerator.generateRepository(locRoot, locManifest, false);
-        Assert.assertEquals(locOutput.size(), 2);
+        Assert.assertEquals(locOutput.size(), 4);
         Assert.assertTrue(Files.isRegularFile(locRoot.resolve("intf/src/product/java.gen/example/contracts/AIigExample_1.java")));
         Assert.assertTrue(Files.isRegularFile(locRoot.resolve("intf/src/product/python.gen/example/contracts/aiig_example_1.py")));
         Assert.assertFalse(Files.exists(locRoot.resolve("impl")));

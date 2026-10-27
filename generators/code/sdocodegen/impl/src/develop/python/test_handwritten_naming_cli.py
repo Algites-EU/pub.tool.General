@@ -12,8 +12,8 @@ def test_handwritten_contract_uses_annotated_convention_not_filename(tmp_path: P
     config = tmp_path / 'config'
     config.mkdir()
     # Resolve the resource through its installed package rather than relying on a checkout.
-    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
-    packaged = AIcNameConventionCatalog_1.load_resource('algites-python-name-conventions.yml')
+    from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
+    packaged = AIcNameConventionCatalog.load_resource('algites-python-name-conventions.yml')
     profile = dict(packaged._config['SourceStructureNameConventions']['NameConventions']['algites-python-gen-intf-versioned_1'])
     profile['StructureNaming'] = dict(profile['StructureNaming'])
     profile['StructureNaming']['main_container_name'] = 'handwritten-container_1'

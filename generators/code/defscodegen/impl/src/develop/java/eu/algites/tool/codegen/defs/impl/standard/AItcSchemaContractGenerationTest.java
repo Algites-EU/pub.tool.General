@@ -67,9 +67,10 @@ public final class AItcSchemaContractGenerationTest {
         Files.writeString(locManifest, """
             {"artifact":"intf","languages":["java","python"],"bindings":[]}
             """);
+        AItcExplicitNamingProfiles.enrich(locManifest);
         var locGenerator = new AIcSchemaContractBindingsGenerator();
         var locGenerated = locGenerator.generateRepository(locRoot, locManifest, false);
-        Assert.assertEquals(locGenerated.size(), 6,
+        Assert.assertEquals(locGenerated.size(), 8,
                 "Both technologies must emit the named XML content type, global element, and namespace contract");
         for (String locLanguage : java.util.List.of("java", "python")) {
             var locEntries = locGenerated.stream()
@@ -126,7 +127,7 @@ public final class AItcSchemaContractGenerationTest {
         var locDefinition = new AIcXmlDefsFrontend().load(
                 new eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest(
                         locSource, eu.algites.tool.codegen.defs.AInDefinitionSourceKind.XMLDEFS,
-                        eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1.javaProfile()));
+                        eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles.javaProfile()));
         Assert.assertEquals(locDefinition.dataType().properties().size(), 3);
         Assert.assertEquals(locDefinition.dataType().properties().get(1).sourceName(), "Code");
         Assert.assertEquals(locDefinition.dataType().properties().get(1).dataType().kind(),
@@ -154,6 +155,7 @@ public final class AItcSchemaContractGenerationTest {
         Files.writeString(locManifest, """
             {"artifact":"intf","languages":["java","python"],"bindings":[]}
             """);
+        AItcExplicitNamingProfiles.enrich(locManifest);
         var locGenerator = new AIcSchemaContractBindingsGenerator();
         Assert.assertTrue(locGenerator.generateRepository(locRoot, locManifest, false).size() >= 4);
         Path locJavaRoot = locRoot.resolve("intf/src/product/java.gen/example/contracts/");
@@ -187,8 +189,9 @@ public final class AItcSchemaContractGenerationTest {
         Files.writeString(locManifest, """
             {"artifact":"intf","languages":["java","python"],"bindings":[]}
             """);
+        AItcExplicitNamingProfiles.enrich(locManifest);
         var locGenerator = new AIcSchemaContractBindingsGenerator();
-        Assert.assertEquals(locGenerator.generateRepository(locRoot, locManifest, false).size(), 2);
+        Assert.assertEquals(locGenerator.generateRepository(locRoot, locManifest, false).size(), 4);
         Path locJava = locRoot.resolve("intf/src/product/java.gen/example/contracts/AIigExample_1.java");
         Path locPython = locRoot.resolve("intf/src/product/python.gen/example/contracts/aiig_example_1.py");
         String locJavaText = Files.readString(locJava);

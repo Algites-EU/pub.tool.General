@@ -1,7 +1,7 @@
 """An annotated empty read-only schema is a valid SmartDataObject contract."""
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
-from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from explicit_sdo_fixture import configured_service, explicit_generic_manifest
 
 
 class AIigEmpty(AIiDataObject):
@@ -11,7 +11,7 @@ class AIigEmpty(AIiDataObject):
 
 def test_empty_contract_and_importable_generated_identity():
     AIigEmpty.__module__ = 'unit.example.aiig_empty'
-    result=AIcSdoCodegenService().generate(AIigEmpty)
+    result=configured_service().generate(AIigEmpty)
     assert result.mutable_interface.type_name == 'AIigdEmpty'
     assert result.implementation.type_name == 'AIcgdEmpty'
     assert result.implementation.fully_qualified_type_name.endswith('.AIcgdEmpty')

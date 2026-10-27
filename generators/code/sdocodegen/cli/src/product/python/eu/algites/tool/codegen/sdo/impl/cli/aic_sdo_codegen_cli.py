@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import sys
 
-from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
 from ._layered_settings import expand as expand_layered_settings
 from ._catalog_sources import expand_naming_catalogs
@@ -90,7 +90,7 @@ def main(args=None):
     sources = [value if value.startswith(('classpath:', 'resource:'))
                else str((root / value).resolve()) for value in options.naming_conventions_file]
     with expand_naming_catalogs(sources) as resolved_catalogs:
-        catalog = AIcNameConventionCatalog_1.load_many(resolved_catalogs)
+        catalog = AIcNameConventionCatalog.load_many(resolved_catalogs)
     for entry in options.generated_dataobject_method_naming_convention:
         technology, sep, profile = entry.partition(':')
         if not sep or not profile or technology not in ('java', 'python'):

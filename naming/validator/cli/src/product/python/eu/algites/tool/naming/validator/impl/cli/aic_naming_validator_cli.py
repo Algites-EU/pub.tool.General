@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 
 
 class AIcNamingValidatorCli:
@@ -14,7 +14,7 @@ class AIcNamingValidatorCli:
         arguments = list(sys.argv[1:] if args is None else args)
         if len(arguments) != 4:
             raise SystemExit('Usage: <catalog.yml> <name-convention> <source-structure-kind> <name>')
-        catalog = AIcNameConventionCatalog_1.load(Path(arguments[0]))
+        catalog = AIcNameConventionCatalog.load(Path(arguments[0]))
         if catalog.matches(arguments[1], arguments[2], arguments[3]):
             return 0
         print(f'ERROR: Invalid name for {arguments[1]}/{arguments[2]}: {arguments[3]}', file=sys.stderr)

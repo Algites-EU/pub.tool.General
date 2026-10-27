@@ -26,11 +26,11 @@ Dependencies:
         ArtifactId: pub.lib.General_data.smartdataobject.impl
         Usages: [product_implementation]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      # The Defs generator is used only by SDO's Python integration tests.
       - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.convention.algites
+        ArtifactId: pub.lib.General_naming.convention.impl
         Usages: [product_implementation]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
-      # The Defs generator is used only by SDO's Python integration tests.
       - GroupId: eu.algites.tool.codegen
         ArtifactId: pub.tool.General_generators.code.defscodegen.impl
         Usages: [develop_implementation]

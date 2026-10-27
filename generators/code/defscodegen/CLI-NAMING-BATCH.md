@@ -2,8 +2,8 @@
 
 The Java and Python native CLIs accept the same **kebab-case** batch options.
 Both native CLIs always resolve layered settings: a packaged language-specific
-`algites-defscodegen-LANGUAGE-default.settings`, then an optional classpath
-`algites-defscodegen-LANGUAGE.settings`, then `--settings-file=PATH`, then
+`defscodegen-LANGUAGE-default.settings`, then an optional classpath
+`defscodegen-LANGUAGE.settings`, then `--settings-file=PATH`, then
 explicit CLI arguments. Complete qualified setting keys are overlaid as a
 stable ordered map. An empty assignment removes the inherited entry.
 
@@ -46,9 +46,10 @@ Algites chooses `_1` in its supplied catalog as a library-versioning policy.
 **A missing output-role naming ID means that a contract family is not generated.**
 The `xmldefs_namespace` role is different: it configures the names of auxiliary
 XML namespace interfaces, which are emitted when XML contracts need them,
-not as a separate contract family. When omitted from a custom manifest, the
-standard independent `algites-TECH-gen-xml-namespace-intf_1` profile is used.
-Namespace type names and file stems are both rendered through that profile;
+not as a separate contract family. When XML namespace support is requested, the active profile must explicitly
+provide the corresponding naming role; no Algites naming convention is selected
+implicitly. Namespace type names and file stems are rendered through that
+selected profile;
 no `_xe`/`_x` text replacement is performed. If two
 configured roles would create the same relative output path, generation must
 fail instead of overwriting a different contract. The input-schema ID and
@@ -64,8 +65,8 @@ regeneration and `--clean-only`. `--check` compares without writing.
 
 ## Layered settings
 
-The four precedence levels are: packaged `algites-defscodegen-java-default.settings`
-(or Python), optional `algites-defscodegen-java.settings` (or Python) on the
+The four precedence levels are: packaged `defscodegen-java-default.settings`
+(or Python), optional `defscodegen-java.settings` (or Python) on the
 all classpath matches, `--settings-file`, and direct CLI parameters. Settings are merged
 using the **entire key before `=`**, including qualifiers separated by `:`.
 The higher layer wins; `--key=` removes an inherited entry. Repeatable options
@@ -75,16 +76,18 @@ accepted as `true`). Legacy `--schema-input-dir=KIND:PATH` and other prior
 command-line mappings remain accepted for existing callers and are normalized
 before layering; use qualified keys in new settings and build scripts.
 
-Defaults reference packaged naming catalog resources (`classpath:...`). The
+The neutral generator defaults do not select naming catalogs. The external
+codegen profile supplies the `classpath:...` resources and semantic roles. The
 setting `--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER` may be
 changed by any higher layer to `INHERIT_AS_FIXED_PARAMETER`; there are no
 separate `.properties` defaults. It is emitted into the generated read-only
 contract's field and type metadata. Explicit model metadata still wins.
-The same default resolution applies to native Java/Python invocations of
-SDO Codegen for otherwise unannotated handwritten contracts.
+Native Java/Python SDO generation also requires an explicitly selected naming
+profile, including for handwritten contracts without annotations.
 
 Positional legacy CLI invocations are not accepted. Programmatic calls use
-the service API and retain its generic-inheritance fallback.
+the service API and require explicit naming information; only the configured setter-inheritance
+policy has its documented generic-parameter default.
 
 ## Portable classpath catalog locations
 

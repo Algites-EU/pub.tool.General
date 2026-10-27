@@ -1,6 +1,6 @@
 package eu.algites.tool.codegen.sdo.impl.cli;
 
-import eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1;
+import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -39,7 +39,7 @@ final class AIcNamingCatalogCollector {
      * @return one merged naming catalog retaining all compatible definitions
      * @throws IOException when a catalog or its sibling standard cannot be read
      */
-    static AIcNameConventionCatalog_1 load(List<String> aSources) throws IOException {
+    static AIcNameConventionCatalog load(List<String> aSources) throws IOException {
         Path locTemporary = Files.createTempDirectory("algites-naming-catalogs-");
         try {
             List<String> locExpanded = new ArrayList<>();
@@ -83,7 +83,7 @@ final class AIcNamingCatalogCollector {
                     locExpanded.add(locFolder.resolve(locName).toString());
                 }
             }
-            return AIcNameConventionCatalog_1.loadAll(locExpanded);
+            return AIcNameConventionCatalog.loadAll(locExpanded);
         } finally {
             try (var locPaths = Files.walk(locTemporary)) {
                 for (Path locPath : locPaths.sorted(java.util.Comparator.reverseOrder()).toList())

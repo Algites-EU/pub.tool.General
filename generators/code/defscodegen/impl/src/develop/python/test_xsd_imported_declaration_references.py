@@ -2,7 +2,7 @@
 
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
@@ -12,7 +12,7 @@ from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValu
 
 def _load(path):
     request = AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-                                       AIcAlgitesNamingProfiles_1.python_profile())
+                                       AIcAlgitesNamingProfiles.python_profile())
     return AIcXmlDefsFrontend().load(request).data_type.properties
 
 

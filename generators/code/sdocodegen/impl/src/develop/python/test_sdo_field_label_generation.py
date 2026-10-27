@@ -3,7 +3,7 @@ from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLa
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
-from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from explicit_sdo_fixture import configured_service, explicit_generic_manifest
 
 
 class AIiTestDocument_1(AIiDataObject):
@@ -25,7 +25,7 @@ class AIiTestDocument_1(AIiDataObject):
 
 
 def test_sdo_fallback_labels_and_explicit_inheritance():
-    generated = AIcSdoCodegenService().generate(AIiTestDocument_1, 'd')
+    generated = configured_service().generate(AIiTestDocument_1, 'd')
     source = generated.mutable_interface.source
     assert "'CertificatePrivateKey': AIaFieldLabel(label='Certificate private key'" in source
     assert "'Password': AIaFieldLabel" not in source
@@ -47,7 +47,7 @@ def test_sdo_preserves_contract_level_labels_alongside_generated_defaults():
         def getPrivateKey(self): ...
         def getCertificate(self): ...
 
-    source = AIcSdoCodegenService().generate(AIiMixedAnnotations_1, 'd').mutable_interface.source
+    source = configured_service().generate(AIiMixedAnnotations_1, 'd').mutable_interface.source
     assert "**getattr(AIiMixedAnnotations_1, '__field_labels__', {})" in source
     assert "'Certificate': AIaFieldLabel" in source
     assert "'PrivateKey': AIaFieldLabel" not in source

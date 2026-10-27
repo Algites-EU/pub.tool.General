@@ -14,8 +14,8 @@ The `intf` artifact exposes the generation API, `impl` generates mutable contrac
 
 The CLI now uses **semantic-role options** and named settings, rather than
 positional class/output arguments. With no arguments it reads the packaged
-`algites-sdocodegen-java-default.settings` or
-`algites-sdocodegen-python-default.settings`, selected by native CLI.
+`sdocodegen-java-default.settings` or
+`sdocodegen-python-default.settings`, selected by native CLI.
 
 Java (processing a binary JAR):
 

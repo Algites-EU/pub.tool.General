@@ -1,7 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.lib.data.dataobject.AInFieldPresenceKind;
-import eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1;
+import eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles;
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
 import eu.algites.tool.codegen.defs.AIcdDataType;
 import eu.algites.tool.codegen.defs.AIcdValueConstraints;
@@ -71,7 +71,7 @@ public final class AItcRecursiveParityAndXsdDerivationTest {
         var locModel = new AIcdCanonicalDefinition("urn:example:invoice", 1, "invoice", AInDefinitionSourceKind.JSONDEFS, "invoice_1.jsondef.schema.json", null, AIcdDataType.object(List.of(locField)), List.of(), null);
         var locRequest = new eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest(locModel,
                 eu.algites.tool.codegen.defs.AInCodeGenerationTarget.JAVA, "example.invoice",
-                AIcAlgitesNamingProfiles_1.javaProfile());
+                AIcAlgitesNamingProfiles.javaProfile());
         Assert.assertEquals(AIcRecursiveContractType.render(locField, locRequest,
                 new AIcGenerationNames(), true, new java.util.TreeSet<>()),
                 "java.util.List<? extends java.util.List<? extends AIigInvoiceLinesItemsItems_1>>");
@@ -106,7 +106,7 @@ public final class AItcRecursiveParityAndXsdDerivationTest {
                     </xs:schema>
                     """);
             var locModel = new AIcXmlDefsFrontend().load(new AIcdDefinitionLoadRequest(locSource,
-                    AInDefinitionSourceKind.XMLDEFS, AIcAlgitesNamingProfiles_1.javaProfile()));
+                    AInDefinitionSourceKind.XMLDEFS, AIcAlgitesNamingProfiles.javaProfile()));
             Assert.assertEquals(locModel.dataType().properties().size(), 1);
             Assert.assertEquals(locModel.dataType().properties().get(0).presence(), AInFieldPresenceKind.FORBIDDEN);
         } finally {

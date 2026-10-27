@@ -21,7 +21,7 @@ public final class AItcCumulativeCodegenSettingsTest {
         Path locRoot = Files.createTempDirectory("algites-cumulative-settings-");
         Path locFirst = locRoot.resolve("first");
         Path locSecond = locRoot.resolve("second");
-        String locSubpath = "eu/algites/tool/codegen/defs/algites-defscodegen-java.settings";
+        String locSubpath = "eu/algites/tool/codegen/defs/defscodegen-java.settings";
         Files.createDirectories(locFirst.resolve(locSubpath).getParent());
         Files.createDirectories(locSecond.resolve(locSubpath).getParent());
         Files.writeString(locSecond.resolve(locSubpath),

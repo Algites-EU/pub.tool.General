@@ -14,7 +14,3 @@ Dependencies:
       - GroupId: eu.algites.tool.codegen
         ArtifactId: pub.tool.General_generators.code.sdocodegen.impl
         Usages: [product_implementation]
-      - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.convention.algites
-        Usages: [product_implementation]
-        VersionRequirement: { Exact: "1.1-SNAPSHOT" }

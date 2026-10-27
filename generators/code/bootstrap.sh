@@ -7,6 +7,18 @@ locCodeDirectory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 locRepositoryDirectory="$(cd -- "$locCodeDirectory/../.." && pwd -P)"
 # Every standalone Gradle project, compiled class, test result and staging file
 # belongs under the repository's single root build directory.
+locAction="${1:---upload}"
+case "$locAction" in
+    --plan-only|--prepare-only|--upload) ;;
+    --help|-h) echo 'Usage: bash generators/code/bootstrap.sh [--plan-only|--prepare-only|--upload]'; exit 0 ;;
+    *) echo "Invalid bootstrap action: $locAction" >&2; exit 2 ;;
+esac
+[[ $# -le 1 ]] || { echo 'Only one bootstrap action may be specified' >&2; exit 2; }
+if [[ "$locAction" == --prepare-only ]]; then export MODUSTRO_BOOTSTRAP_PREPARE_ONLY=1; fi
+if [[ "$locAction" == --plan-only ]]; then
+    echo 'Plan: Defs and SDO tests, Maven staging, Python distributions, Maven Local and Gradle verification, optional Cloudsmith.'
+    exit 0
+fi
 # Preserve old invocations while making their intent explicit and consistent.
 if [[ -z "${MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE:-}" && "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DATAOBJECT:-0}" == 1 ]]; then
     export MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=source
@@ -42,6 +54,7 @@ export MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES="$locRefreshDependencies"
 echo "Bootstrap dependency mode: $locDependencyMode; refresh published dependencies: $locRefreshDependencies"
 locBuildRoot="$locRepositoryDirectory/build/run/codegen-bootstrap"
 mkdir -p "$locBuildRoot/work"
+rm -rf -- "$locBuildRoot/maven-repository"
 locTemporaryDirectory="$(mktemp -d "$locBuildRoot/work/launcher.XXXXXXXX")"
 # Keep Python bytecode and pytest caches out of the checked-out source tree.
 export PYTHONDONTWRITEBYTECODE=1
@@ -62,8 +75,9 @@ if [[ "$locDependencyMode" == source || "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DA
         'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/AInFieldSetterInheritancePolicy.java' \
         'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.java' \
         'naming/convention/intf/src/product/java/eu/algites/lib/naming/convention/AIiNameConventionCatalog.java' \
-        'naming/convention/algites/src/product/java/eu/algites/lib/naming/convention/impl/algites/AIcNameConventionCatalog_1.java' \
-        'naming/convention/algites/src/product/config/eu/algites/lib/naming/convention/algites-java-name-conventions.yml'; do
+        'naming/convention/intf/src/product/config/eu/algites/lib/naming/convention/standard-conventions.yml' \
+        'naming/convention/impl/src/product/java/eu/algites/lib/naming/convention/impl/standard/AIcNameConventionCatalog.java' \
+        'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/algites-java-name-conventions.yml'; do
         [[ -f "$locGeneralDirectory/$locRequiredSource" ]] || {
             echo "Required current pub.lib.General source is missing: $locGeneralDirectory/$locRequiredSource" >&2
             exit 2
@@ -88,7 +102,8 @@ def modules = [
     'smartdataobject-intf': 'data/smartdataobject/intf',
     'smartdataobject-impl': 'data/smartdataobject/impl',
     'naming-intf': 'naming/convention/intf',
-    'naming-algites': 'naming/convention/algites'
+    'naming-algites': 'naming/convention/profile/algites',
+    'naming-impl': 'naming/convention/impl'
 ]
 modules.each { name, path ->
     include ':' + name
@@ -106,6 +121,7 @@ subprojects {
     java { toolchain { languageVersion = JavaLanguageVersion.of(17) }; withSourcesJar() }
     sourceSets.main.java.srcDirs = ['src/product/java']
     publishing {
+        repositories { maven { name = 'Bootstrap'; url = uri(new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'maven-repository')) } }
         publications {
             mavenJava(MavenPublication) {
                 from components.java
@@ -118,7 +134,8 @@ subprojects {
                     'smartdataobject-intf': 'pub.lib.General_data.smartdataobject.intf',
                     'smartdataobject-impl': 'pub.lib.General_data.smartdataobject.impl',
                     'naming-intf': 'pub.lib.General_naming.convention.intf',
-                    'naming-algites': 'pub.lib.General_naming.convention.algites'
+                    'naming-algites': 'pub.lib.General_naming.convention.profile.algites',
+                    'naming-impl': 'pub.lib.General_naming.convention.impl'
                 ][project.name]
             }
         }
@@ -156,17 +173,24 @@ project(':smartdataobject-impl') {
     }
 }
 project(':naming-intf') {
+    sourceSets.main.resources.srcDirs = ['src/product/config']
     group = 'eu.algites.lib.naming'
     dependencies { api project(':dataobject-intf') }
 }
-project(':naming-algites') {
+project(':naming-impl') {
     group = 'eu.algites.lib.naming'
-    sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/resources']
-    repositories { mavenCentral() }
     dependencies {
         api project(':naming-intf')
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.3'
+    }
+}
+project(':naming-algites') {
+    group = 'eu.algites.lib.naming'
+    sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/resources']
+    dependencies {
+        api project(':naming-intf')
+        api project(':naming-impl')
     }
 }
 project(':dataobject-intf') {
@@ -178,7 +202,7 @@ GENERAL_BUILD
     if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then
         locGeneralGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}")
     fi
-    echo "Refreshing pub.lib.General bootstrap dependency graph (9 artifacts including common and smartdataobject) from $locGeneralDirectory"
+    echo "Refreshing pub.lib.General bootstrap dependency graph (10 artifacts including common and smartdataobject) from $locGeneralDirectory"
     locGeneralGradleArgs=(--no-daemon)
     if [[ "$locRefreshDependencies" == 1 ]]; then locGeneralGradleArgs+=(--refresh-dependencies); fi
     MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR="$locGeneralDirectory" \
@@ -195,14 +219,17 @@ GENERAL_BUILD
         factory/cpdiscovery/intf factory/cpdiscovery/impl \
         data/dataobject/intf \
         data/smartdataobject/intf data/smartdataobject/impl \
-        text/format naming/convention/intf naming/convention/algites; do
+        text/format naming/convention/intf naming/convention/impl naming/convention/profile/algites; do
         locGeneralPythonSource="$locGeneralDirectory/$locGeneralPythonModule/src/product/python"
         if [[ -d "$locGeneralPythonSource" ]]; then
             locGeneralPythonDirectories+=("$locGeneralPythonSource")
         fi
     done
-    locGeneralNamingConfig="$locGeneralDirectory/naming/convention/algites/src/product/config"
-    [[ -d "$locGeneralNamingConfig" ]] && locGeneralPythonDirectories+=("$locGeneralNamingConfig")
+    for locGeneralNamingConfig in \
+        "$locGeneralDirectory/naming/convention/profile/algites/src/product/config" \
+        "$locGeneralDirectory/naming/convention/intf/src/product/config"; do
+        [[ -d "$locGeneralNamingConfig" ]] && locGeneralPythonDirectories+=("$locGeneralNamingConfig")
+    done
     locGeneralPythonPath="$(IFS=:; echo "${locGeneralPythonDirectories[*]}")"
     export MODUSTRO_BOOTSTRAP_GENERAL_PYTHON_PATH="$locGeneralPythonPath"
     echo "Bootstrap source mode: native Python tests use current pub.lib.General checkout"
@@ -239,13 +266,13 @@ subprojects {
     version = System.getenv('MODUSTRO_CODEGEN_BOOTSTRAP_VERSION') ?: providers.gradleProperty('modustro.defscodegen.version').getOrElse('1.1-SNAPSHOT')
     repositories {
         def bootstrapMode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'
-        if (bootstrapMode != 'remote') mavenLocal()
-        maven {
+        if (bootstrapMode != 'remote') maven { name = 'modustro-local'; url = uri(System.getenv('MODUSTRO_LOCAL_MAVEN_REPOSITORY') ?: new File(System.getenv('MODUSTRO_HOME') ?: new File(System.getProperty('user.home'), '.modustro').path, 'artifact-repos/java/maven')) }
+        if (bootstrapMode == 'remote') maven {
             url = uri('https://dl.cloudsmith.io/public/algites/java-snapshots-pub/maven/')
             content { includeGroupByRegex('eu\\.algites\\..*') }
         }
         mavenCentral()
-        if (bootstrapMode == 'remote') mavenLocal()
+
     }
     java { toolchain { languageVersion = JavaLanguageVersion.of(17) }; withSourcesJar() }
     sourceSets {
@@ -263,6 +290,7 @@ subprojects {
         }
     }
     publishing {
+        repositories { maven { name = 'Bootstrap'; url = uri(new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'maven-repository')) } }
         publications {
             mavenJava(MavenPublication) {
                 from components.java
@@ -285,7 +313,7 @@ project(':common') {
 project(':profile-algites') {
     sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/resources']
     dependencies {
-        api 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+        api 'eu.algites.lib.naming:pub.lib.General_naming.convention.profile.algites:1.1-SNAPSHOT'
     }
 }
 project(':intf') {
@@ -297,21 +325,22 @@ project(':intf') {
 project(':impl') {
     dependencies {
         implementation project(':common')
-        implementation project(':profile-algites')
         api project(':intf')
         api 'eu.algites.lib.data:pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT'
         api 'eu.algites.lib.common:pub.lib.General_common:1.1-SNAPSHOT'
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.3'
+        testImplementation project(':profile-algites')
         testImplementation 'org.testng:testng:7.11.0'
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.impl:1.1-SNAPSHOT'
     }
 }
 project(':cli') {
     dependencies {
         implementation project(':impl')
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.impl:1.1-SNAPSHOT'
+        testImplementation project(':profile-algites')
         testImplementation 'org.testng:testng:7.11.0'
     }
 }
@@ -404,28 +433,36 @@ def module = new File(System.getenv('_TMP_MODUSTRO_DEFS_MODULE'))
 def prepareParityPython = tasks.register('prepareGeneratorParityPython', Exec) {
     def command = [System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3', new File(module, 'impl/src/develop/python/prepare_parity_python.py').absolutePath,
         '--target', parityPython.get().asFile.absolutePath,
-        '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
+        '--endpoints-json', (System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') == 'remote'
+            ? '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]'
+            : groovy.json.JsonOutput.toJson([
+                'modustro-local\t' + new File(System.getenv('MODUSTRO_LOCAL_PYTHON_REPOSITORY') ?: new File(System.getenv('MODUSTRO_HOME') ?: new File(System.getProperty('user.home'), '.modustro').path, 'artifact-repos/python'), 'simple').toURI().toString() + '\t\t',
+                'pypi\thttps://pypi.org/simple/\t\t'])),
         '--requirement', 'pyyaml>=6,<7',
         '--requirement', 'pytest>=8,<10',
         '--requirement', 'eu-algites-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0',
         '--requirement', 'eu-algites-pub-lib-general-common>=1.1.dev0,<1.1a0']
-    // The Algites naming profiles/catalog live in naming.convention.algites,
-    // not naming.convention.impl (despite their Java/Python package names).
-    ['convention.intf', 'convention.impl', 'convention.algites'].each { artifact ->
+    // The generic loader is in impl; concrete Algites resources live in profile.algites.
+    ['convention.intf', 'convention.impl', 'convention.profile.algites'].each { artifact ->
         command += ['--requirement', 'eu-algites-pub-lib-general-naming-' + artifact.replace('.', '-') + '>=1.1.dev0,<1.1a0']
     }
-    command += ['--verify-import', 'eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1',
-                '--verify-import', 'eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1']
+    command += ['--verify-import', 'eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles',
+                '--verify-import', 'eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog']
     commandLine(command)
 }
-// Fail explicitly when resolved Maven Local naming snapshots predate XML element contracts.
+// The Algites profile is a testImplementation dependency of :impl. Its
+// transitive naming catalog therefore belongs to testRuntimeClasspath, NOT
+// runtimeClasspath (where it is intentionally absent). Inspect the exact
+// classpath used by the generator's Java tests so stale remote snapshots
+// are still rejected before any parity tests run.
 def verifyNamingCatalog = tasks.register('verifyNamingCatalog') {
     doLast {
-        def artifact = project(':impl').configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
-            it.moduleVersion.id.name == 'pub.lib.General_naming.convention.algites'
+        def artifact = project(':impl').configurations.testRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
+            it.moduleVersion.id.group == 'eu.algites.lib.naming' &&
+                it.moduleVersion.id.name == 'pub.lib.General_naming.convention.profile.algites'
         }
         if (artifact.size() != 1) {
-            throw new GradleException("Expected precisely one Algites naming catalog artifact on the generator runtime classpath; found ${artifact.size()}")
+            throw new GradleException("Expected precisely one Algites naming catalog artifact on the generator test runtime classpath; found ${artifact.size()}")
         }
         def archive = artifact[0].file
         def entries = ['eu/algites/lib/naming/convention/algites-java-name-conventions.yml',
@@ -445,7 +482,18 @@ def verifyNamingCatalog = tasks.register('verifyNamingCatalog') {
                 }
             }
         }
-        logger.lifecycle("Bootstrap Algites naming catalogs verified: ${archive}")
+        def shared = project(':impl').configurations.testRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll {
+            it.moduleVersion.id.group == 'eu.algites.lib.naming' &&
+                it.moduleVersion.id.name == 'pub.lib.General_naming.convention.intf'
+        }
+        if (shared.size() != 1)
+            throw new GradleException("Expected precisely one shared naming intf artifact; found ${shared.size()}")
+        new java.util.zip.ZipFile(shared[0].file).withCloseable { zip ->
+            if (zip.getEntry('eu/algites/lib/naming/convention/standard-conventions.yml') == null)
+                throw new GradleException("Missing shared standard naming conventions in ${shared[0].file}. " +
+                    "Republish pub.lib.General naming/convention/intf before running Codegen bootstrap.")
+        }
+        logger.lifecycle("Bootstrap Algites naming catalogs and shared intf grammar verified: ${archive}")
     }
 }
 project(':impl').tasks.withType(Test).configureEach {
@@ -467,7 +515,7 @@ GRADLE
 
 locGradleCommand=(bash "${locRepositoryDir}/gradlew")
 if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then locGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}"); fi
-if [[ $# -eq 0 ]]; then set -- test publishToMavenLocal; fi
+if [[ $# -eq 0 ]]; then set -- test publishAllPublicationsToBootstrapRepository; fi
 locGradleArgs=(--no-daemon)
 if [[ "${MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES:-0}" == 1 ]]; then locGradleArgs+=(--refresh-dependencies); fi
 _TMP_MODUSTRO_DEFS_MODULE="${locModuleDir}" MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" "${locGradleCommand[@]}" "${locGradleArgs[@]}" --project-dir "${locBootstrapDir}" "$@"
@@ -504,13 +552,13 @@ subprojects {
     version = System.getenv('MODUSTRO_CODEGEN_BOOTSTRAP_VERSION') ?: providers.gradleProperty('modustro.sdocodegen.version').getOrElse('1.1-SNAPSHOT')
     repositories {
         def bootstrapMode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'
-        if (bootstrapMode != 'remote') mavenLocal()
-        maven {
+        if (bootstrapMode != 'remote') maven { name = 'modustro-local'; url = uri(System.getenv('MODUSTRO_LOCAL_MAVEN_REPOSITORY') ?: new File(System.getenv('MODUSTRO_HOME') ?: new File(System.getProperty('user.home'), '.modustro').path, 'artifact-repos/java/maven')) }
+        if (bootstrapMode == 'remote') maven {
             url = uri('https://dl.cloudsmith.io/public/algites/java-snapshots-pub/maven/')
             content { includeGroupByRegex('eu\\.algites\\..*') }
         }
         mavenCentral()
-        if (bootstrapMode == 'remote') mavenLocal()
+
     }
     java { toolchain { languageVersion = JavaLanguageVersion.of(17) }; withSourcesJar() }
     sourceSets {
@@ -525,6 +573,7 @@ subprojects {
         }
     }
     publishing {
+        repositories { maven { name = 'Bootstrap'; url = uri(new File(System.getenv('MODUSTRO_BOOTSTRAP_BUILD_ROOT'), 'maven-repository')) } }
         publications {
             mavenJava(MavenPublication) {
                 from components.java
@@ -547,7 +596,7 @@ project(':common') {
 project(':profile-algites') {
     sourceSets.main.resources.srcDirs = ['src/product/config', 'src/product/resources']
     dependencies {
-        api 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+        api 'eu.algites.lib.naming:pub.lib.General_naming.convention.profile.algites:1.1-SNAPSHOT'
     }
 }
 project(':intf') {
@@ -556,18 +605,19 @@ project(':intf') {
 project(':impl') {
     dependencies {
         implementation project(':common')
-        implementation project(':profile-algites')
         api project(':intf')
         api 'eu.algites.lib.common:pub.lib.General_common:1.1-SNAPSHOT'
         implementation 'eu.algites.lib.data:pub.lib.General_data.smartdataobject.impl:1.1-SNAPSHOT'
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.impl:1.1-SNAPSHOT'
+        testImplementation project(':profile-algites')
         testImplementation 'org.testng:testng:7.11.0'
     }
 }
 project(':cli') {
     dependencies {
         implementation project(':impl')
-        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.algites:1.1-SNAPSHOT'
+        implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.impl:1.1-SNAPSHOT'
+        testImplementation project(':profile-algites')
         testImplementation 'org.testng:testng:7.11.0'
     }
 }
@@ -579,14 +629,18 @@ def prepareSdoPython = tasks.register('prepareSdoPython', Exec) {
     commandLine(System.getenv('ALGITES_PYTHON_EXECUTABLE') ?: 'python3',
         new File(module, '../defscodegen/impl/src/develop/python/prepare_parity_python.py').canonicalPath,
         '--target', sdoPython.get().asFile.absolutePath,
-        '--endpoints-json', '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]',
+        '--endpoints-json', (System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') == 'remote'
+            ? '["pypi\\thttps://pypi.org/simple\\t\\t","snapshots\\thttps://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/\\t\\t"]'
+            : groovy.json.JsonOutput.toJson([
+                'modustro-local\t' + new File(System.getenv('MODUSTRO_LOCAL_PYTHON_REPOSITORY') ?: new File(System.getenv('MODUSTRO_HOME') ?: new File(System.getProperty('user.home'), '.modustro').path, 'artifact-repos/python'), 'simple').toURI().toString() + '\t\t',
+                'pypi\thttps://pypi.org/simple/\t\t'])),
         '--requirement', 'pytest>=8,<10',
         '--requirement', 'eu-algites-pub-lib-general-data-dataobject-intf>=1.1.dev0,<1.1a0',
         '--requirement', 'eu-algites-pub-lib-general-common>=1.1.dev0,<1.1a0',
         '--requirement', 'eu-algites-pub-lib-general-data-smartdataobject-impl>=1.1.dev0,<1.1a0',
         '--requirement', 'eu-algites-pub-lib-general-naming-convention-impl>=1.1.dev0,<1.1a0',
-        '--requirement', 'eu-algites-pub-lib-general-naming-convention-algites>=1.1.dev0,<1.1a0',
-        '--verify-import', 'eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1')
+        '--requirement', 'eu-algites-pub-lib-general-naming-convention-profile-algites>=1.1.dev0,<1.1a0',
+        '--verify-import', 'eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog')
 }
 def runSdoPython = tasks.register('testSdoPython', Exec) {
     dependsOn prepareSdoPython
@@ -612,7 +666,7 @@ project(':impl').tasks.named('test').configure { finalizedBy runSdoPython }
 GRADLE
 locGradleCommand=(bash "${locRepositoryDirectory}/gradlew")
 if [[ -n "${MODUSTRO_GRADLE_EXECUTABLE:-}" ]]; then locGradleCommand=("${MODUSTRO_GRADLE_EXECUTABLE}"); fi
-if [[ $# -eq 0 ]]; then set -- test publishToMavenLocal; fi
+if [[ $# -eq 0 ]]; then set -- test publishAllPublicationsToBootstrapRepository; fi
 locGradleArgs=(--no-daemon)
 if [[ "${MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES:-0}" == 1 ]]; then locGradleArgs+=(--refresh-dependencies); fi
 _TMP_MODUSTRO_SDO_MODULE="${locModuleDirectory}" MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" "${locGradleCommand[@]}" "${locGradleArgs[@]}" --project-dir "${locBootstrapDirectory}" "$@"
@@ -629,7 +683,7 @@ for locGenerator in defs sdo; do
     MODUSTRO_BOOTSTRAP_MODULE_DIRECTORY="$locModuleDirectory" \
     MODUSTRO_BOOTSTRAP_REPOSITORY_DIRECTORY="$locRepositoryDirectory" \
     MODUSTRO_BOOTSTRAP_BUILD_ROOT="$locBuildRoot" \
-        bash "$locTemporaryDirectory/$locGenerator.sh" test publishToMavenLocal
+        bash "$locTemporaryDirectory/$locGenerator.sh" test publishAllPublicationsToBootstrapRepository
 done
 
 locVersion="${MODUSTRO_CODEGEN_BOOTSTRAP_VERSION:-1.1-SNAPSHOT}"
@@ -637,8 +691,8 @@ locRepo="${MODUSTRO_CODEGEN_BOOTSTRAP_CLOUDSMITH_REPO:-algites/java-snapshots-pu
 locPythonRepo="${MODUSTRO_CODEGEN_BOOTSTRAP_PYTHON_CLOUDSMITH_REPO:-algites/python-snapshots-pub}"
 locPythonOutput="$locBuildRoot/python-dist"
 locPythonManifest="$locBuildRoot/python-packages.tsv"
-# Eight native Python distributions must come from the same current source
-# tree as the eight Maven artifacts (including the explicit Algites profile). Test-only Python imports are not publication.
+# Build Python distributions from the current source tree (including the
+# explicit Algites profile). Test-only Python imports are not publications.
 # Prepare and verify all wheels and sdists before any Cloudsmith upload.
 locPythonBuildExecutable="${MODUSTRO_BOOTSTRAP_PYTHON_BUILD_EXECUTABLE:-}"
 if [[ -z "$locPythonBuildExecutable" ]]; then
@@ -654,8 +708,9 @@ if [[ -n "${MODUSTRO_CODEGEN_BOOTSTRAP_PYTHON_VERSION:-}" ]]; then
     locPythonBuildArgs+=(--python-version "$MODUSTRO_CODEGEN_BOOTSTRAP_PYTHON_VERSION")
 fi
 "$locPythonBuildExecutable" "$locCodeDirectory/bootstrap-python-dist.py" "${locPythonBuildArgs[@]}"
-locMavenRoot="${HOME}/.m2/repository/eu/algites/tool/codegen"
-locManifest="$locTemporaryDirectory/packages.tsv"
+locMavenRoot="$locBuildRoot/maven-repository/eu/algites/tool/codegen"
+locManifest="$locBuildRoot/packages.tsv"
+: > "$locBuildRoot/coordinates.tsv"
 for locGenerator in common profile defscodegen sdocodegen; do
     if [[ "$locGenerator" == common ]]; then locParts=(common);
     elif [[ "$locGenerator" == profile ]]; then locParts=(algites);
@@ -666,30 +721,31 @@ for locGenerator in common profile defscodegen sdocodegen; do
         else
             locArtifactId="pub.tool.General_generators.code.${locGenerator}.${locPart}"
         fi
-        locLocation="$locMavenRoot/$locArtifactId/$locVersion/$locArtifactId-$locVersion"
-        for locExtension in jar pom module; do
-            [[ -s "$locLocation.$locExtension" ]] || {
-                echo "Missing ${locLocation}.${locExtension}; bootstrap cannot safely publish incomplete Maven module" >&2
-                exit 1
-            }
-        done
-        if [[ "$locGenerator" == profile ]]; then
-            "${ALGITES_PYTHON_EXECUTABLE:-python3}" - "$locLocation.jar" <<'VERIFY_PROFILE_JAR'
-import sys
-import zipfile
-with zipfile.ZipFile(sys.argv[1]) as archive:
-    for language in ('java', 'python'):
-        resource = ('eu/algites/lib/naming/convention/'
-                    f'algites-{language}-codegen-method-conventions.yml')
-        if resource not in archive.namelist():
-            raise SystemExit(f'Missing Algites profile catalog in Maven JAR: {resource}')
-VERIFY_PROFILE_JAR
-        fi
-        printf '%s\t%s\t%s\t%s\n' "$locLocation.jar" "$locLocation.pom" \
-            "$locLocation.module" "$locLocation-sources.jar" >> "$locManifest"
+        locStageArtifact="$locMavenRoot/$locArtifactId/$locVersion"
+        locLocation="${locStageArtifact}/$locArtifactId-$locVersion"
+        # Stage repository publications use timestamped SNAPSHOT names; resolve
+        # their manifest only after both native generators have finished.
+        printf '%s\t%s\t%s\n' 'eu.algites.tool.codegen' "$locArtifactId" "$locVersion" >> "$locBuildRoot/coordinates.tsv"
     done
 done
 
+"${ALGITES_PYTHON_EXECUTABLE:-python3}" "$locRepositoryDirectory/devtools/bootstrap-maven-stage.py" collect \
+    --staging "$locBuildRoot/maven-repository" --coordinates "$locBuildRoot/coordinates.tsv" \
+    --output "$locBuildRoot/staged-publications.json"
+"${ALGITES_PYTHON_EXECUTABLE:-python3}" "$locRepositoryDirectory/devtools/bootstrap-maven-stage.py" promote \
+    --manifest "$locBuildRoot/staged-publications.json" --output "$locManifest"
+"${ALGITES_PYTHON_EXECUTABLE:-python3}" "$locRepositoryDirectory/devtools/bootstrap-maven-stage.py" verify-gradle \
+    --manifest "$locManifest" --gradle "${MODUSTRO_GRADLE_EXECUTABLE:-$locRepositoryDirectory/gradlew}" \
+    --work "$locBuildRoot/local-gradle-verification"
+# Publish verified Python distributions to the shared Modustro local Simple index.
+"${ALGITES_PYTHON_EXECUTABLE:-python3}" "$locRepositoryDirectory/devtools/modustro-local-python-repo.py" publish --manifest "$locPythonManifest"
+
+# Collect and verify complete sets before reporting the actual manifest sizes.
+locJavaCount="$(wc -l < "$locManifest")"
+locPythonCount="$(wc -l < "$locPythonManifest")"
+echo "Prepared $locJavaCount Maven artifacts and $locPythonCount Python wheels with their sdists."
+echo "Java manifest: $locManifest"
+echo "Python manifest: $locPythonManifest"
 if [[ "${MODUSTRO_BOOTSTRAP_PREPARE_ONLY:-0}" == 1 ]]; then
     locOutput="${MODUSTRO_BOOTSTRAP_OUTPUT_DIR:-$locBuildRoot}"
     mkdir -p "$locOutput"
@@ -697,7 +753,7 @@ if [[ "${MODUSTRO_BOOTSTRAP_PREPARE_ONLY:-0}" == 1 ]]; then
     if [[ "$locOutput/python-packages.tsv" != "$locPythonManifest" ]]; then
         cp "$locPythonManifest" "$locOutput/python-packages.tsv"
     fi
-    echo "Validated eight Maven packages and eight Python wheels with sdists; preparation-only manifests: $locOutput/packages.tsv and $locOutput/python-packages.tsv"
+    echo "Preparation-only manifests: $locOutput/packages.tsv and $locOutput/python-packages.tsv"
     exit 0
 fi
 

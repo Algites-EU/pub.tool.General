@@ -8,6 +8,7 @@ import re
 import pytest
 
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from explicit_naming_fixture import explicit_legacy_generic_manifest
 
 
 def _build(tmp_path: Path, constraint: str):
@@ -23,7 +24,7 @@ def _build(tmp_path: Path, constraint: str):
     </xs:schema>'''
     (xml_dir / 'extensions_1.xsd').write_text(schema)
     manifest = tmp_path / 'manifest.json'
-    manifest.write_text(json.dumps({'artifact': '.', 'languages': ['java', 'python']}))
+    manifest.write_text(json.dumps(explicit_legacy_generic_manifest({'artifact': '.', 'languages': ['java', 'python']})))
     result = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     return result, (tmp_path / 'src/product/java.gen/example/contracts'), (tmp_path / 'src/product/python.gen/example/contracts')
 
@@ -64,14 +65,14 @@ def test_xsd_any_contract_signatures_and_xml_marker_inheritance(tmp_path, monkey
 @pytest.mark.parametrize('language', ['java', 'python'])
 def test_namespace_naming_role_is_independent_from_xml_element_naming(language, tmp_path):
     """Explicit namespace naming ID must control the type/file, not XML element naming."""
-    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+    from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
     from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
     from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
     from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
     from eu.algites.tool.codegen.defs.impl.standard import aic_xml_namespace_contracts
     from eu.algites.tool.codegen.defs.impl.standard.aic_xml_namespace_contracts import namespace_contract
 
-    catalog = AIcNameConventionCatalog_1.standard(language)
+    catalog = AIcNameConventionCatalog.load_resource(f'algites-{language}-name-conventions.yml')
     namespace_id = f'algites-{language}-gen-data-xml-namespace-intf_1'
     element_id = f'algites-{language}-gen-xml-element-intf-versioned_1'
     roles = {
@@ -145,20 +146,20 @@ def test_xml_namespace_fixed_name_parts_come_from_catalog_not_generator(language
     """A custom XML namespace composition can omit XmlDataObject without changing codegen."""
     from copy import deepcopy
     from types import SimpleNamespace
-    from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+    from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
     from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
     from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
     from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
     from eu.algites.tool.codegen.defs.impl.standard.aic_xml_namespace_contracts import namespace_contract
 
-    original = AIcNameConventionCatalog_1.standard(language)
+    original = AIcNameConventionCatalog.load_resource(f'algites-{language}-name-conventions.yml')
     configuration = deepcopy(original._config)
     prefix = f'algites-{language}-gen-xml-namespace-intf'
     for suffix in ('_1', '-file_1'):
         segments = configuration['NameCompositions'][prefix + suffix]['Segments']
         segments[:] = [segment for segment in segments if segment.get('Ref') not in
                        ('xml-data-object-marker_1', 'xml-data-object-file-marker_1')]
-    custom = AIcNameConventionCatalog_1(configuration)
+    custom = AIcNameConventionCatalog(configuration)
     roles = {
         AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE: prefix + '_1',
         AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM: prefix + '_1',

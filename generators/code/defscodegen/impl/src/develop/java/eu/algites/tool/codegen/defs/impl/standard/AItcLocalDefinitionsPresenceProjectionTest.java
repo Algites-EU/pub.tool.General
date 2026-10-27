@@ -1,7 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1;
+import eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
 import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
@@ -43,7 +43,7 @@ public final class AItcLocalDefinitionsPresenceProjectionTest {
             Path locPath = locDirectory.resolve("security-bootstrap_1." + locSuffix);
             Files.writeString(locPath, locSource);
             var locRequest = new AIcdDefinitionLoadRequest(locPath, locKind,
-                    AIcAlgitesNamingProfiles_1.javaProfile());
+                    AIcAlgitesNamingProfiles.javaProfile());
             var locDefinition = new AIcJsonSchemaReader().read(MAPPER.readTree(locSource), locRequest,
                     locKind, "x-algites-schema-id", "x-algites-schema-version", "x-algites-schema-name");
             var locReference = locDefinition.dataType().properties().get(0).dataType().reference();

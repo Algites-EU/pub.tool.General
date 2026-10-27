@@ -12,7 +12,6 @@ import eu.algites.tool.codegen.defs.impl.standard.AIcSchemaContractInterfaceGene
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

@@ -1,6 +1,6 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
-import eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1;
+import eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles;
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
@@ -121,7 +121,7 @@ public final class AItcXmlFacetNarrowingTest {
         try {
             Files.writeString(locSource, aXml);
             return new AIcXmlDefsFrontend().load(new AIcdDefinitionLoadRequest(locSource,
-                    AInDefinitionSourceKind.XMLDEFS, AIcAlgitesNamingProfiles_1.javaProfile()));
+                    AInDefinitionSourceKind.XMLDEFS, AIcAlgitesNamingProfiles.javaProfile()));
         } finally {
             Files.deleteIfExists(locSource);
         }

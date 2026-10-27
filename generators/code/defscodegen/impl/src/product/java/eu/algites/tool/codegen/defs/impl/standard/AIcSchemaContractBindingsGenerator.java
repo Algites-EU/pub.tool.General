@@ -12,8 +12,7 @@ import eu.algites.tool.codegen.defs.AInDefsNameRole;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import eu.algites.lib.naming.convention.impl.algites.AIcAlgitesNamingProfiles_1;
-import eu.algites.lib.naming.convention.impl.algites.AIcNameConventionCatalog_1;
+import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -46,7 +45,7 @@ public final class AIcSchemaContractBindingsGenerator {
         Path intf = inside(repository, manifest.path("artifact").asText("."));
         boolean explicit = manifest.has("schema_inputs");
         boolean locConfigured = manifest.has("technology_output_naming_conventions");
-        AIcNameConventionCatalog_1 locSharedNames = null;
+        AIcNameConventionCatalog locSharedNames = null;
         if (locConfigured) {
             List<String> locCatalogFiles = new ArrayList<>();
             for (JsonNode locFile : manifest.path("naming_convention_files")) {
@@ -58,18 +57,18 @@ public final class AIcSchemaContractBindingsGenerator {
             locSharedNames = AIcNamingCatalogCollector.load(locCatalogFiles);
         }
         Map<String, Path> outputRoots = new LinkedHashMap<>();
-        Map<String, AIcNameConventionCatalog_1> catalogs = new LinkedHashMap<>();
+        Map<String, AIcNameConventionCatalog> catalogs = new LinkedHashMap<>();
         Map<String, AIiNameConventionCatalog> targetProfiles = new LinkedHashMap<>();
-        Map<String, AIcNameConventionCatalog_1> sourceCatalogs = new LinkedHashMap<>();
+        Map<String, AIcNameConventionCatalog> sourceCatalogs = new LinkedHashMap<>();
         for (var entry : iterable(manifest.path("technology_outputs").fields()))
             outputRoots.put(entry.getKey(), inside(repository, entry.getValue().asText()));
         for (var entry : iterable(manifest.path("technology_naming_profiles").fields())) {
             Path file = inside(repository, entry.getValue().asText());
-            catalogs.put(entry.getKey(), AIcNameConventionCatalog_1.load(file));
-            targetProfiles.put(entry.getKey(), AIcNameConventionCatalog_1.load(file));
+            catalogs.put(entry.getKey(), AIcNameConventionCatalog.load(file));
+            targetProfiles.put(entry.getKey(), AIcNameConventionCatalog.load(file));
         }
         for (var entry : iterable(manifest.path("schema_input_naming_profiles").fields()))
-            sourceCatalogs.put(entry.getKey(), AIcNameConventionCatalog_1.load(inside(repository, entry.getValue().asText())));
+            sourceCatalogs.put(entry.getKey(), AIcNameConventionCatalog.load(inside(repository, entry.getValue().asText())));
         if (locConfigured) {
             for (String locTechnology : outputRoots.keySet()) {
                 catalogs.put(locTechnology, locSharedNames);
@@ -81,6 +80,8 @@ public final class AIcSchemaContractBindingsGenerator {
             for (var locEntry : iterable(manifest.path("schema_input_naming_conventions").fields()))
                 sourceCatalogs.put(locEntry.getKey(), locSharedNames);
         }
+        if (!locConfigured && !manifest.has("technology_naming_profiles"))
+            throw new IllegalArgumentException("No explicit output naming catalog configured");
         if (explicit && !locConfigured) {
             for (String technology : outputRoots.keySet())
                 if (!catalogs.containsKey(technology))
@@ -146,27 +147,26 @@ public final class AIcSchemaContractBindingsGenerator {
                     if (rootBySchema.putIfAbsent(schema, root) != null)
                         throw new IllegalArgumentException("Overlapping input roots for " + schema);
                     kindBySchema.put(schema, kind);
-                    AIcNameConventionCatalog_1 sourceCatalog = sourceCatalogs.get(kind);
+                    AIcNameConventionCatalog sourceCatalog = sourceCatalogs.get(kind);
                     if (sourceCatalog != null) {
                         String locRequired = locConfigured
                                 ? manifest.path("schema_input_naming_conventions").path(kind).asText("") : null;
-                        if (locConfigured && locRequired.isEmpty()) continue;
+                        if (locConfigured && locRequired.isEmpty())
+                            throw new IllegalArgumentException("Missing schema input naming convention for " + kind);
                         var named = sourceCatalog.recognizeFilename(source.getFileName().toString(),
                                 locRequired == null ? null : Set.of(locRequired));
                         if (named == null) throw new IllegalArgumentException("Invalid schema filename: " + schema);
                         profileBySchema.put(schema, named.conventionName());
-                        String sourceName = kind.substring(0, kind.length() - 1);
-                        if (!locConfigured && !manifest.path("allow_unversioned_schemas").asBoolean()
-                                && !named.conventionName().equals("algites-" + sourceName + "-schema-versioned_1"))
+                        if (!manifest.path("allow_unversioned_schemas").asBoolean()
+                                && !named.variables().containsKey("version"))
                             throw new IllegalArgumentException("Unversioned schema is not allowed: " + schema);
                     }
                     JsonNode document = kind.equals("xmldefs") ? mapper.createObjectNode() : mapper.readTree(source.toFile());
                     if (!kind.equals("xmldefs")) {
-                        AIcNameConventionCatalog_1 locCatalog = sourceCatalogs.get(kind);
-                        if (locCatalog == null) locCatalog = AIcNameConventionCatalog_1.loadResource(
-                                "algites-" + (kind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
-                        String locSourceProfile = profileBySchema.getOrDefault(schema,
-                                "algites-" + (kind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1");
+                        AIcNameConventionCatalog locCatalog = sourceCatalogs.get(kind);
+                        if (locCatalog == null || !profileBySchema.containsKey(schema))
+                            throw new IllegalArgumentException("Missing source naming catalog/profile for " + schema);
+                        String locSourceProfile = profileBySchema.get(schema);
                         String locIdField = locCatalog.schemaMetadataField(locSourceProfile, "schema_source", "identifier");
                         declaredIdentityBySchema.put(schema, !locIdField.isBlank()
                                 && !document.path(locIdField).asText("").isBlank());
@@ -195,8 +195,9 @@ public final class AIcSchemaContractBindingsGenerator {
         for (AIcdUnit locUnit : units) {
             if (!"xmldefs".equals(kindBySchema.get(locUnit.schema()))) continue;
             Path locSource = inside(repository, locUnit.schema());
+            if (targetProfiles.isEmpty()) throw new IllegalArgumentException("No output naming profile configured");
             var locLoad = new AIcdDefinitionLoadRequest(locSource, AInDefinitionSourceKind.XMLDEFS,
-                    AIcAlgitesNamingProfiles_1.javaProfile());
+                    targetProfiles.values().iterator().next());
             String locQName = locUnit.pointer().startsWith("@type/")
                     ? "{" + locScopeFrontend.schemaNamespace(locLoad) + "}" + locUnit.pointer().substring(6)
                     : locScopeFrontend.rootTypeQName(locLoad);
@@ -237,11 +238,10 @@ public final class AIcSchemaContractBindingsGenerator {
             ObjectNode projection = ((ObjectNode) unit.node).deepCopy();
             if (!sourceKind.equals("xmldefs")) {
                 if (unit.document.has("$defs")) projection.set("$defs", unit.document.get("$defs"));
-                AIcNameConventionCatalog_1 locSourceCatalog = sourceCatalogs.get(sourceKind);
-                if (locSourceCatalog == null) locSourceCatalog = AIcNameConventionCatalog_1.loadResource(
-                        "algites-" + (sourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
-                String locSourceProfile = profileBySchema.getOrDefault(unit.schema,
-                        "algites-" + (sourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1");
+                AIcNameConventionCatalog locSourceCatalog = sourceCatalogs.get(sourceKind);
+                if (locSourceCatalog == null || !profileBySchema.containsKey(unit.schema))
+                    throw new IllegalArgumentException("Missing source naming catalog/profile for " + unit.schema);
+                String locSourceProfile = profileBySchema.get(unit.schema);
                 String locIdKey = locSourceCatalog != null && !locSourceProfile.isBlank()
                         ? locSourceCatalog.schemaMetadataField(locSourceProfile, "schema_source", "identifier") : "";
                 String locVersionKey = locSourceCatalog != null && !locSourceProfile.isBlank()
@@ -266,8 +266,8 @@ public final class AIcSchemaContractBindingsGenerator {
                     default -> throw new IllegalArgumentException("Unsupported target: " + targetText);
                 };
                 AIiNameConventionCatalog baseProfile = targetProfiles.get(targetText);
-                if (baseProfile == null) baseProfile = target == AInCodeGenerationTarget.PYTHON
-                    ? AIcAlgitesNamingProfiles_1.pythonProfile() : AIcAlgitesNamingProfiles_1.javaProfile();
+                if (baseProfile == null)
+                    throw new IllegalArgumentException("No output naming profile configured for " + targetText);
                 var sourceType = switch (sourceKind) {
                     case "yamldefs" -> AInDefinitionSourceKind.YAMLDEFS;
                     case "xmldefs" -> AInDefinitionSourceKind.XMLDEFS;
@@ -322,10 +322,11 @@ public final class AIcSchemaContractBindingsGenerator {
                             locNames.put(AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM, locElementConvention);
                         }
                         String locNamespaceConvention = manifest.path("technology_output_naming_conventions")
-                                .path(targetText).path("xmldefs_namespace")
-                                .asText("algites-" + targetText + "-gen-xml-namespace-intf_1");
-                        locNames.put(AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE, locNamespaceConvention);
-                        locNames.put(AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM, locNamespaceConvention);
+                                .path(targetText).path("xmldefs_namespace").asText("");
+                        if (!locNamespaceConvention.isBlank()) {
+                            locNames.put(AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE, locNamespaceConvention);
+                            locNames.put(AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM, locNamespaceConvention);
+                        }
                         String locEnumConvention = manifest.path("technology_enum_output_naming_conventions")
                                 .path(targetText).asText("");
                         if (locEnumConvention.isEmpty()) locEnumConvention = locSelectedId;
@@ -1036,23 +1037,19 @@ public final class AIcSchemaContractBindingsGenerator {
      * permit extraction. A blank source disables the generated annotation member.
      *
      * @param aTarget output naming catalog
-     * @param aSourceCatalog input naming catalog, possibly null for default
+     * @param aSourceCatalog input naming catalog, must be explicitly provided
      * @param aSourceKind schema family
-     * @param aSourceProfile selected source profile, possibly null for default
+     * @param aSourceProfile selected source profile, must be explicitly provided
      * @param aKind metadata kind
      * @return declared source metadata field, or empty if disabled
-     * @throws IOException if a required source catalog resource is unavailable
+     * @throws IOException if the schema inputs cannot be read
      */
     private static String sourceAnnotationField(AIiNameConventionCatalog aTarget,
-            AIcNameConventionCatalog_1 aSourceCatalog, String aSourceKind,
+            AIcNameConventionCatalog aSourceCatalog, String aSourceKind,
             String aSourceProfile, String aKind) throws IOException {
-        AIcNameConventionCatalog_1 locSource = aSourceCatalog != null ? aSourceCatalog
-                : AIcNameConventionCatalog_1.loadResource("algites-"
-                    + (aSourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
-        String locProfile = aSourceProfile != null ? aSourceProfile : "algites-"
-                + (aSourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1";
-        String locValue = locSource.schemaMetadataField(locProfile, "schema_source", aKind);
-        if (aTarget instanceof AIcNameConventionCatalog_1 locCatalog
+        AIcNameConventionCatalog locSource = requireSourceNaming(aSourceCatalog, aSourceProfile, aSourceKind);
+        String locValue = locSource.schemaMetadataField(aSourceProfile, "schema_source", aKind);
+        if (aTarget instanceof AIcNameConventionCatalog locCatalog
                 && locCatalog.generatedMethodProfile() != null
                 && locCatalog.schemaMetadataField(locCatalog.generatedMethodProfile(),
                     "schema_source", aKind).isBlank()) return "";
@@ -1070,29 +1067,24 @@ public final class AIcSchemaContractBindingsGenerator {
      * @param aTarget target naming catalog, possibly without a method profile
      * @param aSourceCatalog catalog chosen for the schema input, if supplied
      * @param aSourceKind source schema technology
-     * @param aSourceProfile source name convention, or null for Algites default
+     * @param aSourceProfile source name convention, must be explicitly provided
      * @param aKind metadata kind: url, identifier or version
      * @return configured target field, or empty string when suppressed
-     * @throws IOException if a required default input catalog cannot be read
+     * @throws IOException if the schema input cannot be read
      * @throws IllegalArgumentException if an output target lacks a source mapping
      */
     private static String outputMetadataField(AIiNameConventionCatalog aTarget,
-            AIcNameConventionCatalog_1 aSourceCatalog, String aSourceKind,
+            AIcNameConventionCatalog aSourceCatalog, String aSourceKind,
             String aSourceProfile, String aKind) throws IOException {
         String locSourceTarget = locSourceMetadataField(aSourceCatalog, aSourceKind, aSourceProfile, aKind);
-        if (!(aTarget instanceof AIcNameConventionCatalog_1 locCatalog)
+        if (!(aTarget instanceof AIcNameConventionCatalog locCatalog)
                 || locCatalog.generatedMethodProfile() == null) return locSourceTarget;
         String locMethodProfile = locCatalog.generatedMethodProfile();
         String locTarget = locCatalog.schemaMetadataField(locMethodProfile, "data_source", aKind);
         if (!locTarget.isBlank()) {
             String locMethodSource = locCatalog.schemaMetadataField(locMethodProfile, "schema_source", aKind);
-            AIcNameConventionCatalog_1 locSource = aSourceCatalog != null ? aSourceCatalog
-                    : AIcNameConventionCatalog_1.loadResource("algites-"
-                        + (aSourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
-            String locInputProfile = aSourceProfile == null ? "algites-"
-                    + (aSourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1"
-                    : aSourceProfile;
-            if (locMethodSource.isBlank() || locSource.schemaMetadataField(locInputProfile,
+            AIcNameConventionCatalog locSource = requireSourceNaming(aSourceCatalog, aSourceProfile, aSourceKind);
+            if (locMethodSource.isBlank() || locSource.schemaMetadataField(aSourceProfile,
                     "schema_source", aKind).isBlank())
                 throw new IllegalArgumentException("data_source_schema_" + aKind
                         + " has no schema_source_schema_" + aKind);
@@ -1106,21 +1098,36 @@ public final class AIcSchemaContractBindingsGenerator {
      * Does not infer a target name from the schema ID or the schema URL.
      *
      * @param sourceCatalog optional input naming catalog
-     * @param sourceKind source family used for the standard catalog fallback
-     * @param profile selected source profile, or null for the standard profile
+     * @param sourceKind source family required for diagnostics
+     * @param profile selected source profile, must be explicitly selected
      * @param kind metadata kind: url, identifier, or version
      * @return configured instance metadata field or empty string when disabled
-     * @throws IOException if the standard input catalog resource is unavailable
+     * @throws IOException if the schema input cannot be read
      */
-    private static String locSourceMetadataField(AIcNameConventionCatalog_1 sourceCatalog,
+    private static String locSourceMetadataField(AIcNameConventionCatalog sourceCatalog,
             String sourceKind, String profile, String kind) throws IOException {
-        AIcNameConventionCatalog_1 locCatalog = sourceCatalog != null ? sourceCatalog
-                : AIcNameConventionCatalog_1.loadResource("algites-"
-                    + (sourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-name-conventions.yml");
-        String locProfile = profile != null ? profile : "algites-"
-                + (sourceKind.equals("jsondefs") ? "jsondef" : "yamldef") + "-schema-versioned_1";
-        return locCatalog.schemaMetadataField(locProfile, "data_source", kind);
+        AIcNameConventionCatalog locCatalog = requireSourceNaming(sourceCatalog, profile, sourceKind);
+        return locCatalog.schemaMetadataField(profile, "data_source", kind);
     }
 
+
+    /**
+     * Require an explicitly supplied schema-source catalog and its selected profile.
+     * Never substitute an Algites-specific catalog when the generator was started
+     * without a schema naming configuration.
+     *
+     * @param catalog schema-source naming catalog
+     * @param profile chosen name-convention identifier
+     * @param sourceKind source representation being generated
+     * @return the caller-selected naming catalog
+     * @throws IllegalArgumentException when a source catalog or profile is absent
+     */
+    private static AIcNameConventionCatalog requireSourceNaming(
+            AIcNameConventionCatalog catalog, String profile, String sourceKind) {
+        if (catalog == null || profile == null || profile.isBlank()) {
+            throw new IllegalArgumentException("Missing explicit " + sourceKind + " schema-source naming profile");
+        }
+        return catalog;
+    }
 
 }

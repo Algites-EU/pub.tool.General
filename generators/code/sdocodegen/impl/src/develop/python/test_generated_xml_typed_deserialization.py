@@ -5,7 +5,7 @@ import importlib
 import sys
 from pathlib import Path
 
-from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from explicit_sdo_fixture import configured_service, explicit_generic_manifest
 
 
 def test_xml_generated_nested_repeating_sdo_types(tmp_path, monkeypatch):
@@ -49,7 +49,7 @@ class AIigOrder_1(AIiXmlDataObject):
     monkeypatch.syspath_prepend(str(tmp_path))
     child = importlib.import_module(package + '.aiig_item_1').AIigItem_1
     order = importlib.import_module(package + '.aiig_order_1').AIigOrder_1
-    generator = AIcSdoCodegenService()
+    generator = configured_service()
     for contract in (child, order):
         result = generator.generate(contract)
         for source in (result.mutable_interface, result.implementation):
@@ -88,13 +88,13 @@ def test_xsd_repeating_scalar_flows_through_defs_and_sdo_generators(tmp_path, mo
       </xs:sequence></xs:complexType>
     </xs:schema>''')
     manifest = tmp_path / 'bindings.json'
-    manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['python']}))
+    manifest.write_text(json.dumps(explicit_generic_manifest()))
     AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     pyroot = tmp_path / 'intf/src/product/python.gen'
     monkeypatch.syspath_prepend(str(pyroot))
     module = importlib.import_module(package + '.aiig_invoice_1')
     Contract = module.AIigInvoice_1
-    result = AIcSdoCodegenService().generate(Contract)
+    result = configured_service().generate(Contract)
     assert '__xml_repeated_fields__' in result.mutable_interface.source
     assert "'Code'" in result.mutable_interface.source
     for unit in (result.mutable_interface, result.implementation):

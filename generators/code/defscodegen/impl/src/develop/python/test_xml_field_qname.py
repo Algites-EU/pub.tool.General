@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValueKind
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
+from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
-from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from explicit_sdo_fixture import configured_service
 
 
 def _schema(path: Path, attribute_default='unqualified'):
@@ -34,7 +34,7 @@ def _schema(path: Path, attribute_default='unqualified'):
 def test_xsd_fields_keep_exact_qname_and_kind(tmp_path):
     schema = tmp_path / 'ledger_1.xsd'
     _schema(schema)
-    profile = AIcAlgitesNamingProfiles_1.python_profile()
+    profile = AIcAlgitesNamingProfiles.python_profile()
     request = AIcdDefinitionLoadRequest(schema, AInDefinitionSourceKind.XMLDEFS, profile)
     frontend = AIcXmlDefsFrontend()
     fields = {p.source_name: p.xml_field for p in frontend.load(request).data_type.properties}
@@ -49,12 +49,12 @@ def test_xsd_fields_keep_exact_qname_and_kind(tmp_path):
 def test_xml_metadata_survives_all_contract_renderers_and_sdo(tmp_path, monkeypatch):
     schema = tmp_path / 'ledger_1.xsd'
     _schema(schema)
-    profile = AIcAlgitesNamingProfiles_1.python_profile()
+    profile = AIcAlgitesNamingProfiles.python_profile()
     frontend = AIcXmlDefsFrontend()
     req = AIcdDefinitionLoadRequest(schema, AInDefinitionSourceKind.XMLDEFS, profile)
     root = tmp_path / 'out'
     for target in (AInCodeGenerationTarget.PYTHON, AInCodeGenerationTarget.JAVA):
-        naming = AIcAlgitesNamingProfiles_1.python_profile() if target == AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles_1.java_profile()
+        naming = AIcAlgitesNamingProfiles.python_profile() if target == AInCodeGenerationTarget.PYTHON else AIcAlgitesNamingProfiles.java_profile()
         generation = AIcdCodeGenerationRequest(frontend.load(AIcdDefinitionLoadRequest(schema, AInDefinitionSourceKind.XMLDEFS, naming)),
             target, 'example.ledger_qname', naming, frontend.root_type_qname(req))
         emitted = AIcSchemaContractInterfaceGenerator().generate(generation)
@@ -74,7 +74,7 @@ def test_xml_metadata_survives_all_contract_renderers_and_sdo(tmp_path, monkeypa
         contract = getattr(importlib.import_module('example.ledger_qname.' + destination.stem), emitted.type_name)
         assert contract.__xml_data_object_fields__['currency'].value_kind is AInXmlValueKind.ATTRIBUTE
         assert [entry.order for entry in contract.__xml_data_object_fields__.values()] == [0, 1, 2, 3]
-        result = AIcSdoCodegenService().generate(contract, 'ledger', naming=(naming, naming, naming))
+        result = configured_service().generate(contract, 'ledger')
         assert '__xml_data_object_fields__' in result.mutable_interface.source
         assert "namespace='urn:ledger', namespace_local_name='amount'" in result.mutable_interface.source
         assert 'AInXmlValueKind.ATTRIBUTE' in result.mutable_interface.source
@@ -84,7 +84,7 @@ def test_xml_metadata_survives_all_contract_renderers_and_sdo(tmp_path, monkeypa
 def test_xsd_form_default_and_invalid_override(tmp_path):
     schema = tmp_path / 'ledger_1.xsd'
     _schema(schema, attribute_default='qualified')
-    profile = AIcAlgitesNamingProfiles_1.python_profile()
+    profile = AIcAlgitesNamingProfiles.python_profile()
     loader = AIcdDefinitionLoadRequest(schema, AInDefinitionSourceKind.XMLDEFS, profile)
     model = AIcXmlDefsFrontend().load(loader)
     assert {p.source_name: p.xml_field.namespace for p in model.data_type.properties}['currency'] == 'urn:ledger'
@@ -107,7 +107,7 @@ def test_prohibited_xsd_attribute_cannot_change_expanded_qname(tmp_path):
       </xs:complexContent></xs:complexType>
       <xs:element name="root" type="tns:Restricted"/>
     </xs:schema>''')
-    naming = AIcAlgitesNamingProfiles_1.python_profile()
+    naming = AIcAlgitesNamingProfiles.python_profile()
     load = AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS, naming)
     with pytest.raises(ValueError, match='QName'):
         AIcXmlDefsFrontend().load(load)
@@ -126,7 +126,7 @@ def test_xml_merger_rejects_different_field_qname_for_same_contract(tmp_path):
 
     source = tmp_path / 'ledger_1.xsd'
     _schema(source)
-    naming = AIcAlgitesNamingProfiles_1.python_profile()
+    naming = AIcAlgitesNamingProfiles.python_profile()
     original = AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(
         source, AInDefinitionSourceKind.XMLDEFS, naming))
     altered = replace(original, data_type=original.data_type.with_properties((replace(original.data_type.properties[0],

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
-from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +22,7 @@ class AIcdCodeGenerationRequest:
     definition: AIcdCanonicalDefinition
     target: AInCodeGenerationTarget
     package_name: str
-    naming_profile: AIcNameConventionCatalog_1
+    naming_profile: AIcNameConventionCatalog
     xml_type_qname: str | None = None
     naming_convention: str = ''
     contract_role: str = ''

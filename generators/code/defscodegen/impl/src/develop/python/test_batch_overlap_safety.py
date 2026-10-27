@@ -13,7 +13,7 @@ def _naming_resource_bytes(name: str) -> bytes:
     """Read published naming resources without depending on another artifact's source layout."""
     providers = (
         ('eu.algites.lib.naming.convention', ()),
-        ('algites.pub.lib.general.naming.convention.algites',
+        ('algites.pub.lib.general.naming.convention.profile.algites',
          ('eu', 'algites', 'lib', 'naming', 'convention')),
     )
     for package, subpath in providers:
@@ -32,7 +32,7 @@ def prepared(tmp_path):
     config.mkdir()
     for name in ('standard-conventions.yml', 'algites-python-name-conventions.yml',
                  'algites-java-name-conventions.yml', 'algites-yamldef-name-conventions.yml',
-                 'algites-jsondef-name-conventions.yml'):
+                 'algites-jsondef-name-conventions.yml', 'algites-xmldef-name-conventions.yml'):
         (config / name).write_bytes(_naming_resource_bytes(name))
     return tmp_path
 
@@ -51,12 +51,24 @@ def _schema(root, branch, kind, identity='urn:example:customer:1', *, field_type
 
 
 def _manifest(root, paths, *, output='python'):
+    """Explicitly select the Algites fixture profile; production has no default."""
+    role = {kind: f'algites-{kind[:-1]}-schema-versioned_1' for kind, _ in paths}
+    roles = {kind if kind != 'xmldefs' else 'xmldefs_type':
+             f'algites-{output}-gen-intf-versioned_1'
+             for kind, _ in paths}
+    if 'xmldefs' in dict(paths):
+        roles['xmldefs_namespace'] = f'algites-{output}-gen-xml-namespace-intf_1'
+        roles['xmldefs_element'] = f'algites-{output}-gen-xml-element-intf-versioned_1'
     return {'artifact': '.', 'languages': [output],
             'schema_inputs': [dict(kind=k, directory=str(source.parent.parent)) for k, source in paths],
-            'schema_input_naming_profiles': {kind: f'config/algites-{kind[:-1]}-name-conventions.yml'
-                                             for kind, _ in paths},
+            'schema_input_naming_conventions': role,
             'technology_outputs': {output: 'src/product/' + output + '.gen'},
-            'technology_naming_profiles': {output: f'config/algites-{output}-name-conventions.yml'}}
+            'technology_output_naming_conventions': {output: roles},
+            'naming_convention_files': [f'config/{name}' for name in (
+                'standard-conventions.yml', 'algites-python-name-conventions.yml',
+                'algites-java-name-conventions.yml', 'algites-yamldef-name-conventions.yml',
+                'algites-jsondef-name-conventions.yml',
+                'algites-xmldef-name-conventions.yml')]}
 
 
 def _output(root):

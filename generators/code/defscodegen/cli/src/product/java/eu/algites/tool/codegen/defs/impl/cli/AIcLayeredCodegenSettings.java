@@ -59,8 +59,8 @@ public final class AIcLayeredCodegenSettings {
             } else locInvocation.add(locArg);
         }
         String locResourceRoot = "eu/algites/tool/codegen/" + aPackage + "/";
-        String locDefaultName = "algites-" + aGenerator + "-" + aTechnology + "-default.settings";
-        String locOverrideName = "algites-" + aGenerator + "-" + aTechnology + ".settings";
+        String locDefaultName = aGenerator + "-" + aTechnology + "-default.settings";
+        String locOverrideName = aGenerator + "-" + aTechnology + ".settings";
         String locBase = "generators/code/" + aGenerator
                 + "/intf/src/product/config/" + locResourceRoot;
         LinkedHashMap<String, String> locSettings = new LinkedHashMap<>();

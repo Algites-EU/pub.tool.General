@@ -2,7 +2,7 @@
 from pathlib import Path
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
@@ -10,7 +10,7 @@ from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIc
 
 def _request(path):
     return AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-        AIcAlgitesNamingProfiles_1.python_profile())
+        AIcAlgitesNamingProfiles.python_profile())
 
 
 def test_external_complex_extension_retains_namespaces_and_base_qname(tmp_path):
@@ -51,6 +51,7 @@ def test_external_extension_generates_true_java_and_python_parent(tmp_path):
     """An imported XSD base must be a real nominal parent, never copied getters."""
     import json
     from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from explicit_naming_fixture import explicit_legacy_generic_manifest
     source = tmp_path / 'intf/src/product/xmldefs/example/inherited'
     source.mkdir(parents=True)
     (source / 'base_1.xsd').write_text('''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
@@ -65,7 +66,7 @@ def test_external_extension_generates_true_java_and_python_parent(tmp_path):
         </xs:extension></xs:complexContent></xs:complexType>
     </xs:schema>''')
     manifest = tmp_path / 'manifest.json'
-    manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['java', 'python']}))
+    manifest.write_text(json.dumps(explicit_legacy_generic_manifest({'artifact': 'intf', 'languages': ['java', 'python']})))
     AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     jsource = (tmp_path / 'intf/src/product/java.gen/example/inherited/AIigDerived_1.java').read_text()
     assert 'extends example.inherited.AIigBase_1' in jsource
@@ -83,6 +84,7 @@ def test_xsd_extension_without_emitted_base_is_not_silently_flattened(tmp_path):
     import json
     import os
     from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from explicit_naming_fixture import explicit_legacy_generic_manifest
     source = tmp_path / 'intf/src/product/xmldefs/example/derived'
     source.mkdir(parents=True)
     other = tmp_path / 'unpublished'
@@ -100,6 +102,6 @@ def test_xsd_extension_without_emitted_base_is_not_silently_flattened(tmp_path):
         </xs:complexContent></xs:complexType>
     </xs:schema>''')
     manifest = tmp_path / 'manifest.json'
-    manifest.write_text(json.dumps({'artifact': 'intf', 'languages': ['python']}))
+    manifest.write_text(json.dumps(explicit_legacy_generic_manifest({'artifact': 'intf', 'languages': ['python']})))
     with pytest.raises(ValueError, match='no independently emitted contract'):
         AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)

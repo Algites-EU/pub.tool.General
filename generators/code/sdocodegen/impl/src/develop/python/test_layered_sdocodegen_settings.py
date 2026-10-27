@@ -42,7 +42,7 @@ def test_all_sys_path_settings_are_merged_before_explicit_invocation(monkeypatch
     second = tmp_path / 'second'
     for directory in (first, second):
         (directory / 'eu/algites/tool/codegen/sdo').mkdir(parents=True)
-    name = 'algites-sdocodegen-python.settings'
+    name = 'sdocodegen-python.settings'
     (second / 'eu/algites/tool/codegen/sdo/' / name).write_text(
         '--setter-inheritance-policy=INHERIT_AS_FIXED_PARAMETER\n'
         '--naming-conventions-file:second=classpath:second-catalog.yml\n')
@@ -72,7 +72,7 @@ def test_packaged_and_direct_sys_path_settings_accumulate(monkeypatch, tmp_path)
     monkeypatch.chdir(Path(__file__).resolve().parents[7])
     packaged = tmp_path / 'packaged'
     packaged.mkdir()
-    name = 'algites-sdocodegen-python.settings'
+    name = 'sdocodegen-python.settings'
     (packaged / name).write_text('--naming-conventions-file:packaged=classpath:package-only.yml\n')
     original = _layered_settings.importlib.resources.files
 
@@ -96,7 +96,7 @@ def test_packaged_defaults_resolve_from_python_source_classpath_outside_checkout
     from pathlib import Path
     root = Path(__file__).resolve().parents[7]
     config = root / 'generators/code/sdocodegen/intf/src/product/config'
-    assert (config / 'eu/algites/tool/codegen/sdo/algites-sdocodegen-python-default.settings').is_file()
+    assert (config / 'eu/algites/tool/codegen/sdo/sdocodegen-python-default.settings').is_file()
     monkeypatch.syspath_prepend(str(config))
     monkeypatch.chdir(tmp_path)
     assert '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER' in _settings([])

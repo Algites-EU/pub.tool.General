@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
@@ -16,7 +16,7 @@ def _load(tmp_path: Path, content: str):
       xmlns:n="urn:group" targetNamespace="urn:group" elementFormDefault="qualified" version="1">
       ''' + content + '</xs:schema>')
     return AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(
-        path, AInDefinitionSourceKind.XMLDEFS, AIcAlgitesNamingProfiles_1.python_profile()))
+        path, AInDefinitionSourceKind.XMLDEFS, AIcAlgitesNamingProfiles.python_profile()))
 
 
 @pytest.mark.parametrize('compositor', ('sequence', 'all'))

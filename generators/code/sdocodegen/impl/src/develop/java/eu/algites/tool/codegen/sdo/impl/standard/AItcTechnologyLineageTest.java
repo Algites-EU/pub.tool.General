@@ -46,7 +46,7 @@ public final class AItcTechnologyLineageTest {
     /** Check each mutable marker, concrete implementation base, and XML QName metadata. */
     @Test
     public void AIcGeneratesTechnologySpecificTypes() {
-        AIcSdoCodegenService locService = new AIcSdoCodegenService();
+        AItcConfiguredSdoCodegenService locService = new AItcConfiguredSdoCodegenService();
         verify(locService, AIigJson_1.class, "Json");
         verify(locService, AIigYaml_1.class, "Yaml");
         verify(locService, AIigXml_1.class, "Xml");
@@ -59,7 +59,7 @@ public final class AItcTechnologyLineageTest {
     }
 
     /** Verify one schema family without depending on source naming conventions. */
-    private static void verify(AIcSdoCodegenService aService, Class<?> aRead, String aFamily) {
+    private static void verify(AItcConfiguredSdoCodegenService aService, Class<?> aRead, String aFamily) {
         var locSources = aService.generate(aRead, "d");
         require(locSources.mutableInterface().source().contains("AIi" + aFamily + "SmartDataObject"),
                 "Wrong mutable marker for " + aFamily);

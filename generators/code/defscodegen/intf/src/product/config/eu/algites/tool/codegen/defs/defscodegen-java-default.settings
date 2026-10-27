@@ -1,0 +1,7 @@
+# Neutral native Codegen defaults; naming profiles are selected by an external build-time profile artifact.
+--repository-root=.
+--schema-input-dir:xmldefs=src/product/xmldefs
+--schema-input-dir:yamldefs=src/product/yamldefs
+--schema-input-dir:jsondefs=src/product/jsondefs
+--technology-dointf-output-dir:java=src/product/java.gen
+--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER

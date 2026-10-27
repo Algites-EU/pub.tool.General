@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
@@ -14,7 +14,7 @@ from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPrese
 
 
 def _request(path, kind=AInDefinitionSourceKind.XMLDEFS):
-    return AIcdDefinitionLoadRequest(path, kind, AIcAlgitesNamingProfiles_1.python_profile())
+    return AIcdDefinitionLoadRequest(path, kind, AIcAlgitesNamingProfiles.python_profile())
 
 
 def _xml(tmp_path, content):

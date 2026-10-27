@@ -3,13 +3,13 @@ from pathlib import Path
 import json
 import yaml
 import pytest
-from eu.algites.lib.naming.convention.impl.algites.aic_name_convention_catalog_1 import AIcNameConventionCatalog_1
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 
 
 ROOT = Path(__file__).resolve().parents[7]
 LIB = ROOT / 'pub.lib.General'
 TOOL = ROOT / 'pub.tool.General'
-LIB_CONFIG = LIB / 'naming/convention/algites/src/product/config/eu/algites/lib/naming/convention'
+LIB_CONFIG = LIB / 'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention'
 METHOD_CONFIG = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
 EXPECTED = {'standard_getter': 'getName',
             'standard_setter': 'setName',
@@ -21,7 +21,7 @@ EXPECTED = {'standard_getter': 'getName',
 @pytest.mark.parametrize('technology', ('java', 'python'))
 def test_shared_method_naming_composes_using_existing_catalog(technology):
     """DO/SDO method profiles are independent of source-file naming profiles."""
-    catalog = AIcNameConventionCatalog_1.load_many([
+    catalog = AIcNameConventionCatalog.load_many([
         LIB_CONFIG / f'algites-{technology}-name-conventions.yml',
         METHOD_CONFIG / f'algites-{technology}-codegen-method-conventions.yml'])
     assert len(catalog.names) == 59
@@ -49,7 +49,7 @@ def test_user_defined_composition_is_not_forced_to_add_technical_prefix(tmp_path
     mapping['user-profile'] = item
     override = tmp_path / 'custom.yml'
     override.write_text(yaml.safe_dump(selected))
-    catalog = AIcNameConventionCatalog_1.load_many([
+    catalog = AIcNameConventionCatalog.load_many([
         LIB_CONFIG / 'algites-python-name-conventions.yml', override])
     catalog = catalog.with_generated_method_profile('user-profile')
     assert catalog.format('user-profile', 'raw_presence_checker_method',
@@ -123,7 +123,7 @@ def test_generated_method_catalog_has_editor_schema_header(technology):
 @pytest.mark.parametrize('technology', ('java', 'python'))
 def test_unresolved_cross_catalog_composition_is_reported(technology):
     """A standalone method catalog must not silently invent source compositions."""
-    catalog = AIcNameConventionCatalog_1.load(
+    catalog = AIcNameConventionCatalog.load(
         METHOD_CONFIG / f'algites-{technology}-codegen-method-conventions.yml')
     profile = f'algites-{technology}-codegen-standard_1'
     catalog = catalog.with_generated_method_profile(profile)
@@ -138,7 +138,7 @@ def test_default_settings_load_both_method_and_source_catalogs(technology, gener
     """Algites build profile supplies the cross-catalog references for both codegens."""
     artifact = 'defscodegen' if generator == 'defs' else 'sdocodegen'
     path = (TOOL / f'generators/code/profile/algites/src/product/config/eu/'
-            f'algites/tool/codegen/{generator}/algites-{artifact}-{technology}.settings')
+            f'algites/tool/codegen/{generator}/{artifact}-{technology}.settings')
     settings = path.read_text(encoding='utf-8')
     assert f'classpath:algites-{technology}-name-conventions.yml' in settings
     assert f'classpath:algites-{technology}-codegen-method-conventions.yml' in settings
@@ -154,7 +154,7 @@ def test_method_catalog_rejects_enabled_wire_field_without_schema_source(tmp_pat
     path = tmp_path/'inconsistent.yml'
     path.write_text(yaml.safe_dump(instance), encoding='utf-8')
     with pytest.raises(ValueError, match=f'data_source_schema_{suffix} requires schema_source_schema_{suffix}'):
-        AIcNameConventionCatalog_1.load(path)
+        AIcNameConventionCatalog.load(path)
 
 
 @pytest.mark.parametrize('technology', ('java', 'python'))

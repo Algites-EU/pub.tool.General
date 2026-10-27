@@ -74,7 +74,7 @@ public final class AItcSetterInheritancePolicyTest {
      */
     @Test
     public void AIcCompilesSpecializedSettersAndDiamond() throws Exception {
-        var locGenerator = new AIcSdoCodegenService();
+        var locGenerator = new AItcConfiguredSdoCodegenService();
         var locRoot = Files.createTempDirectory("sdo-setter-generics-");
         var locOutput = Files.createDirectories(locRoot.resolve("classes"));
         var locSources = new ArrayList<String>();
@@ -114,6 +114,6 @@ public final class AItcSetterInheritancePolicyTest {
     @Test
     public void AIcRejectsInvalidRefinementOfFixedSetter() {
         Assert.expectThrows(IllegalArgumentException.class,
-                () -> new AIcSdoCodegenService().generate(AIigInvalidFixed.class, "d"));
+                () -> new AItcConfiguredSdoCodegenService().generate(AIigInvalidFixed.class, "d"));
     }
 }

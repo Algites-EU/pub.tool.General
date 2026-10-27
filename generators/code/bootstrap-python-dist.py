@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build all native Python Codegen distributions outside Modustro conventions.
 
-The seven product descriptors are authoritative for package dependencies; staging
+The artifact descriptors are authoritative for package dependencies; staging
 collects only the corresponding artifact's Python sources and package resources.
 No generated sources are edited and no source-tree pyproject is created.
 """
@@ -174,11 +174,11 @@ def verify_wheel(wheel: Path, name: str, generator: str, part: str | None, relea
             for target in ("java", "python"):
                 for implementation in ("defs", "sdo"):
                     entry = (f"eu/algites/tool/codegen/{implementation}/"
-                             f"algites-{'defscodegen' if implementation == 'defs' else 'sdocodegen'}-{target}.settings")
+                             f"{'defscodegen' if implementation == 'defs' else 'sdocodegen'}-{target}.settings")
                     if entry not in entries:
                         raise ValueError(f"Missing {part} profile settings in wheel: {entry}")
         if part == "intf":
-            settings = f"eu/algites/tool/codegen/{'defs' if generator == 'defscodegen' else 'sdo'}/algites-{generator}-python-default.settings"
+            settings = f"eu/algites/tool/codegen/{'defs' if generator == 'defscodegen' else 'sdo'}/{generator}-python-default.settings"
             if settings not in entries:
                 raise ValueError(f"Missing packaged default settings: {settings}")
         if part == "cli":

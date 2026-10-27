@@ -1,3 +1,4 @@
+from explicit_legacy_naming import catalog, source_convention, output_convention, rendering_catalog
 """Regression checks for null/absence semantics in schema-driven Python DTO generation."""
 import json
 from pathlib import Path
@@ -5,11 +6,11 @@ import types
 
 import pytest
 
-from eu.algites.lib.naming.convention.impl.algites.aic_algites_naming_profiles_1 import AIcAlgitesNamingProfiles_1
+from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.impl.standard._json_nullability import _accepts_null
 from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
+from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 
@@ -46,9 +47,9 @@ def test_generated_nullable_dto_round_trip(tmp_path: Path):
     }
     path = tmp_path / "nullable-input_1.jsondef.schema.json"
     path.write_text(json.dumps(doc), encoding="utf-8")
-    profile = AIcAlgitesNamingProfiles_1.python_profile()
+    profile = catalog('python')
     service = AIcDefaultDefsCodegenService()
-    definition = service.load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, profile))
+    definition = service.load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, profile, "algites-jsondef-schema-versioned_1"))
     props = {p.source_name:p for p in definition.data_type.properties}
     assert props['Outcome'].nullable
     assert props['Result'].nullable
@@ -57,7 +58,8 @@ def test_generated_nullable_dto_round_trip(tmp_path: Path):
     assert not props['Limited'].nullable
     assert props['Outcome'].data_type.constraints.enum_values == ('success', 'error')
     assert props['Constant'].data_type.constraints.enum_values == ('exact',)
-    generated = service.generate(AIcdCodeGenerationRequest(definition, AInCodeGenerationTarget.PYTHON, 'test.generated', profile))
+    generated = service.generate(AIcdCodeGenerationRequest(definition, AInCodeGenerationTarget.PYTHON, 'test.generated', rendering_catalog(profile, 'python'),
+            None, output_convention('python'), 'common'))
     module = types.ModuleType('test_nullable_generated')
     module.__dict__['__name__'] = 'test_nullable_generated'
     import sys
