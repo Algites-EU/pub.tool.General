@@ -145,3 +145,25 @@ def test_array_references_to_defs_use_identical_nominal_types(tmp_path, monkeypa
     module = importlib.import_module('example.reference_arrays.aiig_example_1')
     assert module.AIigExample_1.__annotations__['account'] == 'AIigExampleDefinitionAccount_1'
     assert 'AIigExampleDefinitionAccount_1' in module.AIigExample_1.__annotations__['accounts']
+
+
+def test_inline_literal_choice_references_generated_enum(tmp_path):
+    """An enum-only oneOf emits a named enum, never a missing AIig choice type."""
+    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from explicit_naming_fixture import explicit_algites_manifest
+    root = tmp_path / 'intf/src/product/jsondefs/example/choices'
+    root.mkdir(parents=True)
+    schema = {'type': 'object', 'properties': {'languages': {'type': 'array',
+        'items': {'enum': ['java', 'python'], 'oneOf': [
+            {'const': 'java', 'title': 'Java'}, {'const': 'python', 'title': 'Python'}]}}}}
+    (root / 'schema_1.jsondef.schema.json').write_text(json.dumps(schema))
+    selected = explicit_algites_manifest({'artifact': 'intf', 'languages': ['java', 'python']})
+    AIcSchemaContractBindingsGenerator().generate_manifest(tmp_path, selected)
+    java = tmp_path / 'intf/src/product/java.gen/example/choices'
+    source = (java / 'AIig_jSchema_1.java').read_text()
+    enum_name = 'AIngSchemaLanguagesItems_1'
+    assert (java / (enum_name + '.java')).exists()
+    assert f'java.util.List<? extends {enum_name}> getLanguages()' in source
+    assert 'AIig_jSchemaLanguagesItems_1' not in source
+    py = tmp_path / 'intf/src/product/python.gen/example/choices'
+    assert 'AIngSchemaLanguagesItems_1' in (py / 'aiig__j_schema_1.py').read_text()

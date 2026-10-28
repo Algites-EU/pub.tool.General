@@ -26,6 +26,19 @@ of generated sources is appended by the generator.
 `*.gen` trees are generated outputs, not handwritten sources. Gradle `clean`
 removes standard `src/product/java.gen`, `src/product/python.gen`,
 `src/develop/java.gen`, and `src/develop/python.gen` under each artifact.
+The canonical `generators/code/bootstrap.sh` delegates to the shared
+`devops/bootstrap/bootstrap.sh --root generators/code` entry point. It clears
+only native `.gen` trees inside that selected root, **regenerates** Defs
+contracts before build and recreates `build/run/tool-bootstrap`. The
+`--root` argument can narrow scope further. The independent emergency
+`generators/code/bootstrap-selfhosted.sh` retains the legacy fixed-subset
+self-hosting Gradle script and its `build/run/codegen-bootstrap` output.
+
+Common contract identity normalization accepts XML `urn:eu:algites:` namespace
+aliases of an explicit dotted JSON/YAML schema ID only where the package,
+logical name and version match exactly. A closed choice of string constants
+and an XML string project to a common string getter, while the source-specific
+choice constraints remain on the format-specific contract.
 
 ## 2. Defs Codegen — explicit semantic naming roles
 
@@ -440,3 +453,14 @@ from the same source as the referring YAML file, including ZIP resources.
 Java uses each resource's own JAR/directory for referenced sibling catalogs.
 Classpath references accept only a simple YAML filename, not path traversal.
 The previous `resource:NAME.yml` spelling remains a compatibility alias.
+
+### Deferred: XML round-trip for repeated `xs:choice`
+
+The Defs frontends and contract generators can represent repeated XML choices
+as collections of generated `ParentTypeChoice1`, `ParentTypeChoice2`, etc.
+This is **not yet a complete XML runtime feature**: Java and Python
+SmartDataObject marshalling/unmarshalling must dispatch each collection item
+by its own QName and preserve order, cardinality and variants. Complete the
+cross-language XML round-trip and invalid-input tests before declaring this
+feature supported end-to-end. This is independent of the Security
+`ProfileType` XSD 1.0 `xs:all` contract.

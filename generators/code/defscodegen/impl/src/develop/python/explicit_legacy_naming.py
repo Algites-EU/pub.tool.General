@@ -7,14 +7,10 @@ from pathlib import Path
 from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 
 
-_BASE = Path(__file__).resolve().parents[8] / (
-    'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention')
-
-
 def catalog(language: str):
-    """Return all configured schema families and one selected language family."""
+    """Return explicit installed naming resources, independent of sibling checkouts."""
     return AIcNameConventionCatalog.load_many([
-        _BASE / f'algites-{family}-name-conventions.yml'
+        f'resource:algites-{family}-name-conventions.yml'
         for family in (language, 'jsondef', 'yamldef', 'xmldef')])
 
 

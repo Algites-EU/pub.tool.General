@@ -23,8 +23,9 @@ public final class AIcSchemaContractInterfaceGenerator {
         }
         String locSource = locBase.source();
         if (aRequest.target() == AInCodeGenerationTarget.PYTHON) {
-            String locDeclaration = "class " + locBase.typeName() + "("
-                    + AIcPythonSchemaContractRenderer.baseType(aRequest.definition().sourceKind()) + ", ABC):";
+            String locBaseType = aRequest.contractRole().equals("common")
+                    ? "AIiDataObject" : AIcPythonSchemaContractRenderer.baseType(aRequest.definition().sourceKind());
+            String locDeclaration = "class " + locBase.typeName() + "(" + locBaseType + ", ABC):";
             if (!locSource.contains(locDeclaration)) throw new IllegalStateException("Cannot locate Python contract");
             locSource = locSource.replace(locDeclaration, "class " + locBase.typeName() + "(" + aParentType + "):");
             locSource = locSource.replace("from __future__ import annotations\n",

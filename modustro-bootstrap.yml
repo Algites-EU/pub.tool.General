@@ -1,0 +1,20 @@
+# Repository-specific bootstrap configuration. The implementation in
+# devops/bootstrap is byte-identical across source repositories.
+Build:
+  WorkDirectory: build/run/tool-bootstrap
+  JavaRelease: 17
+  PythonRequires: ">=3.11"
+Publication:
+  Maven: algites/java-snapshots-pub
+  Python: algites/python-snapshots-pub
+DependencyResolution:
+  RemoteMavenUrl: https://dl.cloudsmith.io/public/algites/java-snapshots-pub/maven/
+  RemoteGroupRegex: 'eu\.algites\..*'
+
+DistributionNaming:
+  PythonPrefix: eu-algites
+DependencyVersions:
+  JavaPreferred:
+    com.fasterxml.jackson.core:jackson-databind: '2.18.3'
+    com.fasterxml.jackson.dataformat:jackson-dataformat-yaml: '2.18.3'
+    com.fasterxml.jackson.core:jackson-annotations: '2.18.3'

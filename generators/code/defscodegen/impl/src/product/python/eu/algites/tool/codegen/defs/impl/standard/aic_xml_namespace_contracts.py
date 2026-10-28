@@ -77,6 +77,11 @@ def decorate(generated: str, request, marker: str, fields: dict[str, str], pytho
         if declaration:
             bases = [part.strip() for part in declaration.group(2).split(',') if part.strip()]
             bases = [base for base in bases if base != 'AIiXmlDataObject']
+            # Every nominal read-contract base already derives from ABC.  An
+            # explicit ABC placed ahead of the XML namespace interface would
+            # violate Python's C3 MRO once both bases share AIiDataObject.
+            if any(base != 'ABC' for base in bases):
+                bases = [base for base in bases if base != 'ABC']
             if '.xmlschema_' not in request.package_name:
                 # Preserve existing XML extension inheritance, including a
                 # different namespace marker contributed by a derived XSD.

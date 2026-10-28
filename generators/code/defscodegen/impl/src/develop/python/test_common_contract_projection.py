@@ -128,3 +128,75 @@ def test_batch_produces_common_and_independent_schema_interfaces(tmp_path, monke
                       .AIig_yCapabilityDefinition_1, common_class)
     assert issubclass(import_module('example.contracts.aiig__j_capability_definition_1')
                       .AIig_jCapabilityDefinition_1, common_class)
+
+
+def test_implicit_json_yaml_and_qualified_xml_common_id_are_equivalent():
+    """XML namespace used as a qualified root name is an exact implicit ID alias."""
+    match = AIcSchemaContractBindingsGenerator._common_explicit_matches_implicit
+    implicit = ('implicit', 'eu.algites.lib.naming.convention', 'common-naming-conventions', 1, '')
+    qualified = ('explicit', 'eu.algites.lib.naming.convention.common-naming-conventions', 1)
+    assert match(qualified, implicit)
+    assert match(('explicit', 'urn:algites:model:common-naming-conventions:1', 1), implicit)
+    assert not match(('explicit', 'eu.other.convention.common-naming-conventions', 1), implicit)
+    assert not match(('explicit', 'eu.algites.lib.naming.convention.other', 1), implicit)
+    assert not match(('explicit', qualified[1], 2), implicit)
+    assert not match(qualified, ('implicit', implicit[1], implicit[2], 1,
+                                 '/properties/Nested'))
+    assert not match(('explicit', 'urn:foreign:model:common-naming-conventions:1', 1), implicit)
+
+
+def test_exact_algites_xml_namespace_alias_matches_dotted_common_schema_id():
+    """The same Defs schema expressed as XML/JSON/YAML merges only for exact URNs."""
+    generator = AIcSchemaContractBindingsGenerator
+    xml = _definition(AInDefinitionSourceKind.XMLDEFS,
+        'urn:eu:algites:tool:codegen:defs:input-profile:1', ())
+    xml = replace(xml, logical_name='input-profile')
+    assert generator._common_identity(xml, 'eu.algites.tool.codegen.defs',
+        ('explicit', xml.identity, 1)) == (
+            'explicit', 'eu.algites.tool.codegen.defs.input-profile', 1)
+    assert generator._common_identity(xml, 'eu.algites.tool.codegen.other',
+        ('explicit', xml.identity, 1)) == ('explicit', xml.identity, 1)
+    changed_version = replace(xml, version=2)
+    assert generator._common_identity(changed_version, 'eu.algites.tool.codegen.defs',
+        ('explicit', xml.identity, 2)) == ('explicit', xml.identity, 2)
+
+
+def test_string_closed_choice_relaxes_only_common_scalar_contract():
+    """A finite JSON choice of strings and XML string share a String getter."""
+    strings = AIcdDataType(AInDataTypeKind.ONE_OF, alternatives=(
+        AIcdDataType(AInDataTypeKind.STRING), AIcdDataType(AInDataTypeKind.STRING)))
+    xml = _definition(AInDefinitionSourceKind.XMLDEFS, 'urn:algites:options:1',
+        [AIcdPropertyDefinition('Languages', AIcdDataType(AInDataTypeKind.ARRAY,
+            element_type=AIcdDataType(AInDataTypeKind.STRING)))])
+    json = _definition(AInDefinitionSourceKind.JSONDEFS, 'urn:algites:options:1',
+        [AIcdPropertyDefinition('Languages', AIcdDataType(AInDataTypeKind.ARRAY,
+            element_type=strings))])
+    merged = merge_common([json, xml])
+    assert merged.data_type.properties[0].data_type.element_type.kind is AInDataTypeKind.STRING
+    invalid = replace(xml, data_type=AIcdDataType(AInDataTypeKind.OBJECT, properties=(
+        AIcdPropertyDefinition('Languages', AIcdDataType(AInDataTypeKind.ARRAY,
+            element_type=AIcdDataType(AInDataTypeKind.INTEGER))),)))
+    with pytest.raises(ValueError, match='Incompatible common field type.*Languages'):
+        merge_common([json, invalid])
+
+
+def test_shared_string_and_literal_enum_have_covariant_java_types():
+    """A format-specific enum getter must refine, not contradict, a shared field."""
+    from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
+    string = AIcdDataType(AInDataTypeKind.STRING)
+    choices = AIcdDataType.choice(AInDataTypeKind.ONE_OF, (
+        AIcdDataType(AInDataTypeKind.STRING,
+            constraints=AIcdValueConstraints(enum_values=('java',))),
+        AIcdDataType(AInDataTypeKind.STRING,
+            constraints=AIcdValueConstraints(enum_values=('python',))),
+    ))
+    base = AIcdDataType(AInDataTypeKind.ARRAY, element_type=string)
+    specialization = AIcdDataType(AInDataTypeKind.ARRAY, element_type=choices)
+    field = _field('Languages', AInDataTypeKind.ARRAY)
+    xml = _definition(AInDefinitionSourceKind.XMLDEFS, 'urn:algites:languages:1',
+        [replace(field, data_type=base)])
+    yaml = _definition(AInDefinitionSourceKind.YAMLDEFS, 'urn:algites:languages:1',
+        [replace(field, data_type=specialization)])
+    merged = merge_common((xml, yaml))
+    assert merged.data_type.properties[0].data_type.element_type.kind is AInDataTypeKind.ANY
+    assert yaml.data_type.properties[0].data_type.element_type.kind is AInDataTypeKind.ONE_OF

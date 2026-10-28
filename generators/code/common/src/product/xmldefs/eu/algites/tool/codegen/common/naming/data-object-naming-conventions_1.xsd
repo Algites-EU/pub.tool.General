@@ -1,9 +1,14 @@
-<?xml version='1.0' encoding='UTF-8'?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="eu.algites.tool.codegen.common.naming.data-object-naming-conventions" version="1" xmlns:common="eu.algites.lib.naming.convention.common-naming-conventions">
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="eu.algites.tool.codegen.common.naming.data-object-naming-conventions"
+           version="1"
+           xmlns:common="eu.algites.lib.naming.convention.common-naming-conventions"
+           xmlns:kind="eu.algites.tool.codegen.common.naming.generated-dataobject-method-kind">
   <xs:annotation>
-    <xs:documentation>Generated DataObject method profiles extend common naming compositions. Their StructureNaming map contains mandatory standard_getter and standard_setter; optional raw_getter, raw_presence_checker_method and raw_unsetter; and six optional schema_source_schema_* and data_source_schema_* string fields, which must be paired. Dynamic keys are validated by JSONDEFS/YAMLDEFS definitions.</xs:documentation>
+    <xs:documentation>Generated DataObject method profiles use typed, uniquely keyed naming rules and six optional schema metadata mappings. Mandatory standard_getter and standard_setter entries are validated by the JSON/YAML definition and the naming profile loader.</xs:documentation>
   </xs:annotation>
-  <xs:import namespace="eu.algites.lib.naming.convention.common-naming-conventions" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd" />
+  <xs:import namespace="eu.algites.lib.naming.convention.common-naming-conventions" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"/>
+  <xs:import namespace="eu.algites.tool.codegen.common.naming.generated-dataobject-method-kind" schemaLocation="generated-dataobject-method-kind_1.xsd"/>
   <xs:complexType name="data-object-naming-conventions">
     <xs:complexContent>
       <xs:extension base="common:common-naming-conventions">
@@ -14,9 +19,44 @@
                 <xs:element name="NameConventions">
                   <xs:complexType>
                     <xs:sequence>
-                      <xs:any minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+                      <xs:element name="NameConvention" minOccurs="0" maxOccurs="unbounded">
+                        <xs:complexType>
+                          <xs:sequence>
+                            <xs:element name="StructureNaming">
+                              <xs:complexType>
+                                <xs:sequence>
+                                  <xs:element name="Rule" minOccurs="0" maxOccurs="unbounded">
+                                    <xs:complexType>
+                                      <xs:simpleContent>
+                                        <xs:extension base="xs:string">
+                                          <xs:attribute name="kind" type="kind:generated-dataobject-method-kind" use="required"/>
+                                        </xs:extension>
+                                      </xs:simpleContent>
+                                    </xs:complexType>
+                                  </xs:element>
+                                </xs:sequence>
+                              </xs:complexType>
+                              <xs:key name="UniqueMethodKinds">
+                                <xs:selector xpath="Rule"/>
+                                <xs:field xpath="@kind"/>
+                              </xs:key>
+                            </xs:element>
+                  <xs:element name="schema_source_schema_url" type="xs:string" minOccurs="0"/>
+                  <xs:element name="schema_source_schema_identifier" type="xs:string" minOccurs="0"/>
+                  <xs:element name="schema_source_schema_version" type="xs:string" minOccurs="0"/>
+                  <xs:element name="data_source_schema_url" type="xs:string" minOccurs="0"/>
+                  <xs:element name="data_source_schema_identifier" type="xs:string" minOccurs="0"/>
+                  <xs:element name="data_source_schema_version" type="xs:string" minOccurs="0"/>
+                          </xs:sequence>
+                          <xs:attribute name="name" type="xs:string" use="required"/>
+                        </xs:complexType>
+                      </xs:element>
                     </xs:sequence>
                   </xs:complexType>
+                  <xs:key name="UniqueMethodNamingProfiles">
+                    <xs:selector xpath="NameConvention"/>
+                    <xs:field xpath="@name"/>
+                  </xs:key>
                 </xs:element>
               </xs:sequence>
             </xs:complexType>

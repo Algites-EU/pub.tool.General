@@ -73,10 +73,15 @@ final class AIcNamingCatalogCollector {
                     Matcher locStandard = STANDARD.matcher(locText);
                     if (locStandard.find()) {
                         String locSiblingName = locStandard.group(1);
-                        String locBaseUrl = locUrl.toExternalForm();
-                        URL locSibling = new URL(locBaseUrl.substring(0, locBaseUrl.lastIndexOf('/') + 1)
-                                + locSiblingName);
-                        try (InputStream locStream = locSibling.openStream()) {
+                        /* The shared standard grammar belongs to naming/convention/intf,
+                         * not to the profile JAR providing the referring catalog.
+                         * Resolving it through the classloader also supports separate
+                         * Maven artifacts and exploded class directories. */
+                        String locSharedResource = PREFIX + locSiblingName;
+                        try (InputStream locStream = locLoader.getResourceAsStream(locSharedResource)) {
+                            if (locStream == null)
+                                throw new IOException("Missing shared standard naming resource: "
+                                        + locSharedResource + " (required by " + locUrl + ")");
                             Files.copy(locStream, locFolder.resolve(locSiblingName));
                         }
                     }

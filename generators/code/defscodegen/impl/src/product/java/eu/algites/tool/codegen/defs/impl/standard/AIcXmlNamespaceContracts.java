@@ -90,6 +90,10 @@ final class AIcXmlNamespaceContracts {
             Matcher matcher = pattern.matcher(result);
             if (matcher.find()) {
                 String existing = matcher.group(2).replace("AIiXmlDataObject, ", "").replace("AIiXmlDataObject", "");
+                /* Nominal parents already inherit ABC, and an explicit ABC before
+                 * the XML namespace marker would violate Python C3 MRO. */
+                if (!existing.isBlank() && !existing.equals("ABC"))
+                    existing = existing.replace(", ABC", "").replace("ABC, ", "");
                 if (existing.equals("ABC")) existing = name + ", " + existing;
                 else existing += ", " + name;
                 String declaration = matcher.group(1) + existing + matcher.group(3);

@@ -167,27 +167,14 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         }
         var locParents = Arrays.stream(aReadContract.getInterfaces())
                 .filter(AIcSdoCodegenService::isReadContract).toList();
-        Class<?> locParent = locParents.isEmpty() ? null : locParents.get(0);
-        LinkedHashMap<String, AIcdGetter> locOwn = fields(aReadContract.getDeclaredMethods(), aInputNames);
         LinkedHashMap<String, AIcdGetter> locAll = inheritedFields(aReadContract, aInputNames);
-        /* Generic mutable ancestors cannot be extended through an implementation
-         * that has already fixed their type arguments. A concrete subtype therefore
-         * implements its complete writable contract and its inherited fields directly.
-         * The mutable interface retains every parent edge, including diamonds.
+        Map<String, String> locEffectiveDataNames = effectiveDataNames(aReadContract, aInputNames);
+        /* Mutable interfaces keep the complete read-only hierarchy, but generated
+         * concrete SDO implementations never inherit other generated implementations.
+         * Each implementation derives directly from its technology-specific runtime
+         * base and must therefore emit accessors for every inherited field.
          */
-        boolean locNeedsFlattenedImplementation = locParents.size() > 1;
-        if (locParent != null) {
-            LinkedHashMap<String, AIcdGetter> locParentFields = inheritedFields(locParent, aInputNames);
-            for (var locEntry : locParentFields.entrySet()) {
-                AIcdGetter locOverride = locAll.get(locEntry.getKey());
-                if (locOverride == null || referencedContract(locEntry.getValue().method())
-                        != referencedContract(locOverride.method())) {
-                    locNeedsFlattenedImplementation = true;
-                    break;
-                }
-            }
-        }
-        if (locNeedsFlattenedImplementation) locOwn = locAll;
+        LinkedHashMap<String, AIcdGetter> locOwn = locAll;
         String locPackage = aReadContract.getPackageName();
         String locMutablePackage = appendedPackage(locPackage, aMutableSubpackage);
         String locConcretePackage = appendedPackage(locPackage, aConcreteSubpackage);
@@ -274,15 +261,15 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             }
             locFieldPolicies.put(locFieldName, locPolicy.name());
             if (locPolicy == AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
-                    && referencedContract(locDefinition.method()) != null)
-                locTypeVariables.put(locFieldName, "T" + Character.toUpperCase(locFieldName.charAt(0)) + locFieldName.substring(1));
+                    && supportsGenericSetterValue(locDefinition.method()))
+                locTypeVariables.put(locFieldName, "T" + locFieldName);
         }
         List<String> locTypeBounds = new ArrayList<>();
         for (var locEntry : locTypeVariables.entrySet()) {
             AIcdGetter locDefinition = locAll.get(locEntry.getKey());
-            Class<?> locTarget = referencedContract(locDefinition.method());
-            locTypeBounds.add(locEntry.getValue() + " extends " + qualifiedMutableValueName(locTarget,
-                    locMarker, aInputNames, aMutableNames, aConcreteNames, aMutableSubpackage));
+            locTypeBounds.add(locEntry.getValue() + " extends " + genericSetterElementBound(
+                    locDefinition.method(), locMarker, aInputNames, aMutableNames,
+                    aConcreteNames, aMutableSubpackage));
         }
         String locGenericDeclaration = locTypeBounds.isEmpty() ? "" : "<" + String.join(", ", locTypeBounds) + ">";
         List<String> locParentDeclarations = new ArrayList<>();
@@ -290,7 +277,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             List<String> locParentArguments = new ArrayList<>();
             for (var locAncestorField : inheritedFields(locAncestor, aInputNames).entrySet()) {
                 if (setterPolicy(locAncestorField.getValue()) != AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
-                        || referencedContract(locAncestorField.getValue().method()) == null) continue;
+                        || !supportsGenericSetterValue(locAncestorField.getValue().method())) continue;
                 String locVariable = locTypeVariables.get(locAncestorField.getKey());
                 if (locVariable == null) throw new IllegalArgumentException("Missing inherited setter type argument for "
                         + locAncestorField.getKey() + " in " + aReadContract);
@@ -303,15 +290,12 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         }
         String locMutableParents = locParentDeclarations.stream()
                 .reduce("", (aLeft, aRight) -> aLeft + ", " + aRight);
-        String locConcreteParent = locNeedsFlattenedImplementation || locParent == null
-                ? implementationBase(aReadContract)
-                : qualifiedName(locParent, typeName(locParent, locMarker, false,
-                        aInputNames, aMutableNames, aConcreteNames), aConcreteSubpackage);
+        String locConcreteParent = implementationBase(aReadContract);
         String locConcreteArguments = locTypeVariables.isEmpty() ? "" : "<" + String.join(", ",
                 locTypeVariables.keySet().stream().map(aName -> {
-                    Class<?> locTarget = referencedContract(locAll.get(aName).method());
-                    return qualifiedMutableValueName(locTarget, locMarker,
-                            aInputNames, aMutableNames, aConcreteNames, aMutableSubpackage);
+                    return genericSetterElementBound(locAll.get(aName).method(),
+                            locMarker, aInputNames, aMutableNames,
+                            aConcreteNames, aMutableSubpackage);
                 }).toList()) + ">";
         StringBuilder locInterface = new StringBuilder("package " + locMutablePackage + ";\n\n"
                 + "/** Generated mutable contract derived from " + aReadContract.getSimpleName() + ". */\n"
@@ -333,7 +317,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 + "(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }\n");
         for (var locField : locOwn.values()) {
             Method locGetter = locField.method();
-            String locName = fieldName(locField.method(), locField.field(), aInputNames);
+            String locName = semanticFieldId(locField.method(), aInputNames);
             String locType = mutableValueType(locGetter, locMarker, aInputNames, aMutableNames,
                     aConcreteNames, aMutableSubpackage);
             String locVariable = locTypeVariables.get(locName);
@@ -343,7 +327,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             String locSuffix = Character.toUpperCase(locName.charAt(0)) + locName.substring(1);
             AIcNameConventionCatalog locAccessorCatalog = Objects.requireNonNull(aMutableNames, "mutable naming profile");
             String locSetterProfile = locMutableConvention;
-            String locIdentifierConvention = semanticIdentifierConvention(locName);
+            String locIdentifierConvention = "upper_camel_case_1";
             String locSetterName = locAccessorCatalog.format(locSetterProfile, "setter_method_name",
                     Map.of("identifier", locName), locIdentifierConvention);
             String locMethodProfile = locAccessorCatalog.generatedMethodProfile();
@@ -384,7 +368,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             locInterface.append("    /** Typed writable access to field ")
                     .append(locName).append(" under the published setter policy. */\n");
             locInterface.append("    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = \"")
-                    .append(escape(locName)).append("\", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.")
+                    .append(escape(locEffectiveDataNames.get(locName))).append("\", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.")
                     .append(locField.field().presence().name()).append(", allowsNull = ")
                     .append(locField.field().allowsNull())
                     .append(", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.")
@@ -446,7 +430,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 if (locTarget == null) continue;
                 if (!AIiXmlDataObject.class.isAssignableFrom(locTarget))
                     throw new IllegalArgumentException("XML field references a non-XML DataObject: " + locGetter);
-                String locName = fieldName(locGetter, locField.field(), aInputNames);
+                String locName = semanticFieldId(locGetter, aInputNames);
                 locNested.put(locName, qualifiedName(locTarget,
                         typeName(locTarget, locMarker, false, aInputNames, aMutableNames, aConcreteNames),
                         aConcreteSubpackage));
@@ -649,8 +633,22 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         return locResult.toString();
     }
 
-    /** Tests the semantic contract hierarchy, independent of the declared Java type name. */
-    private static boolean isReadContract(Class<?> aClass) {
+    /**
+     * Determines whether an interface is a usable read-only DataObject contract.
+     *
+     * <p>The predicate is shared with binary-artifact discovery in the SDO CLI.
+     * A marker such as a generated XML namespace interface may indirectly extend
+     * {@link AIiDataObject}, but does not describe a DataObject to instantiate.
+     * In particular, an unannotated {@link AIiXmlDataObjectNamespace} descendant
+     * is excluded, while an annotated XML definition implementing the same
+     * namespace marker remains eligible. Handwritten DataObject interfaces are
+     * not required to carry an {@link AIaDataObject} annotation.
+     *
+     * @param aClass candidate type obtained from compiled artifacts or source loading;
+     *               must not be {@code null}
+     * @return {@code true} only for an eligible non-framework read-only contract
+     */
+    public static boolean isReadContract(Class<?> aClass) {
         return aClass.isInterface() && !aClass.getPackageName().startsWith("eu.algites.lib.data.dataobject")
                 && AIiDataObject.class.isAssignableFrom(aClass)
                 && !(AIiXmlDataObjectNamespace.class.isAssignableFrom(aClass)
@@ -727,60 +725,88 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIcNameConventionCatalog aInputNames) {
         var locResult = new LinkedHashMap<String, AIcdGetter>();
         Arrays.stream(aMethods).sorted(Comparator.comparing(Method::getName)).forEach(aMethod -> {
+            if (aMethod.isBridge() || aMethod.isSynthetic()) return;
             AIaDataObjectField locAnnotation = aMethod.getDeclaredAnnotation(AIaDataObjectField.class);
             if (locAnnotation == null) return;
             if (aMethod.getParameterCount() != 0 || Modifier.isStatic(aMethod.getModifiers())
                     || aMethod.getReturnType() == void.class) {
                 throw new IllegalArgumentException("Annotated method is not a value getter: " + aMethod);
             }
-            AIcdGetter locPrevious = locResult.putIfAbsent(fieldName(aMethod, locAnnotation, aInputNames), new AIcdGetter(aMethod, locAnnotation));
-            if (locPrevious != null && (!locPrevious.method().getGenericReturnType()
-                    .equals(aMethod.getGenericReturnType()) || !locPrevious.field().equals(locAnnotation))) {
-                throw new IllegalArgumentException("Conflicting inherited field: " + fieldName(aMethod, locAnnotation, aInputNames));
+            AIcdGetter locPrevious = locResult.putIfAbsent(semanticFieldId(aMethod, aInputNames), new AIcdGetter(aMethod, locAnnotation));
+            if (locPrevious != null) {
+                throw new IllegalArgumentException("Two annotated getters resolve to the same semantic field: "
+                        + semanticFieldId(aMethod, aInputNames) + " (" + locPrevious.method().getName()
+                        + ", " + aMethod.getName() + ")");
             }
         });
         return locResult;
     }
 
     /**
-     * Resolve an omitted semantic field identifier by parsing the original accessor
-     * through its input convention. No getter prefix is assumed by the generator.
+     * Resolve a field's canonical internal identifier exclusively from its getter and
+     * its explicitly selected input naming convention. Wire field names are opaque.
+     *
+     * @param aGetter annotated read-only getter
+     * @param aInputNames complete input naming catalog
+     * @return normalized UpperCamelCase semantic identifier
      */
-    private static String fieldName(Method aGetter, AIaDataObjectField aField,
-            AIcNameConventionCatalog aInputNames) {
-        if (!aField.fieldName().isBlank()) return aField.fieldName();
+    private static String semanticFieldId(Method aGetter, AIcNameConventionCatalog aInputNames) {
         Class<?> locOwner = aGetter.getDeclaringClass();
         String locRole = dataObjectRole(locOwner);
         AIaDataObject locMetadata = locOwner.getDeclaredAnnotation(AIaDataObject.class);
         AIcNameConventionCatalog locCatalog = Objects.requireNonNull(aInputNames, "input naming profile");
         String locProfile = locMetadata != null && !locMetadata.namingConvention().isBlank()
-                ? locMetadata.namingConvention()
-                : aInputNames.selectedRole(locRole);
+                ? locMetadata.namingConvention() : locCatalog.selectedRole(locRole);
+        if (locProfile == null || locProfile.isBlank())
+            throw new IllegalArgumentException("Missing input getter naming profile for " + locOwner.getName());
         String locIdentifier = locCatalog.parse(locProfile, "getter_method_name", aGetter.getName())
                 .get("identifier");
         if (locIdentifier == null || locIdentifier.isBlank())
-            throw new IllegalArgumentException("Getter naming convention has no semantic identifier: "
-                    + locOwner.getName() + "." + aGetter.getName());
-        return locIdentifier;
+            throw new IllegalArgumentException("Getter naming convention has no semantic identifier: " + aGetter);
+        String locCanonical = AIcNameConventionCatalog.convertIdentifier(locIdentifier,
+                locCatalog.identifierConvention(locProfile, "getter_method_name"), "upper_camel_case_1");
+        if (!locCanonical.matches("[A-Z][A-Za-z0-9]*"))
+            throw new IllegalArgumentException("Invalid canonical field identifier for " + aGetter + ": " + locCanonical);
+        return locCanonical;
     }
 
     /**
-     * Identifies the lexical form of a semantic field identifier, not the output method syntax.
+     * Resolve external data names and check uniqueness over the effective inherited contract.
+     * A missing annotation value inherits the parent's explicit wire name, or defaults
+     * to the canonical semantic identifier for a newly introduced field.
      *
-     * <p>The naming catalog converts this source form into whatever identifier convention
-     * the selected getter, setter, or parameter structure declares. Raw SDO field
-     * helpers deliberately retain their existing independent naming rules.
-     *
-     * @param aIdentifier semantic field identifier from source contract metadata
-     * @return standard identifier convention used to interpret the original field name
-     * @throws IllegalArgumentException if the field identifier has no supported lexical form
+     * @param aType selected read-only contract
+     * @param aInputNames input naming catalog
+     * @return semantic identifier to canonical data name
      */
-    private static String semanticIdentifierConvention(String aIdentifier) {
-        if (aIdentifier.matches("[A-Z][A-Za-z0-9]*")) return "upper_camel_case_1";
-        if (aIdentifier.matches("[a-z][A-Za-z0-9]*")) return "lower_camel_case_1";
-        if (aIdentifier.matches("[a-z][a-z0-9]*(?:_[a-z0-9]+)+")) return "lower_snake_case_1";
-        if (aIdentifier.matches("[a-z][a-z0-9]*(?:-[a-z0-9]+)+")) return "lower_kebab_case_1";
-        throw new IllegalArgumentException("Unsupported source field identifier: " + aIdentifier);
+    private static Map<String, String> effectiveDataNames(Class<?> aType, AIcNameConventionCatalog aInputNames) {
+        LinkedHashMap<String, String> locNames = new LinkedHashMap<>();
+        for (Class<?> locParent : aType.getInterfaces()) {
+            if (!AIiDataObject.class.isAssignableFrom(locParent)) continue;
+            effectiveDataNames(locParent, aInputNames).forEach((aSemantic, aData) -> {
+                String locExisting = locNames.putIfAbsent(aSemantic, aData);
+                if (locExisting != null && !locExisting.equals(aData))
+                    throw new IllegalArgumentException("Conflicting inherited fieldName for " + aSemantic);
+            });
+        }
+        for (var locEntry : fields(aType.getDeclaredMethods(), aInputNames).entrySet()) {
+            String locSemantic = locEntry.getKey();
+            String locExplicit = locEntry.getValue().field().fieldName();
+            String locPrevious = locNames.get(locSemantic);
+            if (locPrevious != null && !locExplicit.isBlank() && !locPrevious.equals(locExplicit))
+                throw new IllegalArgumentException("Inherited fieldName cannot be changed for " + locSemantic
+                        + " from " + locPrevious + " to " + locExplicit);
+            locNames.put(locSemantic, locExplicit.isBlank()
+                    ? locPrevious == null ? locSemantic : locPrevious : locExplicit);
+        }
+        Map<String, String> locOwners = new LinkedHashMap<>();
+        locNames.forEach((aSemantic, aData) -> {
+            String locPrevious = locOwners.putIfAbsent(aData, aSemantic);
+            if (locPrevious != null && !locPrevious.equals(aSemantic))
+                throw new IllegalArgumentException("Duplicate fieldName '" + aData + "' for getters "
+                        + locPrevious + " and " + aSemantic);
+        });
+        return locNames;
     }
 
     private static String typeName(Class<?> aContract, String aMarker, boolean aMutable,
@@ -830,6 +856,59 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         return AInFieldSetterInheritancePolicy.valueOf(System.getProperty(
                 "algites.sdocodegen.setterInheritancePolicy",
                 AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER.name()));
+    }
+
+    /**
+     * List setters participate in type-safe generic inheritance even when the
+     * source list contains a scalar such as String, an enum, or an unknown Object.
+     * Otherwise a broad parent setter such as setLanguages(List<?>) clashes by
+     * erasure with a specialized child setter setLanguages(List<? extends String>).
+     * Non-collection nested DataObjects also need a type variable, as before.
+     *
+     * @param aGetter the read-only getter
+     * @return true if its setter supports a generic value parameter
+     */
+    private static boolean supportsGenericSetterValue(Method aGetter) {
+        return referencedContract(aGetter) != null
+                || java.util.List.class.isAssignableFrom(aGetter.getReturnType());
+    }
+
+    /**
+     * Determine the value bound shared by the interface getter and setter.
+     * Nested DataObjects use their generated mutable interface, whereas a scalar
+     * collection uses the element's own Java type rather than the raw collection.
+     * This permits a shared List<?> read contract to be specialized by JSON,
+     * YAML, or XML into a List of a stricter element type.
+     *
+     * @param aGetter read-only getter providing the element type
+     * @param aMarker legacy implementation marker
+     * @param aInput input naming catalog
+     * @param aMutableNames mutable naming catalog
+     * @param aConcreteNames implementation naming catalog
+     * @param aMutableSubpackage generated mutable package suffix
+     * @return full Java type name forming the upper bound and implementation argument
+     */
+    private static String genericSetterElementBound(Method aGetter, String aMarker,
+            AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableNames,
+            AIcNameConventionCatalog aConcreteNames, String aMutableSubpackage) {
+        Class<?> locNested = referencedContract(aGetter);
+        if (locNested != null)
+            return qualifiedMutableValueName(locNested, aMarker, aInput,
+                    aMutableNames, aConcreteNames, aMutableSubpackage);
+        if (java.util.List.class.isAssignableFrom(aGetter.getReturnType())) {
+            Type locType = aGetter.getGenericReturnType();
+            if (locType instanceof ParameterizedType locList) {
+                Type locItem = locList.getActualTypeArguments()[0];
+                if (locItem instanceof WildcardType locWildcard) {
+                    Type[] locUpper = locWildcard.getUpperBounds();
+                    if (locUpper.length == 1) locItem = locUpper[0];
+                    else return "java.lang.Object";
+                }
+                return locItem.getTypeName().replace('$', '.');
+            }
+            return "java.lang.Object";
+        }
+        throw new IllegalArgumentException("Field has no generically typed setter: " + aGetter);
     }
 
     /** Express a mutable getter and setter through the same interface-level variable. */
@@ -896,7 +975,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         long locCount = inheritedFields(aRead, aInput).values().stream()
                 .filter(aField -> setterPolicy(aField)
                         == AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
-                        && referencedContract(aField.method()) != null).count();
+                        && supportsGenericSetterValue(aField.method())).count();
         if (locCount == 0) return locName;
         return locName + "<" + String.join(", ", java.util.Collections.nCopies((int) locCount, "?")) + ">";
     }
@@ -904,8 +983,43 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
     private static String qualifiedName(Class<?> aParent, String aReplacement, String aSubpackage) {
         return appendedPackage(aParent.getPackageName(), aSubpackage) + "." + aReplacement;
     }
+    /**
+     * Encode arbitrary annotation metadata as the contents of a Java string literal.
+     *
+     * <p>Descriptions may contain newlines, tabs, quotation marks and other control
+     * characters. Escaping just quotation marks and backslashes would emit malformed
+     * source code for valid multiline descriptions. The octal form is used for the
+     * remaining ASCII controls so that Unicode-escape preprocessing cannot introduce
+     * a physical line terminator before Java parses the generated string literal.
+     *
+     * @param aValue metadata value to render, never {@code null}
+     * @return escaped Java string literal contents, without surrounding quotation marks
+     */
     private static String escape(String aValue) {
-        return aValue.replace("\\", "\\\\").replace("\"", "\\\"");
+        StringBuilder locResult = new StringBuilder(aValue.length());
+        for (int locIndex = 0; locIndex < aValue.length(); locIndex++) {
+            char locCharacter = aValue.charAt(locIndex);
+            switch (locCharacter) {
+                case '\\' -> locResult.append("\\\\");
+                case '"' -> locResult.append("\\\"");
+                case '\n' -> locResult.append("\\n");
+                case '\r' -> locResult.append("\\r");
+                case '\t' -> locResult.append("\\t");
+                case '\b' -> locResult.append("\\b");
+                case '\f' -> locResult.append("\\f");
+                default -> {
+                    if (locCharacter < 0x20 || locCharacter == 0x7f) {
+                        locResult.append('\\');
+                        locResult.append((char) ('0' + ((locCharacter >>> 6) & 7)));
+                        locResult.append((char) ('0' + ((locCharacter >>> 3) & 7)));
+                        locResult.append((char) ('0' + (locCharacter & 7)));
+                    } else {
+                        locResult.append(locCharacter);
+                    }
+                }
+            }
+        }
+        return locResult.toString();
     }
     private static String boxed(Class<?> aClass, String aType) {
         if (!aClass.isPrimitive()) return aType;

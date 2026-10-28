@@ -38,20 +38,20 @@ def test_published_formats_compatible_and_documentation_edits_detected(stem):
         source = ROOT / directory / 'eu/algites/tool/codegen/defs' / f'{stem}_1.{extension}'
         models.append(frontend().load(AIcdDefinitionLoadRequest(source, kind, _input_catalog(),
             f'algites-{directory[:-1]}-schema-versioned_1')))
-    AIcCanonicalDefinitionMerger.merge_strict(models)
+    AIcCanonicalDefinitionMerger.merge_strict(models, naming_profile=_input_catalog())
     original = models[1]
     first = original.data_type.properties[0]
     amended = replace(first, description=(first.description or '') + '!')
     changed = replace(original, data_type=original.data_type.with_properties((amended, *original.data_type.properties[1:])))
     with pytest.raises(ValueError, match='Incompatible canonical definitions') as error:
-        AIcCanonicalDefinitionMerger.merge_strict((models[0], changed, models[2]))
+        AIcCanonicalDefinitionMerger.merge_strict((models[0], changed, models[2]), naming_profile=_input_catalog())
     message = str(error.value)
     assert 'description' in message and 'INCONSISTENT' in message and 'CONSISTENT' in message
     assert all(str(Path(model.source_resource).resolve()) in message for model in models)
     assert 'Pairwise comparison' in message and ':' in message
     changed_type = replace(first, data_type=AIcdDataType(AInDataTypeKind.INTEGER))
     with pytest.raises(ValueError, match='kind'):
-        AIcCanonicalDefinitionMerger.merge_strict((models[0], replace(original, data_type=original.data_type.with_properties((changed_type, *original.data_type.properties[1:]))), models[2]))
+        AIcCanonicalDefinitionMerger.merge_strict((models[0], replace(original, data_type=original.data_type.with_properties((changed_type, *original.data_type.properties[1:]))), models[2]), naming_profile=_input_catalog())
 
 
 def test_schema_field_bindings_multi_format_merges_without_leaking_source_schema_uri():
@@ -63,7 +63,7 @@ def test_schema_field_bindings_multi_format_merges_without_leaking_source_schema
             f'algites-{folder[:-1]}-schema-versioned_1')))
     assert definitions[0].data_type.properties[0].data_type.constraints.enum_values
     assert definitions[1].data_type.properties[0].data_type.constraints.enum_values
-    merged = AIcCanonicalDefinitionMerger.merge_strict(definitions, ROOT)
+    merged = AIcCanonicalDefinitionMerger.merge_strict(definitions, ROOT, naming_profile=_input_catalog())
     source_schema = next(field for field in merged.data_type.properties if field.source_name == '$schema')
     assert source_schema.data_type.kind == AInDataTypeKind.STRING
     assert source_schema.data_type.constraints.enum_values == ()
@@ -72,3 +72,16 @@ def test_schema_field_bindings_multi_format_merges_without_leaking_source_schema
     # Ordinary schema constraints, such as the language enumeration, remain intact.
     languages = next(field for field in merged.data_type.properties if field.source_name == 'languages')
     assert tuple(part.constraints.enum_values[0] for part in languages.data_type.element_type.alternatives) == ('java', 'python')
+
+
+def test_named_xml_reference_requires_explicit_naming_catalog():
+    """The merger must never choose an Algites catalog behind the caller's back."""
+    definitions = []
+    for directory, extension, frontend, kind in FORMATS:
+        source = ROOT / directory / 'eu/algites/tool/codegen/defs' / f'schema-field-bindings_1.{extension}'
+        definitions.append(frontend().load(AIcdDefinitionLoadRequest(
+            source, kind, _input_catalog(), f'algites-{directory[:-1]}-schema-versioned_1')))
+    with pytest.raises(ValueError, match="field 'bindings'.reference"):
+        AIcCanonicalDefinitionMerger.merge_strict(definitions, ROOT)
+    assert AIcCanonicalDefinitionMerger.merge_strict(
+        definitions, ROOT, naming_profile=_input_catalog()).data_type.properties

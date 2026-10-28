@@ -124,15 +124,14 @@ class AIcSchemaContractInterfaceGenerator:
                     f'wildcard_namespace={wire.wildcard_namespace!r}, '
                     f'wildcard_process_contents={wire.wildcard_process_contents!r}),')
             label_rows.append(f'        {prop.source_name!r}: AIaFieldLabel(label={title!r}, labels={entries}),')
-            metadata_rows.append('        AIcdDataObjectField(field_name=' + repr(prop.source_name)
+            field_decorator = ('    @AIaDataObjectField(field_name=' + repr(prop.source_name)
                 + ', presence=AInFieldPresenceKind.' + prop.presence.name
                 + ', allows_null=' + str(bool(prop.nullable))
-                + ', getter_name=' + repr(getter_name)
-                + ', setter_inheritance_policy=AInFieldSetterInheritancePolicy.' + effective_default().name + '),')
+                + ', setter_inheritance_policy=AInFieldSetterInheritancePolicy.' + effective_default().name + ')')
             getter_type = ''
             if reference is not None and not array and not reference.targets_enum:
                 getter_type = f' -> {kind_type}' + (' | None' if prop.nullable else '')
-            getter_rows.extend([f'    @AIaFieldLabel(label={title!r}, labels={entries})',
+            getter_rows.extend([field_decorator, f'    @AIaFieldLabel(label={title!r}, labels={entries})',
                 '    @abstractmethod', f'    def {getter_name}(self){getter_type}:',
                 '        raise NotImplementedError', ''])
         parent_import = ''
@@ -165,7 +164,7 @@ class AIcSchemaContractInterfaceGenerator:
             + 'from typing import Any, ClassVar, Mapping\nfrom decimal import Decimal\n'
             + f'from {base_module} import {base_type}\n'
             + 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n'
-            + 'from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\n'
+            + 'from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField\n'
             + 'from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy\n'
             + 'from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\n'
             + 'from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel\n'
@@ -183,8 +182,7 @@ class AIcSchemaContractInterfaceGenerator:
             + f', description={(model.description or "")!r}, '
             + f'naming_convention={request.naming_convention!r}, setter_inheritance_policy=AInFieldSetterInheritancePolicy.{effective_default().name})\n'
             + xml_metadata
-            + '    __data_object_fields__ = (\n' + '\n'.join(metadata_rows)
-            + '\n    )\n\n    __field_labels__ = {\n' + '\n'.join(label_rows)
+            + '    __field_labels__ = {\n' + '\n'.join(label_rows)
             + '\n    }\n\n' + '\n'.join(fields)
             + '\n\n    __slots__ = ()\n\n' + '\n'.join(getter_rows) + '\n')
         return AIcdGeneratedSource(interface, path, source,

@@ -33,7 +33,7 @@ def test_contract_only_repository_two_technologies(tmp_path):
     assert len(outputs)==4  # common and JSON technology contracts in each language
     py=(tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').read_text()
     java=(tmp_path/'intf/src/product/java.gen/example/contracts/AIigExample_1.java').read_text()
-    assert 'AIcdDataObjectField' in py and 'AIcdDataObject(' in py
+    assert '@AIaDataObjectField' in py and 'AIcdDataObject(' in py
     assert 'AIaDataObjectField' in java and 'AIaDataObject(' in java
     assert '@abstractmethod\n    def getName' in py
     java_representations = '\n'.join(file.read_text() for file in (tmp_path/'intf/src/product/java.gen').rglob('*.java'))
@@ -114,7 +114,7 @@ def test_manifest_discovers_xsd_in_both_languages(tmp_path):
     python=(tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').read_text()
     assert ' getName()' in java and ' getCount()' in java
     assert 'def getName' in python and 'def getCount' in python
-    assert 'AIaDataObjectField' in java and 'AIcdDataObjectField' in python
+    assert 'AIaDataObjectField' in java and '@AIaDataObjectField' in python
     assert not (tmp_path/'impl').exists()
     generator.generate_repository(tmp_path,_explicit(manifest),check=True)
 
@@ -151,7 +151,7 @@ def test_json_yaml_xsd_merge_the_same_logical_contract(tmp_path):
     all_java = '\n'.join(path.read_text() for path in
         (tmp_path/'intf/src/product/java.gen/example/contracts').glob('*.java'))
     assert 'XMLDEFS' in all_java and 'AIigExample_1' in all_java
-    assert '__data_object_fields__' in python
+    assert '@AIaDataObjectField' in python
     assert not (tmp_path/'impl').exists()
     generator.generate_repository(tmp_path,_explicit(manifest),check=True)
 
@@ -292,7 +292,7 @@ def test_user_defined_getter_composition_reaches_generated_java_and_python(tmp_p
     assert 'readName()' in java and 'readCount()' in java
     assert 'getName()' not in java and 'getCount()' not in java
     assert 'def readName(self)' in python and 'def readCount(self)' in python
-    assert "getter_name='readName'" in python
+    assert '@AIaDataObjectField' in python and 'def readName(self)' in python
     assert 'def getName(self)' not in python
 
 

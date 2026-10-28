@@ -57,6 +57,51 @@ public final class AItcCumulativeNamingCatalogTest {
         }
     }
 
+    /**
+     * Verifies that a naming profile can import its standard grammar from a
+     * separate classpath JAR, matching the profile/intf publication split.
+     *
+     * @throws Exception when a fixture archive cannot be constructed or loaded
+     */
+    @Test
+    public void verifySharedGrammarFromSeparateArtifact() throws Exception {
+        Path locRoot = Files.createTempDirectory("algites-separate-naming-artifacts-");
+        String locDirectory = "eu/algites/lib/naming/convention/";
+        Path locProfileJar = locRoot.resolve("profile.jar");
+        Path locGrammarJar = locRoot.resolve("intf.jar");
+        try {
+            try (JarOutputStream locProfile = new JarOutputStream(Files.newOutputStream(locProfileJar))) {
+                locProfile.putNextEntry(new JarEntry(locDirectory + "separate.yml"));
+                locProfile.write(("StandardConventionsFile: fixture-shared-grammar.yml\n"
+                        + schema("separate")).getBytes(StandardCharsets.UTF_8));
+                locProfile.closeEntry();
+            }
+            try (JarOutputStream locGrammar = new JarOutputStream(Files.newOutputStream(locGrammarJar))) {
+                locGrammar.putNextEntry(new JarEntry(locDirectory + "fixture-shared-grammar.yml"));
+                locGrammar.write("IdentifierConventions: {}\n".getBytes(StandardCharsets.UTF_8));
+                locGrammar.closeEntry();
+            }
+            ClassLoader locPrevious = Thread.currentThread().getContextClassLoader();
+            try (URLClassLoader locLoader = new URLClassLoader(new URL[]{
+                    locProfileJar.toUri().toURL(), locGrammarJar.toUri().toURL()}, locPrevious)) {
+                Thread.currentThread().setContextClassLoader(locLoader);
+                try {
+                    AIcNameConventionCatalog locCatalog = AIcNamingCatalogCollector.load(
+                            List.of("classpath:separate.yml"));
+                    if (!locCatalog.names().contains("separate-id"))
+                        throw new AssertionError("Profile was not loaded from the separate JAR");
+                } finally {
+                    Thread.currentThread().setContextClassLoader(locPrevious);
+                }
+            }
+        } finally {
+            try (var locPaths = Files.walk(locRoot)) {
+                for (Path locFile : locPaths.sorted(java.util.Comparator.reverseOrder()).toList())
+                    Files.deleteIfExists(locFile);
+            }
+        }
+    }
+
     private static String schema(String aName) {
         return "NameFragments:\n"
                 + "  " + aName + ":\n"

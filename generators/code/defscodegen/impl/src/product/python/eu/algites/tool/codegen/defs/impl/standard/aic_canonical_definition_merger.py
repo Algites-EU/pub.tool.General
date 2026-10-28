@@ -12,6 +12,13 @@ class AIcCanonicalDefinitionMerger:
         definitions = tuple(definitions)
         if not definitions:
             raise ValueError("No canonical definitions to merge.")
+        AIcCanonicalDefinitionMerger.validate(definitions, documentation=False)
+        return AIcCanonicalDefinitionMerger._merge_validated(definitions)
+
+    @staticmethod
+    def _merge_validated(definitions):
+        """Combine previously validated definitions without discarding a selected profile."""
+        definitions = tuple(definitions)
         first = definitions[0]
         def constraints(prop, definition):
             """Ignore only a $schema constant pointing to this representation's own publication."""
@@ -32,7 +39,6 @@ class AIcCanonicalDefinitionMerger:
                 return replace(c, enum_values=())
             return c
 
-        AIcCanonicalDefinitionMerger.validate(definitions, documentation=False)
         if len(definitions) == 1:
             return first
         def documentation(values):
@@ -55,14 +61,15 @@ class AIcCanonicalDefinitionMerger:
             description=(description + "\n\n" if description else "") + "Canonical representations: " + origins)
 
     @staticmethod
-    def merge_strict(definitions, source_root=None):
+    def merge_strict(definitions, source_root=None, naming_profile=None):
         """Merge multi-format publications with structural and documentation parity."""
         definitions = tuple(definitions)
-        AIcCanonicalDefinitionMerger.validate(definitions, documentation=True, source_root=source_root)
-        return AIcCanonicalDefinitionMerger.merge(definitions)
+        AIcCanonicalDefinitionMerger.validate(definitions, documentation=True,
+            source_root=source_root, naming_profile=naming_profile)
+        return AIcCanonicalDefinitionMerger._merge_validated(definitions)
 
     @staticmethod
-    def validate(definitions, documentation=False, source_root=None):
+    def validate(definitions, documentation=False, source_root=None, naming_profile=None):
         """Report every incompatible pair with source filenames and best-effort source lines."""
         definitions = tuple(definitions)
         if not definitions:
@@ -110,6 +117,56 @@ class AIcCanonicalDefinitionMerger:
                 return False
             u = urlsplit(vals[0])
             return u.scheme == 'https' and bool(u.netloc) and not u.fragment and u.path.endswith('/api/' + kind + '/' + src.split(marker, 1)[1])
+
+        def compatible_local_named_xml(xml_definition, xml_field, inline_field):
+            """Validate named XSD object against its JSON/YAML inline counterpart.
+
+            Only this explicitly resolvable local reference may replace the
+            old raw-reference comparison. Other references keep strict checks.
+            """
+            if naming_profile is None:
+                return False
+            reference = xml_field.data_type.referenced_definition()
+            if (reference is None or not reference.identity.startswith('#@type/')
+                    or xml_field.data_type.kind.name != 'ARRAY'
+                    or inline_field.data_type.kind.name != 'ARRAY'
+                    or inline_field.data_type.element_type.kind.name != 'OBJECT'):
+                return False
+            from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
+            from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
+            from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+            request = AIcdDefinitionLoadRequest(path(xml_definition), AInDefinitionSourceKind.XMLDEFS,
+                naming_profile)
+            try:
+                named = AIcXmlDefsFrontend().load_named_type(request,
+                    reference.identity.removeprefix('#@type/'))
+            except (ValueError, OSError):
+                return False
+            if named.version != reference.version:
+                return False
+
+            def same_shape(first, second):
+                if first.kind is not second.kind:
+                    return False
+                if first.kind.name == 'OBJECT':
+                    a_fields = {f.source_name: f for f in first.properties}
+                    b_fields = {f.source_name: f for f in second.properties}
+                    return (a_fields.keys() == b_fields.keys() and all(
+                        a_fields[key].presence == b_fields[key].presence
+                        and a_fields[key].nullable == b_fields[key].nullable
+                        and same_shape(a_fields[key].data_type, b_fields[key].data_type)
+                        for key in a_fields))
+                if first.kind.name == 'ARRAY':
+                    return same_shape(first.element_type, second.element_type)
+                if first.kind.name in ('ONE_OF', 'ANY_OF'):
+                    return len(first.alternatives) == len(second.alternatives) and all(
+                        same_shape(one, two) for one, two in zip(first.alternatives, second.alternatives))
+                if first.kind.name == 'REFERENCE':
+                    return (first.reference.logical_name == second.reference.logical_name
+                        and first.reference.version == second.reference.version)
+                return True
+
+            return same_shape(named.data_type, inline_field.data_type.element_type)
 
         def diff(a, b):
             found = []
@@ -242,8 +299,14 @@ class AIcCanonicalDefinitionMerger:
                     compare(f"field '{name}'.xmlField", name, 'xmlField', x.xml_field, y.xml_field)
                 for key in fields:
                     compare(f"field '{name}'.{key}", name, key, getattr(x,key), getattr(y,key))
-                compare(f"field '{name}'.reference", name, '$ref',
-                        reference_target(x.data_type.referenced_definition()), reference_target(y.data_type.referenced_definition()))
+                named_xml_equivalent = ((a.source_kind.value == 'xmldefs'
+                    and compatible_local_named_xml(a, x, y)) or
+                    (b.source_kind.value == 'xmldefs'
+                    and compatible_local_named_xml(b, y, x)))
+                if not named_xml_equivalent:
+                    compare(f"field '{name}'.reference", name, '$ref',
+                            reference_target(x.data_type.referenced_definition()),
+                            reference_target(y.data_type.referenced_definition()))
                 # Structural child constraints are compared recursively below. For
                 # the schema self-link, compare normalized constraints only.
                 if self_schema(x, a) or self_schema(y, b):

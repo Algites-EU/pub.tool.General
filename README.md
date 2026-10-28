@@ -102,9 +102,40 @@ in addition to Java TestNG, including the cross-language Defs parity wrapper.
 The old repository-specific parity Gradle scripts are no longer applied.
 
 **Rollout requirement:** first deploy the matching Builder support from
-`pub.gov.Algites`, then test this repository on the new Builder. The combined standalone `generators/code/bootstrap.sh` builds both generators in independent temporary Gradle contexts, runs their native Python tests, packages **all six Java Maven artifacts and all six Python wheel/sdist pairs**, and publishes both technologies through one `algites-cloudsmith --session` invocation. The Python bootstrap packages only current artifact-owned sources and configuration resources and derives Python production requirements from each `modustro-artifact.yml`; it verifies both updated Python CLI contracts before uploading anything. No Modustro Builder plugin is loaded during this emergency bootstrap.
+`pub.gov.Algites`, then test this repository on the new Builder. The canonical standalone entry point is `devops/bootstrap/bootstrap.sh`, shared with `pub.lib.General`. It selects the native Java/Python artifacts declared by `modustro-artifact.yml`, uses the repository version/group metadata, and restricts work to `--root` (default: repository root). `generators/code/bootstrap.sh` and `generators/code/bootstrap-profiles.sh` forward into that common entry point with the corresponding default roots. The older generator-specific emergency build is preserved separately as `generators/code/bootstrap-selfhosted.sh` when an isolated self-hosting recovery build is necessary; it is not the canonical bootstrap.
 
-For local preparation without upload use `MODUSTRO_BOOTSTRAP_PREPARE_ONLY=1 bash generators/code/bootstrap.sh`. The Java manifest is `build/run/codegen-bootstrap/packages.tsv`; the Python manifest is `build/run/codegen-bootstrap/python-packages.tsv`, with verified wheels and sdists under `build/run/codegen-bootstrap/python-dist`. A fresh isolated Python packaging environment is prepared under `build/run/codegen-bootstrap/python-build-venv`; override its interpreter with `MODUSTRO_BOOTSTRAP_PYTHON_BUILD_EXECUTABLE` if a suitable environment already provides `build`, `setuptools`, `wheel`, and `pyyaml`. `MODUSTRO_CODEGEN_BOOTSTRAP_PYTHON_VERSION` optionally sets one explicit PEP 440 version for all six packages. Python wheels go to `algites/python-snapshots-pub` (override `MODUSTRO_CODEGEN_BOOTSTRAP_PYTHON_CLOUDSMITH_REPO`), whereas Java Maven artifacts continue to use `algites/java-snapshots-pub`.
+The universal bootstrap **always discards the selected `src/<branch>/java.gen` and
+`src/<branch>/python.gen` contents and regenerates them** from current
+JSONDEFS/YAMLDEFS/XMLDEFS before build. This is never an in-place upgrade.
+The build stage always recreates `build/run/tool-bootstrap`; generation work
+is under `build/run/tool-codegen`. `--plan-only` does not clean generated sources.
+No build, source regeneration, or publication may silently expand beyond the
+requested root. External dependencies are resolved from published/local packages.
+
+Usage (the action is `--upload` by default):
+
+```bash
+bash devops/bootstrap/bootstrap.sh --root generators/code --prepare-only
+bash devops/bootstrap/bootstrap.sh --root generators/code/defscodegen/intf --plan-only
+bash devops/bootstrap/bootstrap.sh --root generators/code/profile --prepare-only
+```
+
+The common controls are `MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=remote|local|source`,
+`MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES=0|1`,
+`MODUSTRO_BOOTSTRAP_PREPARE_ONLY=1` (suppresses Cloudsmith upload),
+`MODUSTRO_BOOTSTRAP_OUTPUT_DIR`, `MODUSTRO_GRADLE_EXECUTABLE` and
+`ALGITES_PYTHON_EXECUTABLE`. Tool-specific override settings are
+`MODUSTRO_TOOL_BOOTSTRAP_VERSION`,
+`MODUSTRO_TOOL_BOOTSTRAP_PYTHON_VERSION`,
+`MODUSTRO_TOOL_BOOTSTRAP_CLOUDSMITH_REPO` and
+`MODUSTRO_TOOL_BOOTSTRAP_PYTHON_CLOUDSMITH_REPO`.
+
+For the independent emergency self-hosting route, use
+`bash generators/code/bootstrap-selfhosted.sh --prepare-only`.
+It uses its own `build/run/codegen-bootstrap` and publishes the original
+fixed six-artifact subset. The `bootstrap-profiles-selfhosted.sh` script is
+likewise reserved for emergency standalone recovery; neither is the universal
+artifact-selection interface.
 
 ## Architectural role
 

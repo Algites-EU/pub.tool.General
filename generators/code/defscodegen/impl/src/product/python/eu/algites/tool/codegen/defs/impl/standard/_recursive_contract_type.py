@@ -32,7 +32,18 @@ def contract_type(prop, request, names, *, java=False, imports=None):
             raise ValueError('Inline XML complex/choice member needs an explicitly generated XSD content contract: ' + logical)
         if reference or inline:
             ref = shape.reference if reference else None
-            enum = ref.targets_enum if ref else kind is AInDataTypeKind.ENUM
+            # An inline oneOf consisting exclusively of distinct scalar constants
+            # is published as a single named enum by the schema reader.  Treat it
+            # as an enum here too: naming it as an interface would introduce an
+            # unresolved reference in a generated property's signature.
+            literal_choice = (kind is AInDataTypeKind.ONE_OF
+                and bool(shape.alternatives)
+                and all(alternative.kind in (AInDataTypeKind.STRING,
+                    AInDataTypeKind.INTEGER, AInDataTypeKind.NUMBER,
+                    AInDataTypeKind.BOOLEAN)
+                    and len(alternative.constraints.enum_values) == 1
+                    for alternative in shape.alternatives))
+            enum = ref.targets_enum if ref else (kind is AInDataTypeKind.ENUM or literal_choice)
             base = ref.logical_name if ref else logical
             version = ref.version if ref else request.definition.version
             role = AInDefsNameRole.ENUM_TYPE if enum else AInDefsNameRole.INTERFACE_TYPE

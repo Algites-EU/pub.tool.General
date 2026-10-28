@@ -48,6 +48,25 @@ public final class AItcSetterInheritancePolicyTest {
     @AIaDataObject(schemaId = "test:generic-holder-diamond", schemaVersion = 1)
     public interface AIigDiamond extends AIigC, AIigB { }
 
+    /** Common representation exposes an intentionally unrestricted list element type. */
+    @AIaDataObject(schemaId = "test:common-languages", schemaVersion = 1)
+    public interface AIigCommonLanguages extends AIiDataObject {
+        /** Read language identifiers without prescribing their schema representation. */
+        @AIaDataObjectField(fieldName = "Languages", setterInheritancePolicy =
+                AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
+        List<? extends Object> getLanguages();
+    }
+
+    /** Source-specific representation narrows the same list to strings. */
+    @AIaDataObject(schemaId = "test:xml-languages", schemaVersion = 1)
+    public interface AIigXmlLanguages extends AIigCommonLanguages {
+        /** Read language identifiers in their concrete source representation. */
+        @Override
+        @AIaDataObjectField(fieldName = "Languages", setterInheritancePolicy =
+                AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
+        List<? extends String> getLanguages();
+    }
+
     /** Holder whose setter type must remain unchanged in descendants. */
     @AIaDataObject(schemaId = "test:fixed-holder", schemaVersion = 1)
     public interface AIigFixed extends AIiDataObject {
@@ -102,6 +121,43 @@ public final class AItcSetterInheritancePolicyTest {
         }
         var locArguments = new ArrayList<>(List.of(
                 "-cp", System.getProperty("java.class.path"), "-d", locOutput.toString()));
+        locArguments.addAll(locSources);
+        Assert.assertEquals(ToolProvider.getSystemJavaCompiler().run(null, null, null,
+                locArguments.toArray(String[]::new)), 0);
+    }
+
+    /**
+     * Compile a specialized list setter inherited from an unrestricted common
+     * representation. Generating List<?> and List<? extends String> as separate
+     * setters would collide by erasure and break the source-specific contract.
+     *
+     * @throws Exception if generated source cannot be written or compiled
+     */
+    @Test
+    public void AIcCompilesScalarListSpecializationsWithoutErasureClashes() throws Exception {
+        var locGenerator = new AItcConfiguredSdoCodegenService();
+        var locRoot = Files.createTempDirectory("sdo-scalar-list-generics-");
+        var locClasses = Files.createDirectories(locRoot.resolve("classes"));
+        var locSources = new ArrayList<String>();
+        for (Class<?> locRead : List.of(AIigCommonLanguages.class, AIigXmlLanguages.class)) {
+            var locResult = locGenerator.generate(locRead, "d");
+            String locInterface = locResult.mutableInterface().source();
+            String locConcrete = locResult.implementation().source();
+            Assert.assertTrue(locInterface.contains("TLanguages extends java.lang."),
+                    "Mutable list element must participate in generic setter inheritance");
+            Assert.assertTrue(locInterface.contains("void setLanguages(java.util.List<? extends TLanguages>"),
+                    "The setter must share the mutable getter's type variable");
+            Assert.assertTrue(locConcrete.contains(" extends eu.algites.lib.data.smartdataobject.impl.standard.AIcSmartDataObject"),
+                    "Concrete implementation must use the technology base directly");
+            for (var locUnit : List.of(locResult.mutableInterface(), locResult.implementation())) {
+                Path locFile = locRoot.resolve(locUnit.relativePath());
+                Files.createDirectories(locFile.getParent());
+                Files.writeString(locFile, locUnit.source());
+                locSources.add(locFile.toString());
+            }
+        }
+        var locArguments = new ArrayList<>(List.of(
+                "-cp", System.getProperty("java.class.path"), "-d", locClasses.toString()));
         locArguments.addAll(locSources);
         Assert.assertEquals(ToolProvider.getSystemJavaCompiler().run(null, null, null,
                 locArguments.toArray(String[]::new)), 0);

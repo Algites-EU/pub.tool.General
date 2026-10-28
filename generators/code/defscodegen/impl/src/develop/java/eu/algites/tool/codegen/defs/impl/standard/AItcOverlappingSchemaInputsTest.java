@@ -33,6 +33,18 @@ public final class AItcOverlappingSchemaInputsTest {
             locEntry.put("kind", "yamldefs");
             locEntry.put("directory", aRoot.relativize(locSource.getParent().getParent()).toString());
         }
+        var locOutputs = locManifest.putObject("technology_outputs");
+        locOutputs.put("java", "src/product/java.gen");
+        locManifest.putObject("schema_input_naming_conventions")
+                .put("yamldefs", "algites-yamldef-schema-versioned_1");
+        locManifest.putObject("technology_output_naming_conventions")
+                .putObject("java").put("common", "algites-java-gen-intf-versioned_1");
+        locManifest.putObject("technology_enum_output_naming_conventions")
+                .put("java", "algites-java-gen-enum-versioned_1");
+        var locCatalogs = locManifest.putArray("naming_convention_files");
+        for (String locCatalog : new String[] {"algites-java-name-conventions.yml",
+                "algites-yamldef-name-conventions.yml"})
+            locCatalogs.add("resource:" + locCatalog);
         return locManifest;
     }
 

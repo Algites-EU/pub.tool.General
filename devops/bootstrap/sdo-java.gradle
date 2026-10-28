@@ -1,0 +1,178 @@
+/*
+ * Interim bootstrap-only SDO phase. Run after the first Java compilation so
+ * source DataObject interfaces can be inspected as compiled classes, and before
+ * the final publish, which recompiles the newly generated mutable interfaces
+ * and implementations into the SAME artifact.
+ *
+ * This is shared bootstrap behavior, not a product dependency or a per-repo
+ * runner. Until build_source is available, the Algites SDO generator and naming
+ * profile are fixed bootstrap tool dependencies.
+ */
+
+def bootstrapSdoManifest = rootProject.ext.bootstrapSdoManifest
+def bootstrapSdoModule = { String suffix ->
+    def matching = bootstrapSdoManifest.findAll { it.artifactId.endsWith(suffix) }
+    if (matching.size() > 1) throw new GradleException("Ambiguous bootstrap SDO module: ${suffix}")
+    return matching.isEmpty() ? null : project(':' + matching[0].project)
+}
+
+rootProject.repositories {
+    def mode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'
+    if (mode != 'remote') maven {
+        url = uri(System.getenv('MODUSTRO_LOCAL_MAVEN_REPOSITORY') ?:
+                new File(System.getenv('MODUSTRO_HOME') ?: new File(System.getProperty('user.home'), '.modustro').path,
+                        'artifact-repos/java/maven'))
+    }
+    if (mode == 'remote') maven {
+        url = uri(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL'))
+        content { includeGroupByRegex(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_GROUP_REGEX')) }
+    }
+    mavenCentral()
+}
+
+tasks.register('bootstrapSdoJava') {
+    group = 'build'
+    description = 'Generate SDO Java sources in their owning artifacts using the Algites build-source profile.'
+    // Project runtimeClasspath contains the published runtime variant of
+    // dependent Java projects.  In Gradle that can be a JAR, not merely the
+    // classes directory.  The CLI's declared dependency on sdocodegen.intf
+    // carries its packaged *.settings through that variant, and the selected
+    // naming-profile JAR carries the Algites overlay.  Merely building
+    // `classes` does not guarantee the JARs exist before we fork Java.
+    dependsOn subprojects.collect { it.tasks.named('jar') }
+    doLast {
+        def candidates = bootstrapSdoManifest.findAll { entry ->
+            def folder = project(':' + entry.project).projectDir
+            def roots = [new File(folder, 'src/product/java'), new File(folder, 'src/product/java.gen')]
+            return roots.any { root -> root.isDirectory() && fileTree(root).matching {
+                include '**/*.java'
+            }.files.any { javaSource ->
+                // This is only a cheap pre-filter: the SDO CLI verifies the
+                // actual interface hierarchy and supported naming roles.
+                // Checking for AIiDataObject as plain text is insufficient:
+                // generators themselves contain that name in source templates.
+                def body = javaSource.getText('UTF-8')
+                (body =~ /(?m)^[ \t]*(?:(?:public|protected|private|static|abstract|sealed|non-sealed)[ \t]+)*interface[ \t]+[A-Za-z_][A-Za-z_0-9]*\b/).find()
+            } }
+        }
+        if (candidates.isEmpty()) {
+            logger.lifecycle('SDO Java: no Java sources; nothing generated.')
+            return
+        }
+        def cliProject = bootstrapSdoModule('_generators.code.sdocodegen.cli')
+        def profileProject = bootstrapSdoModule('_generators.code.profile.algites')
+        def toolClasspath
+        if (cliProject != null) {
+            toolClasspath = files(cliProject.sourceSets.main.runtimeClasspath)
+        } else {
+            def dependency = dependencies.create('eu.algites.tool.codegen:pub.tool.General_generators.code.sdocodegen.cli:' +
+                    (System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_VERSION') ?: '1.1-SNAPSHOT'))
+            toolClasspath = files(configurations.detachedConfiguration(dependency))
+        }
+        if (profileProject != null) {
+            toolClasspath += files(profileProject.sourceSets.main.runtimeClasspath)
+        } else {
+            def dependency = dependencies.create('eu.algites.tool.codegen:pub.tool.General_generators.code.profile.algites:' +
+                    (System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_VERSION') ?: '1.1-SNAPSHOT'))
+            toolClasspath += files(configurations.detachedConfiguration(dependency))
+        }
+        // Validate the actual resolved tool classpath, rather than hard-coding
+        // the SDO source tree or copying resources into a bootstrap-only path.
+        // The CLI must obtain these settings from its normal intf dependency
+        // and from the Algites profile selected by this interim bootstrap.
+        def classpathUrls = toolClasspath.files.findAll { it.exists() }
+                .collect { it.toURI().toURL() }
+        // Using an actual parent ClassLoader avoids Groovy's ambiguous
+        // overload selection for URLClassLoader(URL[], null). The platform
+        // loader keeps Gradle's own classes out of the validation lookup.
+        def resourceLoader = new java.net.URLClassLoader(
+                classpathUrls.toArray(new java.net.URL[0]),
+                ClassLoader.getPlatformClassLoader())
+        try {
+            [
+                'eu/algites/tool/codegen/sdo/sdocodegen-java-default.settings',
+                'eu/algites/tool/codegen/sdo/sdocodegen-java.settings'
+            ].each { resourceName ->
+                if (resourceLoader.getResource(resourceName) == null) {
+                    throw new GradleException('Missing SDO generator resource on resolved runtime classpath: '
+                            + resourceName + '. Check the declared project dependencies '
+                            + 'and ensure their JAR tasks completed. Classpath: '
+                            + toolClasspath.asPath)
+                }
+            }
+        } finally {
+            resourceLoader.close()
+        }
+        def naming = [
+                'standard-conventions.yml', 'algites-java-name-conventions.yml',
+                'algites-python-name-conventions.yml', 'algites-jsondef-name-conventions.yml',
+                'algites-yamldef-name-conventions.yml', 'algites-xmldef-name-conventions.yml',
+                'algites-java-codegen-method-conventions.yml'
+        ]
+        def roles = [common: '', xmldefs_type: '-xml-type', xmldefs_element: '-xml-element',
+                     yamldefs: '-yaml', jsondefs: '-json']
+        def javaExecutable = new File(System.getProperty('java.home'), 'bin/java').absolutePath
+        int count = 0
+        candidates.each { entry ->
+            def moduleProject = project(':' + entry.project)
+            def output = new File(moduleProject.projectDir, 'src/product/java.gen')
+            output.mkdirs()
+            def classes = moduleProject.sourceSets.main.output.classesDirs.files.findAll { it.isDirectory() }
+            if (classes.isEmpty()) throw new GradleException('Missing compiled Java DataObject classes for ' + entry.path)
+            def classpath = files(toolClasspath, moduleProject.sourceSets.main.runtimeClasspath, classes).asPath
+            def arguments = [
+                    '--repository-root=' + moduleProject.projectDir.absolutePath,
+                    '--technology-dointf-input-dir=java:build/bootstrap-no-java-source-input',
+                    '--technology-sdointf-output-dir=java:' + output.absolutePath,
+                    '--technology-sdoimpl-output-dir=java:' + output.absolutePath,
+                    '--sdointf-subpackage=impl.intf', '--sdoclass-subpackage=impl',
+                    '--generated-dataobject-method-naming-convention=java:algites-java-codegen-standard_1'
+            ]
+            classes.each { arguments << '--dointf-input-artifact=' + it.absolutePath }
+            arguments << '--dointf-classpath=' + classpath
+            naming.each { arguments << '--naming-conventions-file=resource:' + it }
+            roles.each { role, suffix ->
+                arguments << "--input-technology-naming-convention=java:${role}:defsintf=algites-java-gen${suffix}-intf-versioned_1"
+                arguments << "--output-technology-naming-convention=java:${role}:sdointf=algites-java-gen-data${suffix}-intf-versioned_1,sdoclass=algites-java-gen-data${suffix}-class-versioned_1"
+            }
+            // Groovy interpolation yields GString values. ProcessBuilder expects
+            // java.lang.String entries and otherwise fails converting its varargs
+            // to String[] with "arraycopy: element type mismatch".
+            List<String> command = ([javaExecutable, '-cp', classpath,
+                    'eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli'] + arguments)
+                    .collect { String.valueOf(it) }
+            logger.lifecycle('SDO Java: scanning ' + entry.path)
+            // Gradle runs inside a daemon. Child-process inheritIO() can write
+            // straight to the daemon's file descriptors instead of the client
+            // console, hiding the exception that actually caused Java to fail.
+            // Consume both streams through Gradle and retain the output for
+            // reproducible diagnostics without changing generator behavior.
+            def diagnosticsRoot = new File(
+                    System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_OUTPUT') ?:
+                            new File(rootProject.projectDir, 'build').absolutePath,
+                    'sdo-java-diagnostics')
+            if (!diagnosticsRoot.isDirectory() && !diagnosticsRoot.mkdirs())
+                throw new GradleException('Cannot create SDO diagnostics directory: ' + diagnosticsRoot)
+            def logFile = new File(diagnosticsRoot, entry.project + '.log')
+            def process = new ProcessBuilder(command.toArray(new String[0]))
+                    .directory(moduleProject.projectDir)
+                    .redirectErrorStream(true)
+                    .start()
+            logFile.withWriter('UTF-8') { writer ->
+                process.inputStream.withReader('UTF-8') { reader ->
+                    reader.eachLine { line ->
+                        writer.write(line)
+                        writer.write('\n')
+                        logger.lifecycle('SDO Java [' + entry.path + ']: ' + line)
+                    }
+                }
+            }
+            int exitCode = process.waitFor()
+            if (exitCode != 0)
+                throw new GradleException('Java SDO generator failed for ' + entry.path
+                        + ' (exit code ' + exitCode + '; output: ' + logFile.absolutePath + ')')
+            count++
+        }
+        logger.lifecycle("SDO Java: scanned ${count} artifacts; outputs stay in their existing java.gen roots")
+    }
+}

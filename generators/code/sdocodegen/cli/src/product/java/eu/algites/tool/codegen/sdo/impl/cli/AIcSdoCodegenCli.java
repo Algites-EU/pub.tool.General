@@ -1,6 +1,5 @@
 package eu.algites.tool.codegen.sdo.impl.cli;
 
-import eu.algites.lib.data.dataobject.AIiDataObject;
 import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import eu.algites.tool.codegen.sdo.AIcdGeneratedSdoSource;
 import eu.algites.tool.codegen.sdo.AIcdSdoGenerationResult;
@@ -202,8 +201,10 @@ public final class AIcSdoCodegenCli {
             for (Path locBinary : locBinaryInputs) locCandidates.addAll(scanClassNames(locBinary));
             for (String locClassName : locCandidates) {
                 Class<?> locClass = Class.forName(locClassName, false, locLoader);
-                if (!locClass.isInterface() || !AIiDataObject.class.isAssignableFrom(locClass)
-                        || locClass.getPackageName().startsWith("eu.algites.lib.data.dataobject")) continue;
+                // The service owns DataObject eligibility. In particular,
+                // namespace marker interfaces extend AIiDataObject indirectly
+                // but must not be sent to SDO generation as independent inputs.
+                if (!AIcSdoCodegenService.isReadContract(locClass)) continue;
                 String locRole = role(locClass);
                 if (!locInputRoles.containsKey(locRole) || !locMutableRoles.containsKey(locRole)
                         || !locConcreteRoles.containsKey(locRole)) continue;

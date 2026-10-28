@@ -45,7 +45,11 @@ public final class AItcXmlFieldQNameTest {
                     "urn:ledger", "ref", AInXmlValueKind.ATTRIBUTE, 0, 1));
             var locGenerated = new AIcSchemaContractInterfaceGenerator().generate(
                     new AIcdCodeGenerationRequest(locDefinition, AInCodeGenerationTarget.JAVA,
-                            "example.ledger", naming(), locFrontend.rootTypeQName(locRequest)));
+                            "example.ledger", new AIcSelectedNamingCatalog(naming(), Map.of(
+                                    eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE,
+                                    "algites-java-gen-intf-versioned_1",
+                                    eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
+                                    "algites-java-gen-intf-versioned_1")), locFrontend.rootTypeQName(locRequest)));
             Assert.assertTrue(locGenerated.source().contains("AIaXmlDataObjectField("));
             Assert.assertTrue(locGenerated.source().contains("AInXmlValueKind.ATTRIBUTE"));
             Assert.assertTrue(locGenerated.source().contains("namespaceLocalName = \"amount\""));

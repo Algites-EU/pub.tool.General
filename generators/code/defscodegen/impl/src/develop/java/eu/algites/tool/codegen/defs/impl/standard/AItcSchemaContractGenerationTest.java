@@ -9,6 +9,42 @@ import org.testng.annotations.Test;
 
 /** The first code-generation stage only owns annotated read contracts. */
 public final class AItcSchemaContractGenerationTest {
+    /**
+     * A locally named XSD complex type must retain a nominal reference just as
+     * an equivalent JSON Schema definition does; an opaque map would destroy
+     * typed accessors and covariance with common schema contracts.
+     */
+    @Test
+    public void AIcLocalNamedComplexTypeUsesTypedReference() throws Exception {
+        Path locSource = Files.createTempDirectory("algites-typed-local-").resolve("typed-local_1.xsd");
+        Files.writeString(locSource, """
+                <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:typed" targetNamespace="urn:typed" version="1">
+                  <xs:complexType name="ItemType"><xs:sequence>
+                    <xs:element name="code" type="xs:string"/>
+                  </xs:sequence></xs:complexType>
+                  <xs:complexType name="RootType"><xs:sequence>
+                    <xs:element name="bindings" type="tns:ItemType" maxOccurs="unbounded"/>
+                  </xs:sequence></xs:complexType>
+                  <xs:element name="root" type="tns:RootType"/>
+                </xs:schema>
+                """);
+        var locDefinition = new AIcXmlDefsFrontend().load(
+                new eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest(locSource,
+                        eu.algites.tool.codegen.defs.AInDefinitionSourceKind.XMLDEFS,
+                        eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles.javaProfile()));
+        var locField = locDefinition.dataType().properties().stream()
+                .filter(aProperty -> aProperty.sourceName().equals("bindings"))
+                .findFirst().orElseThrow();
+        Assert.assertEquals(locField.dataType().kind(),
+                eu.algites.tool.codegen.defs.AInDataTypeKind.ARRAY);
+        Assert.assertEquals(locField.dataType().elementType().kind(),
+                eu.algites.tool.codegen.defs.AInDataTypeKind.REFERENCE);
+        Assert.assertEquals(locField.dataType().elementType().reference().identity(), "#@type/ItemType");
+        Assert.assertEquals(locField.dataType().elementType().reference().targetDataType().kind(),
+                eu.algites.tool.codegen.defs.AInDataTypeKind.OBJECT);
+    }
+
     /** Runs independent native Python generation through the same Gradle verification stage. */
     @Test
     public void AIcNativePythonContractGeneration() throws Exception {
@@ -75,7 +111,8 @@ public final class AItcSchemaContractGenerationTest {
         for (String locLanguage : java.util.List.of("java", "python")) {
             var locEntries = locGenerated.stream()
                     .filter(aEntry -> locLanguage.equals(aEntry.get("language"))).toList();
-            Assert.assertEquals(locEntries.size(), 3);
+            Assert.assertEquals(locEntries.size(), 4,
+                    "Common, XML type, element, and namespace contracts must all be emitted");
             Assert.assertEquals(locEntries.stream()
                     .filter(aEntry -> "@element/example".equals(aEntry.get("pointer"))).count(), 1L);
             Assert.assertEquals(locEntries.stream()
@@ -102,7 +139,7 @@ public final class AItcSchemaContractGenerationTest {
         Assert.assertTrue(Files.readString(locJava).contains("AIaDataObjectField"));
         Assert.assertTrue(Files.readString(locJava).contains(" getName()"));
         Assert.assertTrue(Files.readString(locJava).contains(" getCount()"));
-        Assert.assertTrue(Files.readString(locPython).contains("AIcdDataObjectField"));
+        Assert.assertTrue(Files.readString(locPython).contains("@AIaDataObjectField"));
         Assert.assertTrue(Files.readString(locPython).contains("def getName"));
         Assert.assertFalse(Files.exists(locRoot.resolve("impl")));
         locGenerator.generateRepository(locRoot, locManifest, true);
@@ -175,6 +212,37 @@ public final class AItcSchemaContractGenerationTest {
         locGenerator.generateRepository(locRoot, locManifest, true);
     }
 
+    /** Inherited Python contracts replace the actual role-specific base rather than assuming a format base. */
+    @Test
+    public void AIcPythonInheritanceRespectsContractRole() throws Exception {
+        Path locRoot = Files.createTempDirectory("defs-inheritance-role-");
+        Path locSchema = locRoot.resolve("child_1.jsondef.schema.json");
+        Files.writeString(locSchema, """
+            {"$id":"urn:child:1","type":"object","properties":{"Count":{"type":"integer"}}}
+            """);
+        var locProfile = AItcConfiguredNamingProfiles.pythonProfile();
+        var locDefinition = new AIcJsonDefsFrontend().load(AItcConfiguredNamingProfiles.load(
+                locSchema, eu.algites.tool.codegen.defs.AInDefinitionSourceKind.JSONDEFS, locProfile));
+        var locGenerator = new AIcSchemaContractInterfaceGenerator();
+        for (String locRole : java.util.List.of("common", "jsondefs")) {
+            var locRequest = new eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest(
+                    locDefinition, eu.algites.tool.codegen.defs.AInCodeGenerationTarget.PYTHON,
+                    "example.contracts", locProfile, null, "", locRole);
+            var locDirect = locGenerator.generate(locRequest);
+            String locBaseType = locRole.equals("common") ? "AIiDataObject" : "AIiJsonDataObject";
+            Assert.assertTrue(locDirect.source().contains("class " + locDirect.typeName()
+                    + "(" + locBaseType + ", ABC):"), locRole);
+            var locInherited = locGenerator.generate(locRequest, "AIigParent_1",
+                    "example.contracts.aiig_parent_1");
+            Assert.assertTrue(locInherited.source().contains("class " + locDirect.typeName()
+                    + "(AIigParent_1):"), locRole);
+            Assert.assertTrue(locInherited.source().contains(
+                    "from example.contracts.aiig_parent_1 import AIigParent_1"), locRole);
+            Assert.assertFalse(locInherited.source().contains("class " + locDirect.typeName()
+                    + "(" + locBaseType + ", ABC):"), locRole);
+        }
+    }
+
     /** Both Java and Python contracts preserve canonical field annotations without producing DTOs. */
     @Test
     public void AIcContractsForBothTechnologies() throws Exception {
@@ -198,7 +266,7 @@ public final class AItcSchemaContractGenerationTest {
         String locPythonText = Files.readString(locPython);
         Assert.assertTrue(locJavaText.contains("@eu.algites.lib.data.dataobject.AIaDataObject("));
         Assert.assertTrue(locJavaText.contains("@eu.algites.lib.data.dataobject.AIaDataObjectField("));
-        Assert.assertTrue(locPythonText.contains("AIcdDataObjectField("));
+        Assert.assertTrue(locPythonText.contains("@AIaDataObjectField("));
         Assert.assertTrue(locPythonText.contains("@abstractmethod\n    def getName"));
         Assert.assertFalse(locPythonText.contains("def to_mapping("));
         Assert.assertFalse(locPythonText.contains("def to_mapping("));

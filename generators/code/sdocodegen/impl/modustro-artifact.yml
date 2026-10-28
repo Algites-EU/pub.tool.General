@@ -26,10 +26,15 @@ Dependencies:
         ArtifactId: pub.lib.General_data.smartdataobject.impl
         Usages: [product_implementation]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
-      # The Defs generator is used only by SDO's Python integration tests.
+      # Source generation inspects the category-provider factory annotation directly.
+      - GroupId: eu.algites.lib.common
+        ArtifactId: pub.lib.General_factory.cpdiscovery.intf
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      # Public AIcSdoCodegenService methods expose AIcNameConventionCatalog.
       - GroupId: eu.algites.lib.naming
         ArtifactId: pub.lib.General_naming.convention.impl
-        Usages: [product_implementation]
+        Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.tool.codegen
         ArtifactId: pub.tool.General_generators.code.defscodegen.impl

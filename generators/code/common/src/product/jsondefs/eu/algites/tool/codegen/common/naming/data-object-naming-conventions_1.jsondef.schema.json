@@ -1,194 +1,195 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.jsondef.schema.json",
   "title": "DataObject method naming conventions",
   "allOf": [
     {
       "$ref": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json"
-    },
-    {
+    }
+  ],
+  "description": "Method naming profiles using the common naming composition toolkit.",
+  "properties": {
+    "GeneratedDataObjectMethodNameConventions": {
       "type": "object",
       "properties": {
-        "GeneratedDataObjectMethodNameConventions": {
+        "NameConventions": {
           "type": "object",
-          "properties": {
-            "NameConventions": {
-              "type": "object",
-              "additionalProperties": {
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "StructureNaming": {
                 "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "StructureNaming": {
-                    "type": "object",
-                    "propertyNames": {
-                      "$ref": "generated-dataobject-method-kind_1.jsondef.schema.json"
-                    },
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "required": [
-                      "standard_getter",
-                      "standard_setter"
-                    ],
-                    "description": "Standard getters/setters are required; absent or empty raw method roles disable generation of the corresponding method.",
-                    "properties": {
-                      "standard_getter": {
-                        "type": "string",
-                        "minLength": 1,
-                        "description": "Required generated accessor composition ID."
-                      },
-                      "standard_setter": {
-                        "type": "string",
-                        "minLength": 1,
-                        "description": "Required generated accessor composition ID."
-                      }
-                    }
-                  },
-                  "schema_source_schema_url": {
-                    "type": "string",
-                    "default": "",
-                    "title": "Schema source schema url",
-                    "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
-                  },
-                  "schema_source_schema_identifier": {
-                    "type": "string",
-                    "default": "",
-                    "title": "Schema source schema identifier",
-                    "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
-                  },
-                  "schema_source_schema_version": {
-                    "type": "string",
-                    "default": "",
-                    "title": "Schema source schema version",
-                    "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
-                  },
-                  "data_source_schema_url": {
-                    "type": "string",
-                    "default": "",
-                    "title": "Data source schema url",
-                    "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
-                  },
-                  "data_source_schema_identifier": {
-                    "type": "string",
-                    "default": "",
-                    "title": "Data source schema identifier",
-                    "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
-                  },
-                  "data_source_schema_version": {
-                    "type": "string",
-                    "default": "",
-                    "title": "Data source schema version",
-                    "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
-                  }
+                "propertyNames": {
+                  "$ref": "generated-dataobject-method-kind_1.jsondef.schema.json"
+                },
+                "additionalProperties": {
+                  "type": "string"
                 },
                 "required": [
-                  "StructureNaming"
+                  "standard_getter",
+                  "standard_setter"
                 ],
-                "allOf": [
-                  {
-                    "if": {
-                      "anyOf": [
-                        {
-                          "not": {
-                            "required": [
-                              "schema_source_schema_url"
-                            ]
-                          }
-                        },
-                        {
-                          "properties": {
-                            "schema_source_schema_url": {
-                              "const": ""
-                            }
-                          },
-                          "required": [
-                            "schema_source_schema_url"
-                          ]
-                        }
-                      ]
-                    },
-                    "then": {
-                      "properties": {
-                        "data_source_schema_url": {
-                          "const": ""
-                        }
-                      }
-                    }
+                "description": "Standard getters/setters are required; absent or empty raw method roles disable generation of the corresponding method.",
+                "properties": {
+                  "standard_getter": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Required generated accessor composition ID."
                   },
-                  {
-                    "if": {
-                      "anyOf": [
-                        {
-                          "not": {
-                            "required": [
-                              "schema_source_schema_identifier"
-                            ]
-                          }
-                        },
-                        {
-                          "properties": {
-                            "schema_source_schema_identifier": {
-                              "const": ""
-                            }
-                          },
-                          "required": [
-                            "schema_source_schema_identifier"
-                          ]
-                        }
-                      ]
+                  "standard_setter": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Required generated accessor composition ID."
+                  }
+                }
+              },
+              "schema_source_schema_url": {
+                "type": "string",
+                "default": "",
+                "title": "Schema source schema url",
+                "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
+              },
+              "schema_source_schema_identifier": {
+                "type": "string",
+                "default": "",
+                "title": "Schema source schema identifier",
+                "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
+              },
+              "schema_source_schema_version": {
+                "type": "string",
+                "default": "",
+                "title": "Schema source schema version",
+                "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
+              },
+              "data_source_schema_url": {
+                "type": "string",
+                "default": "",
+                "title": "Data source schema url",
+                "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
+              },
+              "data_source_schema_identifier": {
+                "type": "string",
+                "default": "",
+                "title": "Data source schema identifier",
+                "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
+              },
+              "data_source_schema_version": {
+                "type": "string",
+                "default": "",
+                "title": "Data source schema version",
+                "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
+              }
+            },
+            "required": [
+              "StructureNaming"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "anyOf": [
+                    {
+                      "not": {
+                        "required": [
+                          "schema_source_schema_url"
+                        ]
+                      }
                     },
-                    "then": {
+                    {
                       "properties": {
-                        "data_source_schema_identifier": {
+                        "schema_source_schema_url": {
                           "const": ""
                         }
-                      }
+                      },
+                      "required": [
+                        "schema_source_schema_url"
+                      ]
                     }
-                  },
-                  {
-                    "if": {
-                      "anyOf": [
-                        {
-                          "not": {
-                            "required": [
-                              "schema_source_schema_version"
-                            ]
-                          }
-                        },
-                        {
-                          "properties": {
-                            "schema_source_schema_version": {
-                              "const": ""
-                            }
-                          },
-                          "required": [
-                            "schema_source_schema_version"
-                          ]
-                        }
-                      ]
-                    },
-                    "then": {
-                      "properties": {
-                        "data_source_schema_version": {
-                          "const": ""
-                        }
-                      }
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "data_source_schema_url": {
+                      "const": ""
                     }
                   }
-                ]
+                }
+              },
+              {
+                "if": {
+                  "anyOf": [
+                    {
+                      "not": {
+                        "required": [
+                          "schema_source_schema_identifier"
+                        ]
+                      }
+                    },
+                    {
+                      "properties": {
+                        "schema_source_schema_identifier": {
+                          "const": ""
+                        }
+                      },
+                      "required": [
+                        "schema_source_schema_identifier"
+                      ]
+                    }
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "data_source_schema_identifier": {
+                      "const": ""
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "anyOf": [
+                    {
+                      "not": {
+                        "required": [
+                          "schema_source_schema_version"
+                        ]
+                      }
+                    },
+                    {
+                      "properties": {
+                        "schema_source_schema_version": {
+                          "const": ""
+                        }
+                      },
+                      "required": [
+                        "schema_source_schema_version"
+                      ]
+                    }
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "data_source_schema_version": {
+                      "const": ""
+                    }
+                  }
+                }
               }
-            }
-          },
-          "required": [
-            "NameConventions"
-          ],
-          "additionalProperties": false
+            ]
+          }
         }
       },
       "required": [
-        "GeneratedDataObjectMethodNameConventions"
-      ]
+        "NameConventions"
+      ],
+      "additionalProperties": false
     }
+  },
+  "type": "object",
+  "required": [
+    "GeneratedDataObjectMethodNameConventions"
   ],
-  "description": "Method naming profiles using the common naming composition toolkit."
+  "x-algites-defscodegen-extends": [
+    "https://defs.dev.algites.eu/api/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json"
+  ]
 }

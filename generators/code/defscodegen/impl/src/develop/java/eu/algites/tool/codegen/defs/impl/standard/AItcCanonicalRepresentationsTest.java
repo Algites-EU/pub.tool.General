@@ -23,8 +23,8 @@ import org.testng.annotations.Test;
 public final class AItcCanonicalRepresentationsTest {
     private AIcdCanonicalDefinition AIcLoad(String aFile, AInDefinitionSourceKind aKind) throws Exception {
         Path locPath = Path.of(getClass().getClassLoader().getResource(aFile).toURI());
-        return new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(
-                locPath, aKind, AIcAlgitesNamingProfiles.javaProfile()));
+        return new AIcDefaultDefsCodegenService().load(AItcConfiguredNamingProfiles.load(
+                locPath, aKind, AItcConfiguredNamingProfiles.javaProfile()));
     }
 
     /** Confirms that wire-compatible representations merge while retaining both descriptions and origins. */
@@ -39,7 +39,7 @@ public final class AItcCanonicalRepresentationsTest {
         Assert.assertTrue(locMerged.description().contains(locJson.description()));
         for (AInCodeGenerationTarget locTarget : AInCodeGenerationTarget.values()) {
             var locProfile = locTarget == AInCodeGenerationTarget.JAVA
-                    ? AIcAlgitesNamingProfiles.javaProfile() : AIcAlgitesNamingProfiles.pythonProfile();
+                    ? AItcConfiguredNamingProfiles.javaProfile() : AItcConfiguredNamingProfiles.pythonProfile();
             AIcdGeneratedSource locSource = new AIcDefaultDefsCodegenService().generate(new AIcdCodeGenerationRequest(
                     locMerged, locTarget, "example.generated", locProfile));
             Assert.assertTrue(locSource.source().contains(locYaml.identity()));
@@ -79,15 +79,15 @@ public final class AItcCanonicalRepresentationsTest {
                   "alias":{"$ref":"#/$defs/text"}},
                  "properties":{"text":{"$ref":"#/$defs/alias"},"items":{"$ref":"#Items"}}}
                 """);
-        AIcdCanonicalDefinition locDefinition = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(
-                locPath, AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles.javaProfile()));
+        AIcdCanonicalDefinition locDefinition = new AIcDefaultDefsCodegenService().load(AItcConfiguredNamingProfiles.load(
+                locPath, AInDefinitionSourceKind.JSONDEFS, AItcConfiguredNamingProfiles.javaProfile()));
         Assert.assertEquals(locDefinition.dataType().properties().get(0).dataType().kind(), AInDataTypeKind.STRING);
         Assert.assertEquals(locDefinition.dataType().properties().get(0).description(), "Inline text");
         Assert.assertEquals(locDefinition.dataType().properties().get(1).dataType().kind(), AInDataTypeKind.ARRAY);
         Assert.assertEquals(locDefinition.dataType().properties().get(1).dataType().elementType().kind(), AInDataTypeKind.INTEGER);
         Files.writeString(locPath, "{\"type\":\"object\",\"properties\":{\"bad\":{\"$ref\":\"#/$defs/missing\"}}}");
         Assert.expectThrows(IllegalArgumentException.class, () -> new AIcDefaultDefsCodegenService().load(
-                new AIcdDefinitionLoadRequest(locPath, AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles.javaProfile())));
+                AItcConfiguredNamingProfiles.load(locPath, AInDefinitionSourceKind.JSONDEFS, AItcConfiguredNamingProfiles.javaProfile())));
     }
     /** Keeps composed object fields and filename identity for XML schemas with generic type names. */
     @Test
@@ -99,8 +99,8 @@ public final class AItcCanonicalRepresentationsTest {
                  "allOf":[{"$ref":"#/$defs/content"}]}
                 """);
         var locService = new AIcDefaultDefsCodegenService();
-        var locProfile = AIcAlgitesNamingProfiles.javaProfile();
-        var locDefinition = locService.load(new AIcdDefinitionLoadRequest(locJson, AInDefinitionSourceKind.JSONDEFS, locProfile));
+        var locProfile = AItcConfiguredNamingProfiles.javaProfile();
+        var locDefinition = locService.load(AItcConfiguredNamingProfiles.load(locJson, AInDefinitionSourceKind.JSONDEFS, locProfile));
         Assert.assertEquals(locDefinition.dataType().kind(), AInDataTypeKind.OBJECT);
         Assert.assertEquals(locDefinition.dataType().properties().size(), 1);
         Assert.assertTrue(locDefinition.dataType().properties().get(0).presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED);
@@ -112,7 +112,7 @@ public final class AItcCanonicalRepresentationsTest {
                   </xs:sequence></xs:complexType>
                 </xs:schema>
                 """);
-        locDefinition = locService.load(new AIcdDefinitionLoadRequest(locXml, AInDefinitionSourceKind.XMLDEFS, locProfile));
+        locDefinition = locService.load(AItcConfiguredNamingProfiles.load(locXml, AInDefinitionSourceKind.XMLDEFS, locProfile));
         Assert.assertEquals(locDefinition.logicalName(), "xml-contract");
         Assert.assertEquals(locDefinition.dataType().properties().get(0).dataType().kind(), AInDataTypeKind.ARRAY);
         Assert.assertEquals(locDefinition.dataType().properties().get(0).dataType().elementType().kind(), AInDataTypeKind.STRING);

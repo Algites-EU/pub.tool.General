@@ -50,12 +50,11 @@ final class AIcPythonSchemaContractRenderer {
             String locTitle = title(locProperty.title(), locProperty.sourceName());
             String locEntries = locProperty.description() == null || locProperty.description().isBlank() ? "()"
                     : "(AIaFieldLabel.Entry(roleCode=AIaFieldLabel.FIELD_DESCRIPTION, label=" + quote(locProperty.description()) + "),)";
-            locMetadata.add("        AIcdDataObjectField(field_name=" + quote(locProperty.sourceName())
+            String locFieldDecorator = "    @AIaDataObjectField(field_name=" + quote(locProperty.sourceName())
                     + ", presence=AInFieldPresenceKind." + locProperty.presence().name()
                     + ", allows_null=" + (locProperty.nullable() ? "True" : "False")
-                    + ", getter_name=" + quote(locGetterName)
                     + ", setter_inheritance_policy=AInFieldSetterInheritancePolicy."
-                    + AIcSetterInheritancePolicyConfiguration.effectiveDefault().name() + "),");
+                    + AIcSetterInheritancePolicyConfiguration.effectiveDefault().name() + ")";
             if (locProperty.xmlField() != null) {
                 var locXml = locProperty.xmlField();
                 locXmlFields.add("        " + quote(locProperty.sourceName())
@@ -72,6 +71,7 @@ final class AIcPythonSchemaContractRenderer {
                     + ", labels=" + locEntries + "),");
             String locReturn = locReference != null && !locArray && !locReference.targetsEnum()
                     ? " -> " + locType + (locProperty.nullable() ? " | None" : "") : "";
+            locGetters.add(locFieldDecorator);
             locGetters.add("    @AIaFieldLabel(label=" + quote(locTitle) + ", labels=" + locEntries + ")");
             locGetters.add("    @abstractmethod");
             locGetters.add("    def " + locGetterName + "(self)" + locReturn + ":");
@@ -100,17 +100,21 @@ final class AIcPythonSchemaContractRenderer {
                     + quote(locQName.substring(1, locDelimiter)) + ", namespace_local_name="
                     + quote(locQName.substring(locDelimiter + 1)) + ")\n";
         }
+        String locBaseModule = aRequest.contractRole().equals("common")
+                ? "eu.algites.lib.data.dataobject.aii_data_object" : baseModule(locDefinition.sourceKind());
+        String locBaseType = aRequest.contractRole().equals("common")
+                ? "AIiDataObject" : baseType(locDefinition.sourceKind());
         String locSource = "from __future__ import annotations\n\nfrom abc import ABC, abstractmethod\n"
                 + "from typing import Any, ClassVar, Mapping\nfrom decimal import Decimal\n"
-                + "from " + baseModule(locDefinition.sourceKind()) + " import " + baseType(locDefinition.sourceKind()) + "\n"
+                + "from " + locBaseModule + " import " + locBaseType + "\n"
                 + "from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n"
-                + "from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\n"
+                + "from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField\n"
                 + "from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy\n"
                 + "from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\n"
                 + "from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel\n"
                 + locXmlImports + locXmlFieldImports
                 + String.join("\n", locImports) + "\n\n" + locHelpers
-                + "class " + locName + "(" + baseType(locDefinition.sourceKind()) + ", ABC):\n"
+                + "class " + locName + "(" + locBaseType + ", ABC):\n"
                 + "    __data_object__ = AIcdDataObject("
                 + ("".equals(locDefinition.schemaSourceSchemaIdentifierField()) ? "" : "schema_id=" + quote(locDefinition.identity()) + ", ")
                 + ("".equals(locDefinition.schemaSourceSchemaVersionField()) ? "" : "schema_version=" + (locDefinition.version() == null ? -1 : locDefinition.version()) + ", ")
@@ -124,8 +128,7 @@ final class AIcPythonSchemaContractRenderer {
                 + ", setter_inheritance_policy=AInFieldSetterInheritancePolicy."
                 + AIcSetterInheritancePolicyConfiguration.effectiveDefault().name() + ")\n"
                 + locXmlMetadata + locXmlFieldMetadata
-                + "    __data_object_fields__ = (\n" + String.join("\n", locMetadata)
-                + "\n    )\n\n    __field_labels__ = {\n" + String.join("\n", locLabels)
+                + "    __field_labels__ = {\n" + String.join("\n", locLabels)
                 + "\n    }\n\n" + String.join("\n", locFields)
                 + "\n\n    __slots__ = ()\n\n" + String.join("\n", locGetters) + "\n";
         return new AIcdGeneratedSource(locName, locPath, locSource,

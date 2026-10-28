@@ -86,7 +86,7 @@ class AIcXmlDefsFrontend:
                 or len(self._children(typ, 'choice')) != 1
                 or choice.get('minOccurs', '1') != '1'
                 or choice.get('maxOccurs', '1') != '1'):
-            raise ValueError(f'Unsupported mixed or repeated XSD choice in {request.path}')
+            return None
         branches = self._children(choice)
         if not branches or any(branch.tag != self._xs + 'element' or
                 bool(branch.get('name')) == bool(branch.get('ref')) or
@@ -153,14 +153,66 @@ class AIcXmlDefsFrontend:
             names.add(name)
             if typ is not main:
                 result.append(name)
+        for typ in self._children(root, 'complexType'):
+            for ordinal, choice in enumerate(self._descendant_choices(typ), 1):
+                if not self._repeated_choice(choice):
+                    continue
+                synthetic = typ.get('name', '') + 'Choice' + str(ordinal)
+                if synthetic in names:
+                    raise ValueError(f'Generated XSD choice type collides with a declared type: {synthetic}')
+                names.add(synthetic)
+                result.append(synthetic)
         return tuple(result)
+
+    def _descendant_choices(self, typ):
+        """Enumerate choice compositors in a named complexType without crossing inline types."""
+        result = []
+        def visit(parent):
+            for node in self._children(parent):
+                tag = node.tag.removeprefix(self._xs)
+                if tag == 'choice':
+                    result.append(node)
+                if tag in ('sequence', 'all', 'choice', 'complexContent', 'extension', 'restriction'):
+                    visit(node)
+        visit(typ)
+        return tuple(result)
+
+    @staticmethod
+    def _repeated_choice(choice):
+        maximum = choice.get('maxOccurs', '1')
+        return maximum == 'unbounded' or int(maximum) > 1
+
+    def _synthetic_choice(self, root, name):
+        for typ in self._children(root, 'complexType'):
+            for ordinal, choice in enumerate(self._descendant_choices(typ), 1):
+                if self._repeated_choice(choice) and name == typ.get('name', '') + 'Choice' + str(ordinal):
+                    return choice
+        return None
+
+    def is_synthetic_choice_type_name(self, path, name):
+        """Distinguish generated choice particle types from real XML QName-bearing types."""
+        root = self._parse(Path(path))[0]
+        return self._named_type(root, name) is None and self._synthetic_choice(root, name) is not None
+
+    def _synthetic_choice_type(self, choice, request, resource):
+        """Project one repeated choice item, retaining each branch's XML QName."""
+        branches = self._children(choice)
+        if any(branch.tag != self._xs + 'element' or branch.get('minOccurs') is not None
+               or branch.get('maxOccurs') is not None for branch in branches):
+            raise ValueError(f'Unsupported repeated XSD choice branch in {request.path}')
+        fields = tuple(self._elements(choice, False, request, resource))
+        if not fields or len(fields) != len(branches):
+            raise ValueError(f'Invalid repeated XSD choice in {request.path}')
+        return AIcdDataType.choice(AInDataTypeKind.ONE_OF,
+            tuple(AIcdDataType(AInDataTypeKind.OBJECT, properties=(field,)) for field in fields))
 
     def load_named_type(self, request, name):
         """Project a separately declared type without changing the root file contract."""
         resource = self._parse(request.path)
         root = resource[0]
         typ = self._named_type(root, name)
-        if typ is None:
+        synthetic = self._synthetic_choice(root, name) if typ is None else None
+        if typ is None and synthetic is None:
             raise ValueError(f'Unknown named XSD type {name!r} in {request.path}')
         version_text = root.get('version', '')
         parsed = self._identities.from_file(request, int(version_text) if version_text.isdigit() else None)
@@ -169,6 +221,10 @@ class AIcXmlDefsFrontend:
         logical = re.sub(r'[^A-Za-z0-9]+', '-', re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', name)).lower()
         description = self._documentation(typ)
         title = self._title(typ)
+        if synthetic is not None:
+            return AIcdCanonicalDefinition(identity, parsed.version, logical, self.source_kind,
+                str(request.path) + '#@type/' + name, self._documentation(synthetic),
+                self._synthetic_choice_type(synthetic, request, resource), (), self._title(synthetic))
         values = self._enum_values(typ)
         resource_name = str(request.path) + '#@type/' + name
         if values:
@@ -488,7 +544,38 @@ class AIcXmlDefsFrontend:
             kind = node.tag.removeprefix(self._xs)
             if kind in ('sequence', 'all', 'choice'):
                 minimum, maximum = self._validate_occurs(node, True, request.path)
-                if kind == 'choice': raise ValueError(f'XSD choice is not represented by the canonical property model: {request.path}')
+                if kind == 'choice':
+                    if not self._repeated_choice(node):
+                        raise ValueError(f'Nonrepeating nested XSD choice requires an explicit contract: {request.path}')
+                    parent_index = {id(child): parent_node for parent_node in resource[0].iter()
+                        for child in parent_node}
+                    owner = parent_index.get(id(node))
+                    while owner is not None and owner.tag != self._xs + 'complexType':
+                        owner = parent_index.get(id(owner))
+                    if owner is None or not owner.get('name'):
+                        raise ValueError(f'Repeated XSD choice requires a named complexType: {request.path}')
+                    ordinal = next((index for index, item in enumerate(self._descendant_choices(owner), 1)
+                        if item is node), None)
+                    if ordinal is None:
+                        raise ValueError('Cannot resolve ordinal of nested XSD choice')
+                    name = owner.get('name') + 'Choice' + str(ordinal)
+                    import re
+                    logical = re.sub(r'[^A-Za-z0-9]+', '-',
+                        re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', name)).lower()
+                    parsed = self._identities.from_file(request,
+                        int(resource[0].get('version')) if resource[0].get('version', '').isdigit() else None)
+                    choice_type = self._synthetic_choice_type(node, request, resource)
+                    reference = AIcdDefinitionReference('#@type/' + name,
+                        parsed.version, logical, choice_type)
+                    maximum = node.get('maxOccurs', '1')
+                    data_type = AIcdDataType(AInDataTypeKind.ARRAY,
+                        element_type=AIcdDataType(AInDataTypeKind.REFERENCE, reference=reference),
+                        constraints=AIcdValueConstraints(min_items=minimum,
+                            max_items=None if maximum == 'unbounded' else int(maximum)))
+                    yield AIcdPropertyDefinition('Choice' + str(ordinal), data_type,
+                        AInFieldPresenceKind.ALLOWED if optional or minimum == 0 else AInFieldPresenceKind.REQUIRED,
+                        False, self._documentation(node), self._title(node), None)
+                    continue
                 projected = tuple(self._elements(node, optional, request, resource, groups))
                 yield from self._compositor_fields(projected, minimum, maximum, optional, request.path)
             elif kind == 'element':
@@ -643,7 +730,23 @@ class AIcXmlDefsFrontend:
         if namespace is None or namespace == root.get('targetNamespace'):
             typ = self._named_type(root, local)
             if typ is not None:
-                return self._simple_shape(typ, request, resource, visited) if typ.tag == self._xs + 'simpleType' else _AIcdXmlShape(AInDataTypeKind.OBJECT)
+                if typ.tag == self._xs + 'simpleType':
+                    return self._simple_shape(typ, request, resource, visited)
+                # A named complexType is an independently emitted contract.
+                # Keep its identity just as JSON $ref does, rather than losing
+                # the type and rendering a Map[str, object] / Map<String, Object>.
+                import re
+                logical = re.sub(r'[^A-Za-z0-9]+', '-',
+                    re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', local)).lower()
+                parsed = self._identities.from_file(request,
+                    int(root.get('version')) if root.get('version', '').isdigit() else None)
+                # The schema's selected primary type is emitted as the root
+                # contract, not as an additional @type sibling.
+                primary = typ is self._root_type(root)
+                reference = AIcdDefinitionReference('#' if primary else '#@type/' + local,
+                    parsed.version, parsed.logical_name if primary else logical,
+                    AIcdDataType(AInDataTypeKind.OBJECT))
+                return _AIcdXmlShape(AInDataTypeKind.REFERENCE, reference=reference)
         for imp in self._children(root, 'import', 'include'):
             if imp.tag == self._xs+'import' and imp.get('namespace') != namespace: continue
             if imp.tag == self._xs+'include' and namespace is not None and namespace != root.get('targetNamespace'): continue

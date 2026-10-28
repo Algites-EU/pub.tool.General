@@ -115,3 +115,35 @@ def test_conflicting_classpath_catalog_definitions_fail(monkeypatch, tmp_path):
     with _catalog_sources.expand_naming_catalogs(['classpath:overlap.yml']) as sources:
         with pytest.raises(ValueError, match='Conflicting naming definition'):
             AIcNameConventionCatalog.load_many(sources)
+
+
+def test_profile_catalog_uses_standard_resource_from_separate_intf_distribution(monkeypatch, tmp_path):
+    """An independently packaged profile resolves shared grammar from naming/intf."""
+    from eu.algites.tool.codegen.defs.impl.standard import _catalog_sources
+    standard = tmp_path / 'naming-intf'
+    profile = tmp_path / 'naming-profile'
+    standard.mkdir()
+    profile.mkdir()
+    (standard / 'shared-fixture.yml').write_text('IdentifierConventions: {}\n')
+    (profile / 'profile-fixture.yml').write_text(
+        'StandardConventionsFile: shared-fixture.yml\nNameConventions: {}\n')
+    original_files = _catalog_sources.importlib.resources.files
+
+    def files(package):
+        if package == 'eu.algites.lib.naming.convention':
+            return standard
+        if package == 'independent.naming.profile':
+            return profile
+        return original_files(package)
+
+    monkeypatch.setattr(_catalog_sources.importlib.resources, 'files', files)
+    monkeypatch.setattr(_catalog_sources, '_providers', lambda: iter((
+        ('eu.algites.lib.naming.convention', ()),
+        ('independent.naming.profile', ()))))
+    monkeypatch.setattr(sys, 'path', [str(tmp_path / 'other')])
+    with _catalog_sources.expand_naming_catalogs(['resource:profile-fixture.yml']) as expanded:
+        assert len(expanded) == 1
+        selected = Path(expanded[0])
+        assert selected.read_text().startswith('StandardConventionsFile:')
+        assert (selected.parent / 'shared-fixture.yml').read_text() == (
+            'IdentifierConventions: {}\n')

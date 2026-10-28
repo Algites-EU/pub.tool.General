@@ -10,7 +10,9 @@ Artifact:
 Dependencies:
   - DependencyKind: modustro
     Items:
+      # This CLI consumes the profile-neutral naming catalog implementation.
+      # The actual naming profile is supplied by the caller as a YAML file.
       - GroupId: eu.algites.lib.naming
-        ArtifactId: pub.lib.General_naming.convention.profile.algites
-        ArtifactId: pub.lib.General_naming.convention.profile.algites
+        ArtifactId: pub.lib.General_naming.convention.impl
+        Usages: [product_implementation]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }

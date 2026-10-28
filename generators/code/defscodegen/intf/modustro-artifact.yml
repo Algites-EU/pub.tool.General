@@ -10,6 +10,17 @@ Artifact:
 Dependencies:
   - DependencyKind: modustro
     Items:
+      - GroupId: eu.algites.lib.common
+        ArtifactId: pub.lib.General_common
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      # Interim single-artifact SDO generation writes mutable and implementation
+      # classes beside Defs interfaces. Move this to build_source/target-aware
+      # configuration when those dependency usages become available.
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.smartdataobject.impl
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.naming
         ArtifactId: pub.lib.General_naming.convention.intf
         Usages: [product_api]

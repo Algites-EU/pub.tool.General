@@ -94,14 +94,14 @@ public final class AItcGeneratorImplementationParityTest {
                     ? "xsd" : (locKindName.equals("jsondefs") ? "jsondef.schema.json" : "yamldef.schema.json");
             for (AInCodeGenerationTarget locTarget : AInCodeGenerationTarget.values()) {
                 var locProfile = locTarget == AInCodeGenerationTarget.PYTHON
-                        ? eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles.pythonProfile()
-                        : eu.algites.lib.naming.convention.profile.algites.AIcAlgitesNamingProfiles.javaProfile();
+                        ? AItcConfiguredNamingProfiles.pythonProfile()
+                        : AItcConfiguredNamingProfiles.javaProfile();
                 for (String locStem : new String[] {
                         "parity-root", "parity-child", "parity-leaf", "parity-status", "parity-builtins"}) {
                     Path locSchema = aArtifact.resolve("src/develop")
                             .resolve(locKindName).resolve(locStem + "_1." + locExtension);
                     var locDefinition = new AIcDefaultDefsCodegenService().load(
-                            new AIcdDefinitionLoadRequest(locSchema, locKind, locProfile));
+                            AItcConfiguredNamingProfiles.load(locSchema, locKind, locProfile));
                     var locSource = new AIcSchemaContractInterfaceGenerator().generate(
                             new AIcdCodeGenerationRequest(locDefinition, locTarget, "api_parity", locProfile));
                     Path locOutput = aDirectory.resolve(locKindName)

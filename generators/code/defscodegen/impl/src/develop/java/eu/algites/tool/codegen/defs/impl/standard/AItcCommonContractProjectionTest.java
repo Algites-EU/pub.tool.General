@@ -87,4 +87,27 @@ public final class AItcCommonContractProjectionTest {
                 List.of("explicit", locForeign.identity(), 1)),
                 List.of("explicit", locForeign.identity(), 1));
     }
+    /**
+     * A package-qualified XML namespace can denote the same root type as
+     * JSONDEFS/YAMLDEFS with no declared logical identifier. Other namespaces
+     * and nested definitions remain distinct, as do mismatched versions.
+     */
+    @Test
+    public void AIcMatchOnlyExactQualifiedXmlImplicitRoot() {
+        var locImplicit = List.of("implicit", "eu.algites.lib.naming.convention",
+                "common-naming-conventions", 1, "");
+        var locQualified = List.of("explicit",
+                "eu.algites.lib.naming.convention.common-naming-conventions", 1);
+        Assert.assertTrue(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
+                locQualified, locImplicit));
+        Assert.assertFalse(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
+                List.of("explicit", "eu.other.convention.common-naming-conventions", 1), locImplicit));
+        Assert.assertFalse(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
+                List.of("explicit", locQualified.get(1), 2), locImplicit));
+        Assert.assertFalse(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
+                locQualified, List.of("implicit", "eu.algites.lib.naming.convention",
+                        "common-naming-conventions", 1, "/properties/Nested")));
+        Assert.assertFalse(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
+                List.of("explicit", "urn:foreign:common-naming-conventions:1", 1), locImplicit));
+    }
 }

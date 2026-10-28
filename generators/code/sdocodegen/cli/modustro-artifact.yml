@@ -14,3 +14,14 @@ Dependencies:
       - GroupId: eu.algites.tool.codegen
         ArtifactId: pub.tool.General_generators.code.sdocodegen.impl
         Usages: [product_implementation]
+      # CLI contract discovery also imports AIiDataObject directly.
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.dataobject.intf
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      # The SDO CLI loads concrete naming catalogs directly in both runtimes.
+      # This is the profile-neutral engine, not an Algites naming profile.
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.convention.impl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }

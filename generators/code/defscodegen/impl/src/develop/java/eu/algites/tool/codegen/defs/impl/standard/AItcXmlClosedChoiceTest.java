@@ -37,7 +37,15 @@ public final class AItcXmlClosedChoiceTest {
                       </xs:choice></xs:complexType>
                     </xs:schema>
                     """);
-            AIiNameConventionCatalog locNaming = naming();
+            AIiNameConventionCatalog locNaming = new AIcSelectedNamingCatalog(naming(), Map.of(
+                    eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE,
+                    "algites-java-gen-intf-versioned_1",
+                    eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
+                    "algites-java-gen-intf-versioned_1",
+                    eu.algites.tool.codegen.defs.AInDefsNameRole.DATA_TYPE,
+                    "algites-java-gen-intf-versioned_1",
+                    eu.algites.tool.codegen.defs.AInDefsNameRole.DATA_TYPE_FILE_STEM,
+                    "algites-java-gen-intf-versioned_1"));
             AIcdDefinitionLoadRequest locLoad = new AIcdDefinitionLoadRequest(
                     locSchema, AInDefinitionSourceKind.XMLDEFS, locNaming);
             AIcXmlDefsFrontend locFrontend = new AIcXmlDefsFrontend();

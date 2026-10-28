@@ -36,8 +36,8 @@ public final class AItcSchemaParityTest {
     }
 
     private AIcdCanonicalDefinition load(String stem, int format) throws Exception {
-        return new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(
-                resource(stem + "_1." + SUFFIXES.get(format)), KINDS.get(format), AIcAlgitesNamingProfiles.javaProfile()));
+        return new AIcDefaultDefsCodegenService().load(AItcConfiguredNamingProfiles.load(
+                resource(stem + "_1." + SUFFIXES.get(format)), KINDS.get(format), AItcConfiguredNamingProfiles.javaProfile()));
     }
 
     private AIcdCanonicalDefinition normalized(AIcdCanonicalDefinition model) {
@@ -53,7 +53,7 @@ public final class AItcSchemaParityTest {
             var merged = AIcCanonicalDefinitionMerger.AIcMerge(models);
             for (var model : models) Assert.assertTrue(merged.description().contains(model.identity()));
             for (var target : AInCodeGenerationTarget.values()) {
-                var profile = target == AInCodeGenerationTarget.JAVA ? AIcAlgitesNamingProfiles.javaProfile() : AIcAlgitesNamingProfiles.pythonProfile();
+                var profile = target == AInCodeGenerationTarget.JAVA ? AItcConfiguredNamingProfiles.javaProfile() : AItcConfiguredNamingProfiles.pythonProfile();
                 var outputs = models.stream().map(model -> service.generate(new AIcdCodeGenerationRequest(
                         normalized(model), target, "parity_generated", profile))).toList();
                 Assert.assertEquals(outputs.get(0), outputs.get(1));
@@ -80,13 +80,13 @@ public final class AItcSchemaParityTest {
         for (int format = 0; format < KINDS.size(); format++) {
             var model = load("parity-root", format);
             var javaSource = service.generate(new AIcdCodeGenerationRequest(
-                    model, AInCodeGenerationTarget.JAVA, "parity_generated", AIcAlgitesNamingProfiles.javaProfile())).source();
+                    model, AInCodeGenerationTarget.JAVA, "parity_generated", AItcConfiguredNamingProfiles.javaProfile())).source();
             Assert.assertTrue(javaSource.contains("public static final String SCHEMA_FIELD_NAME__OPTIONAL_TEXT = \"optionalText\";"));
             Assert.assertTrue(javaSource.contains("<strong>Field Name:</strong> {@code optionalText}<br/>"));
             Assert.assertTrue(javaSource.contains("<strong>Field Description:</strong> Optional text value."));
 
             var pythonSource = service.generate(new AIcdCodeGenerationRequest(
-                    model, AInCodeGenerationTarget.PYTHON, "parity_generated", AIcAlgitesNamingProfiles.pythonProfile())).source();
+                    model, AInCodeGenerationTarget.PYTHON, "parity_generated", AItcConfiguredNamingProfiles.pythonProfile())).source();
             Assert.assertTrue(pythonSource.contains("SCHEMA_FIELD_NAME__OPTIONAL_TEXT = \"optionalText\""));
             Assert.assertTrue(pythonSource.contains("**Field Name:** ``optionalText``"));
             Assert.assertTrue(pythonSource.contains("**Field Description:** Optional text value."));
@@ -100,7 +100,7 @@ public final class AItcSchemaParityTest {
     @Test
     public void AIcSchemaFieldConstantUsesChosenConstantStyle() {
         AIcGenerationNames names = new AIcGenerationNames();
-        Assert.assertEquals(names.schemaFieldNameConstant("optionalText", AIcAlgitesNamingProfiles.javaProfile()),
+        Assert.assertEquals(names.schemaFieldNameConstant("optionalText", AItcConfiguredNamingProfiles.javaProfile()),
                 "SCHEMA_FIELD_NAME__OPTIONAL_TEXT");
         AIiNameConventionCatalog custom = new AIiNameConventionCatalog() {
             /** Identifies the standard Java generation profile. */
@@ -129,7 +129,9 @@ public final class AItcSchemaParityTest {
                 throw new UnsupportedOperationException();
             }
         };
-        Assert.assertEquals(names.schemaFieldNameConstant("optionalText", custom), "SchemaFieldName__OptionalText");
+        Assert.assertEquals(names.schemaFieldNameConstant("optionalText", new AIcSelectedNamingCatalog(
+                custom, Map.of(eu.algites.tool.codegen.defs.AInDefsNameRole.INTERFACE_TYPE,
+                        "algites-java-gen-intf-versioned_1"))), "SchemaFieldName__OptionalText");
     }
 
     /** Compiles all generated Java classes and imports all generated Python classes with nested references. */
@@ -140,7 +142,7 @@ public final class AItcSchemaParityTest {
         var javaFiles = new ArrayList<String>();
         for (String stem : STEMS) {
             for (var target : AInCodeGenerationTarget.values()) {
-                var profile = target == AInCodeGenerationTarget.JAVA ? AIcAlgitesNamingProfiles.javaProfile() : AIcAlgitesNamingProfiles.pythonProfile();
+                var profile = target == AInCodeGenerationTarget.JAVA ? AItcConfiguredNamingProfiles.javaProfile() : AItcConfiguredNamingProfiles.pythonProfile();
                 var output = service.generate(new AIcdCodeGenerationRequest(load(stem, 2), target, "parity_generated", profile));
                 Path path = root.resolve(output.relativePath());
                 Files.createDirectories(path.getParent());
@@ -182,8 +184,8 @@ public final class AItcSchemaParityTest {
                 "required":["integer","decimal","byte","text"]}
                 """);
         var service = new AIcDefaultDefsCodegenService();
-        var model = service.load(new AIcdDefinitionLoadRequest(schema, AInDefinitionSourceKind.JSONDEFS, AIcAlgitesNamingProfiles.javaProfile()));
-        var output = service.generate(new AIcdCodeGenerationRequest(model, AInCodeGenerationTarget.JAVA, "exact_generated", AIcAlgitesNamingProfiles.javaProfile()));
+        var model = service.load(AItcConfiguredNamingProfiles.load(schema, AInDefinitionSourceKind.JSONDEFS, AItcConfiguredNamingProfiles.javaProfile()));
+        var output = service.generate(new AIcdCodeGenerationRequest(model, AInCodeGenerationTarget.JAVA, "exact_generated", AItcConfiguredNamingProfiles.javaProfile()));
         Path source = root.resolve(output.relativePath());
         Files.createDirectories(source.getParent());
         Files.writeString(source, output.source());
@@ -215,8 +217,8 @@ public final class AItcSchemaParityTest {
         Files.writeString(schema, """
                 {"type":"object","properties":{"inline":{"$ref":"urn:tests:leaf:1#Content"},"leaf":{"$ref":"urn:tests:leaf:1"}}}
                 """);
-        var model = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(schema,
-                AInDefinitionSourceKind.YAMLDEFS, AIcAlgitesNamingProfiles.javaProfile()));
+        var model = new AIcDefaultDefsCodegenService().load(AItcConfiguredNamingProfiles.load(schema,
+                AInDefinitionSourceKind.YAMLDEFS, AItcConfiguredNamingProfiles.javaProfile()));
         Assert.assertEquals(model.dataType().properties().get(0).dataType().constraints().minimum(), "0.12345678901234567890123456789");
         Assert.assertEquals(model.dataType().properties().get(1).dataType().referencedDefinition().logicalName(), "leaf");
     }
@@ -237,17 +239,17 @@ public final class AItcSchemaParityTest {
             Path locConsumer = Files.createDirectories(locRepository.resolve("consumer/src/product/" + locKind));
             Path locRoot = locConsumer.resolve("root_1" + locSuffix);
             Files.writeString(locRoot, "{\"type\":\"object\",\"properties\":{\"leaf\":{\"$ref\":\"" + locId + "\"}}}");
-            var locModel = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(locRoot,
+            var locModel = new AIcDefaultDefsCodegenService().load(AItcConfiguredNamingProfiles.load(locRoot,
                 locKind.equals("yamldefs") ? AInDefinitionSourceKind.YAMLDEFS : AInDefinitionSourceKind.JSONDEFS,
-                AIcAlgitesNamingProfiles.javaProfile()));
+                AItcConfiguredNamingProfiles.javaProfile()));
             Assert.assertEquals(locModel.dataType().properties().get(0).dataType().referencedDefinition().logicalName(), "leaf");
             String locUrn = "urn:tests:owned-leaf:1";
             Files.writeString(locOwner.resolve("leaf_1" + locSuffix), locLeaf.replace(locId, locUrn));
             Files.writeString(locRoot, "{\"type\":\"object\",\"properties\":{\"leaf\":{\"$ref\":\"" + locUrn + "\"}}}");
             Files.writeString(locTransient.resolve("leaf_1" + locSuffix), "{broken transient JSON");
-            locModel = new AIcDefaultDefsCodegenService().load(new AIcdDefinitionLoadRequest(locRoot,
+            locModel = new AIcDefaultDefsCodegenService().load(AItcConfiguredNamingProfiles.load(locRoot,
                 locKind.equals("yamldefs") ? AInDefinitionSourceKind.YAMLDEFS : AInDefinitionSourceKind.JSONDEFS,
-                AIcAlgitesNamingProfiles.javaProfile()));
+                AItcConfiguredNamingProfiles.javaProfile()));
             Assert.assertEquals(locModel.dataType().properties().get(0).dataType().referencedDefinition().logicalName(), "leaf");
         }
     }

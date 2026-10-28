@@ -160,9 +160,9 @@ def test_conflicting_inherited_fields(contracts):
     _, parent, _ = contracts
     from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
     class AIigBad(parent):
-        __data_object_fields__ = (AIcdDataObjectField('Name', allows_null=True),)
+        __data_object_fields__ = (AIcdDataObjectField('Name', allows_null=True, getter_name='getName'),)
     AIigBad.__module__ = parent.__module__
-    with pytest.raises(ValueError, match='Invalid inherited field relaxation'):
+    with pytest.raises(ValueError, match='Invalid inherited presence restriction'):
         configured_service().generate(AIigBad)
 
 
@@ -332,8 +332,8 @@ def test_user_defined_setter_method_composition_is_used_by_sdo():
     class AIigInvoice_1(AIiDataObject):
         __data_object__ = AIcdDataObject(schema_id='test.invoice', schema_version=1,
             naming_convention='algites-python-gen-intf-versioned_1')
-        __data_object_fields__ = (AIcdDataObjectField(field_name='Name', getter_name='readName'),)
-        def readName(self):
+        __data_object_fields__ = (AIcdDataObjectField(field_name='Name', getter_name='getName'),)
+        def getName(self):
             raise NotImplementedError
 
     AIigInvoice_1.__module__ = 'example.contracts.aiig_invoice_1'
@@ -347,7 +347,7 @@ def test_user_defined_setter_method_composition_is_used_by_sdo():
     assert 'def setName(self' not in result.mutable_interface.source
     assert 'def get_Name(self' in result.mutable_interface.source
     assert 'def get_ReadName(self' not in result.mutable_interface.source
-    assert 'def readName(self' in result.implementation.source
+    assert 'def getName(self' in result.implementation.source
 
 
 def test_custom_getter_without_explicit_getter_metadata_uses_selected_convention():
@@ -357,10 +357,11 @@ def test_custom_getter_without_explicit_getter_metadata_uses_selected_convention
     from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
     from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 
+    from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField
     class AIigInvoice_1(AIiDataObject):
         __data_object__ = AIcdDataObject(schema_id='test.invoice', schema_version=1,
             naming_convention='algites-python-gen-intf-versioned_1')
-        __data_object_fields__ = (AIcdDataObjectField(field_name='Name'),)
+        @AIaDataObjectField(field_name='Name')
         def readName(self):
             raise NotImplementedError
 
@@ -445,3 +446,22 @@ def test_unconfigured_raw_methods_are_not_emitted(contracts, tmp_path, disabled)
             assert (f'def {name}(' in output) == active
     assert 'def setName(' in result.mutable_interface.source
     assert 'def getName(' in result.implementation.source
+
+
+def test_decorated_getter_semantic_identity_is_independent_of_field_name():
+    """A Python getter defines one canonical SDO field; the wire key is opaque."""
+    from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
+    from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField
+
+    class AIigCustomer(AIiDataObject):
+        __data_object__ = AIcdDataObject(schema_id='test.customer', schema_version=1)
+        @AIaDataObjectField(field_name='external_customer_id')
+        def getCustomerId(self): ...
+
+    AIigCustomer.__module__ = 'example.contracts.aiig_customer'
+    result = configured_service().generate(AIigCustomer)
+    source = result.implementation.source
+    assert "self.set_RawField('CustomerId'" in source
+    assert "self.get_EffectiveField('CustomerId'" in source
+    assert 'def setCustomerId(' in source
+    assert 'def setExternalCustomerId(' not in source

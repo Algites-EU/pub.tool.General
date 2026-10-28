@@ -45,7 +45,7 @@ final class AItcExplicitNamingProfiles {
         enums.put("java", "algites-java-gen-enum-versioned_1");
         enums.put("python", "algites-python-gen-enum-versioned_1");
         var catalogs = root.putArray("naming_convention_files");
-        for (String name : new String[] {"standard-conventions.yml", "algites-java-name-conventions.yml",
+        for (String name : new String[] {"algites-java-name-conventions.yml",
                 "algites-python-name-conventions.yml", "algites-jsondef-name-conventions.yml",
                 "algites-yamldef-name-conventions.yml", "algites-xmldef-name-conventions.yml"}) {
             catalogs.add("resource:" + name);

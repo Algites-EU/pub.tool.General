@@ -16,6 +16,7 @@ import tempfile
 import unittest
 
 from explicit_naming_fixture import explicit_algites_manifest
+from explicit_legacy_naming import configured_load, rendering_catalog
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 
@@ -24,7 +25,7 @@ def create_fixture(root):
     manifest = root / 'bindings.json'
     override_schema = 'intf/src/product/jsondefs/example/contracts/root_1.jsondef.schema.json'
     manifest.write_text(json.dumps(explicit_algites_manifest(dict(artifact='intf', implementation_artifact='impl', languages=['python', 'java'],
-        bindings=[dict(schema=override_schema, pointer='/$defs/valueSource', name='shared-value-source', common_one_of_fields=True)]))), encoding='utf-8')
+        bindings=[dict(schema=override_schema, pointer='/$defs/valueSource', name='shared-value-source')]))), encoding='utf-8')
     for kind, suffix in (('jsondefs', 'jsondef.schema.json'), ('yamldefs', 'yamldef.schema.json')):
         directory = root / 'intf/src/product' / kind / 'example'
         contracts = directory / 'contracts'; contracts.mkdir(parents=True)
@@ -61,7 +62,7 @@ def create_fixture(root):
             **{'$defs':{'Thing':dict(type='object', properties={'DefinitionValue':dict(type='integer')}),
                 'sourceA':dict(type='object', properties={'Source':dict(type='string', const='a'), 'Value':dict(type='string')}, required=['Source','Value']),
                 'sourceB':dict(type='object', properties={'Source':dict(type='string', const='b'), 'Value':dict(type='string')}, required=['Source']),
-                'valueSource':dict(oneOf=[{'$ref':'#/$defs/sourceA'},{'$ref':'#/$defs/sourceB'}])}})
+                'valueSource':dict(type='object', properties={'Source': dict(type='string'), 'Value': dict(type='string')}, oneOf=[{'$ref':'#/$defs/sourceA'},{'$ref':'#/$defs/sourceB'}])}})
         # The explicit shared union override has only one representation; leave equivalent
         # plain objects in the second format to verify the normal merger independently.
         if kind == 'yamldefs':
@@ -156,7 +157,7 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
             self.assertEqual(before, self._outputs(name))
 
     def test_all_frontends_and_targets(self):
-        from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
+        from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
         from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
         from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
         from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
@@ -167,14 +168,16 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
                              (AInDefinitionSourceKind.YAMLDEFS, 'yamldef.schema.json'),
                              (AInDefinitionSourceKind.XMLDEFS, 'xsd')):
             for target in AInCodeGenerationTarget:
-                profile = (AIcAlgitesNamingProfiles.python_profile() if target is AInCodeGenerationTarget.PYTHON
-                    else AIcAlgitesNamingProfiles.java_profile())
+                language = 'python' if target is AInCodeGenerationTarget.PYTHON else 'java'
+                profile = AIcNameConventionCatalog.load_many([
+                    f'resource:algites-{family}-name-conventions.yml'
+                    for family in (language, 'jsondef', 'yamldef', 'xmldef')])
                 for stem in ('parity-root', 'parity-child', 'parity-leaf', 'parity-status', 'parity-builtins'):
                     with self.subTest(kind=kind, target=target, stem=stem):
                         source = resources / kind.value / (stem + '_1.' + suffix)
-                        model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(source, kind, profile))
+                        model = AIcDefaultDefsCodegenService().load(configured_load(source, kind, profile))
                         item = AIcSchemaContractInterfaceGenerator().generate(AIcdCodeGenerationRequest(
-                            model, target, 'api_parity', profile))
+                            model, target, 'api_parity', rendering_catalog(profile, language)))
                         location = Path(self.java_fixture_directory) / kind.value / target.value / stem
                         files = [p for p in location.rglob('*') if p.is_file()]
                         self.assertEqual(len(files), 1)

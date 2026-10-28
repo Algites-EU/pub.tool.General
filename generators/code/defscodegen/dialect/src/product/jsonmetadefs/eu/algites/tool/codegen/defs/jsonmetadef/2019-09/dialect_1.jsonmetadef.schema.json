@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "$id": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/2019-09/dialect_1.jsonmetadef.schema.json",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2019-09/vocab/core": true,
+    "https://json-schema.org/draft/2019-09/vocab/applicator": true,
+    "https://json-schema.org/draft/2019-09/vocab/validation": true,
+    "https://json-schema.org/draft/2019-09/vocab/meta-data": true,
+    "https://json-schema.org/draft/2019-09/vocab/format": false,
+    "https://json-schema.org/draft/2019-09/vocab/content": true,
+    "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/vocabulary_1.md": false
+  },
+  "title": "Algites Defs Codegen JSON Schema 2019-09 dialect 1",
+  "type": [
+    "object",
+    "boolean"
+  ],
+  "$recursiveAnchor": true,
+  "allOf": [
+    {
+      "$ref": "https://json-schema.org/draft/2019-09/meta/core"
+    },
+    {
+      "$ref": "https://json-schema.org/draft/2019-09/meta/applicator"
+    },
+    {
+      "$ref": "https://json-schema.org/draft/2019-09/meta/validation"
+    },
+    {
+      "$ref": "https://json-schema.org/draft/2019-09/meta/meta-data"
+    },
+    {
+      "$ref": "https://json-schema.org/draft/2019-09/meta/format"
+    },
+    {
+      "$ref": "https://json-schema.org/draft/2019-09/meta/content"
+    },
+    {
+      "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/2019-09/vocabulary_1.jsonmetadef.schema.json"
+    }
+  ]
+}

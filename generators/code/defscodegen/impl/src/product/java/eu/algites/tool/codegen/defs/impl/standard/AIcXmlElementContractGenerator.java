@@ -113,17 +113,16 @@ public final class AIcXmlElementContractGenerator {
                     + quote(aElement.namespace()) + ", namespace_local_name=" + quote(aElement.localName()) + ")\n"
                     + "    __slots__ = ()\n";
             if (locBuiltin != null) {
-                locImports.add("from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField");
+                locImports.add("from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField");
                 locImports.add("from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind");
                 if (locBuiltin[1].equals("Decimal")) locImports.add("from decimal import Decimal");
                 locImports.add("from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField");
                 locBody += "    __xml_data_object_fields__ = {" + quote(aElement.localName())
                     + ": AIaXmlDataObjectField(namespace=" + quote(aElement.namespace())
                     + ", namespace_local_name=" + quote(aElement.localName()) + ", order=0)}\n"
-                    + "    __data_object_fields__ = (AIcdDataObjectField(field_name="
+                    + "    @AIaDataObjectField(field_name="
                     + quote(aElement.localName()) + ", presence=AInFieldPresenceKind.REQUIRED, allows_null="
-                    + (aElement.nillable() ? "True" : "False") + ", getter_name="
-                    + quote(locGetterName) + "),)\n"
+                    + (aElement.nillable() ? "True" : "False") + ")\n"
                     + "    def " + locGetterName + "(self) -> " + locBuiltin[1]
                     + ":\n        raise NotImplementedError\n";
             }

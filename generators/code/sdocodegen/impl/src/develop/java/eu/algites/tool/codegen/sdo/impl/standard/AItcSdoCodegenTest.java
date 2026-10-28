@@ -52,7 +52,12 @@ public final class AItcSdoCodegenTest {
         try (var locLoader = new URLClassLoader(new java.net.URL[] { locOutput.toUri().toURL() },
                 getClass().getClassLoader())) {
             Class<?> locType = locLoader.loadClass(locChild.implementation().fullyQualifiedTypeName());
-            Assert.assertTrue(locLoader.loadClass(locParent.implementation().fullyQualifiedTypeName()).isAssignableFrom(locType));
+            Assert.assertEquals(locType.getSuperclass().getName(),
+                    "eu.algites.lib.data.smartdataobject.impl.standard.AIcSmartDataObject");
+            Assert.assertFalse(locLoader.loadClass(locParent.implementation().fullyQualifiedTypeName())
+                    .isAssignableFrom(locType), "Generated implementation classes must never inherit each other");
+            Assert.assertNotNull(locType.getDeclaredMethod("setName", String.class),
+                    "Concrete child must implement inherited fields directly");
             Object locInstance = locType.getConstructor().newInstance();
             Assert.assertEquals(locType.getMethod("is_ByRawValuesValid").invoke(locInstance), false);
             locType.getMethod("setName", String.class).invoke(locInstance, "Alpha");
@@ -62,6 +67,55 @@ public final class AItcSdoCodegenTest {
             Assert.assertEquals(locType.getMethod("is_ByRawValuesValid").invoke(locInstance), true);
             locType.getMethod("_unset_Count").invoke(locInstance);
             Assert.assertEquals(locType.getMethod("is_ByRawValuesValid").invoke(locInstance), false);
+        }
+    }
+
+    /** Metadata fixture whose valid annotation values contain Java string-literal special characters. */
+    @AIaDataObject(schemaId = "test:escaped-metadata", schemaVersion = 1,
+            title = "A \"quoted\" title and a \\ slash",
+            description = "First line\nSecond line\r\nTabbed\tvalue\fPage\bBack\013Vertical")
+    public interface AIigEscapedMetadata_1 extends AIiDataObject {
+        /** Exposes a simple field so that the generated implementation can also be compiled. */
+        @AIaDataObjectField(fieldName = "Name")
+        String getName();
+    }
+
+    /**
+     * Multiline source metadata must remain byte-for-byte equal after code generation,
+     * compilation and class loading, without introducing physical lines in annotations.
+     */
+    @Test
+    public void AIcEscapesMultilineMetadataInGeneratedJavaAnnotations() throws Exception {
+        var locGenerated = new AItcConfiguredSdoCodegenService()
+                .generate(AIigEscapedMetadata_1.class, "d");
+        var locOriginal = AIigEscapedMetadata_1.class.getDeclaredAnnotation(AIaDataObject.class);
+        Path locRoot = Files.createTempDirectory("sdo-escaped-metadata-");
+        Path locClasses = Files.createDirectory(locRoot.resolve("classes"));
+        var locFiles = new java.util.ArrayList<String>();
+        for (var locUnit : java.util.List.of(locGenerated.mutableInterface(), locGenerated.implementation())) {
+            Path locFile = locRoot.resolve(locUnit.relativePath());
+            Files.createDirectories(locFile.getParent());
+            Files.writeString(locFile, locUnit.source());
+            locFiles.add(locFile.toString());
+            Assert.assertTrue(locUnit.source().contains("description = \"First line\\nSecond line\\r\\n"),
+                    "Multiline description must be escaped in the generated annotation");
+            Assert.assertTrue(locUnit.source().contains("\\tvalue\\fPage\\bBack\\013Vertical"),
+                    "Java control characters must be escaped in the generated annotation");
+        }
+        var locArguments = new java.util.ArrayList<>(java.util.List.of(
+                "-cp", System.getProperty("java.class.path"), "-d", locClasses.toString()));
+        locArguments.addAll(locFiles);
+        Assert.assertEquals(ToolProvider.getSystemJavaCompiler().run(null, null, null,
+                locArguments.toArray(String[]::new)), 0);
+        try (var locLoader = new URLClassLoader(new java.net.URL[] {locClasses.toUri().toURL()},
+                getClass().getClassLoader())) {
+            for (var locUnit : java.util.List.of(locGenerated.mutableInterface(), locGenerated.implementation())) {
+                var locType = locLoader.loadClass(locUnit.fullyQualifiedTypeName());
+                var locAnnotation = locType.getDeclaredAnnotation(AIaDataObject.class);
+                Assert.assertNotNull(locAnnotation);
+                Assert.assertEquals(locAnnotation.description(), locOriginal.description());
+                Assert.assertEquals(locAnnotation.title(), locOriginal.title());
+            }
         }
     }
 
@@ -241,25 +295,29 @@ public final class AItcSdoCodegenTest {
                 "namingConvention = \"algites-java-gen-data-yaml-class-versioned_1\""));
     }
 
-    /** A field identifier is a semantic input; output setter and parameter spellings come from the catalog. */
+    /** A getter defines the semantic identity; the wire fieldName is opaque data metadata. */
     @AIaDataObject(schemaId = "test:semantic-field", schemaVersion = 1)
     public interface AIigSemanticField extends AIiDataObject {
-        /** Returns the identifier stored under a snake-case semantic field key. */
+        /** Returns the identifier stored under an independently named external data key. */
         @AIaDataObjectField(fieldName = "customer_id")
         String getCustomerId();
     }
 
-    /** The standard naming profile converts snake-case field identifiers without a hardcoded setter suffix. */
+    /** The getter naming profile controls generated symbols independently of the external field name. */
     @Test
     public void AIcSetterConvertsSemanticFieldNameUsingTheNamingProfile() {
         var locResult = new AItcConfiguredSdoCodegenService().generate(AIigSemanticField.class, "d");
         Assert.assertTrue(locResult.mutableInterface().source().contains("setCustomerId(java.lang.String aCustomerId)"));
         Assert.assertTrue(locResult.implementation().source().contains("setCustomerId(java.lang.String aCustomerId)"));
         Assert.assertFalse(locResult.implementation().source().contains("setCustomer_id("));
-        /* Fixed raw SDO methods are intentionally independent of getter/setter conventions. */
-        Assert.assertTrue(locResult.mutableInterface().source().contains("_getRaw_Customer_id()"));
-        Assert.assertTrue(locResult.mutableInterface().source().contains("_isPresent_Customer_id()"));
-        Assert.assertTrue(locResult.mutableInterface().source().contains("_unset_Customer_id()"));
+        Assert.assertTrue(locResult.implementation().source().contains("set_RawField(\"CustomerId\""));
+        Assert.assertTrue(locResult.mutableInterface().source().contains(
+                "@eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = \"customer_id\""),
+                "Mutable metadata must retain the external data name instead of overwriting it with the semantic ID");
+        /* Raw helper names derive from the semantic getter identifier, not from fieldName. */
+        Assert.assertTrue(locResult.mutableInterface().source().contains("_getRaw_CustomerId()"));
+        Assert.assertTrue(locResult.mutableInterface().source().contains("_isPresent_CustomerId()"));
+        Assert.assertTrue(locResult.mutableInterface().source().contains("_unset_CustomerId()"));
     }
 
     /** Generated Java SmartDOs honor interface defaults and explicit getter overrides. */

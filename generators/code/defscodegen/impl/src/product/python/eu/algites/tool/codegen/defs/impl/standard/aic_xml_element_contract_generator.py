@@ -88,7 +88,7 @@ class AIcXmlElementContractGenerator:
                 imports.append('from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject')
                 superclass_names = ['AIiXmlDataObject']
             if scalar:
-                imports.extend(['from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField',
+                imports.extend(['from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField',
                     'from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind'])
                 if builtin[1] == 'Decimal': imports.append('from decimal import Decimal')
             if scalar_type:
@@ -107,9 +107,9 @@ class AIcXmlElementContractGenerator:
                 body += (f'    __xml_data_object_fields__ = {{{element.local_name!r}: '
                     f'AIaXmlDataObjectField(namespace={element.namespace!r}, namespace_local_name={element.local_name!r})}}\n')
                 getter_name = names.getter_name(logical, request.naming_profile, AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE)
-                body += (f'    __data_object_fields__ = (AIcdDataObjectField(field_name={element.local_name!r}, '
+                body += (f'    @AIaDataObjectField(field_name={element.local_name!r}, '
                     f'presence=AInFieldPresenceKind.REQUIRED, allows_null={element.nillable}, '
-                    f'getter_name={getter_name!r}),)\n'
+                    f')\n'
                     f'    def {getter_name}(self) -> {builtin[1]}:\n'
                     '        raise NotImplementedError\n')
             source = ('from __future__ import annotations\n' + '\n'.join(sorted(set(imports)))

@@ -19,6 +19,7 @@ from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object_namespace import
 from eu.algites.lib.data.dataobject.jsondefs.aii_json_data_object import AIiJsonDataObject
 from eu.algites.lib.data.dataobject.yamldefs.aii_yaml_data_object import AIiYamlDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
+from eu.algites.lib.data.smartdataobject.impl.standard.aic_smart_data_object import _data_object_fields, _declared_fields
 from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy
 from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel
 from eu.algites.tool.codegen.sdo.aicd_generated_sdo_source import AIcdGeneratedSdoSource
@@ -107,22 +108,37 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             raise ValueError(f'Invalid mutable implementation marker: {marker!r}')
         if '.' not in read_contract.__module__:
             raise ValueError('Read contract must live in an importable package')
-        fields = tuple(read_contract.__dict__.get('__data_object_fields__', ()))
-        all_fields = {}
-        for base in reversed(read_contract.__mro__):
-            for field in base.__dict__.get('__data_object_fields__', ()):
-                previous = all_fields.get(field.name)
-                if previous is not None and previous != field:
-                    from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
-                    if (previous.presence is AInFieldPresenceKind.REQUIRED
-                            and field.presence is not AInFieldPresenceKind.REQUIRED
-                            or previous.presence is AInFieldPresenceKind.FORBIDDEN
-                            and field.presence is not AInFieldPresenceKind.FORBIDDEN
-                            or not previous.allows_null and field.allows_null):
-                        raise ValueError('Invalid inherited field relaxation: ' + field.name)
-                all_fields[field.name] = field
-        if len({f.name for f in fields}) != len(fields):
-            raise ValueError('Duplicate field in read contract')
+        def role_for_identity(contract):
+            if issubclass(contract, AIiXmlDataObject):
+                metadata = contract.__dict__.get('__xml_data_object__')
+                return ('xmldefs_element' if getattr(getattr(metadata, 'definition_kind', None), 'name', '')
+                        == 'ELEMENT' else 'xmldefs_type')
+            if issubclass(contract, AIiJsonDataObject):
+                return 'jsondefs'
+            if issubclass(contract, AIiYamlDataObject):
+                return 'yamldefs'
+            return 'common'
+
+        def resolve_identity(owner, getter_name):
+            name_catalog = naming[3] if len(naming) == 4 else naming[0]
+            role = role_for_identity(owner)
+            roles = naming[0]
+            role_profile = roles.get(role) if isinstance(roles, dict) else None
+            source_metadata = owner.__dict__.get('__data_object__')
+            profile = getattr(source_metadata, 'naming_convention', '') or role_profile
+            if not profile:
+                raise ValueError('Missing source getter naming convention for ' + owner.__name__)
+            parsed = name_catalog.parse(profile, 'getter_method_name', getter_name)
+            identifier = parsed.get('identifier')
+            if not identifier:
+                raise ValueError('Getter naming convention lacks an identifier: ' + getter_name)
+            return name_catalog.convert_identifier(identifier,
+                name_catalog.identifier_convention(profile, 'getter_method_name'), 'upper_camel_case_1')
+
+        all_fields = _data_object_fields(read_contract, resolve_identity)
+        owned_identifiers = {resolve_identity(read_contract, field.getter_name)
+                             for field in _declared_fields(read_contract)}
+        fields = tuple(field for key, field in all_fields.items() if key in owned_identifiers)
         parents = [c for c in read_contract.__bases__ if not c.__module__.startswith('eu.algites.lib.data.dataobject')
                    and issubclass(c, AIiDataObject)
                    and not (issubclass(c, AIiXmlDataObjectNamespace)
@@ -162,10 +178,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             return (catalog() or naming[index]), selected(contract, index)
 
         def semantic_identifier(name):
-            """Describe the input field identifier; accessor syntax belongs to the catalog."""
-            if '_' in name:
-                return name, 'lower_snake_case_1'
-            return name, ('upper_camel_case_1' if name[:1].isupper() else 'lower_camel_case_1')
+            """Use the canonical ID already resolved through the input getter catalog."""
+            return name, 'upper_camel_case_1'
 
         def accessor_name(contract, field, structure, index):
             profile_catalog, profile_name = accessor_profile(contract, index)
@@ -263,7 +277,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             getter = field.getter_name or accessor_name(read_contract, field, 'getter_method_name', 0)
             nested = _nested_contract(read_contract, getter, field.name)
             if nested is not None and policy_for(field, read_contract) is AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER:
-                type_variables[field.name] = 'T' + ''.join(part.capitalize() for part in re.split(r'[^a-zA-Z0-9]+', field.name))
+                type_variables[field.name] = 'T' + field.name
                 generic_fields[field.name] = nested
         # Any parent generic parameter must survive through this mutable descendant;
         # concrete implementations cannot extend an already-specialized parent.
@@ -271,7 +285,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         for ancestor in parents:
             inherited_names = []
             for base in reversed(ancestor.__mro__):
-                for field in base.__dict__.get('__data_object_fields__', ()):
+                for field in _data_object_fields(base, resolve_identity).values():
                     getter = field.getter_name or accessor_name(ancestor, field, 'getter_method_name', 0)
                     if (_nested_contract(ancestor, getter, field.name) is not None
                             and policy_for(field, ancestor) is AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER):
@@ -287,7 +301,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     nested = _nested_contract(read_contract, getter, name)
                     if nested is None:
                         raise ValueError('An inherited generic setter cannot lose its value type: ' + name)
-                    type_variables[name] = 'T' + ''.join(part.capitalize() for part in re.split(r'[^a-zA-Z0-9]+', name))
+                    type_variables[name] = 'T' + name
                     generic_fields[name] = nested
         generic_arguments = ', '.join(type_variables.values())
         generic_imports = ['from typing import TypeVar, Generic'] if type_variables else []
@@ -320,7 +334,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             concrete_base = concrete_technology
         for ancestor in parents:
             for base in reversed(ancestor.__mro__):
-                for field in base.__dict__.get('__data_object_fields__', ()):
+                for field in _data_object_fields(base, resolve_identity).values():
                     if policy_for(field, ancestor) is AInFieldSetterInheritancePolicy.INHERIT_AS_FIXED_PARAMETER:
                         getter = field.getter_name or accessor_name(ancestor, field, 'getter_method_name', 0)
                         ancestor_nested = _nested_contract(ancestor, getter, field.name)

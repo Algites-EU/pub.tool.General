@@ -8,6 +8,10 @@ import eu.algites.tool.codegen.defs.AIcdEnumValueDefinition;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AIcdValueConstraints;
 import eu.algites.tool.codegen.defs.AInDataTypeKind;
+import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
+import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
+import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
+import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -34,6 +38,14 @@ public final class AIcCanonicalDefinitionMerger {
     public static AIcdCanonicalDefinition AIcMerge(List<AIcdCanonicalDefinition> aDefinitions) {
         if (aDefinitions.isEmpty()) throw new IllegalArgumentException("No canonical definitions to merge.");
         AIcValidate(aDefinitions, false, Path.of("").toAbsolutePath());
+        return AIcMergeValidated(aDefinitions);
+    }
+
+    /**
+     * Combines definitions already checked by a caller-specific validation.
+     * A second validation must not discard the selected naming catalog.
+     */
+    private static AIcdCanonicalDefinition AIcMergeValidated(List<AIcdCanonicalDefinition> aDefinitions) {
         AIcdCanonicalDefinition locFirst = aDefinitions.get(0);
         if (aDefinitions.size() == 1) return locFirst;
         List<AIcdPropertyDefinition> locProperties = locFirst.dataType().properties().stream().map(aProperty ->
@@ -67,13 +79,42 @@ public final class AIcCanonicalDefinitionMerger {
      * the Gradle daemon's working directory.
      */
     public static AIcdCanonicalDefinition AIcMergeStrict(List<AIcdCanonicalDefinition> aDefinitions, Path aSourceRoot) {
-        AIcValidate(aDefinitions, true, aSourceRoot);
-        return AIcMerge(aDefinitions);
+        return AIcMergeStrict(aDefinitions, aSourceRoot, null);
+    }
+
+    /**
+     * Merge strict multi-format definitions with a caller-selected naming catalog.
+     * No naming profile, including Algites, is implicitly loaded by this code.
+     *
+     * @param aDefinitions representations to compare
+     * @param aSourceRoot path used to resolve schema locations
+     * @param aNamingProfile selected naming catalog, or null to use legacy strict reference comparison
+     * @return compatible merged canonical definition
+     */
+    public static AIcdCanonicalDefinition AIcMergeStrict(List<AIcdCanonicalDefinition> aDefinitions,
+            Path aSourceRoot, AIiNameConventionCatalog aNamingProfile) {
+        AIcValidate(aDefinitions, true, aSourceRoot, aNamingProfile);
+        return AIcMergeValidated(aDefinitions);
     }
 
     /** Validates every pair and reports all disagreements, including absolute file locations. */
     public static void AIcValidate(List<AIcdCanonicalDefinition> aDefinitions,
             boolean aCheckDocumentation, Path aSourceRoot) {
+        AIcValidate(aDefinitions, aCheckDocumentation, aSourceRoot, null);
+    }
+
+    /**
+     * Validate representations using the naming catalog selected by the caller.
+     * A null catalog preserves strict reference comparison rather than guessing
+     * a technology-specific naming profile.
+     *
+     * @param aDefinitions representations to validate
+     * @param aCheckDocumentation whether the documentation must match
+     * @param aSourceRoot directory used to resolve relative source paths
+     * @param aNamingProfile naming catalog explicitly selected for the target technology
+     */
+    public static void AIcValidate(List<AIcdCanonicalDefinition> aDefinitions,
+            boolean aCheckDocumentation, Path aSourceRoot, AIiNameConventionCatalog aNamingProfile) {
         if (aDefinitions.isEmpty()) throw new IllegalArgumentException("No canonical definitions to merge.");
         if (aDefinitions.size() == 1) return;
         List<String> locPairResults = new ArrayList<>();
@@ -82,7 +123,7 @@ public final class AIcCanonicalDefinitionMerger {
             for (int locRight = locLeft + 1; locRight < aDefinitions.size(); locRight++) {
                 var locA = aDefinitions.get(locLeft);
                 var locB = aDefinitions.get(locRight);
-                List<AIcdDifference> locDiffs = AIcDifferences(locA, locB, aCheckDocumentation);
+                List<AIcdDifference> locDiffs = AIcDifferences(locA, locB, aCheckDocumentation, aSourceRoot, aNamingProfile);
                 locPairResults.add("  [" + (locLeft + 1) + "] " + locA.sourceKind() + " vs ["
                         + (locRight + 1) + "] " + locB.sourceKind() + ": "
                         + (locDiffs.isEmpty() ? "CONSISTENT" : "INCONSISTENT"));
@@ -118,7 +159,8 @@ public final class AIcCanonicalDefinitionMerger {
     }
 
     private static List<AIcdDifference> AIcDifferences(AIcdCanonicalDefinition aLeft,
-            AIcdCanonicalDefinition aRight, boolean aDocs) {
+            AIcdCanonicalDefinition aRight, boolean aDocs, Path aSourceRoot,
+            AIiNameConventionCatalog aNamingProfile) {
         List<AIcdDifference> locResult = new ArrayList<>();
         AIcCompare(locResult, "logicalName", null, null, aLeft.logicalName(), aRight.logicalName());
         AIcCompare(locResult, "version", null, null, aLeft.version(), aRight.version());
@@ -177,9 +219,18 @@ public final class AIcCanonicalDefinitionMerger {
                  * node type without dereferencing absent array members. */
                 AIcCompare(locResult, locPrefix + "dataType.kind", locName, "type",
                         locA.dataType().kind(), locB.dataType().kind());
-                AIcCompare(locResult, locPrefix + "dataType.reference", locName, "$ref",
-                        AIcReference(locA.dataType().referencedDefinition()),
-                        AIcReference(locB.dataType().referencedDefinition()));
+                /* A local named XML complexType and an inline JSON/YAML object can
+                 * describe the same structure, but their representation-specific
+                 * references are intentionally different. Suppress that difference
+                 * only after resolving the XML type and comparing every property. */
+                boolean locEquivalentNamedXml = (aLeft.sourceKind() == AInDefinitionSourceKind.XMLDEFS
+                        && AIcCompatibleLocalNamedXml(aLeft, locA, locB, aSourceRoot, aNamingProfile))
+                        || (aRight.sourceKind() == AInDefinitionSourceKind.XMLDEFS
+                        && AIcCompatibleLocalNamedXml(aRight, locB, locA, aSourceRoot, aNamingProfile));
+                if (!locEquivalentNamedXml)
+                    AIcCompare(locResult, locPrefix + "dataType.reference", locName, "$ref",
+                            AIcReference(locA.dataType().referencedDefinition()),
+                            AIcReference(locB.dataType().referencedDefinition()));
                 AIcConstraints(locResult, locPrefix + "dataType.constraints.", locName, "",
                         locA.dataType().constraints(), locB.dataType().constraints());
                 if (AIcScalarArrayShape(locA.dataType()) && AIcScalarArrayShape(locB.dataType()))
@@ -209,6 +260,76 @@ public final class AIcCanonicalDefinitionMerger {
             }
         }
         return locResult;
+    }
+
+    /**
+     * Resolve a local XSD complex type and prove that its fields match an inline
+     * JSON/YAML array member. Cross-representation reference parity must never
+     * be accepted from a matching name alone; differing fields remain errors.
+     */
+    private static boolean AIcCompatibleLocalNamedXml(AIcdCanonicalDefinition aXmlDefinition,
+            AIcdPropertyDefinition aXmlField, AIcdPropertyDefinition aInlineField,
+            Path aSourceRoot, AIiNameConventionCatalog aNamingProfile) {
+        AIcdDataType locXml = aXmlField.dataType();
+        AIcdDataType locInline = aInlineField.dataType();
+        AIcdDefinitionReference locReference = locXml.referencedDefinition();
+        if (aNamingProfile == null || locReference == null || locReference.identity() == null
+                || !locReference.identity().startsWith("#@type/")
+                || locXml.kind() != AInDataTypeKind.ARRAY
+                || locInline.kind() != AInDataTypeKind.ARRAY
+                || locInline.elementType().kind() != AInDataTypeKind.OBJECT) return false;
+        try {
+            String locSource = aXmlDefinition.sourceResource().split("#", 2)[0];
+            Path locSourcePath = Path.of(locSource);
+            if (!locSourcePath.isAbsolute()) locSourcePath = aSourceRoot.resolve(locSourcePath);
+            var locRequest = new AIcdDefinitionLoadRequest(locSourcePath, AInDefinitionSourceKind.XMLDEFS,
+                    aNamingProfile);
+            var locNamed = new AIcXmlDefsFrontend().loadNamedType(locRequest,
+                    locReference.identity().substring("#@type/".length()));
+            return Objects.equals(locNamed.version(), locReference.version())
+                    && AIcSameNamedXmlShape(locNamed.dataType(), locInline.elementType());
+        } catch (IOException | RuntimeException locFailure) {
+            return false;
+        }
+    }
+
+    /** Compare recursive field shapes before treating an XML reference as an inline object. */
+    private static boolean AIcSameNamedXmlShape(AIcdDataType aFirst, AIcdDataType aSecond) {
+        if (aFirst == null || aSecond == null || aFirst.kind() != aSecond.kind()) return false;
+        switch (aFirst.kind()) {
+            case OBJECT -> {
+                Map<String, AIcdPropertyDefinition> locFirst = new LinkedHashMap<>();
+                Map<String, AIcdPropertyDefinition> locSecond = new LinkedHashMap<>();
+                aFirst.properties().forEach(aProperty -> locFirst.put(aProperty.sourceName(), aProperty));
+                aSecond.properties().forEach(aProperty -> locSecond.put(aProperty.sourceName(), aProperty));
+                if (!locFirst.keySet().equals(locSecond.keySet())) return false;
+                for (String locName : locFirst.keySet()) {
+                    var locA = locFirst.get(locName);
+                    var locB = locSecond.get(locName);
+                    if (locA.presence() != locB.presence() || locA.nullable() != locB.nullable()
+                            || !AIcSameNamedXmlShape(locA.dataType(), locB.dataType())) return false;
+                }
+                return true;
+            }
+            case ARRAY -> {
+                return AIcSameNamedXmlShape(aFirst.elementType(), aSecond.elementType());
+            }
+            case ONE_OF, ANY_OF -> {
+                if (aFirst.alternatives().size() != aSecond.alternatives().size()) return false;
+                for (int locIndex = 0; locIndex < aFirst.alternatives().size(); locIndex++)
+                    if (!AIcSameNamedXmlShape(aFirst.alternatives().get(locIndex),
+                            aSecond.alternatives().get(locIndex))) return false;
+                return true;
+            }
+            case REFERENCE -> {
+                return aFirst.reference() != null && aSecond.reference() != null
+                        && Objects.equals(aFirst.reference().logicalName(), aSecond.reference().logicalName())
+                        && Objects.equals(aFirst.reference().version(), aSecond.reference().version());
+            }
+            default -> {
+                return true;
+            }
+        }
     }
 
     /** Compare the complete recursive schema structure, preserving nested arrays and alternatives. */

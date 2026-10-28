@@ -51,7 +51,7 @@ def test_generator_impl_distribution_requires_same_release_common(tmp_path: Path
 
 def test_gradle_bootstrap_includes_common_in_both_java_builds():
     """Both standalone Java builds publish and consume the shared resource module."""
-    contents = (_REPOSITORY / 'generators/code/bootstrap.sh').read_text(encoding='utf-8')
+    contents = (_REPOSITORY / 'generators/code/bootstrap-selfhosted.sh').read_text(encoding='utf-8')
     assert contents.count("project(':common').projectDir") == 2
     assert contents.count("project(':common') {\n    sourceSets.main.resources.srcDirs") == 2
     assert contents.count("implementation project(':common')") >= 2

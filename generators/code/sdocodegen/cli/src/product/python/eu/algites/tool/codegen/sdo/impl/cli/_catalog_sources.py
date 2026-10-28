@@ -74,8 +74,9 @@ def expand_naming_catalogs(sources):
 
     Package resources are enumerated first, followed by direct sys.path roots
     (in reverse order for standard Python import precedence). Every resource is
-    materialized with its referenced StandardConventionsFile sibling, including
-    ZIP-backed Traversables. Identical physical locations are deduplicated.
+    materialized with its referenced StandardConventionsFile, which can live in
+    the shared naming-intf distribution rather than the profile distribution.
+    ZIP-backed Traversables are supported. Identical physical locations are deduplicated.
     Distinct conflicting naming IDs remain errors in the naming library.
     """
     resolved = []
@@ -102,10 +103,21 @@ def expand_naming_catalogs(sources):
                 r'(?m)^\s*StandardConventionsFile:\s*[\"\']?([A-Za-z0-9][A-Za-z0-9_.-]*\.yml)',
                 text)
             if standard:
+                # Profile wheels no longer duplicate the common naming grammar.
+                # Respect an explicitly co-located resource for custom catalogs,
+                # otherwise resolve the shared resource from naming/intf.
                 sibling = provider_root.joinpath(standard.group(1))
                 if not sibling.is_file():
+                    try:
+                        shared_root = importlib.resources.files(
+                            'eu.algites.lib.naming.convention')
+                        sibling = shared_root.joinpath(standard.group(1))
+                    except (ModuleNotFoundError, TypeError, FileNotFoundError):
+                        pass
+                if not sibling.is_file():
                     raise FileNotFoundError(
-                        f'Missing StandardConventionsFile {standard.group(1)!r} next to {name!r}')
+                        f'Missing shared StandardConventionsFile {standard.group(1)!r} '
+                        f'for {name!r} (expected in naming/intf or alongside the catalog)')
                 (folder / standard.group(1)).write_bytes(sibling.read_bytes())
             resolved.append(str(folder / name))
 

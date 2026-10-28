@@ -1,0 +1,6 @@
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/build/yamldefs/modustro-artifact_1.yamldef.schema.json
+Artifact:
+  TechnologyKinds: [java, python]
+  Name: Defs Codegen JSON Schema dialect definitions
+  Description: Language-independent versioned vocabulary and JSON Schema meta-schemas for Defs Codegen dialects.
+Dependencies: []

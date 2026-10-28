@@ -101,7 +101,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                         ? "1" : locChoice.getAttribute("minOccurs"))
                 || !"1".equals(locChoice.getAttribute("maxOccurs").isBlank()
                         ? "1" : locChoice.getAttribute("maxOccurs")))
-            throw new IOException("Unsupported mixed or repeated XSD choice in " + aRequest.path());
+            return null;
         List<Element> locBranches = children(locChoice);
         if (locBranches.isEmpty()) throw new IOException("Empty XSD choice in " + aRequest.path());
         List<AIcdDataType> locAlternatives = new ArrayList<>();
@@ -139,7 +139,88 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                 throw new IOException("Duplicate or unnamed global XSD type in " + aPath);
             if (locType != locRoot) locNames.add(locName);
         }
+        for (Element locType : children(locSchema, "complexType")) {
+            String locParent = locType.getAttribute("name");
+            int locOrdinal = 0;
+            for (Element locChoice : descendantChoices(locType)) {
+                locOrdinal++;
+                if (!repeatedChoice(locChoice)) continue;
+                String locName = locParent + "Choice" + locOrdinal;
+                if (!locSeen.add(locName)) throw new IOException(
+                        "Generated XSD choice type collides with an existing declaration: " + locName);
+                locNames.add(locName);
+            }
+        }
         return List.copyOf(locNames);
+    }
+
+    /** Finds XSD particles under a named complexType without crossing into nested type declarations. */
+    private static List<Element> descendantChoices(Element aType) {
+        List<Element> locResult = new ArrayList<>();
+        collectChoices(aType, locResult);
+        return locResult;
+    }
+
+    /** Traverse only compositors; inline local complexType has its own declaration scope. */
+    private static void collectChoices(Element aParent, List<Element> aResult) {
+        for (Element locChild : children(aParent)) {
+            if ("choice".equals(locChild.getLocalName())) aResult.add(locChild);
+            if (Set.of("sequence", "all", "choice", "complexContent", "extension", "restriction").contains(locChild.getLocalName()))
+                collectChoices(locChild, aResult);
+        }
+    }
+
+    /** A grouped repeating choice is an ordered list of closed alternatives. */
+    private static boolean repeatedChoice(Element aChoice) {
+        String locMax = aChoice.getAttribute("maxOccurs");
+        return "unbounded".equals(locMax) || !locMax.isBlank() && Integer.parseInt(locMax) > 1;
+    }
+
+    /** Resolve a named synthetic choice to its ordinal within the owner complexType. */
+    private static Element syntheticChoice(Element aSchema, String aName) {
+        for (Element locType : children(aSchema, "complexType")) {
+            int locIndex = 0;
+            for (Element locChoice : descendantChoices(locType)) {
+                locIndex++;
+                if (repeatedChoice(locChoice) && aName.equals(locType.getAttribute("name") + "Choice" + locIndex))
+                    return locChoice;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Test whether a generated choice contract is an XSD particle rather than an
+     * explicitly declared named type. Synthetic choices have no XML type QName.
+     *
+     * @param aPath XML Schema source
+     * @param aName candidate synthetic name
+     * @return true if this name belongs to a supported repeating choice
+     * @throws IOException when the XSD cannot be read
+     */
+    public boolean isSyntheticChoiceTypeName(Path aPath, String aName) throws IOException {
+        Element locSchema = schema(aPath);
+        return namedType(locSchema, aName) == null && syntheticChoice(locSchema, aName) != null;
+    }
+
+    /** Build the closed choice schema from the original branch declarations and QNames. */
+    private AIcdDataType syntheticChoiceType(Element aChoice, AIcdDefinitionLoadRequest aRequest,
+            Element aSchema) throws IOException {
+        List<Element> locBranches = children(aChoice);
+        List<AIcdPropertyDefinition> locFields = new ArrayList<>();
+        elements(aChoice, false, aRequest, aSchema, locFields);
+        if (locFields.size() != locBranches.stream().filter(aNode -> "element".equals(aNode.getLocalName())).count()
+                || locFields.isEmpty())
+            throw new IOException("Invalid repeated XSD choice branches in " + aRequest.path());
+        List<AIcdDataType> locAlternatives = new ArrayList<>();
+        for (Element locBranch : locBranches) {
+            if ("annotation".equals(locBranch.getLocalName())) continue;
+            if (!"element".equals(locBranch.getLocalName())
+                    || locBranch.hasAttribute("minOccurs") || locBranch.hasAttribute("maxOccurs"))
+                throw new IOException("Unsupported repeated XSD choice branch in " + aRequest.path());
+            locAlternatives.add(AIcdDataType.object(List.of(locFields.get(locAlternatives.size()))));
+        }
+        return AIcdDataType.choice(AInDataTypeKind.ONE_OF, locAlternatives);
     }
 
     /**
@@ -155,12 +236,18 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             throws IOException {
         Element locSchema = schema(aRequest.path());
         Element locType = namedType(locSchema, aName);
-        if (locType == null) throw new IOException("Unknown named XSD type '" + aName + "' in " + aRequest.path());
+        Element locSynthetic = locType == null ? syntheticChoice(locSchema, aName) : null;
+        if (locType == null && locSynthetic == null)
+            throw new IOException("Unknown named XSD type '" + aName + "' in " + aRequest.path());
         var locParsed = identities.fromFileName(aRequest, integer(locSchema.getAttribute("version")));
         String locIdentity = locSchema.getAttribute("targetNamespace");
         if (locIdentity.isBlank()) locIdentity = locParsed.logicalName();
         String locLogical = aName.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
                 .replaceAll("[^A-Za-z0-9]+", "-").toLowerCase(java.util.Locale.ROOT);
+        if (locSynthetic != null) return new AIcdCanonicalDefinition(
+                locIdentity, locParsed.version(), locLogical, sourceKind(),
+                aRequest.path() + "#@type/" + aName, documentation(locSynthetic),
+                syntheticChoiceType(locSynthetic, aRequest, locSchema), List.of(), title(locSynthetic));
         List<AIcdEnumValueDefinition> locValues = enumValues(locType);
         String locDescription = documentation(locType);
         String locTitle = title(locType);
@@ -667,7 +754,35 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             String locKind = locElement.getLocalName();
             if (Set.of("sequence", "all", "choice").contains(locKind)) {
                 validateOccurs(locElement, true, aRequest.path());
-                if ("choice".equals(locKind)) throw new IOException("XSD choice is not represented by the canonical property model: " + aRequest.path());
+                if ("choice".equals(locKind)) {
+                    if (!repeatedChoice(locElement)) throw new IOException(
+                            "A nonrepeating nested XSD choice is not yet represented as a field: " + aRequest.path());
+                    Element locOwner = aParent;
+                    while (locOwner != null && !"complexType".equals(locOwner.getLocalName())) {
+                        Node locParent = locOwner.getParentNode();
+                        locOwner = locParent instanceof Element ? (Element) locParent : null;
+                    }
+                    if (locOwner == null || locOwner.getAttribute("name").isBlank())
+                        throw new IOException("Repeated XSD choice requires a named enclosing complexType: " + aRequest.path());
+                    int locOrdinal = descendantChoices(locOwner).indexOf(locElement) + 1;
+                    if (locOrdinal <= 0) throw new IOException("Cannot identify XSD choice ordinal");
+                    String locChoiceName = locOwner.getAttribute("name") + "Choice" + locOrdinal;
+                    var locParsed = identities.fromFileName(aRequest, integer(aSchema.getAttribute("version")));
+                    String locLogical = locChoiceName.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+                            .replaceAll("[^A-Za-z0-9]+", "-").toLowerCase(java.util.Locale.ROOT);
+                    var locReference = new AIcdDefinitionReference(
+                            "#@type/" + locChoiceName,
+                            locParsed.version(), locLogical, syntheticChoiceType(locElement, aRequest, aSchema));
+                    int locMin = locElement.hasAttribute("minOccurs")
+                            ? Integer.parseInt(locElement.getAttribute("minOccurs")) : 1;
+                    String locMax = locElement.getAttribute("maxOccurs");
+                    Integer locUpper = "unbounded".equals(locMax) ? null : Integer.valueOf(locMax);
+                    aProperties.add(new AIcdPropertyDefinition("Choice" + locOrdinal,
+                            AIcdDataType.array(AIcdDataType.reference(locReference), locMin, locUpper),
+                            aOptional || locMin == 0 ? AInFieldPresenceKind.ALLOWED : AInFieldPresenceKind.REQUIRED,
+                            false, documentation(locElement), title(locElement), null));
+                    continue;
+                }
                 List<AIcdPropertyDefinition> locFields = new ArrayList<>();
                 elements(locElement, aOptional, aRequest, aSchema, locFields, aActiveGroups);
                 appendCompositor(aProperties, locFields, locElement, aOptional, aRequest.path());
@@ -879,8 +994,22 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
         if (!aVisited.add(locKey)) throw new IOException("Circular XSD simple type '" + aName + "'.");
         if (locNamespace == null || locNamespace.equals(aSchema.getAttribute("targetNamespace"))) {
             Element locType = namedType(aSchema, locLocal);
-            if (locType != null) return "simpleType".equals(locType.getLocalName())
-                    ? simpleShape(locType, aRequest, aSchema, aVisited) : new AIcdShape(AInDataTypeKind.OBJECT, null, null);
+            if (locType != null) {
+                if ("simpleType".equals(locType.getLocalName()))
+                    return simpleShape(locType, aRequest, aSchema, aVisited);
+                /* A local named complexType has its own generated contract.
+                   Preserve the reference instead of turning it into an opaque map. */
+                var locParsed = identities.fromFileName(aRequest, integer(aSchema.getAttribute("version")));
+                String locLogical = locLocal.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+                        .replaceAll("[^A-Za-z0-9]+", "-").toLowerCase(java.util.Locale.ROOT);
+                /* The selected primary type is emitted as the source root,
+                 * not as a separate @type sibling. */
+                boolean locPrimary = locType == rootType(aSchema);
+                var locReference = new AIcdDefinitionReference(locPrimary ? "#" : "#@type/" + locLocal,
+                        locParsed.version(), locPrimary ? locParsed.logicalName() : locLogical,
+                        AIcdDataType.atom(AInDataTypeKind.OBJECT, null));
+                return new AIcdShape(AInDataTypeKind.REFERENCE, null, locReference);
+            }
         }
         for (Element locImport : children(aSchema, "import", "include")) {
             if ("import".equals(locImport.getLocalName()) && !locImport.getAttribute("namespace").equals(locNamespace)) continue;

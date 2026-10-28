@@ -64,7 +64,8 @@ final class AIcJsonSchemaReader {
         if (schemaUrl == null) schemaUrl = "";
         String description = text(root, "description");
         String title = text(root, "title");
-        root = structural(root, request, new HashSet<>());
+        /* Only direct structural keywords define fields; allOf is validation-only. */
+        root = root.deepCopy();
         List<AIcdEnumValueDefinition> enumValues = enumValues(root);
         if (!enumValues.isEmpty()) {
             return new AIcdCanonicalDefinition(identity, version, logicalName, sourceKind, request.path().toString(), description, AIcdDataType.atom(AInDataTypeKind.ENUM, AIcdValueConstraints.empty()), enumValues, title, schemaUrl);
@@ -142,8 +143,7 @@ final class AIcJsonSchemaReader {
             if (!visited.add(referenceKey))
                 throw new IllegalArgumentException("Circular schema alias '" + ref + "' in " + request.path());
             try {
-                AIcdPropertyDefinition normalized = property(name, referenced.has("allOf")
-                        ? structural(referenced, new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), new HashSet<>()) : referenced, required,
+                AIcdPropertyDefinition normalized = property(name, referenced, required,
                         new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited);
                 return new AIcdPropertyDefinition(name, normalized.dataType(),
                         required ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED
@@ -175,37 +175,10 @@ final class AIcJsonSchemaReader {
         return new AIcdPropertyDefinition(name, recursiveType(node, request, visited), ((required) ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED), nullable, text(node, "description"), text(node, "title"), null);
     }
 
-    /**
-     * Recognize an exact "at least one declared property" condition on a closed object.
-     * Other anyOf expressions retain their alternatives and are never silently dropped.
-     */
-    private static boolean presenceAnyOfAsMinProperties(JsonNode aSchema) {
-        if (!aSchema.path("additionalProperties").isBoolean()
-                || aSchema.path("additionalProperties").booleanValue()) return false;
-        JsonNode locProperties = aSchema.path("properties");
-        JsonNode locBranches = aSchema.path("anyOf");
-        if (!locProperties.isObject() || locProperties.isEmpty()
-                || !locBranches.isArray() || locBranches.isEmpty()) return false;
-        Set<String> locNames = new HashSet<>();
-        for (JsonNode locBranch : locBranches) {
-            if (!locBranch.isObject() || !locBranch.path("required").isArray()
-                    || locBranch.path("required").size() != 1
-                    || !locBranch.path("required").get(0).isTextual()) return false;
-            var locFields = locBranch.fieldNames();
-            while (locFields.hasNext())
-                if (!Set.of("required", "description", "title", "$comment").contains(locFields.next())) return false;
-            locNames.add(locBranch.path("required").get(0).asText());
-        }
-        Set<String> locPropertyNames = new HashSet<>();
-        locProperties.fieldNames().forEachRemaining(locPropertyNames::add);
-        return locNames.equals(locPropertyNames);
-    }
-
     /** Classify the actual shape of a named local definition, including union roots. */
     private static AInDataTypeKind localDefinitionKind(JsonNode aSchema) {
         if (aSchema.has("enum")) return AInDataTypeKind.ENUM;
-        if (aSchema.has("oneOf")) return AInDataTypeKind.ONE_OF;
-        if (aSchema.has("anyOf") && !presenceAnyOfAsMinProperties(aSchema)) return AInDataTypeKind.ANY_OF;
+        if (aSchema.has("x-algites-defscodegen-choice")) return AInDataTypeKind.ONE_OF;
         if ("object".equals(text(aSchema, "type")) || aSchema.has("properties")) return AInDataTypeKind.OBJECT;
         return kind(text(aSchema, "type"));
     }
@@ -253,20 +226,19 @@ final class AIcJsonSchemaReader {
                         AIcScalarConstraints.json(aSchema, locScalarKind));
             }
         }
-        if (presenceAnyOfAsMinProperties(aSchema)) {
-            com.fasterxml.jackson.databind.node.ObjectNode locObject = aSchema.deepCopy();
-            locObject.remove("anyOf");
-            locObject.put("minProperties", Math.max(1, aSchema.path("minProperties").asInt(0)));
-            aSchema = locObject;
-        }
-        for (String locKey : List.of("oneOf", "anyOf")) {
-            JsonNode locBranches = aSchema.get(locKey);
-            if (locBranches != null && locBranches.isArray() && !locBranches.isEmpty()) {
-                List<AIcdDataType> locAlternatives = new ArrayList<>();
-                for (JsonNode locBranch : locBranches) locAlternatives.add(recursiveType(locBranch, aRequest, aVisited));
-                return AIcdDataType.choice(locKey.equals("oneOf")
-                        ? AInDataTypeKind.ONE_OF : AInDataTypeKind.ANY_OF, locAlternatives);
+        JsonNode locChoice = aSchema.get("x-algites-defscodegen-choice");
+        if (locChoice != null) {
+            JsonNode locAlternatives = locChoice.path("alternatives");
+            if (!locAlternatives.isArray() || locAlternatives.size() < 2)
+                throw new IllegalArgumentException("x-algites-defscodegen-choice must declare at least two alternatives");
+            List<AIcdDataType> locTypes = new ArrayList<>();
+            for (JsonNode locAlternative : locAlternatives) {
+                if (!locAlternative.isTextual()) throw new IllegalArgumentException("Choice alternatives must be URI references");
+                ObjectNode locReference = jsonMapper.createObjectNode();
+                locReference.put("$ref", locAlternative.asText());
+                locTypes.add(recursiveType(locReference, aRequest, aVisited));
             }
+            return AIcdDataType.choice(AInDataTypeKind.ONE_OF, locTypes);
         }
         String locRef = text(aSchema, "$ref");
         if (locRef != null) {
@@ -288,7 +260,7 @@ final class AIcJsonSchemaReader {
                 String[] locTokens = locFragment.startsWith("/") ? locFragment.substring(1).split("/") : new String[0];
                 if (locTokens.length == 2 && (locTokens[0].equals("$defs") || locTokens[0].equals("definitions"))
                         && (locResolved.has("properties") || "object".equals(text(locResolved, "type"))
-                            || locResolved.has("enum") || locResolved.has("oneOf") || locResolved.has("anyOf"))) {
+                            || locResolved.has("enum") || locResolved.has("x-algites-defscodegen-choice"))) {
                     String locStem = AIcDefinitionIdentityResolver.stripDefinitionExtensions(locTarget.getFileName().toString());
                     AIcdParsedVersionedName locParsed = AIcDefinitionIdentityResolver.parseVersionedStem(locStem, null);
                     String locToken = locTokens[1].replace("~1", "/").replace("~0", "~");
@@ -322,10 +294,15 @@ final class AIcJsonSchemaReader {
             for (JsonNode locItem : aSchema.path("type"))
                 if (!locItem.asText().equals("null")) { locType = locItem.asText(); break; }
         }
-        if ("array".equals(locType) || aSchema.has("items"))
+        if ("array".equals(locType) || aSchema.has("items") || aSchema.has("prefixItems")) {
+            if (aSchema.path("prefixItems").isArray() && !aSchema.path("prefixItems").isEmpty())
+                throw new IllegalArgumentException("Positional prefixItems requires canonical POSITIONAL_VALUE support");
+            if (aSchema.path("items").isArray())
+                throw new IllegalArgumentException("Legacy tuple items requires canonical POSITIONAL_VALUE support");
             return new AIcdDataType(AInDataTypeKind.ARRAY,
                     recursiveType(aSchema.get("items"), aRequest, aVisited), List.of(), List.of(), null,
                     AIcScalarConstraints.json(aSchema, AInDataTypeKind.ARRAY));
+        }
         if ("object".equals(locType) || aSchema.has("properties")) {
             Set<String> locRequired = new HashSet<>();
             if (aSchema.path("required").isArray())
@@ -427,54 +404,6 @@ final class AIcJsonSchemaReader {
         throw new IllegalArgumentException("Schema reference '" + resource + "' has no local canonical definition for " + request.path());
     }
 
-    /** Extracts the structural contract of allOf compositions, including referenced root documents. */
-    private JsonNode structural(JsonNode node, AIcdDefinitionLoadRequest request, Set<String> visited) {
-        ObjectNode result = node.deepCopy();
-        String ref = text(node, "$ref");
-        List<JsonNode> branches = new ArrayList<>();
-        if (ref != null) {
-            String resource = ref.split("#", 2)[0];
-            String fragment = URI.create(ref).getFragment();
-            Path target = referencePath(resource, request);
-            String key = target.toAbsolutePath().normalize() + "#" + (fragment == null ? "" : fragment);
-            if (!visited.add(key)) throw new IllegalArgumentException("Circular schema composition '" + ref + "' in " + request.path());
-            try {
-                String name = target.getFileName().toString().toLowerCase();
-                JsonNode document = (name.endsWith(".yaml") || name.endsWith(".yml")) ? yamlMapper.readTree(target.toFile()) : jsonMapper.readTree(target.toFile());
-                JsonNode referenced = fragment == null || fragment.isEmpty() ? document : fragment.startsWith("/") ? document.at(fragment) : anchor(document, fragment);
-                if (referenced == null || referenced.isMissingNode()) throw new IllegalArgumentException("Undefined schema reference '" + ref + "' in " + request.path());
-                branches.add(structural(referenced, new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited));
-            } catch (IOException ex) { throw new IllegalArgumentException("Cannot read schema composition '" + ref + "'.", ex); }
-            visited.remove(key);
-        }
-        JsonNode allOf = node.get("allOf");
-        if (allOf != null && allOf.isArray()) for (JsonNode branch : allOf) branches.add(structural(branch, request, visited));
-        ObjectNode properties = jsonMapper.createObjectNode();
-        Set<String> required = new java.util.LinkedHashSet<>();
-        branches.add(node);
-        for (JsonNode branch : branches) {
-            if (branch.has("properties")) {
-                JsonNode locBranchProperties = branch.get("properties");
-                if (!locBranchProperties.isObject())
-                    throw new IllegalArgumentException("allOf properties must be a schema object in " + request.path());
-                var locEntries = locBranchProperties.fields();
-                while (locEntries.hasNext()) {
-                    var locEntry = locEntries.next();
-                    JsonNode locPrevious = properties.get(locEntry.getKey());
-                    if (locPrevious != null && !locPrevious.equals(locEntry.getValue()))
-                        throw new IllegalArgumentException("Conflicting allOf property schema '"
-                                + locEntry.getKey() + "' in " + request.path());
-                    properties.set(locEntry.getKey(), locEntry.getValue());
-                }
-            }
-            if (branch.has("required")) branch.get("required").forEach(value -> required.add(value.asText()));
-            if (branch.has("type") && !result.has("type")) result.set("type", branch.get("type"));
-        }
-        if (!properties.isEmpty()) result.set("properties", properties);
-        if (!required.isEmpty()) { var array = result.putArray("required"); required.forEach(array::add); }
-        return result;
-    }
-
     /** Finds a named JSON Schema anchor without treating it as a versioned file name. */
     private static JsonNode anchor(JsonNode node, String name) {
         if (name.equals(text(node, "$anchor"))) return node;
@@ -495,7 +424,7 @@ final class AIcJsonSchemaReader {
                     ? yamlMapper.readTree(path.toFile()) : jsonMapper.readTree(path.toFile());
             if (root != null && !enumValues(root).isEmpty()) return AInDataTypeKind.ENUM;
             if (root != null && ("object".equals(text(root, "type")) || root.has("properties")
-                    || root.has("oneOf") || root.has("anyOf"))) return AInDataTypeKind.OBJECT;
+                    || root.has("x-algites-defscodegen-choice"))) return AInDataTypeKind.OBJECT;
             return AInDataTypeKind.ANY;
         } catch (IOException ex) {
             return null;
@@ -516,7 +445,6 @@ final class AIcJsonSchemaReader {
         if (root == null) return List.of();
         java.util.Map<String, String> descriptions = new java.util.LinkedHashMap<>();
         java.util.Map<String, String> titles = new java.util.LinkedHashMap<>();
-        List<AIcdEnumValueDefinition> oneOfValues = new ArrayList<>();
         JsonNode oneOf = root.get("oneOf");
         if (oneOf != null && oneOf.isArray()) {
             for (JsonNode branch : oneOf) {
@@ -526,7 +454,6 @@ final class AIcJsonSchemaReader {
                 String valueDescription = text(branch, "description");
                 descriptions.put(value, valueDescription);
                 titles.put(value, text(branch, "title"));
-                oneOfValues.add(new AIcdEnumValueDefinition(value, valueDescription, text(branch, "title")));
             }
         }
         JsonNode enumNode = root.get("enum");
@@ -538,7 +465,7 @@ final class AIcJsonSchemaReader {
             });
             return result;
         }
-        return oneOfValues;
+        return List.of();
     }
 
     /** Infer the non-null primitive type of an untyped enum or constant. */

@@ -41,7 +41,7 @@ class AIcJsonSchemaReader:
         schema_url = str(root.get(url_extension) or "") if url_extension else ""
         description = root.get("description") if isinstance(root.get("description"), str) else None
         title = root.get("title") if isinstance(root.get("title"), str) else None
-        root = self._structural(root, request, set())
+        root = dict(root)
         enum_values = self._enum_values(root)
         if enum_values:
             return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, AIcdDataType(AInDataTypeKind.ENUM), enum_values, title, schema_url)
@@ -105,8 +105,6 @@ class AIcJsonSchemaReader:
                     raise ValueError(f"Circular schema alias '{ref}' in {request.path}")
                 visited.add(reference_key)
                 try:
-                    if "allOf" in referenced:
-                        referenced = self._structural(referenced, AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), set())
                     normalized = self._property(name, referenced, required,
                         AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), visited)
                     return AIcdPropertyDefinition(str(name), normalized.data_type,
@@ -127,35 +125,12 @@ class AIcJsonSchemaReader:
         return AIcdPropertyDefinition(str(name), self._recursive_type(schema, request, visited), (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), nullable, schema.get('description'), schema.get("title"), None)
 
     @staticmethod
-    def _presence_any_of_as_min_properties(schema):
-        """Recognize only the exact at-least-one-property assertion for a closed object.
-
-        In particular, do not discard arbitrary anyOf validation predicates.
-        """
-        if schema.get('additionalProperties') is not False:
-            return False
-        properties = schema.get('properties')
-        branches = schema.get('anyOf')
-        if not isinstance(properties, Mapping) or not properties or not isinstance(branches, list) or not branches:
-            return False
-        referenced = []
-        for branch in branches:
-            if (not isinstance(branch, Mapping) or set(branch) - {'required', 'description', 'title', '$comment'}
-                    or not isinstance(branch.get('required'), list) or len(branch['required']) != 1
-                    or not isinstance(branch['required'][0], str)):
-                return False
-            referenced.append(branch['required'][0])
-        return set(referenced) == set(properties)
-
-    @staticmethod
     def _local_definition_kind(schema):
         """Classify a named local definition without falsely assuming it is an object."""
         if 'enum' in schema:
             return AInDataTypeKind.ENUM
-        if 'oneOf' in schema:
+        if 'x-algites-defscodegen-choice' in schema:
             return AInDataTypeKind.ONE_OF
-        if 'anyOf' in schema and not AIcJsonSchemaReader._presence_any_of_as_min_properties(schema):
-            return AInDataTypeKind.ANY_OF
         if schema.get('type') == 'object' or 'properties' in schema:
             return AInDataTypeKind.OBJECT
         declared = schema.get('type')
@@ -189,15 +164,14 @@ class AIcJsonSchemaReader:
                     == {self._wire_value(value) for value in values}):
             kind = _value_kind(schema['type'])
             return AIcdDataType(kind, constraints=from_json(schema, kind))
-        if self._presence_any_of_as_min_properties(schema):
-            schema = {**schema, 'minProperties': max(1, schema.get('minProperties', 0))}
-            schema.pop('anyOf', None)
-        for keyword, kind in (('oneOf', AInDataTypeKind.ONE_OF),
-                              ('anyOf', AInDataTypeKind.ANY_OF)):
-            branches = schema.get(keyword)
-            if isinstance(branches, list) and branches:
-                return AIcdDataType.choice(kind,
-                    (self._recursive_type(branch, request, visited) for branch in branches))
+        choice = schema.get('x-algites-defscodegen-choice')
+        if choice is not None:
+            alternatives = choice.get('alternatives') if isinstance(choice, Mapping) else None
+            if (not isinstance(alternatives, list) or len(alternatives) < 2
+                    or any(not isinstance(ref, str) for ref in alternatives)):
+                raise ValueError('x-algites-defscodegen-choice requires at least two URI alternatives')
+            return AIcdDataType.choice(AInDataTypeKind.ONE_OF,
+                (self._recursive_type({'$ref': ref}, request, visited) for ref in alternatives))
         if '$ref' in schema:
             # References to emitted named objects/enums remain nominal. Expanding
             # them inline would lose their identity and produce nonexistent branch contracts.
@@ -222,7 +196,7 @@ class AIcJsonSchemaReader:
             named = (len(tokens) == 2 and tokens[0] in ('$defs', 'definitions')
                      and isinstance(resolved, Mapping)
                      and ('properties' in resolved or resolved.get('type') == 'object'
-                          or 'enum' in resolved or 'oneOf' in resolved or 'anyOf' in resolved))
+                          or 'enum' in resolved or 'x-algites-defscodegen-choice' in resolved))
             key = (target_path.resolve(), unescaped)
             entered = key not in visited
             if named:
@@ -253,7 +227,11 @@ class AIcJsonSchemaReader:
         raw = schema.get('type')
         if isinstance(raw, list):
             raw = next((kind for kind in raw if kind != 'null'), None)
-        if raw == 'array' or 'items' in schema:
+        if raw == 'array' or 'items' in schema or 'prefixItems' in schema:
+            if isinstance(schema.get('prefixItems'), list) and schema['prefixItems']:
+                raise ValueError('Positional prefixItems requires the canonical POSITIONAL_VALUE model; cannot flatten to homogeneous ARRAY')
+            if isinstance(schema.get('items'), list):
+                raise ValueError('Legacy tuple-style items require the canonical POSITIONAL_VALUE model; cannot flatten to homogeneous ARRAY')
             return AIcdDataType(AInDataTypeKind.ARRAY,
                 element_type=self._recursive_type(schema.get('items', {}), request, visited),
                 constraints=from_json(schema, AInDataTypeKind.ARRAY))
@@ -331,55 +309,6 @@ class AIcJsonSchemaReader:
                 if path.is_file():
                     yield path
 
-    def _structural(self, node, request, visited):
-        """Extract object properties and required fields from allOf and referenced roots."""
-        result = dict(node)
-        branches = []
-        ref = node.get("$ref")
-        if isinstance(ref, str):
-            uri = urlsplit(ref)
-            resource = ref.split("#", 1)[0]
-            target = self._reference_path(resource, request)
-            fragment = unquote(uri.fragment)
-            key = (target.resolve(), fragment)
-            if key in visited:
-                raise ValueError(f"Circular schema composition '{ref}' in {request.path}")
-            visited.add(key)
-            document = load_schema(target)
-            referenced = document
-            if fragment.startswith("/"):
-                try:
-                    for token in fragment[1:].split("/"):
-                        key_part = token.replace("~1", "/").replace("~0", "~")
-                        referenced = referenced[int(key_part)] if isinstance(referenced, list) else referenced[key_part]
-                except (KeyError, IndexError, ValueError, TypeError) as ex:
-                    raise ValueError(f"Undefined schema reference '{ref}' in {request.path}") from ex
-            elif fragment:
-                referenced = self._anchor(document, fragment)
-            if not isinstance(referenced, Mapping):
-                raise ValueError(f"Undefined schema reference '{ref}' in {request.path}")
-            branches.append(self._structural(referenced, AIcdDefinitionLoadRequest(target, request.source_kind, request.naming_profile), visited))
-            visited.remove(key)
-        branches.extend(self._structural(branch, request, visited) for branch in node.get("allOf", ()))
-        branches.append(node)
-        properties, required = {}, set()
-        for branch in branches:
-            branch_properties = branch.get("properties", {})
-            if not isinstance(branch_properties, Mapping):
-                raise ValueError(f'allOf properties must be a schema object in {request.path}')
-            for name, schema in branch_properties.items():
-                if name in properties and properties[name] != schema:
-                    raise ValueError(f"Conflicting allOf property schema {name!r} in {request.path}")
-                properties[name] = schema
-            required.update(branch.get("required", ()))
-            if "type" in branch and "type" not in result:
-                result["type"] = branch["type"]
-        if properties:
-            result["properties"] = properties
-        if required:
-            result["required"] = sorted(required)
-        return result
-
     @staticmethod
     def _anchor(node, name):
         """Find a named schema anchor within the referenced document."""
@@ -402,7 +331,6 @@ class AIcJsonSchemaReader:
         """Normalize enum values and per-value descriptions from JSON-Schema-shaped input."""
         descriptions: dict[str, str | None] = {}
         titles: dict[str, str | None] = {}
-        one_of_values: list[AIcdEnumValueDefinition] = []
         one_of = root.get("oneOf")
         if isinstance(one_of, list):
             for branch in one_of:
@@ -412,12 +340,11 @@ class AIcJsonSchemaReader:
                 description = branch.get("description") if isinstance(branch.get("description"), str) else None
                 descriptions[value] = description
                 titles[value] = branch.get("title") if isinstance(branch.get("title"), str) else None
-                one_of_values.append(AIcdEnumValueDefinition(value, description, titles[value]))
         enum_values = root.get("enum")
         if isinstance(enum_values, list):
             return tuple(AIcdEnumValueDefinition(AIcJsonSchemaReader._wire_value(value), descriptions.get(AIcJsonSchemaReader._wire_value(value)), titles.get(AIcJsonSchemaReader._wire_value(value)))
                          for value in enum_values if value is not None)
-        return tuple(one_of_values)
+        return ()
 
     @staticmethod
     def _wire_value(value: Any) -> str:
@@ -447,6 +374,6 @@ class AIcJsonSchemaReader:
         if AIcJsonSchemaReader._enum_values(root):
             return AInDataTypeKind.ENUM
         if (root.get("type") == "object" or isinstance(root.get("properties"), Mapping)
-                or 'oneOf' in root or 'anyOf' in root):
+                or 'x-algites-defscodegen-choice' in root):
             return AInDataTypeKind.OBJECT
         return AInDataTypeKind.ANY

@@ -64,7 +64,7 @@ public final class AItcXmlNoNamespaceDocumentScopingTest {
             role.put("xmldefs_namespace", "algites-" + technology + "-gen-xml-namespace-intf_1");
         }
         var naming = manifest.putArray("naming_convention_files");
-        for (String name : new String[] {"standard-conventions.yml", "algites-java-name-conventions.yml",
+        for (String name : new String[] {"algites-java-name-conventions.yml",
                 "algites-python-name-conventions.yml", "algites-xmldef-name-conventions.yml"})
             naming.add("resource:" + name);
         return manifest;
