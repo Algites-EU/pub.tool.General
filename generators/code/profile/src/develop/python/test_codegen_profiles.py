@@ -9,7 +9,7 @@ from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog 
 ROOT = Path(__file__).resolve().parents[7]
 LIB = ROOT / 'pub.lib.General/naming/convention'
 TOOL = ROOT / 'pub.tool.General/generators/code'
-PATH = Path('eu/algites/lib/naming/convention')
+PATH = Path('eu/algites/lib/naming/convention/sourcecode')
 
 @pytest.mark.parametrize('technology', ('java', 'python'))
 @pytest.mark.parametrize('style,stem,result', (

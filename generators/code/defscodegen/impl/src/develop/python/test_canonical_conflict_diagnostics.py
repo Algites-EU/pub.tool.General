@@ -17,7 +17,7 @@ from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog 
 def _input_catalog():
     """Read explicit JSON/YAML/XML schema naming definitions for published fixture files."""
     base = Path(__file__).resolve().parents[8] / (
-        'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention')
+        'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode')
     return AIcNameConventionCatalog.load_many([
         base/f'algites-{name}-name-conventions.yml'
         for name in ('python', 'jsondef', 'yamldef', 'xmldef')])

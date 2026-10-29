@@ -37,7 +37,7 @@ def test_xsd_method_roles_and_common_base():
 
 def test_method_catalogs_contain_declared_schema_identifiers():
     """Both shipped DO/SDO catalogs keep the complete three-line schema header."""
-    catalog_root = MODULE.parents[1] / 'code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
+    catalog_root = MODULE.parents[1] / 'code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
     for technology in ('java', 'python'):
         path = catalog_root / f'algites-{technology}-codegen-method-conventions.yml'
         lines = path.read_text(encoding='utf-8').splitlines()

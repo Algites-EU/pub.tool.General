@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
  */
 final class AIcNamingCatalogCollector {
     private static final String PREFIX = "eu/algites/lib/naming/convention/";
+    private static final String SOURCECODE_PREFIX = PREFIX + "sourcecode/";
     private static final Pattern FILE_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*\\.yml");
     private static final Pattern STANDARD = Pattern.compile(
             "(?m)^\\s*StandardConventionsFile:\\s*[\"']?([A-Za-z0-9][A-Za-z0-9_.-]*\\.yml)");
@@ -53,7 +54,10 @@ final class AIcNamingCatalogCollector {
                 String locName = locSource.substring(locSource.indexOf(':') + 1);
                 if (!FILE_NAME.matcher(locName).matches())
                     throw new IllegalArgumentException("Invalid classpath naming catalog: " + locName);
-                Enumeration<URL> locResources = locLoader.getResources(PREFIX + locName);
+                Enumeration<URL> locResources = locLoader.getResources(SOURCECODE_PREFIX + locName);
+                /* Shared grammar stays in the general naming namespace. */
+                if (!locResources.hasMoreElements())
+                    locResources = locLoader.getResources(PREFIX + locName);
                 List<URL> locUrls = new ArrayList<>();
                 Set<String> locSeen = new HashSet<>();
                 while (locResources.hasMoreElements()) {

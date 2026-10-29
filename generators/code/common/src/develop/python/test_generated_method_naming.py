@@ -9,8 +9,8 @@ from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog 
 ROOT = Path(__file__).resolve().parents[7]
 LIB = ROOT / 'pub.lib.General'
 TOOL = ROOT / 'pub.tool.General'
-LIB_CONFIG = LIB / 'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention'
-METHOD_CONFIG = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
+LIB_CONFIG = LIB / 'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
+METHOD_CONFIG = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
 EXPECTED = {'standard_getter': 'getName',
             'standard_setter': 'setName',
             'raw_getter': '_getRaw_Name',
@@ -84,7 +84,7 @@ def test_both_catalog_families_validate_against_composed_schemas(family, technol
     from referencing import Registry, Resource
     from referencing.jsonschema import DRAFT202012
     from jsonschema import Draft202012Validator
-    source_root = LIB / f'naming/convention/intf/src/product/{family}'
+    source_root = LIB / f'naming/convention/sourcecode/src/product/{family}'
     method_root = TOOL / f'generators/code/common/src/product/{family}'
     definitions = [json.loads(path.read_text(encoding='utf-8'))
                    for base in (source_root, method_root)
@@ -206,7 +206,7 @@ def test_schema_metadata_enum_and_validation_are_consistent(family, suffix):
     from referencing.jsonschema import DRAFT202012
     from jsonschema import Draft202012Validator
     sources = [json.loads(path.read_text()) for folder in (
-        LIB / f'naming/convention/intf/src/product/{family}', base)
+        LIB / f'naming/convention/sourcecode/src/product/{family}', base)
         for path in folder.rglob('*.schema.json')]
     registry = Registry().with_resources((obj['$id'], Resource.from_contents(obj, default_specification=DRAFT202012)) for obj in sources)
     schema = next(obj for obj in sources if obj['$id'].endswith(f'data-object-naming-conventions_1.{suffix}.schema.json'))

@@ -167,10 +167,16 @@ def verify_wheel(wheel: Path, name: str, generator: str, part: str | None, relea
                 raise ValueError("Neutral common wheel unexpectedly contains a naming profile")
         if generator == "profile":
             for language in ("java", "python"):
-                resource = ("eu/algites/lib/naming/convention/"
+                resource = ("eu/algites/lib/naming/convention/sourcecode/"
                             f"{part}-{language}-codegen-method-conventions.yml")
                 if resource not in entries:
                     raise ValueError(f"Missing {part} method catalog in profile wheel: {resource}")
+                for domain in ("dataobject", "smartdataobject"):
+                    split_resource = ("eu/algites/lib/naming/convention/sourcecode/"
+                                      f"{part}-{language}-{domain}-conventions.yml")
+                    if split_resource not in entries:
+                        raise ValueError(f"Missing {part} split naming catalog in profile wheel: "
+                                         + split_resource)
             for target in ("java", "python"):
                 for implementation in ("defs", "sdo"):
                     entry = (f"eu/algites/tool/codegen/{implementation}/"

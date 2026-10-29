@@ -28,8 +28,8 @@ class AItcConfiguredSdoGenerator:
         from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
         if configured is None:
             common = Path(__file__).resolve().parents[8]
-            library = common/'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention'
-            tool = common/'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
+            library = common/'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
+            tool = common/'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
             catalog = AIcNameConventionCatalog.load_many([
                 library/'algites-python-name-conventions.yml',
                 tool/'algites-python-codegen-method-conventions.yml',
@@ -390,8 +390,8 @@ def test_shared_generated_method_profile_controls_real_sdo_emission(contracts, t
 
     _, parent, _ = contracts
     root = Path(__file__).resolve().parents[8]
-    library = root / 'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention'
-    tool = root / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
+    library = root / 'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
+    tool = root / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
     config = yaml.safe_load((tool / 'algites-python-codegen-method-conventions.yml').read_text())
     config['NameCompositions']['custom-sdo-raw-getter'] = {'Segments': [
         {'Kind': 'constant_string', 'Value': 'rawValue'},
@@ -422,8 +422,8 @@ def test_unconfigured_raw_methods_are_not_emitted(contracts, tmp_path, disabled)
 
     _, parent, _ = contracts
     repository = Path(__file__).resolve().parents[8]
-    lib = repository / 'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention'
-    shared = repository / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
+    lib = repository / 'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
+    shared = repository / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
     source = yaml.safe_load((shared / 'algites-python-codegen-method-conventions.yml').read_text())
     rules = source['GeneratedDataObjectMethodNameConventions']['NameConventions'][
         'algites-python-codegen-standard_1']['StructureNaming']

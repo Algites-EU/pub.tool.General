@@ -13,8 +13,13 @@ import sys
 
 
 _RESOURCE_PREFIXES = ('classpath:', 'resource:')
+# The common grammar remains in naming/intf; source-code profiles moved to /sourcecode.
+_NAMING_ROOT = ('eu', 'algites', 'lib', 'naming', 'convention')
+_PROFILE_SUBPATH = (*_NAMING_ROOT, 'sourcecode')
 def _providers():
     """Discover installed naming-profile resource namespaces without selecting a vendor."""
+    yield ('eu.algites.lib.naming.convention', ('sourcecode',))
+    # Shared standards and existing fixture/legacy catalogs remain at the base.
     yield ('eu.algites.lib.naming.convention', ())
     from importlib.metadata import distributions
     for distribution in distributions():
@@ -22,8 +27,10 @@ def _providers():
         if not name.startswith('eu-algites-pub-lib-general-naming-convention-'):
             continue
         suffix = name.removeprefix('eu-algites-pub-lib-general-naming-convention-')
-        yield (f'algites.pub.lib.general.naming.convention.{suffix}',
-               ('eu', 'algites', 'lib', 'naming', 'convention'))
+        yield (f'algites.pub.lib.general.naming.convention.{suffix.replace("-", ".")}',
+               _PROFILE_SUBPATH)
+        yield (f'algites.pub.lib.general.naming.convention.{suffix.replace("-", ".")}',
+               _NAMING_ROOT)
 
 
 
@@ -54,9 +61,12 @@ def resolve_naming_catalog(source: str) -> str:
 
     for item in sys.path:
         # The empty sys.path entry denotes the current working directory.
-        candidate = Path(item or '.').joinpath(name)
-        if candidate.is_file():
-            return str(candidate.resolve())
+        directory = Path(item or '.')
+        for candidate in (directory.joinpath(*_PROFILE_SUBPATH, name),
+                          directory.joinpath(*_NAMING_ROOT, name),
+                          directory.joinpath(name)):
+            if candidate.is_file():
+                return str(candidate.resolve())
     if packaged:
         return 'resource:' + name
     raise FileNotFoundError(
@@ -115,6 +125,12 @@ def expand_naming_catalogs(sources):
                     except (ModuleNotFoundError, TypeError, FileNotFoundError):
                         pass
                 if not sibling.is_file():
+                    for sys_entry in sys.path:
+                        candidate_shared = Path(sys_entry or '.').joinpath(*_NAMING_ROOT, standard.group(1))
+                        if candidate_shared.is_file():
+                            sibling = candidate_shared
+                            break
+                if not sibling.is_file():
                     raise FileNotFoundError(
                         f'Missing shared StandardConventionsFile {standard.group(1)!r} '
                         f'for {name!r} (expected in naming/intf or alongside the catalog)')
@@ -142,7 +158,8 @@ def expand_naming_catalogs(sources):
                     continue
             for entry in reversed(sys.path):
                 directory = Path(entry or '.')
-                for candidate in (directory / 'eu/algites/lib/naming/convention' / name,
+                for candidate in (directory.joinpath(*_PROFILE_SUBPATH, name),
+                                  directory.joinpath(*_NAMING_ROOT, name),
                                   directory / name):
                     if candidate.is_file():
                         matched = True

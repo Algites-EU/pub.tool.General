@@ -23,8 +23,8 @@ class AItcConfiguredSdoGenerator:
         from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
         if configured is None:
             common = Path(__file__).resolve().parents[8]
-            library = common/'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention'
-            tool = common/'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention'
+            library = common/'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
+            tool = common/'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
             catalog = AIcNameConventionCatalog.load_many([
                 library/'algites-python-name-conventions.yml',
                 tool/'algites-python-codegen-method-conventions.yml',

@@ -147,3 +147,40 @@ def test_profile_catalog_uses_standard_resource_from_separate_intf_distribution(
         assert selected.read_text().startswith('StandardConventionsFile:')
         assert (selected.parent / 'shared-fixture.yml').read_text() == (
             'IdentifierConventions: {}\n')
+
+
+def test_moved_sourcecode_profile_and_shared_standard_in_separate_roots(monkeypatch, tmp_path):
+    """Bootstrap resolves relocated sourcecode profiles without duplicating standards."""
+    from eu.algites.tool.codegen.defs.impl.standard import _catalog_sources
+    base = tmp_path / 'config-profile'
+    shared = tmp_path / 'config-intf'
+    profile_root = base / 'eu/algites/lib/naming/convention/sourcecode'
+    shared_root = shared / 'eu/algites/lib/naming/convention'
+    profile_root.mkdir(parents=True)
+    shared_root.mkdir(parents=True)
+    (profile_root / 'moved-profile.yml').write_text(
+        'StandardConventionsFile: standard-conventions.yml\n'
+        'NameFragments: {moved_1: {Segments: [{Kind: constant_string, Value: moved}]}}\n',
+        encoding='utf-8')
+    (shared_root / 'standard-conventions.yml').write_text(
+        'IdentifierConventions: {}\nVersionConventions: {}\n', encoding='utf-8')
+    monkeypatch.setattr(sys, 'path', [str(base), str(shared)])
+    assert _catalog_sources.resolve_naming_catalog('resource:moved-profile.yml') == str(
+        (profile_root / 'moved-profile.yml').resolve())
+    with _catalog_sources.expand_naming_catalogs(['resource:moved-profile.yml']) as files:
+        catalog = AIcNameConventionCatalog.load_many(files)
+        assert 'moved_1' in catalog._config['NameFragments']
+
+
+def test_shared_intf_standard_is_resolved_from_base_namespace(monkeypatch, tmp_path):
+    """Shared naming grammar stays at convention/, not convention/sourcecode/."""
+    from eu.algites.tool.codegen.defs.impl.standard import _catalog_sources
+    root = tmp_path / 'library-root'
+    shared = root / 'eu/algites/lib/naming/convention'
+    shared.mkdir(parents=True)
+    (shared / 'standard-conventions.yml').write_text(
+        'IdentifierConventions: {}\n', encoding='utf-8')
+    monkeypatch.setattr(sys, 'path', [str(root)])
+    with _catalog_sources.expand_naming_catalogs(['resource:standard-conventions.yml']) as sources:
+        assert len(sources) == 1
+        assert Path(sources[0]).read_text().startswith('IdentifierConventions:')

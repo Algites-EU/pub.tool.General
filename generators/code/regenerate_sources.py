@@ -69,6 +69,18 @@ def artifact_outputs(repository: Path, selected: Path | None = None) -> dict[Pat
         artifact = target.parent.parent.parent
         if not (artifact / 'modustro-artifact.yml').is_file():
             raise ValueError(f'Generated root has no declared artifact: {target}')
+        # A generated source directory may be present for historical reasons
+        # even when its owning artifact has no Defs schema inputs.  Only schema
+        # owners participate in the pre-Gradle Defs generation stage.
+        source_root = artifact / 'src/product'
+        if not any((source_root / kind).is_dir()
+                   and any(path.is_file() and path.name.endswith({
+                       'jsondefs': '.jsondef.schema.json',
+                       'yamldefs': '.yamldef.schema.json',
+                       'xmldefs': '.xsd',
+                   }[kind]) for path in (source_root / kind).rglob('*'))
+                   for kind in SOURCE_KINDS):
+            continue
         result.setdefault(artifact, []).append(target.name.removesuffix('.gen'))
     return result
 

@@ -84,7 +84,7 @@ if [[ "$locDependencyMode" == source || "${MODUSTRO_BOOTSTRAP_REFRESH_GENERAL_DA
         'naming/convention/intf/src/product/java/eu/algites/lib/naming/convention/AIiNameConventionCatalog.java' \
         'naming/convention/intf/src/product/config/eu/algites/lib/naming/convention/standard-conventions.yml' \
         'naming/convention/impl/src/product/java/eu/algites/lib/naming/convention/impl/standard/AIcNameConventionCatalog.java' \
-        'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/algites-java-name-conventions.yml'; do
+        'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-java-name-conventions.yml'; do
         [[ -f "$locGeneralDirectory/$locRequiredSource" ]] || {
             echo "Required current pub.lib.General source is missing: $locGeneralDirectory/$locRequiredSource" >&2
             exit 2
@@ -482,8 +482,8 @@ def verifyNamingCatalog = tasks.register('verifyNamingCatalog') {
             throw new GradleException("Expected precisely one Algites naming catalog artifact on the generator test runtime classpath; found ${artifact.size()}")
         }
         def archive = artifact[0].file
-        def entries = ['eu/algites/lib/naming/convention/algites-java-name-conventions.yml',
-                       'eu/algites/lib/naming/convention/algites-python-name-conventions.yml']
+        def entries = ['eu/algites/lib/naming/convention/sourcecode/algites-java-name-conventions.yml',
+                       'eu/algites/lib/naming/convention/sourcecode/algites-python-name-conventions.yml']
         new java.util.zip.ZipFile(archive).withCloseable { zip ->
             entries.each { path ->
                 def entry = zip.getEntry(path)

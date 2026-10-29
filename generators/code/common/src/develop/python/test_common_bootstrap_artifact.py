@@ -30,7 +30,7 @@ def test_common_python_distribution_does_not_stage_method_profiles(tmp_path: Pat
     assert not list((stage / 'src').rglob('*-codegen-method-conventions.yml'))
     for technology in ('java', 'python'):
         resource = (_REPOSITORY / 'generators/code/profile/algites/src/product/config'
-                    / 'eu/algites/lib/naming/convention'
+                    / 'eu/algites/lib/naming/convention/sourcecode'
                     / f'algites-{technology}-codegen-method-conventions.yml')
         assert resource.is_file()
         assert 'GeneratedDataObjectMethodNameConventions:' in resource.read_text(encoding='utf-8')
@@ -82,7 +82,10 @@ def test_bootstrap_wheel_verifies_neutral_settings_names(tmp_path: Path, generat
         if generator == 'profile':
             for technology in ('java', 'python'):
                 archive.writestr(
-                    f'eu/algites/lib/naming/convention/{part}-{technology}-codegen-method-conventions.yml', '')
+                    f'eu/algites/lib/naming/convention/sourcecode/{part}-{technology}-codegen-method-conventions.yml', '')
+                for domain in ('dataobject', 'smartdataobject'):
+                    archive.writestr(
+                        f'eu/algites/lib/naming/convention/sourcecode/{part}-{technology}-{domain}-conventions.yml', '')
                 for family, basename in (('defs', 'defscodegen'), ('sdo', 'sdocodegen')):
                     archive.writestr(
                         f'eu/algites/tool/codegen/{family}/{basename}-{technology}.settings', '')
