@@ -4,6 +4,8 @@ import eu.algites.lib.data.dataobject.AIaDataObject;
 import eu.algites.lib.data.dataobject.AIaDataObjectField;
 import eu.algites.lib.data.dataobject.AIiDataObject;
 import eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy;
+import eu.algites.lib.data.dataobject.jsondefs.AIiJsonDataObject;
+import eu.algites.lib.data.dataobject.yamldefs.AIiYamlDataObject;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -65,6 +67,44 @@ public final class AItcSetterInheritancePolicyTest {
         @AIaDataObjectField(fieldName = "Languages", setterInheritancePolicy =
                 AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
         List<? extends String> getLanguages();
+    }
+
+    /** A representation-neutral value whose type is not known until a dialect is selected. */
+    @AIaDataObject(schemaId = "test:unrestricted-naming", schemaVersion = 1)
+    public interface AIigUnrestrictedNaming_1 extends AIiDataObject {
+        /** Read the metadata map in a representation-independent form. */
+        @AIaDataObjectField(fieldName = "VersionConventions")
+        Object getVersionConventions();
+    }
+
+    /** Nested typed metadata selected by the JSON representation. */
+    @AIaDataObject(schemaId = "test:version-naming", schemaVersion = 1)
+    public interface AIigVersionNaming_1 extends AIiDataObject {
+        /** Read a version-matching pattern. */
+        @AIaDataObjectField(fieldName = "Regexp")
+        String getRegexp();
+    }
+
+    /** JSON dialect narrows the common Object getter to a typed nested object. */
+    @AIaDataObject(schemaId = "test:json-naming", schemaVersion = 1)
+    public interface AIigSpecializedJsonNaming_1 extends AIigUnrestrictedNaming_1, AIiJsonDataObject {
+        /** Read a typed version convention. */
+        @Override
+        @AIaDataObjectField(fieldName = "VersionConventions")
+        AIigVersionNaming_1 getVersionConventions();
+    }
+
+    /** An intermediate dialect between the representation-independent and concrete contract. */
+    @AIaDataObject(schemaId = "test:intermediate-naming", schemaVersion = 1)
+    public interface AIigIntermediateNaming_1 extends AIigUnrestrictedNaming_1 { }
+
+    /** A descendant that inherits the unrestricted getter through an intermediate interface. */
+    @AIaDataObject(schemaId = "test:yaml-naming", schemaVersion = 1)
+    public interface AIigSpecializedYamlNaming_1 extends AIigIntermediateNaming_1, AIiYamlDataObject {
+        /** Read typed naming settings from YAML. */
+        @Override
+        @AIaDataObjectField(fieldName = "VersionConventions")
+        AIigVersionNaming_1 getVersionConventions();
     }
 
     /** Holder whose setter type must remain unchanged in descendants. */
@@ -149,6 +189,47 @@ public final class AItcSetterInheritancePolicyTest {
                     "The setter must share the mutable getter's type variable");
             Assert.assertTrue(locConcrete.contains(" extends eu.algites.lib.data.smartdataobject.impl.standard.AIcSmartDataObject"),
                     "Concrete implementation must use the technology base directly");
+            for (var locUnit : List.of(locResult.mutableInterface(), locResult.implementation())) {
+                Path locFile = locRoot.resolve(locUnit.relativePath());
+                Files.createDirectories(locFile.getParent());
+                Files.writeString(locFile, locUnit.source());
+                locSources.add(locFile.toString());
+            }
+        }
+        var locArguments = new ArrayList<>(List.of(
+                "-cp", System.getProperty("java.class.path"), "-d", locClasses.toString()));
+        locArguments.addAll(locSources);
+        Assert.assertEquals(ToolProvider.getSystemJavaCompiler().run(null, null, null,
+                locArguments.toArray(String[]::new)), 0);
+    }
+
+    /**
+     * A representation-neutral Object setter remains an actual inherited
+     * method even when a dialect replaces the getter with a typed contract.
+     * Verify both direct and transitive inheritance with javac, not just
+     * string matching, so Java's method-erasure rules are exercised.
+     *
+     * @throws Exception if generation or Java compilation fails
+     */
+    @Test
+    public void AIcCompilesObjectSetterInheritedByTypedRepresentations() throws Exception {
+        var locGenerator = new AItcConfiguredSdoCodegenService();
+        var locRoot = Files.createTempDirectory("sdo-narrow-object-setter-");
+        var locClasses = Files.createDirectories(locRoot.resolve("classes"));
+        var locSources = new ArrayList<String>();
+        for (Class<?> locRead : List.of(AIigVersionNaming_1.class,
+                AIigUnrestrictedNaming_1.class, AIigIntermediateNaming_1.class,
+                AIigSpecializedJsonNaming_1.class, AIigSpecializedYamlNaming_1.class)) {
+            var locResult = locGenerator.generate(locRead, "d");
+            if (locRead == AIigSpecializedJsonNaming_1.class
+                    || locRead == AIigSpecializedYamlNaming_1.class) {
+                String locConcrete = locResult.implementation().source();
+                Assert.assertTrue(locConcrete.contains(
+                        "setVersionConventions(java.lang.Object aVersionConventions)"),
+                        "Representation-specific implementation must retain the Object setter");
+                Assert.assertTrue(locConcrete.contains("setVersionConventions("),
+                        "Representation-specific implementation must retain its typed setter");
+            }
             for (var locUnit : List.of(locResult.mutableInterface(), locResult.implementation())) {
                 Path locFile = locRoot.resolve(locUnit.relativePath());
                 Files.createDirectories(locFile.getParent());

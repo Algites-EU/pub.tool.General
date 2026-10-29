@@ -475,6 +475,33 @@ class AIcSchemaContractBindingsGenerator:
                     common_definitions.append(replace(representation.definition,
                         data_type=representation.definition.data_type.with_properties(tuple(props))))
                 merged = merge_common(common_definitions)
+                # Matching logical identity implies one shared Java interface.
+                # An inline XML complex object maps to Map<String,Object> in
+                # the current XML emitter, whereas JSON/YAML inline objects
+                # have generated nominal interfaces. They cannot override a
+                # common typed getter. Reject this *before* writing sources.
+                # This check is intentionally limited to actual overlapping
+                # representations; XML-only definitions are unaffected.
+                xml_parts = [r for r in representations if r.definition.source_kind
+                             is AInDefinitionSourceKind.XMLDEFS]
+                document_parts = [r for r in representations if r.definition.source_kind in
+                                  (AInDefinitionSourceKind.JSONDEFS,
+                                   AInDefinitionSourceKind.YAMLDEFS)]
+                for xml_rep in xml_parts:
+                    for xml_field in xml_rep.definition.data_type.properties:
+                        if xml_field.data_type.kind is not AInDataTypeKind.OBJECT:
+                            continue
+                        for doc_rep in document_parts:
+                            matching = next((field for field in doc_rep.definition.data_type.properties
+                                if field.source_name == xml_field.source_name), None)
+                            if matching is not None and matching.data_type.kind is AInDataTypeKind.OBJECT:
+                                raise ValueError('Incompatible shared XML/JSON/YAML getter: '
+                                    + xml_rep.definition.logical_name + '.' + xml_field.source_name
+                                    + ': XML inline complex type currently emits Map<String,Object> '
+                                    + 'but the JSON/YAML contract emits a named interface; '
+                                    + 'define compatible schema representations or explicit mapping. '
+                                    + 'Sources: ' + xml_rep.definition.source_resource + ' ; '
+                                    + doc_rep.definition.source_resource)
             else:
                 merged = AIcCanonicalDefinitionMerger.merge_strict((r.definition for r in representations),
                     repository, naming_profile=first.naming_profile)

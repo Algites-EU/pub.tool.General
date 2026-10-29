@@ -15,7 +15,7 @@ public final class AItcOverlappingSchemaInputsTest {
         Path locSource = locFolder.resolve("customer_1.yamldef.schema.json");
         ObjectNode locDocument = new ObjectMapper().createObjectNode();
         locDocument.put("$id", "https://schemas.example.test/" + aBranch + "/customer_1.yamldef.schema.json");
-        locDocument.put("$x-algites-schema-id", aIdentity);
+        locDocument.put("x-algites-schema-id", aIdentity);
         locDocument.put("type", "object");
         locDocument.putObject("properties").putObject("Name").put("type", aFieldType);
         locDocument.putArray("required").add("Name");
@@ -82,7 +82,7 @@ public final class AItcOverlappingSchemaInputsTest {
         ObjectMapper locMapper = new ObjectMapper();
         for (Path locSource : new Path[] {locFirst, locSecond}) {
             ObjectNode locDocument = (ObjectNode) locMapper.readTree(locSource.toFile());
-            locDocument.remove("$x-algites-schema-id");
+            locDocument.remove("x-algites-schema-id");
             Files.writeString(locSource, locDocument.toString());
         }
         var locGenerator = new AIcSchemaContractBindingsGenerator();

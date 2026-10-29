@@ -877,6 +877,31 @@ class AIcXmlDefsFrontend:
             else: stack.pop()
         if root is None or root.tag != '{http://www.w3.org/2001/XMLSchema}schema':
             raise ValueError(f'Expected XML Schema root in {path}')
+        # This loader has no safe, round-trippable model for unrestricted
+        # XML values. Reject explicit and implicit xs:anyType *at their source*.
+        # The implicit anyType ancestry of valid named complex types is not
+        # itself a use of the unrestricted value type and remains supported.
+        for node in root.iter():
+            local = node.tag.removeprefix('{http://www.w3.org/2001/XMLSchema}')
+            lexical = node.get('type', '') or node.get('base', '')
+            if lexical:
+                prefix, separator, name = lexical.rpartition(':')
+                name = name if separator else lexical
+                namespace = contexts[id(node)].get(prefix if separator else '')
+                if name == 'anyType' and namespace == 'http://www.w3.org/2001/XMLSchema':
+                    raise ValueError(f'Unsupported XSD xs:anyType in {path}: '
+                                     f'{local} {node.get("name", "")} (explicit type/base)')
+            if node.tag == '{http://www.w3.org/2001/XMLSchema}element':
+                # In XSD, an untyped declaration defaults to xs:anyType
+                # (xs:anySimpleType for attributes). Local refs use the global
+                # declaration's type, so they are handled at their target.
+                if (not node.get('type') and not node.get('ref')
+                        and not any(child.tag in (
+                            '{http://www.w3.org/2001/XMLSchema}simpleType',
+                            '{http://www.w3.org/2001/XMLSchema}complexType')
+                            for child in node)):
+                    raise ValueError(f'Unsupported implicit XSD anyType in {path}: '
+                                     f'{local} {node.get("name", "")}')
         for child in root:
             if child.tag in ('{http://www.w3.org/2001/XMLSchema}redefine',
                              '{http://www.w3.org/2001/XMLSchema}override',

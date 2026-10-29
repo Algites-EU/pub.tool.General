@@ -124,8 +124,69 @@ tasks.register('bootstrapSdoJava') {
             output.mkdirs()
             def classes = moduleProject.sourceSets.main.output.classesDirs.files.findAll { it.isDirectory() }
             if (classes.isEmpty()) throw new GradleException('Missing compiled Java DataObject classes for ' + entry.path)
-            def binaryClasspath = files(toolClasspath, moduleProject.sourceSets.main.runtimeClasspath, classes)
+            // The generator's transitive dependencies may contain a previously
+            // published JAR of the artifact currently being bootstrapped. In
+            // source mode that JAR is not authoritative: the compiled source
+            // output is. In particular, mixing two releases of the same
+            // standard-conventions.yml produces a misleading catalog conflict
+            // (e.g. all_lower_1 with/without ConversionStyle).
+            //
+            // Substitute ONLY this artifact's compiled output for that same
+            // artifact's published JAR. Do not globally ignore different
+            // resources with the same name: genuine cross-artifact naming
+            // conflicts must still fail in AIcNameConventionCatalog.loadAll.
+            def sourceMode = (System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') == 'source')
+            def ownPublishedJar = { File dependency ->
+                sourceMode && dependency.name.endsWith('.jar') &&
+                        dependency.name.startsWith(String.valueOf(entry.artifactId) + '-')
+            }
+            def toolFiles = toolClasspath.files.findAll { !ownPublishedJar(it) }
+            def moduleFiles = moduleProject.sourceSets.main.runtimeClasspath.files
+                    .findAll { !ownPublishedJar(it) }
+            def ignoredOwnJars = (toolClasspath.files +
+                    moduleProject.sourceSets.main.runtimeClasspath.files)
+                    .findAll { ownPublishedJar(it) }
+                    .collect { it.canonicalFile }
+                    .unique()
+            if (!ignoredOwnJars.isEmpty()) {
+                logger.lifecycle('SDO Java: using source output of ' + entry.artifactId +
+                        ' instead of published copies: ' + ignoredOwnJars)
+            }
+            // Make the source project's classes AND resources first on the
+            // application classpath. Excluding the stale JAR without including
+            // its freshly built replacement resources would lose the naming
+            // standards and break source bootstrap.
+            def binaryClasspath = files(moduleProject.sourceSets.main.output,
+                    moduleFiles, toolFiles, classes)
             def classpath = binaryClasspath.asPath
+            // Fail with the original classpath URLs if another library still
+            // contributes an incompatible naming standard. Identical copies
+            // are harmless, but an old published standard cannot be combined
+            // with the source revision's ConversionStyle definitions.
+            def standardResource = 'eu/algites/lib/naming/convention/standard-conventions.yml'
+            def standardLoader = new java.net.URLClassLoader(
+                    binaryClasspath.files.findAll { it.exists() }
+                            .collect { it.toURI().toURL() }.toArray(new java.net.URL[0]),
+                    ClassLoader.getPlatformClassLoader())
+            try {
+                def originsByHash = [:].withDefault { [] }
+                def resources = standardLoader.getResources(standardResource)
+                while (resources.hasMoreElements()) {
+                    def url = resources.nextElement()
+                    byte[] contents = url.openStream().withCloseable { it.readAllBytes() }
+                    byte[] digest = java.security.MessageDigest.getInstance('SHA-256').digest(contents)
+                    def hash = digest.encodeHex().toString()
+                    originsByHash[hash] << url.toExternalForm()
+                }
+                if (originsByHash.size() > 1) {
+                    throw new GradleException('Incompatible naming standards on Java SDO classpath for '
+                            + entry.artifactId + ': ' + originsByHash + '\n'
+                            + 'A stale published naming.convention.intf JAR may be shadowing '
+                            + 'the current source module. Source mode must use one version.')
+                }
+            } finally {
+                standardLoader.close()
+            }
             // Discover actual read-only DataObject contracts from the compiled
             // artifact, not every Java interface in its source directories.
             // The previous coarse scan included AIiSmartDataObject itself:

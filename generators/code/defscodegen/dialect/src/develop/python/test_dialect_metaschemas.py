@@ -23,6 +23,11 @@ def _registry(draft: str):
     for name in ('dialect', 'vocabulary'):
         schema = _load(draft, name)
         registry = registry.with_resource(schema['$id'], Resource.from_contents(schema))
+    lib = next(parent for parent in SOURCES.parents if parent.name == 'pub.tool.General').parent / 'pub.lib.General'
+    common = (lib / 'common/defs/jsonmetadefs/src/product/jsonmetadefs'
+              / 'eu/algites/lib/common/defs' / draft / 'vocabulary_1.jsonmetadef.schema.json')
+    schema = json.loads(common.read_text(encoding='utf-8'))
+    registry = registry.with_resource(schema['$id'], Resource.from_contents(schema))
     return registry
 
 
@@ -35,7 +40,7 @@ def test_dialect_and_keyword_schemas_valid(draft):
         cls.check_schema(schema)
     dialect = _load(draft, 'dialect')
     assert dialect['$vocabulary']['https://json-schema.org/draft/' + draft + '/vocab/core'] is True
-    assert [value for key, value in dialect['$vocabulary'].items() if key.endswith('vocabulary_1.md')] == [False]
+    assert [value for key, value in dialect['$vocabulary'].items() if key.endswith('vocabulary_1.md')] == [False, False]
 
 
 @pytest.mark.parametrize('draft', sorted(VERSIONS))

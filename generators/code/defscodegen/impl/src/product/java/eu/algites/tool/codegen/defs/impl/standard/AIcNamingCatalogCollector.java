@@ -44,11 +44,13 @@ final class AIcNamingCatalogCollector {
         Path locTemporary = Files.createTempDirectory("algites-naming-catalogs-");
         try {
             List<String> locExpanded = new ArrayList<>();
+            List<String> locProvenance = new ArrayList<>();
             ClassLoader locLoader = Thread.currentThread().getContextClassLoader();
             if (locLoader == null) locLoader = AIcNamingCatalogCollector.class.getClassLoader();
             for (String locSource : aSources) {
                 if (!locSource.startsWith("resource:") && !locSource.startsWith("classpath:")) {
                     locExpanded.add(locSource);
+                    locProvenance.add(locSource);
                     continue;
                 }
                 String locName = locSource.substring(locSource.indexOf(':') + 1);
@@ -90,9 +92,20 @@ final class AIcNamingCatalogCollector {
                         }
                     }
                     locExpanded.add(locFolder.resolve(locName).toString());
+                    locProvenance.add(locName + " <- " + locUrl.toExternalForm());
                 }
             }
-            return AIcNameConventionCatalog.loadAll(locExpanded);
+            try {
+                return AIcNameConventionCatalog.loadAll(locExpanded);
+            } catch (IllegalArgumentException locError) {
+                /* The catalog loader reports temporary materialization paths.
+                 * Preserve its conflict diagnosis but show original classpath
+                 * JARs and directories so mixed published/source versions can
+                 * be identified without inspecting a deleted temporary folder. */
+                throw new IllegalArgumentException(locError.getMessage()
+                        + "\nNaming catalog resource origins (merge order):\n  "
+                        + String.join("\n  ", locProvenance), locError);
+            }
         } finally {
             try (var locPaths = Files.walk(locTemporary)) {
                 for (Path locPath : locPaths.sorted(java.util.Comparator.reverseOrder()).toList())

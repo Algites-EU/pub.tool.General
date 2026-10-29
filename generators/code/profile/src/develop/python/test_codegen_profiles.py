@@ -44,8 +44,8 @@ def test_both_generator_settings_select_one_valid_naming_catalog(style, stem, te
     methods = yaml.safe_load((config/PATH/f'{style}-{technology}-codegen-method-conventions.yml').read_text())
     for item in methods['GeneratedDataObjectMethodNameConventions']['NameConventions'].values():
         assert item['SchemaMetadataNaming']['data_source_schema_url'] == '$schema'
-        assert item['SchemaMetadataNaming']['schema_source_schema_identifier'] == '$x-algites-schema-id'
-        assert item['SchemaMetadataNaming']['schema_source_schema_version'] == '$x-algites-schema-version'
+        assert item['SchemaMetadataNaming']['schema_source_schema_identifier'] == 'x-algites-schema-id'
+        assert item['SchemaMetadataNaming']['schema_source_schema_version'] == 'x-algites-schema-version'
     for generator,subdir in (('defscodegen','defs'),('sdocodegen','sdo')):
         settings = (config/f'eu/algites/tool/codegen/{subdir}'/
                     f'{generator}-{technology}.settings').read_text()
@@ -75,8 +75,8 @@ def test_defs_generator_outputs_both_languages_only_with_selected_profile(style,
     schemas.mkdir(parents=True)
     (schemas/'customer_1.jsondef.schema.json').write_text(json.dumps({
         '$schema': 'https://json-schema.org/draft/2020-12/schema',
-        '$id': 'urn:demo:customer:1', '$x-algites-schema-id': 'demo.customer',
-        '$x-algites-schema-version': 1, 'type': 'object',
+        '$id': 'urn:demo:customer:1', 'x-algites-schema-id': 'demo.customer',
+        'x-algites-schema-version': 1, 'type': 'object',
         'properties': {'Name': {'type': 'string'}}}))
     manifest = {
         'artifact': 'intf',

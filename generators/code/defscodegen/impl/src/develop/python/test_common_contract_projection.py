@@ -72,15 +72,21 @@ def test_common_urn_alias_uses_technology_kind_only():
         'explicit', other.identity, 1)
 
 
-def test_structural_supertype_for_format_specific_objects():
-    """An XML anyType and a concrete YAML object share only an Any-typed API."""
+def test_incompatible_anytype_never_widens_shared_contract():
+    """An XML wildcard cannot silently erase JSON/YAML type information."""
     xml = _definition(AInDefinitionSourceKind.XMLDEFS, 'urn:algites:example:1',
         [_field('Configuration', AInDataTypeKind.ANY)])
     yaml = _definition(AInDefinitionSourceKind.YAMLDEFS, 'urn:algites:example:1',
         [_field('Configuration', AInDataTypeKind.OBJECT)])
-    merged = merge_common([xml, yaml])
-    assert merged.data_type.properties[0].data_type.kind is AInDataTypeKind.ANY
-    assert yaml.data_type.properties[0].data_type.kind is AInDataTypeKind.OBJECT
+    with pytest.raises(ValueError, match='Configuration.*ANY'):
+        merge_common([xml, yaml])
+
+
+def test_xml_only_contract_preserves_its_own_type():
+    """An XML-only definition is valid without a JSON/YAML representation."""
+    xml = _definition(AInDefinitionSourceKind.XMLDEFS, 'urn:algites:xml-only:1',
+        [_field('QualifiedXmlValue', AInDataTypeKind.STRING)])
+    assert merge_common([xml]) is xml
 
 
 def test_batch_produces_common_and_independent_schema_interfaces(tmp_path, monkeypatch):
@@ -180,8 +186,8 @@ def test_string_closed_choice_relaxes_only_common_scalar_contract():
         merge_common([json, invalid])
 
 
-def test_shared_string_and_literal_enum_have_covariant_java_types():
-    """A format-specific enum getter must refine, not contradict, a shared field."""
+def test_string_and_literal_enum_cannot_share_java_getter():
+    """A format-specific enum getter is not covariant with String."""
     from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
     string = AIcdDataType(AInDataTypeKind.STRING)
     choices = AIcdDataType.choice(AInDataTypeKind.ONE_OF, (
@@ -197,6 +203,6 @@ def test_shared_string_and_literal_enum_have_covariant_java_types():
         [replace(field, data_type=base)])
     yaml = _definition(AInDefinitionSourceKind.YAMLDEFS, 'urn:algites:languages:1',
         [replace(field, data_type=specialization)])
-    merged = merge_common((xml, yaml))
-    assert merged.data_type.properties[0].data_type.element_type.kind is AInDataTypeKind.ANY
+    with pytest.raises(ValueError, match='Incompatible common field type.*Languages'):
+        merge_common((xml, yaml))
     assert yaml.data_type.properties[0].data_type.element_type.kind is AInDataTypeKind.ONE_OF

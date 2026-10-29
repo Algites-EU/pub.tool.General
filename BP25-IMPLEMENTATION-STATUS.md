@@ -5,7 +5,7 @@ Date: 2026-10-26 (Europe/Prague)
 ## Implemented
 
 - Generated DataObject/SDO method roles are `standard_getter`, `standard_setter`, `raw_getter`, `raw_presence_checker_method`, and `raw_unsetter` (the obsolete trailing `_name` is removed from role keys).
-- The Java and Python codegen method catalogs declare all six source/data schema metadata names. Defaults: `$id`, `$x-algites-schema-id`, `$x-algites-schema-version` for schema-source; `$schema`, empty, empty for data-source. The literal `$` prefixes on Algites extension fields are intentional.
+- The Java and Python codegen method catalogs declare all six source/data schema metadata names. Defaults: `$id`, `x-algites-schema-id`, `x-algites-schema-version` for schema-source; `$schema`, empty, empty for data-source. The literal `$` prefixes on Algites extension fields are intentional.
 - The source naming catalogs and method naming catalogs validate that no enabled data-source mapping lacks its corresponding schema-source mapping. Empty or missing optional raw roles omit generated declarations and implementations of those accessors.
 - Defs contract generators and SmartDataObject renderers respect optional source annotations and independent optional instance-document header fields; the output method profile can disable metadata independently of the input profile. A declared `schemaId` must not be synthesized from `$id`.
 - XMLDEFS remains separate from JSON/YAML wire-header conventions; selecting a generated method profile does not require XML schemas to contain JSON header fields.

@@ -102,6 +102,56 @@ public final class AItcCumulativeNamingCatalogTest {
         }
     }
 
+    /**
+     * Ensures contradictory packaged catalogs report their original JAR origins
+     * instead of only a temporary extraction path that disappears after failure.
+     *
+     * @throws Exception when fixture creation, resource loading, or cleanup fails
+     */
+    @Test
+    public void verifyConflictingStandardsReportJarOrigins() throws Exception {
+        Path locRoot = Files.createTempDirectory("algites-conflicting-standards-");
+        String locName = "fixture-standard-duplicate.yml";
+        String locResource = "eu/algites/lib/naming/convention/" + locName;
+        Path locOld = locRoot.resolve("old-grammar.jar");
+        Path locNew = locRoot.resolve("new-grammar.jar");
+        try {
+            for (Path locJar : List.of(locOld, locNew)) {
+                String locValue = locJar.equals(locNew)
+                        ? "    ConversionStyle: lower_flat\n" : "";
+                try (JarOutputStream locOutput = new JarOutputStream(Files.newOutputStream(locJar))) {
+                    locOutput.putNextEntry(new JarEntry(locResource));
+                    locOutput.write(("IdentifierConventions:\n  all_lower_1:\n"
+                            + locValue + "    Regexp: (?<identifier>[a-z]+)\n")
+                            .getBytes(StandardCharsets.UTF_8));
+                    locOutput.closeEntry();
+                }
+            }
+            ClassLoader locBefore = Thread.currentThread().getContextClassLoader();
+            try (URLClassLoader locLoader = new URLClassLoader(new URL[]{
+                    locOld.toUri().toURL(), locNew.toUri().toURL()}, locBefore)) {
+                Thread.currentThread().setContextClassLoader(locLoader);
+                try {
+                    AIcNamingCatalogCollector.load(List.of("resource:" + locName));
+                    throw new AssertionError("Different standard definitions must not merge");
+                } catch (IllegalArgumentException locError) {
+                    if (!locError.getMessage().contains("old-grammar.jar")
+                            || !locError.getMessage().contains("new-grammar.jar")
+                            || !locError.getMessage().contains("all_lower_1"))
+                        throw new AssertionError("Missing original catalog provenance: "
+                                + locError.getMessage(), locError);
+                } finally {
+                    Thread.currentThread().setContextClassLoader(locBefore);
+                }
+            }
+        } finally {
+            try (var locFiles = Files.walk(locRoot)) {
+                for (Path locFile : locFiles.sorted(java.util.Comparator.reverseOrder()).toList())
+                    Files.deleteIfExists(locFile);
+            }
+        }
+    }
+
     private static String schema(String aName) {
         return "NameFragments:\n"
                 + "  " + aName + ":\n"

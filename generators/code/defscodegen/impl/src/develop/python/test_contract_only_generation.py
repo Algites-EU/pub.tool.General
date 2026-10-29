@@ -126,7 +126,7 @@ def test_json_yaml_xsd_merge_the_same_logical_contract(tmp_path):
         path.mkdir(parents=True)
         (path / f'example_1.{suffix}').write_text(json.dumps({
             '$id': 'https://defs.example.invalid/example_1.schema.json',
-            '$x-algites-schema-id': 'urn:example:crossformat:1', '$x-algites-schema-version': 1,
+            'x-algites-schema-id': 'urn:example:crossformat:1', 'x-algites-schema-version': 1,
             'type':'object',
             'properties': {'Name': {'type':'string'}, 'Alias': {'type':'string'}},
             'required':['Name']}))

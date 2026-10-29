@@ -48,7 +48,7 @@ def test_split_naming_catalog_schema_parity(family, profile, language, domain):
     if domain == 'dataobject':
         assert roles['data_source_schema_url'] == '$schema'
         assert roles['schema_source_schema_url'] == '$id'
-        assert roles['schema_source_schema_identifier'] == '$x-algites-schema-id'
+        assert roles['schema_source_schema_identifier'] == 'x-algites-schema-id'
         assert roles['data_source_schema_identifier'] == ''
         assert 'raw_getter' not in roles
     else:

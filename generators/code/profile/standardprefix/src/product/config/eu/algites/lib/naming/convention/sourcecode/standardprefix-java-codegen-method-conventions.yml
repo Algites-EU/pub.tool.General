@@ -33,9 +33,9 @@ GeneratedDataObjectMethodNameConventions:
         # Schema declaration field containing the schema URI; blank disables URL extraction.
         schema_source_schema_url: $id
         # Schema declaration field containing the stable logical schema ID; blank disables ID extraction.
-        schema_source_schema_identifier: $x-algites-schema-id
+        schema_source_schema_identifier: x-algites-schema-id
         # Schema declaration field containing the logical schema version; blank disables version extraction.
-        schema_source_schema_version: $x-algites-schema-version
+        schema_source_schema_version: x-algites-schema-version
         # Instance document field used to write/read the source schema URI; blank disables. Requires schema_source_schema_url.
         data_source_schema_url: $schema
         # Instance document field used to write/read the source schema ID; blank disables. Requires schema_source_schema_identifier.

@@ -169,8 +169,8 @@ def test_default_method_profile_metadata_matches_algites(technology):
         'data_source_schema_url', 'data_source_schema_identifier',
         'data_source_schema_version')} == {
             'schema_source_schema_url': '$id',
-            'schema_source_schema_identifier': '$x-algites-schema-id',
-            'schema_source_schema_version': '$x-algites-schema-version',
+            'schema_source_schema_identifier': 'x-algites-schema-id',
+            'schema_source_schema_version': 'x-algites-schema-version',
             'data_source_schema_url': '$schema',
             'data_source_schema_identifier': '', 'data_source_schema_version': ''}
 

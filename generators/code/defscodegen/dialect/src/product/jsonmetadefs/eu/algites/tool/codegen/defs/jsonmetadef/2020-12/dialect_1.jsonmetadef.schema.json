@@ -9,7 +9,8 @@
     "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
     "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
     "https://json-schema.org/draft/2020-12/vocab/content": true,
-    "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/vocabulary_1.md": false
+    "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/vocabulary_1.md": false,
+    "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/vocabulary_1.md": false
   },
   "title": "Algites Defs Codegen JSON Schema 2020-12 dialect 1",
   "type": [
@@ -41,6 +42,9 @@
     },
     {
       "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/2020-12/vocabulary_1.jsonmetadef.schema.json"
+    },
+    {
+      "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/vocabulary_1.jsonmetadef.schema.json"
     }
   ]
 }

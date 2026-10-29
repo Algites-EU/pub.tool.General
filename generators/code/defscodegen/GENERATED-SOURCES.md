@@ -202,7 +202,7 @@ property names explicitly suppress serialization, not collection of the logical
 ID/version in the canonical contract model.
 
 The built-in Algites JSONDEFS/YAMLDEFS profiles read `$id`,
-`$x-algites-schema-id`, and `$x-algites-schema-version` and emit `$schema`
+`x-algites-schema-id`, and `x-algites-schema-version` and emit `$schema`
 only. `$schema` remains reserved for the JSON Schema dialect in the definitions.
 The same mapping is propagated to the Python `__data_object__` descriptor and
 Java `@AIaDataObject` annotation, and from read contracts into generated SDOs.

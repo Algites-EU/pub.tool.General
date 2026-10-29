@@ -24,6 +24,7 @@ DRAFTS = {
     'draft-07': Draft7Validator,
 }
 KEYS = ('x-algites-defscodegen-extends', 'x-algites-defscodegen-choice')
+COMMON_KEYS = ('x-algites-schema-id', 'x-algites-schema-version')
 
 
 def _documents(draft: str):
@@ -37,6 +38,11 @@ def _validation(draft: str):
     for document in (dialect, vocabulary):
         registry = registry.with_resource(document.get('$id', document.get('id')),
                                           Resource.from_contents(document))
+    lib = next(parent for parent in ROOT.parents if parent.name == 'pub.tool.General').parent / 'pub.lib.General'
+    common = (lib / 'common/defs/jsonmetadefs/src/product/jsonmetadefs'
+              / 'eu/algites/lib/common/defs' / draft / 'vocabulary_1.jsonmetadef.schema.json')
+    doc = json.loads(common.read_text(encoding='utf-8'))
+    registry = registry.with_resource(doc.get('$id', doc.get('id')), Resource.from_contents(doc))
     return DRAFTS[draft](dialect, registry=registry)
 
 
@@ -70,12 +76,12 @@ def test_legacy_dialect_is_valid_and_preserves_standard_recursive_schema(draft):
     for k in KEYS:
         assert dialect['properties'][k] == {'$ref': f"{vocabulary[identity_key]}#/properties/{k}"}
     standard = copy.deepcopy(validator.META_SCHEMA)
-    for k in KEYS:
+    for k in KEYS + COMMON_KEYS:
         standard['properties'].pop(k, None)
     for k in (identity_key, 'title', 'description'):
         standard.pop(k, None)
     copy_of_ours = copy.deepcopy(dialect)
-    for k in KEYS:
+    for k in KEYS + COMMON_KEYS:
         copy_of_ours['properties'].pop(k, None)
     for k in (identity_key, 'title', 'description'):
         copy_of_ours.pop(k, None)

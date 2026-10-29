@@ -239,6 +239,12 @@
     },
     "x-algites-defscodegen-choice": {
       "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/draft-07/vocabulary_1.jsonmetadef.schema.json#/properties/x-algites-defscodegen-choice"
+    },
+    "x-algites-schema-id": {
+      "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/draft-07/vocabulary_1.jsonmetadef.schema.json#/properties/x-algites-schema-id"
+    },
+    "x-algites-schema-version": {
+      "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/draft-07/vocabulary_1.jsonmetadef.schema.json#/properties/x-algites-schema-version"
     }
   },
   "default": true,

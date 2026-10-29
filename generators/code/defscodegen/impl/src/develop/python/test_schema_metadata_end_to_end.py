@@ -12,8 +12,8 @@ def test_algites_schema_url_not_confused_with_logical_id(tmp_path: Path):
     (source / 'example_1.jsondef.schema.json').write_text(json.dumps({
         '$schema': 'https://json-schema.org/draft/2020-12/schema',
         '$id': url,
-        '$x-algites-schema-id': 'example.logical',
-        '$x-algites-schema-version': 1,
+        'x-algites-schema-id': 'example.logical',
+        'x-algites-schema-version': 1,
         'type': 'object', 'properties': {'Name': {'type': 'string'}}
     }))
     options = {
@@ -59,8 +59,8 @@ def test_custom_source_profile_enables_explicit_data_document_id_and_version(tmp
     (schema_root / 'example_1.jsondef.schema.json').write_text(json.dumps({
         '$schema': 'https://json-schema.org/draft/2020-12/schema',
         '$id': 'https://example.test/schemas/version_1.json',
-        '$x-algites-schema-id': 'example.logical',
-        '$x-algites-schema-version': 1,
+        'x-algites-schema-id': 'example.logical',
+        'x-algites-schema-version': 1,
         'type': 'object', 'properties': {'Name': {'type': 'string'}}
     }))
     original = AIcNameConventionCatalog.load_resource('algites-jsondef-name-conventions.yml')
@@ -146,8 +146,8 @@ def test_selected_method_profile_controls_output_metadata(tmp_path: Path):
     schema.parent.mkdir(parents=True)
     schema.write_text(json.dumps({'$schema': 'https://json-schema.org/draft/2020-12/schema',
                                   '$id': 'https://example.test/schema_1.json',
-                                  '$x-algites-schema-id': 'example.logical',
-                                  '$x-algites-schema-version': 1,
+                                  'x-algites-schema-id': 'example.logical',
+                                  'x-algites-schema-version': 1,
                                   'type': 'object', 'properties': {'Name': {'type': 'string'}}}))
     from eu.algites.tool.codegen.defs.impl.standard._catalog_sources import expand_naming_catalogs
     catalogs = tmp_path / 'catalogs'

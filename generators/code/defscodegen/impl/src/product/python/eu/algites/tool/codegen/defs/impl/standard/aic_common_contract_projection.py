@@ -9,46 +9,27 @@ def _common_type(types, context):
     """Keep structural types, intersect object members and relax wire-specific facets."""
     first = types[0]
     if any(t.kind is not first.kind for t in types):
-        # A JSON/YAML closed choice of string constants is compatible with an
-        # XML string value, but a named Java enum is not a subtype of String.
-        # Widen the shared return type only when the closed choice really emits
-        # an enum; otherwise preserve the existing string projection.
-        def string_choice(t):
+        # Cross-representation contracts must not silently broaden methods
+        # to Object. A different type-kind is only compatible when the code
+        # generator can emit exactly the same public type, which is the
+        # primitive STRING case. Any/enum/reference/object combinations
+        # require an explicit, verified mapping rather than guessing.
+        # A non-enumerated closed choice of strings can be exposed as
+        # String in every language. An enum-valued choice cannot: its
+        # nominal Java enum is not a subtype of java.lang.String.
+        def plain_string_choice(t):
             if t.kind is AInDataTypeKind.STRING:
-                return True
-            if t.kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
-                return all(string_choice(option) for option in t.alternatives)
-            return t.kind is AInDataTypeKind.REFERENCE and t.reference.targets_enum
-        def literal_enum(t):
-            if t.kind is AInDataTypeKind.REFERENCE:
-                return t.reference.targets_enum
+                return not t.constraints.enum_values
             return (t.kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF)
                 and bool(t.alternatives)
-                and all(member.kind is AInDataTypeKind.STRING
-                    and len(member.constraints.enum_values) == 1
-                    for member in t.alternatives))
-        if all(string_choice(t) for t in types):
+                and all(plain_string_choice(option) for option in t.alternatives))
+        if all(plain_string_choice(t) for t in types):
             from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
-            return AIcdDataType(AInDataTypeKind.ANY if any(literal_enum(t) for t in types)
-                else AInDataTypeKind.STRING)
-        # XSD anyType can stand in for a more specific YAML/JSON value shape.
-        if (any(t.kind is AInDataTypeKind.ANY for t in types)
-            or all(t.kind is AInDataTypeKind.STRING or
-                   (t.kind is AInDataTypeKind.REFERENCE and t.reference.targets_enum)
-                   for t in types)
-            or (any(t.kind is AInDataTypeKind.REFERENCE for t in types)
-                and all(t.kind is AInDataTypeKind.OBJECT or
-                        (t.kind is AInDataTypeKind.REFERENCE and t.reference.target_data_type is not None
-                         and t.reference.target_data_type.kind is AInDataTypeKind.OBJECT)
-                        for t in types))
-            or all(t.kind in (AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF)
-                   or (t.kind is AInDataTypeKind.REFERENCE and t.reference.target_data_type is not None
-                       and t.reference.target_data_type.kind in (
-                           AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF))
-                   for t in types)):
-            from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
-            return AIcdDataType(AInDataTypeKind.ANY)
-        raise ValueError('Incompatible common field type: ' + context + ' / ' + str([(t.kind.name, repr(t.reference) if t.reference else None) for t in types]))
+            return AIcdDataType(AInDataTypeKind.STRING)
+        kinds = [(t.kind.name, repr(t.reference) if t.reference else None)
+                 for t in types]
+        raise ValueError('Incompatible common field type: ' + context
+                         + ' / ' + str(kinds))
     constraints = (first.constraints if all(t.constraints == first.constraints for t in types)
                    else AIcdValueConstraints())
     if first.kind is AInDataTypeKind.OBJECT:

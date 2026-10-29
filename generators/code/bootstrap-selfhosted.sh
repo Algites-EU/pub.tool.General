@@ -135,7 +135,7 @@ subprojects {
                 artifactId = [
                     'factory-intf': 'pub.lib.General_factory.cpdiscovery.intf',
                     'factory-impl': 'pub.lib.General_factory.cpdiscovery.impl',
-                    'common': 'pub.lib.General_common',
+                    'common': 'pub.lib.General_common.util',
                     'text-format': 'pub.lib.General_text.format',
                     'dataobject-intf': 'pub.lib.General_data.dataobject.intf',
                     'smartdataobject-intf': 'pub.lib.General_data.smartdataobject.intf',
@@ -344,7 +344,7 @@ project(':impl') {
         implementation project(':common')
         api project(':intf')
         api 'eu.algites.lib.data:pub.lib.General_data.dataobject.intf:1.1-SNAPSHOT'
-        api 'eu.algites.lib.common:pub.lib.General_common:1.1-SNAPSHOT'
+        api 'eu.algites.lib.common:pub.lib.General_common.util:1.1-SNAPSHOT'
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
         implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.3'
         testImplementation project(':profile-algites')
@@ -623,7 +623,7 @@ project(':impl') {
     dependencies {
         implementation project(':common')
         api project(':intf')
-        api 'eu.algites.lib.common:pub.lib.General_common:1.1-SNAPSHOT'
+        api 'eu.algites.lib.common:pub.lib.General_common.util:1.1-SNAPSHOT'
         implementation 'eu.algites.lib.data:pub.lib.General_data.smartdataobject.impl:1.1-SNAPSHOT'
         implementation 'eu.algites.lib.naming:pub.lib.General_naming.convention.impl:1.1-SNAPSHOT'
         testImplementation project(':profile-algites')

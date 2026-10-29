@@ -112,7 +112,7 @@ def test_group_mismatch_fails(tmp_path):
 def test_cycle_reports_chain(tmp_path):
     lib = make_repo(tmp_path, 'pub.lib.General')
     tool = make_repo(tmp_path, 'pub.tool.General')
-    a = 'pub.lib.General_common'
+    a = 'pub.lib.General_common.util'
     b = 'pub.tool.General_generators.impl'
     make_artifact(lib, 'common', [b])
     make_artifact(tool, 'generators/impl', [a])

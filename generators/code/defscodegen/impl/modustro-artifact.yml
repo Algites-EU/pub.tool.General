@@ -14,7 +14,7 @@ Dependencies:
         ArtifactId: pub.tool.General_generators.code.common
         Usages: [product_implementation]
       - GroupId: eu.algites.lib.common
-        ArtifactId: pub.lib.General_common
+        ArtifactId: pub.lib.General_common.util
         Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.tool.codegen

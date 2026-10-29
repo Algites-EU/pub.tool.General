@@ -240,6 +240,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         LinkedHashMap<String, AIcdGetter> locInherited = new LinkedHashMap<>();
         for (Class<?> locAncestor : locParents)
             merge(locInherited, inheritedFields(locAncestor, aInputNames));
+        List<AIcdGetter> locAncestorDeclarations = inheritedDeclarations(aReadContract, aInputNames);
         LinkedHashMap<String, String> locTypeVariables = new LinkedHashMap<>();
         LinkedHashMap<String, String> locFieldPolicies = new LinkedHashMap<>();
         for (var locEntry : locAll.entrySet()) {
@@ -396,6 +397,39 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     .append(locParameter).append(") { set_RawField(").append(locLiteral).append(", ")
                     .append(locParameter).append("); }\n")
                     ;
+            /* A representation-specific getter may narrow a common Object (or
+             * another non-generic value) getter. The common mutable interface
+             * then has a concrete setter such as setVersionConventions(Object),
+             * which overloading with the narrow setter does not implement.
+             * Generate the inherited signature explicitly; raw-field validation
+             * remains the responsibility of the SmartDataObject runtime.
+             * Generic parent setters need no source bridge: javac handles their
+             * erased signatures from the specialized type arguments.
+             */
+            Set<String> locEmittedSignatures = new LinkedHashSet<>();
+            locEmittedSignatures.add(locSetterName + "(" + locType + ")");
+            for (AIcdGetter locAncestorField : locAncestorDeclarations) {
+                Method locAncestorGetter = locAncestorField.method();
+                if (!locName.equals(semanticFieldId(locAncestorGetter, aInputNames))) continue;
+                if (setterPolicy(locAncestorField) == AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
+                        && supportsGenericSetterValue(locAncestorGetter)) continue;
+                String locInheritedType = mutableValueType(locAncestorGetter, locMarker,
+                        aInputNames, aMutableNames, aConcreteNames, aMutableSubpackage);
+                String locInheritedRole = dataObjectRole(locAncestorGetter.getDeclaringClass());
+                String locInheritedConvention = aMutableNames.selectedRole(locInheritedRole);
+                String locInheritedSetter = locAccessorCatalog.format(locInheritedConvention,
+                        "setter_method_name", Map.of("identifier", locName), locIdentifierConvention);
+                String locSignature = locInheritedSetter + "(" + locInheritedType + ")";
+                if (!locEmittedSignatures.add(locSignature)) continue;
+                locImplementation.append("    /** Implement the non-generic setter inherited from ")
+                        .append(locAncestorGetter.getDeclaringClass().getSimpleName())
+                        .append(". */\n")
+                        .append("    @Override public void ").append(locInheritedSetter)
+                        .append('(').append(locInheritedType).append(' ')
+                        .append(locParameter).append(") { set_RawField(")
+                        .append(locLiteral).append(", ").append(locParameter)
+                        .append("); }\n");
+            }
             if (locRawGetter != null)
                 locImplementation.append("    @Override public ").append(locType).append(' ').append(locRawGetter)
                         .append("() { return (").append(locBoxed).append(") get_RawField(")
@@ -691,6 +725,26 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         }
         mergeOverrides(locResult, fields(aType.getDeclaredMethods(), aInputNames));
         return locResult;
+    }
+
+    /**
+     * Enumerate every original ancestor field declaration, including declarations
+     * hidden by covariant getters in intermediate interfaces. The resulting list
+     * is used only to preserve non-generic inherited setter signatures.
+     *
+     * @param aType the most-derived read-only DataObject contract
+     * @param aInputNames the naming catalog used to identify declared fields
+     * @return ancestor fields in deterministic depth-first declaration order
+     */
+    private static List<AIcdGetter> inheritedDeclarations(Class<?> aType,
+            AIcNameConventionCatalog aInputNames) {
+        List<AIcdGetter> locFields = new ArrayList<>();
+        for (Class<?> locParent : aType.getInterfaces()) {
+            if (!isReadContract(locParent)) continue;
+            locFields.addAll(fields(locParent.getDeclaredMethods(), aInputNames).values());
+            locFields.addAll(inheritedDeclarations(locParent, aInputNames));
+        }
+        return locFields;
     }
 
     private static void merge(LinkedHashMap<String, AIcdGetter> aResult,
