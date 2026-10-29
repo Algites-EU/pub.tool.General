@@ -82,13 +82,14 @@ def test_invalid_mode_is_rejected():
 def test_both_catalog_families_validate_against_composed_schemas(family, technology):
     """Every new shared schema reference must resolve without fetching remote definitions."""
     from referencing import Registry, Resource
+    from referencing.jsonschema import DRAFT202012
     from jsonschema import Draft202012Validator
     source_root = LIB / f'naming/convention/intf/src/product/{family}'
     method_root = TOOL / f'generators/code/common/src/product/{family}'
     definitions = [json.loads(path.read_text(encoding='utf-8'))
                    for base in (source_root, method_root)
                    for path in base.rglob('*.schema.json')]
-    resources = Registry().with_resources((item['$id'], Resource.from_contents(item))
+    resources = Registry().with_resources((item['$id'], Resource.from_contents(item, default_specification=DRAFT202012))
                                           for item in definitions)
     for catalog_type, catalog_file, schema_name in (
         ('source', LIB_CONFIG / f'algites-{technology}-name-conventions.yml',
@@ -149,8 +150,8 @@ def test_method_catalog_rejects_enabled_wire_field_without_schema_source(tmp_pat
     instance = yaml.safe_load((METHOD_CONFIG/'algites-python-codegen-method-conventions.yml').read_text())
     method = instance['GeneratedDataObjectMethodNameConventions']['NameConventions'][
         'algites-python-codegen-standard_1']
-    method[f'schema_source_schema_{suffix}'] = ''
-    method[f'data_source_schema_{suffix}'] = f'$output_{suffix}'
+    method['SchemaMetadataNaming'][f'schema_source_schema_{suffix}'] = ''
+    method['SchemaMetadataNaming'][f'data_source_schema_{suffix}'] = f'$output_{suffix}'
     path = tmp_path/'inconsistent.yml'
     path.write_text(yaml.safe_dump(instance), encoding='utf-8')
     with pytest.raises(ValueError, match=f'data_source_schema_{suffix} requires schema_source_schema_{suffix}'):
@@ -163,7 +164,7 @@ def test_default_method_profile_metadata_matches_algites(technology):
     source = yaml.safe_load((METHOD_CONFIG/f'algites-{technology}-codegen-method-conventions.yml').read_text())
     name = f'algites-{technology}-codegen-standard_1'
     method = source['GeneratedDataObjectMethodNameConventions']['NameConventions'][name]
-    assert {key: method[key] for key in ('schema_source_schema_url',
+    assert {key: method['SchemaMetadataNaming'][key] for key in ('schema_source_schema_url',
         'schema_source_schema_identifier', 'schema_source_schema_version',
         'data_source_schema_url', 'data_source_schema_identifier',
         'data_source_schema_version')} == {
@@ -172,3 +173,51 @@ def test_default_method_profile_metadata_matches_algites(technology):
             'schema_source_schema_version': '$x-algites-schema-version',
             'data_source_schema_url': '$schema',
             'data_source_schema_identifier': '', 'data_source_schema_version': ''}
+
+
+@pytest.mark.parametrize('technology', ('java', 'python'))
+def test_generated_method_metadata_roles_require_their_typed_namespace(technology, tmp_path):
+    """The old six flat fields must not silently bypass the enum-keyed metadata map."""
+    source = yaml.safe_load((METHOD_CONFIG / f'algites-{technology}-codegen-method-conventions.yml').read_text())
+    name = f'algites-{technology}-codegen-standard_1'
+    item = source['GeneratedDataObjectMethodNameConventions']['NameConventions'][name]
+    item['schema_source_schema_url'] = item['SchemaMetadataNaming'].pop('schema_source_schema_url')
+    source_file = tmp_path / 'legacy.yml'
+    source_file.write_text(yaml.safe_dump(source), encoding='utf-8')
+    with pytest.raises(ValueError, match='obsolete flat schema metadata roles'):
+        AIcNameConventionCatalog.load(source_file)
+
+    item.pop('schema_source_schema_url')
+    item['SchemaMetadataNaming']['unknown_role'] = 'misconfigured'
+    source_file.write_text(yaml.safe_dump(source), encoding='utf-8')
+    with pytest.raises(ValueError, match='unknown SchemaMetadataNaming roles'):
+        AIcNameConventionCatalog.load(source_file)
+
+
+@pytest.mark.parametrize('family,suffix', (('yamldefs', 'yamldef'), ('jsondefs', 'jsondef')))
+def test_schema_metadata_enum_and_validation_are_consistent(family, suffix):
+    """The six enum keys constrain the metadata mapping, not the five method names."""
+    base = TOOL / 'generators/code/common/src/product' / family / 'eu/algites/tool/codegen/common/naming'
+    kind = json.loads((base / f'generated-dataobject-schema-metadata-kind_1.{suffix}.schema.json').read_text())
+    assert set(kind['enum']) == {
+        f'{side}_schema_{part}' for side in ('schema_source', 'data_source')
+        for part in ('url', 'identifier', 'version')}
+    from referencing import Registry, Resource
+    from referencing.jsonschema import DRAFT202012
+    from jsonschema import Draft202012Validator
+    sources = [json.loads(path.read_text()) for folder in (
+        LIB / f'naming/convention/intf/src/product/{family}', base)
+        for path in folder.rglob('*.schema.json')]
+    registry = Registry().with_resources((obj['$id'], Resource.from_contents(obj, default_specification=DRAFT202012)) for obj in sources)
+    schema = next(obj for obj in sources if obj['$id'].endswith(f'data-object-naming-conventions_1.{suffix}.schema.json'))
+    obj = yaml.safe_load((METHOD_CONFIG / 'algites-java-codegen-method-conventions.yml').read_text())
+    entry = obj['GeneratedDataObjectMethodNameConventions']['NameConventions']['algites-java-codegen-standard_1']
+    validator = Draft202012Validator(schema, registry=registry)
+    validator.validate(obj)
+    entry['SchemaMetadataNaming']['nonsense'] = '$bad'
+    assert not validator.is_valid(obj)
+    entry['SchemaMetadataNaming'].pop('nonsense')
+    entry['SchemaMetadataNaming']['schema_source_schema_url'] = ''
+    assert not validator.is_valid(obj)
+    entry['SchemaMetadataNaming']['data_source_schema_url'] = ''
+    assert validator.is_valid(obj)

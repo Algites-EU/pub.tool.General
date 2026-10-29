@@ -44,137 +44,121 @@
                   }
                 }
               },
-              "schema_source_schema_url": {
-                "type": "string",
-                "default": "",
-                "title": "Schema source schema url",
-                "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
-              },
-              "schema_source_schema_identifier": {
-                "type": "string",
-                "default": "",
-                "title": "Schema source schema identifier",
-                "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
-              },
-              "schema_source_schema_version": {
-                "type": "string",
-                "default": "",
-                "title": "Schema source schema version",
-                "description": "Name of the corresponding schema-definition metadata field; empty suppresses extraction and propagation."
-              },
-              "data_source_schema_url": {
-                "type": "string",
-                "default": "",
-                "title": "Data source schema url",
-                "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
-              },
-              "data_source_schema_identifier": {
-                "type": "string",
-                "default": "",
-                "title": "Data source schema identifier",
-                "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
-              },
-              "data_source_schema_version": {
-                "type": "string",
-                "default": "",
-                "title": "Data source schema version",
-                "description": "Name of metadata field in serialized instance documents; empty disables emission and reading. Nonempty values require corresponding schema_source field."
+              "SchemaMetadataNaming": {
+                "type": "object",
+                "title": "Schema metadata field naming roles",
+                "description": "Maps the six metadata roles to actual source-schema and serialized-document field names. Omitted or empty role mappings disable extraction/emission. All keys are restricted by the shared enum.",
+                "propertyNames": {
+                  "$ref": "generated-dataobject-schema-metadata-kind_1.jsondef.schema.json"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "properties": {
+                  "schema_source_schema_url": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Name of the source schema declaration field that identifies the schema URI (for example $id). Blank disables extraction."
+                  },
+                  "schema_source_schema_identifier": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Name of the source schema declaration field containing its logical schema identifier. Blank disables extraction."
+                  },
+                  "schema_source_schema_version": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Name of the source schema declaration field containing its logical schema version. Blank disables extraction."
+                  },
+                  "data_source_schema_url": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Name of the serialized instance document field containing the schema URI (for example $schema). Blank disables emission and reading. Requires schema_source_schema_url."
+                  },
+                  "data_source_schema_identifier": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Name of the serialized instance document field containing the logical schema identifier. Blank disables emission and reading. Requires schema_source_schema_identifier."
+                  },
+                  "data_source_schema_version": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Name of the serialized instance document field containing the logical schema version. Blank disables emission and reading. Requires schema_source_schema_version."
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "required": [
+                        "data_source_schema_url"
+                      ],
+                      "properties": {
+                        "data_source_schema_url": {
+                          "minLength": 1
+                        }
+                      }
+                    },
+                    "then": {
+                      "required": [
+                        "schema_source_schema_url"
+                      ],
+                      "properties": {
+                        "schema_source_schema_url": {
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "required": [
+                        "data_source_schema_identifier"
+                      ],
+                      "properties": {
+                        "data_source_schema_identifier": {
+                          "minLength": 1
+                        }
+                      }
+                    },
+                    "then": {
+                      "required": [
+                        "schema_source_schema_identifier"
+                      ],
+                      "properties": {
+                        "schema_source_schema_identifier": {
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "required": [
+                        "data_source_schema_version"
+                      ],
+                      "properties": {
+                        "data_source_schema_version": {
+                          "minLength": 1
+                        }
+                      }
+                    },
+                    "then": {
+                      "required": [
+                        "schema_source_schema_version"
+                      ],
+                      "properties": {
+                        "schema_source_schema_version": {
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  }
+                ]
               }
             },
             "required": [
-              "StructureNaming"
-            ],
-            "allOf": [
-              {
-                "if": {
-                  "anyOf": [
-                    {
-                      "not": {
-                        "required": [
-                          "schema_source_schema_url"
-                        ]
-                      }
-                    },
-                    {
-                      "properties": {
-                        "schema_source_schema_url": {
-                          "const": ""
-                        }
-                      },
-                      "required": [
-                        "schema_source_schema_url"
-                      ]
-                    }
-                  ]
-                },
-                "then": {
-                  "properties": {
-                    "data_source_schema_url": {
-                      "const": ""
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "anyOf": [
-                    {
-                      "not": {
-                        "required": [
-                          "schema_source_schema_identifier"
-                        ]
-                      }
-                    },
-                    {
-                      "properties": {
-                        "schema_source_schema_identifier": {
-                          "const": ""
-                        }
-                      },
-                      "required": [
-                        "schema_source_schema_identifier"
-                      ]
-                    }
-                  ]
-                },
-                "then": {
-                  "properties": {
-                    "data_source_schema_identifier": {
-                      "const": ""
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "anyOf": [
-                    {
-                      "not": {
-                        "required": [
-                          "schema_source_schema_version"
-                        ]
-                      }
-                    },
-                    {
-                      "properties": {
-                        "schema_source_schema_version": {
-                          "const": ""
-                        }
-                      },
-                      "required": [
-                        "schema_source_schema_version"
-                      ]
-                    }
-                  ]
-                },
-                "then": {
-                  "properties": {
-                    "data_source_schema_version": {
-                      "const": ""
-                    }
-                  }
-                }
-              }
+              "StructureNaming",
+              "SchemaMetadataNaming"
             ]
           }
         }

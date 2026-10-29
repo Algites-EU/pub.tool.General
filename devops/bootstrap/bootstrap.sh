@@ -50,6 +50,13 @@ export MODUSTRO_BOOTSTRAP_ACTION="$locAction"
 if [[ "$locAction" == --prepare-only ]]; then export MODUSTRO_BOOTSTRAP_PREPARE_ONLY=1; fi
 printf 'Bootstrap repository: %s\nBootstrap root: %s\nBootstrap action: %s\n' "$locRepository" "$locRoot" "$locAction"
 
+# Validate the complete repository bootstrap descriptor before any generator runs or
+# generated-source directory is emptied. A missing/invalid descriptor must not
+# leave the working tree with deleted generated sources.
+locConfigLoader="$locBootstrapDirectory/bootstrap-config.py"
+[[ -f "$locConfigLoader" ]] || { echo "Missing bootstrap configuration loader: $locConfigLoader" >&2; exit 2; }
+"$locPython" "$locConfigLoader" --repository "$locRepository" > /dev/null
+
 # All adapters receive the same, validated root; never compile a larger tree.
 locBuild="$locBootstrapDirectory/build.sh"
 [[ -f "$locBuild" ]] || { echo "Missing repository build adapter: $locBuild" >&2; exit 2; }

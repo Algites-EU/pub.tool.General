@@ -23,6 +23,10 @@ build/*
 
 **/pyproject.toml
 **/.pytest_cache/*
+# Python bytecode cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
 
 # JetBrains IDE project files
 .idea/

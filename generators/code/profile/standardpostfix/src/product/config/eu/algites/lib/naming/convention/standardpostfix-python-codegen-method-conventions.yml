@@ -29,9 +29,16 @@ GeneratedDataObjectMethodNameConventions:
         raw_getter: standard-postfix-python-sdo-raw-getter_1
         raw_presence_checker_method: standard-postfix-python-sdo-presence_1
         raw_unsetter: standard-postfix-python-sdo-unsetter_1
-      schema_source_schema_url: $id
-      schema_source_schema_identifier: $x-algites-schema-id
-      schema_source_schema_version: $x-algites-schema-version
-      data_source_schema_url: $schema
-      data_source_schema_identifier: ''
-      data_source_schema_version: ''
+      SchemaMetadataNaming:
+        # Schema declaration field containing the schema URI; blank disables URL extraction.
+        schema_source_schema_url: $id
+        # Schema declaration field containing the stable logical schema ID; blank disables ID extraction.
+        schema_source_schema_identifier: $x-algites-schema-id
+        # Schema declaration field containing the logical schema version; blank disables version extraction.
+        schema_source_schema_version: $x-algites-schema-version
+        # Instance document field used to write/read the source schema URI; blank disables. Requires schema_source_schema_url.
+        data_source_schema_url: $schema
+        # Instance document field used to write/read the source schema ID; blank disables. Requires schema_source_schema_identifier.
+        data_source_schema_identifier: ''
+        # Instance document field used to write/read the source schema version; blank disables. Requires schema_source_schema_version.
+        data_source_schema_version: ''

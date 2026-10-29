@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-03/schema#",
+  "id": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/draft-03/vocabulary_1.jsonmetadef.schema.json",
+  "title": "Algites Defs Codegen vocabulary 1 keyword syntax for JSON Schema draft-03",
+  "description": "Syntax constraints for proprietary source-code generation annotations. JSON Schema draft-03/04/06/07 do not support $vocabulary.",
+  "type": "object",
+  "properties": {
+    "x-algites-defscodegen-extends": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "description": "URI reference to a named Algites DataObject contract; resolved by Defs Codegen."
+      },
+      "description": "Ordered nominal direct parents of the generated interface; not a validation assertion."
+    },
+    "x-algites-defscodegen-choice": {
+      "type": "object",
+      "properties": {
+        "alternatives": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "description": "URI reference to a named Algites DataObject contract; resolved by Defs Codegen."
+          },
+          "required": true
+        }
+      },
+      "additionalProperties": false,
+      "description": "Closed set of named variants for code generation, independent of oneOf."
+    }
+  }
+}

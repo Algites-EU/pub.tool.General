@@ -155,7 +155,7 @@ def test_selected_method_profile_controls_output_metadata(tmp_path: Path):
     with expand_naming_catalogs(['resource:algites-python-codegen-method-conventions.yml']) as files:
         method = yaml.safe_load(Path(files[0]).read_text())
     method['GeneratedDataObjectMethodNameConventions']['NameConventions'][
-        'algites-python-codegen-standard_1']['data_source_schema_url'] = ''
+        'algites-python-codegen-standard_1']['SchemaMetadataNaming']['data_source_schema_url'] = ''
     (catalogs/'methods.yml').write_text(yaml.safe_dump(method))
     options = {'artifact': '.',
         'schema_inputs': [{'kind':'jsondefs','directory':'src/product/jsondefs'}],
