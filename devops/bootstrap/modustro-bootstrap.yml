@@ -1,0 +1,9 @@
+# Shared bootstrap infrastructure endpoints. Keep this file and the entire
+# devops/bootstrap directory identical across Modustro source repositories.
+# Never store credentials in this file.
+Publication:
+  Maven: algites/java-snapshots-pub
+  Python: algites/python-snapshots-pub
+DependencyResolution:
+  RemoteMavenUrl: https://dl.cloudsmith.io/public/algites/java-snapshots-pub/maven/
+  RemotePythonIndexUrl: https://dl.cloudsmith.io/public/algites/python-snapshots-pub/python/simple/

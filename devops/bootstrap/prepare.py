@@ -51,6 +51,17 @@ def artifact_id(repository: Path, path: Path) -> str:
     return str(descriptor['SourceRepository']['Id']) + '_' + '.'.join(path.parts)
 
 
+def python_prefix(repository: Path) -> str:
+    """Derive the organization prefix from the first two GroupId segments."""
+    descriptor = read_yaml(repository / 'modustro-source-repository.yml')
+    group_id = str(descriptor.get('GroupId') or '')
+    components = group_id.split('.')
+    if len(components) < 2 or any(not re.fullmatch(r'[a-z][a-z0-9]*', part)
+                                   for part in components[:2]):
+        raise ValueError(f'Cannot derive Python distribution prefix from GroupId {group_id!r}')
+    return '-'.join(components[:2])
+
+
 def python_name(identifier: str, prefix: str) -> str:
     """Convert the native artifact identifier to its configured distribution name."""
     return prefix + '-' + re.sub('[^a-z0-9]+', '-', identifier.lower()).strip('-')
@@ -110,27 +121,39 @@ def spec(requirement: dict | None, version: str) -> str:
     return spec({'Exact': version}, version)
 
 
-def java_version(name: str, requirement: dict | None, preferred: dict[str, str]) -> str:
+def java_version(name: str, requirement: dict | None, preferred: dict[str, str] | None = None) -> str:
+    """Keep descriptor version constraints instead of pinning bootstrap-only versions.
+
+    Gradle uses Maven-style range notation, e.g. [2.0.0,3.0.0). An Exact
+    requirement remains a fixed version. Selection within a range is done by
+    Gradle and should be locked by the eventual Builder dependency lockfile.
+    """
     req = requirement or {}
     if 'Exact' in req:
         return str(req['Exact'])
-    if name in preferred:
-        return str(preferred[name])
-    if 'Minimum' in req:
-        return str(req['Minimum']).removeprefix('>=')
-    raise ValueError(f'Cannot select a concrete Java dependency version for {name}: {req}')
+    if not req.get('Minimum') and not req.get('Maximum'):
+        raise ValueError(f'Cannot determine Java dependency range for {name}: {req}')
+    minimum = str(req.get('Minimum') or '').strip()
+    maximum = str(req.get('Maximum') or '').strip()
+    lower_exclusive = minimum.startswith('>') and not minimum.startswith('>=')
+    upper_exclusive = maximum.startswith('<') and not maximum.startswith('<=')
+    for op in ('>=', '<=', '>', '<', '=='):
+        if minimum.startswith(op):
+            minimum = minimum[len(op):]
+            break
+    for op in ('>=', '<=', '>', '<', '=='):
+        if maximum.startswith(op):
+            maximum = maximum[len(op):]
+            break
+    lower = '(' if lower_exclusive else '['
+    upper = ')' if upper_exclusive or req.get('MaximumStrict') else ']'
+    return f'{lower}{minimum},{maximum}{upper}'
 
 
 def module_records(repository: Path, release: str, py_release: str) -> list[dict]:
     owner = str(read_yaml(repository / 'modustro-source-repository.yml')['SourceRepository']['Id'])
-    bootstrap_settings = read_yaml(repository / 'modustro-bootstrap.yml')
-    prefix = bootstrap_settings['DistributionNaming']['PythonPrefix']
-    if not isinstance(prefix, str) or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', prefix):
-        raise ValueError('Invalid DistributionNaming.PythonPrefix')
-    preferred_java_versions = bootstrap_settings.get('DependencyVersions', {}).get('JavaPreferred', {})
-    if not isinstance(preferred_java_versions, dict):
-        raise ValueError('DependencyVersions.JavaPreferred must be a mapping')
-    python_requires = bootstrap_settings['Build']['PythonRequires']
+    prefix = python_prefix(repository)
+    python_requires = os.environ.get('MODUSTRO_BOOTSTRAP_PYTHON_REQUIRES', '>=3.11')
     owner_python_prefix = python_name(owner, prefix) + '-'
     records = []
     for path in sorted(repository.rglob('modustro-artifact.yml')):
@@ -172,7 +195,7 @@ def module_records(repository: Path, release: str, py_release: str) -> list[dict
                         external_version = str(requirement.get('Exact', release))
                         dependencies.append({'kind': 'external',
                                              'coordinate': f'{group}:{dep_id}:{external_version}',
-                                             'configuration': configuration})
+                                             'configuration': configuration, 'modustro': True})
                         if 'python' in kinds:
                             python_deps.append(python_name(dep_id, prefix) + spec(requirement, external_version))
                 elif kind == 'java' and 'java' in kinds:
@@ -180,7 +203,7 @@ def module_records(repository: Path, release: str, py_release: str) -> list[dict
                     config = ('compileOnlyApi' if 'product_compile_only_api' in usages else
                               'compileOnly' if 'product_compile_only_implementation' in usages else
                               'api' if 'product_api' in usages else 'implementation')
-                    dependencies.append({'kind': 'external', 'coordinate': name + ':' + java_version(name, item.get('VersionRequirement'), preferred_java_versions),
+                    dependencies.append({'kind': 'external', 'coordinate': name + ':' + java_version(name, item.get('VersionRequirement')),
                                          'configuration': config})
                 elif kind == 'python' and 'python' in kinds:
                     python_deps.append(dep_id.replace('_', '-') + spec(item.get('VersionRequirement'), py_release))
@@ -237,6 +260,7 @@ def restrict_to_selection(records: list[dict], java_release: str, python_release
                     'kind': 'external',
                     'configuration': dependency['configuration'],
                     'coordinate': dependency['groupId'] + ':' + dependency['artifactId'] + ':' + java_release,
+                    'modustro': True,
                 })
             else:
                 converted.append(dependency)
@@ -281,8 +305,12 @@ def stage_gradle(repository: Path, work: Path, records: list[dict], version: str
         lines.append('project(' + json.dumps(':' + r['gradleProject']) + ').projectDir = file(' +
                      json.dumps(str(repository / r['path'])) + ')')
     (stage / 'settings.gradle').write_text('\n'.join(lines) + '\n', encoding='utf-8')
-    build = '''import groovy.json.JsonSlurper\n\ndef manifest = new JsonSlurper().parse(new File(rootProject.projectDir, 'modules.json'))\ndef configByProject = manifest.collectEntries { [(it.project): it] }\ndef outputRoot = new File(System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_OUTPUT') ?: rootProject.projectDir)\nlayout.buildDirectory.set(new File(outputRoot, 'gradle-build/root'))\nsubprojects { project ->\n    def config = configByProject[project.name]\n    if (config == null) throw new GradleException("Missing bootstrap configuration: ${project.name}")\n    project.layout.buildDirectory.set(new File(outputRoot, 'gradle-build/modules/' + project.name))\n    apply plugin: 'java-library'\n    apply plugin: 'maven-publish'\n    group = config.groupId\n    version = System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_VERSION') ?: 'unspecified'\n    repositories {\n        def bootstrapMode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'\n        if (bootstrapMode != 'remote') maven { name = 'modustro-local'; url = uri(System.getenv('MODUSTRO_LOCAL_MAVEN_REPOSITORY') ?: new File(System.getenv('MODUSTRO_HOME') ?: new File(System.getProperty('user.home'), '.modustro').path, 'artifact-repos/java/maven')) }\n        if (bootstrapMode == 'remote') maven {\n            url = uri(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL'))\n            content { includeGroupByRegex(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_GROUP_REGEX')) }\n        }\n        mavenCentral()\n    }\n    java { withSourcesJar() }\n    tasks.withType(JavaCompile).configureEach { options.release = Integer.parseInt(System.getenv('MODUSTRO_BOOTSTRAP_JAVA_RELEASE')) }\n    sourceSets {\n        main {\n            java.srcDirs = ['src/product/java', 'src/product/java.gen']\n            resources.srcDirs = __MODUSTRO_RESOURCE_SOURCE_DIRS__\n        }\n    }\n    dependencies {\n        config.dependencies.each { d ->\n            if (d.kind == 'project') {\n                add(d.configuration, rootProject.project(':' + d.target))\n            } else {\n                add(d.configuration, d.target)\n            }\n        }\n    }\n    publishing {\n        publications {\n            mavenJava(MavenPublication) {\n                from components.java\n                artifactId = config.artifactId\n            }\n        }\n        repositories {\n            maven { name = 'Bootstrap'; url = uri(new File(outputRoot, 'maven-repository')) }\n        }\n    }\n}\n'''
+    remote_groups = sorted({dep['coordinate'].split(':', 1)[0]
+                            for rec in records for dep in rec['dependencies']
+                            if dep.get('modustro') and dep['kind'] == 'external'})
+    build = '''import groovy.json.JsonSlurper\n\ndef manifest = new JsonSlurper().parse(new File(rootProject.projectDir, 'modules.json'))\ndef configByProject = manifest.collectEntries { [(it.project): it] }\nrootProject.ext.bootstrapRemoteModustroGroups = __MODUSTRO_REMOTE_GROUP_IDS__\ndef outputRoot = new File(System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_OUTPUT') ?: rootProject.projectDir)\nlayout.buildDirectory.set(new File(outputRoot, 'gradle-build/root'))\nsubprojects { project ->\n    def config = configByProject[project.name]\n    if (config == null) throw new GradleException("Missing bootstrap configuration: ${project.name}")\n    project.layout.buildDirectory.set(new File(outputRoot, 'gradle-build/modules/' + project.name))\n    apply plugin: 'java-library'\n    apply plugin: 'maven-publish'\n    group = config.groupId\n    version = System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_VERSION') ?: 'unspecified'\n    repositories {\n        def bootstrapMode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'\n        if (bootstrapMode != 'remote') maven { name = 'modustro-local'; url = uri(System.getenv('MODUSTRO_LOCAL_MAVEN_REPOSITORY') ?: new File(System.getenv('MODUSTRO_HOME') ?: new File(System.getProperty('user.home'), '.modustro').path, 'artifact-repos/java/maven')) }\n        if (bootstrapMode == 'remote') maven {\n            url = uri(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL'))\n            content { rootProject.ext.bootstrapRemoteModustroGroups.each { includeGroup(it) } }\n        }\n        mavenCentral()\n    }\n    java { withSourcesJar() }\n    tasks.withType(JavaCompile).configureEach { options.release = Integer.parseInt(System.getenv('MODUSTRO_BOOTSTRAP_JAVA_RELEASE')) }\n    sourceSets {\n        main {\n            java.srcDirs = ['src/product/java', 'src/product/java.gen']\n            resources.srcDirs = __MODUSTRO_RESOURCE_SOURCE_DIRS__\n        }\n    }\n    dependencies {\n        config.dependencies.each { d ->\n            if (d.kind == 'project') {\n                add(d.configuration, rootProject.project(':' + d.target))\n            } else {\n                add(d.configuration, d.target)\n            }\n        }\n    }\n    publishing {\n        publications {\n            mavenJava(MavenPublication) {\n                from components.java\n                artifactId = config.artifactId\n            }\n        }\n        repositories {\n            maven { name = 'Bootstrap'; url = uri(new File(outputRoot, 'maven-repository')) }\n        }\n    }\n}\n'''
     build = build.replace('__MODUSTRO_RESOURCE_SOURCE_DIRS__', 'config.resourceDirs')
+    build = build.replace('__MODUSTRO_REMOTE_GROUP_IDS__', json.dumps(remote_groups))
     # The same universal SDO phase is applied to every staged Gradle build.
     # It runs after initial classes, before the final publication rebuild.
     build += '\nrootProject.ext.bootstrapSdoManifest = manifest\n'

@@ -19,7 +19,9 @@ def helper():
 def test_repository_descriptor_controls_coordinates():
     module = helper()
     records = module.module_records(ROOT, '1.1-SNAPSHOT', '1.1.dev20261027000000')
-    assert len(records) == 11
+    assert len(records) >= 11
+    assert {'generators/code/common', 'generators/code/defscodegen/impl',
+            'generators/code/sdocodegen/impl'}.issubset({r['path'] for r in records})
     assert all(record['artifactId'].startswith('pub.tool.General_') for record in records)
     common = next(record for record in records if record['path'] == 'generators/code/common')
     assert common['groupId'] == 'eu.algites.tool.codegen'

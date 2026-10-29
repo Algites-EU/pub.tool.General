@@ -25,7 +25,12 @@ rootProject.repositories {
     }
     if (mode == 'remote') maven {
         url = uri(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL'))
-        content { includeGroupByRegex(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_GROUP_REGEX')) }
+        content {
+            // SDO CLI is a bootstrap-only tool; its GroupId is declared by
+            // the same detached dependency below, not by a repository regex.
+            includeGroup('eu.algites.tool.codegen')
+            rootProject.ext.bootstrapRemoteModustroGroups.each { includeGroup(it) }
+        }
     }
     mavenCentral()
 }

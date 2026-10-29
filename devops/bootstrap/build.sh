@@ -12,13 +12,16 @@ locConfig="$(mktemp)"
 trap 'rm -f -- "$locConfig"' EXIT
 "$locPython" "$locBootstrap/bootstrap-config.py" --repository "$locRepo" --nul > "$locConfig"
 mapfile -d '' -t locSettings < "$locConfig"
-locBuildRoot="$locRepo/${locSettings[0]}"
-export MODUSTRO_BOOTSTRAP_JAVA_RELEASE="${locSettings[1]}"
-export MODUSTRO_BOOTSTRAP_PYTHON_REQUIRES="${locSettings[2]}"
-locJavaRepo="${MODUSTRO_BOOTSTRAP_JAVA_CLOUDSMITH_REPO:-${locSettings[3]}}"
-locPythonRepo="${MODUSTRO_BOOTSTRAP_PYTHON_CLOUDSMITH_REPO:-${locSettings[4]}}"
-export MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL="${MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL:-${locSettings[5]}}"
-export MODUSTRO_BOOTSTRAP_REMOTE_GROUP_REGEX="${MODUSTRO_BOOTSTRAP_REMOTE_GROUP_REGEX:-${locSettings[6]}}"
+# Technology defaults until Modustro Builder provides their metadata.
+# These defaults are identical in every repository; explicit environment
+# overrides remain available to test another toolchain.
+locBuildRoot="$locRepo/build/run/bootstrap"
+export MODUSTRO_BOOTSTRAP_JAVA_RELEASE="${MODUSTRO_BOOTSTRAP_JAVA_RELEASE:-17}"
+export MODUSTRO_BOOTSTRAP_PYTHON_REQUIRES="${MODUSTRO_BOOTSTRAP_PYTHON_REQUIRES:->=3.11}"
+locJavaRepo="${MODUSTRO_BOOTSTRAP_JAVA_CLOUDSMITH_REPO:-${locSettings[0]}}"
+locPythonRepo="${MODUSTRO_BOOTSTRAP_PYTHON_CLOUDSMITH_REPO:-${locSettings[1]}}"
+export MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL="${MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL:-${locSettings[2]}}"
+export MODUSTRO_BOOTSTRAP_REMOTE_PYTHON_INDEX_URL="${MODUSTRO_BOOTSTRAP_REMOTE_PYTHON_INDEX_URL:-${locSettings[3]}}"
 locMode="${1:---upload}"
 case "$locMode" in
     --plan-only|--prepare-only|--upload) ;;

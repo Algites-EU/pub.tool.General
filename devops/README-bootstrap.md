@@ -3,14 +3,35 @@
 The `devops/bootstrap/` scripts are repository-independent. Keep them unchanged
 when copying to another Modustro source repository. That repository supplies
 its own `modustro-source-repository.yml`, artifact (`modustro-artifact.yml` and
-`modustro-artifact-set.yml`) descriptors, and root `modustro-bootstrap.yml`.
+`modustro-artifact-set.yml`) descriptors, and shared `devops/bootstrap/modustro-bootstrap.yml`.
 
-`modustro-bootstrap.yml` defines the build working directory, Java release,
-Python interpreter requirement, Cloudsmith publication targets,
-remote Maven resolver URL/group filter, Python distribution prefix and any
-preferred concrete versions needed for Java dependencies declared as ranges.
-The remote Maven resolver endpoint is **not** a Cloudsmith upload endpoint.
-No Cloudsmith API key or personal filesystem location belongs in this config.
+`devops/bootstrap/modustro-bootstrap.yml` contains **only four** shared
+infrastructure endpoints: `Publication.Maven`, `Publication.Python`,
+`DependencyResolution.RemoteMavenUrl` and
+`DependencyResolution.RemotePythonIndexUrl`. The file is identical in both
+repositories, and contains no credentials. The two publication targets
+specify *where artifacts are uploaded*; the remote URLs identify read-only
+Maven and Python package indexes for dependency resolution. Both remote URLs
+can be overridden by their respective `MODUSTRO_BOOTSTRAP_REMOTE_*` environment
+variables. Current native wheel creation does not run `pip install`, so the
+Python URL is exported for consumers requiring Python dependency resolution;
+it does not silently modify the user's global pip configuration.
+
+The build directory defaults to `build/run/bootstrap`; Java compilation uses
+release 17 and Python distribution metadata requires `>=3.11` by default.
+The Java/Python requirements can be overridden with
+`MODUSTRO_BOOTSTRAP_JAVA_RELEASE` and `MODUSTRO_BOOTSTRAP_PYTHON_REQUIRES`.
+The Python distribution name prefix comes from the first two components of
+`GroupId` in `modustro-source-repository.yml` (e.g. `eu.algites` ->
+`eu-algites`). External Modustro Maven groups are determined from actual
+`DependencyKind: modustro` references, rather than a regex.
+
+The bootstrap no longer pins Jackson or other dependencies through a separate
+`JavaPreferred` list: the Gradle build instead uses the version intervals
+from each `modustro-artifact.yml`. Gradle's selection within an interval may
+change as repositories are updated; reproducibility requires dependency
+locking in the future Modustro Builder. No Cloudsmith API keys or personal
+filesystem locations belong in this config.
 
 Code generation is a **mandatory bootstrap stage** for every repository. The
 common `devops/bootstrap/generate_sources.py` discovers Defs source schemas
@@ -48,7 +69,7 @@ external dependencies rather than silently broadening the build scope.
 Current `source` and `local` modes both use the configured Modustro-local
 Maven repository for *external* dependencies. Dependencies within the selected
 source tree always use the current checkout. `remote` mode uses the Maven URL
-from the repository configuration. Source dependency preparation of *other*
+from the shared bootstrap configuration. Source dependency preparation of *other*
 repositories is a separate concern and is not implemented by this script.
 
 Cloudsmith uploads require the user's `algites-cloudsmith` executable in

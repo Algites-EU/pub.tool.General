@@ -66,6 +66,6 @@ def test_bootstrap_configuration_never_requires_specific_generator_runner():
                             capture_output=True)
     assert result.returncode == 0, result.stderr.decode()
     values = [item for item in result.stdout.decode().split('\x00') if item]
-    assert len(values) == 7
+    assert len(values) == 4
     assert 'devops/codegen/run.sh' not in values
     assert not (root / 'devops/codegen/run.sh').exists()

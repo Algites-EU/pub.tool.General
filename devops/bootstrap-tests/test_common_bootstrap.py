@@ -16,7 +16,7 @@ def repository(tmp_path: Path) -> tuple[Path, dict]:
     root = tmp_path / 'repository'
     target = root / 'devops/bootstrap'
     target.mkdir(parents=True)
-    for filename in ('bootstrap.sh', 'clean_generated.py'):
+    for filename in ('bootstrap.sh', 'clean_generated.py', 'bootstrap-config.py', 'modustro-bootstrap.yml'):
         shutil.copy2(SOURCE / filename, target / filename)
     (target / 'build.sh').write_text('''#!/usr/bin/env bash
 set -euo pipefail
