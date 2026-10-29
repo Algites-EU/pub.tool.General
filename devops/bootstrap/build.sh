@@ -48,8 +48,8 @@ if [[ "$locMode" == --prepare-only ]]; then
 fi
 
 # Dependency resolution follows the common bootstrap precedence policy.
-# Artifacts within the selected tree are built from this checkout;
-# source mode therefore has no additional sibling-source preparation step.
+# Artifacts within the selected tree are built from this checkout.
+# Source-mode prerequisites are staged first by source-dependencies.py.
 locDependencyMode="${MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE:-remote}"
 case "$locDependencyMode" in
     remote|local|source) ;;
@@ -58,7 +58,7 @@ esac
 export MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE="$locDependencyMode"
 locRefreshDependencies="${MODUSTRO_BOOTSTRAP_REFRESH_DEPENDENCIES:-}"
 if [[ -z "$locRefreshDependencies" ]]; then
-    if [[ "$locDependencyMode" == remote ]]; then
+    if [[ "$locDependencyMode" == remote || "$locDependencyMode" == source ]]; then
         locRefreshDependencies=1
     else
         locRefreshDependencies=0

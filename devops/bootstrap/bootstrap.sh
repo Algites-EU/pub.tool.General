@@ -60,6 +60,21 @@ locConfigLoader="$locBootstrapDirectory/bootstrap-config.py"
 # All adapters receive the same, validated root; never compile a larger tree.
 locBuild="$locBootstrapDirectory/build.sh"
 [[ -f "$locBuild" ]] || { echo "Missing repository build adapter: $locBuild" >&2; exit 2; }
+# Source dependencies are checked before any generator can remove source files.
+# --plan-only reports their order and never invokes a prerequisite build.
+if [[ "${MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE:-remote}" == source &&
+      "${MODUSTRO_BOOTSTRAP_SOURCE_PREREQUISITES_READY:-0}" != 1 ]]; then
+    locSourceAction=prepare
+    if [[ "$locAction" == --plan-only ]]; then locSourceAction=plan; fi
+    "$locPython" "$locBootstrapDirectory/source-dependencies.py" "$locSourceAction" \
+        --repository "$locRepository" --root "$locRoot"
+fi
+if [[ "${MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE:-remote}" == source &&
+      -z "${MODUSTRO_BOOTSTRAP_SOURCE_GROUPS:-}" ]]; then
+    export MODUSTRO_BOOTSTRAP_SOURCE_GROUPS="$("$locPython" \
+        "$locBootstrapDirectory/source-dependencies.py" groups \
+        --repository "$locRepository" --root "$locRoot")"
+fi
 if [[ "$locAction" == --plan-only ]]; then
     bash "$locBuild" "$locAction"
     exit 0

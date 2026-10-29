@@ -2,6 +2,10 @@ package eu.algites.tool.codegen.sdo.impl.cli;
 
 import eu.algites.lib.data.dataobject.AIaDataObject;
 import eu.algites.lib.data.dataobject.AIiDataObject;
+import eu.algites.lib.data.smartdataobject.AIiSmartDataObject;
+import eu.algites.lib.data.smartdataobject.jsondefs.AIiJsonSmartDataObject;
+import eu.algites.lib.data.smartdataobject.yamldefs.AIiYamlSmartDataObject;
+import eu.algites.lib.data.smartdataobject.xmldefs.AIiXmlSmartDataObject;
 import eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject;
 import eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObjectNamespace;
 import eu.algites.tool.codegen.sdo.impl.standard.AIcSdoCodegenService;
@@ -27,6 +31,9 @@ public final class AItcBinaryDataObjectSelectionTest {
     /** Handwritten DataObject without Defs-generated metadata. */
     public interface AIigHandwrittenContract extends AIiDataObject { }
 
+    /** User-defined mutable interface, which must not be processed a second time. */
+    public interface AIigHandwrittenMutableContract extends AIiSmartDataObject { }
+
     /**
      * Verifies exclusion of namespace-only markers while preserving XML and
      * handwritten DataObject contracts as valid SDO inputs.
@@ -39,6 +46,16 @@ public final class AItcBinaryDataObjectSelectionTest {
             throw new AssertionError("Annotated XML object must remain an SDO generation input");
         if (!AIcSdoCodegenService.isReadContract(AIigHandwrittenContract.class))
             throw new AssertionError("Handwritten DataObject must remain eligible");
+        for (Class<?> locMutable : new Class<?>[] {
+                AIiSmartDataObject.class,
+                AIiJsonSmartDataObject.class,
+                AIiYamlSmartDataObject.class,
+                AIiXmlSmartDataObject.class,
+                AIigHandwrittenMutableContract.class
+        }) {
+            if (AIcSdoCodegenService.isReadContract(locMutable))
+                throw new AssertionError("Mutable SDO interface must not be a read contract: " + locMutable);
+        }
         if (AIcSdoCodegenService.isReadContract(String.class))
             throw new AssertionError("Non-DataObject types must not be generated");
     }

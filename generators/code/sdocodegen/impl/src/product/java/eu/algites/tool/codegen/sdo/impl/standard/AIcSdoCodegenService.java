@@ -16,6 +16,7 @@ import eu.algites.lib.data.dataobject.yamldefs.AIiYamlDataObject;
 import eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition;
 import eu.algites.lib.common.object.props.labels.AIaFieldLabel;
 import eu.algites.lib.data.dataobject.AIiDataObject;
+import eu.algites.lib.data.smartdataobject.AIiSmartDataObject;
 import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -637,6 +638,9 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * Determines whether an interface is a usable read-only DataObject contract.
      *
      * <p>The predicate is shared with binary-artifact discovery in the SDO CLI.
+     * Mutable SmartDataObject interfaces are not read-only generation inputs,
+     * even when they also extend {@link AIiDataObject}. This includes both
+     * the framework markers and user-defined mutable descendants.
      * A marker such as a generated XML namespace interface may indirectly extend
      * {@link AIiDataObject}, but does not describe a DataObject to instantiate.
      * In particular, an unannotated {@link AIiXmlDataObjectNamespace} descendant
@@ -651,6 +655,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
     public static boolean isReadContract(Class<?> aClass) {
         return aClass.isInterface() && !aClass.getPackageName().startsWith("eu.algites.lib.data.dataobject")
                 && AIiDataObject.class.isAssignableFrom(aClass)
+                && !AIiSmartDataObject.class.isAssignableFrom(aClass)
                 && !(AIiXmlDataObjectNamespace.class.isAssignableFrom(aClass)
                     && aClass.getDeclaredAnnotation(AIaDataObject.class) == null);
     }

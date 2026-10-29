@@ -124,7 +124,54 @@ tasks.register('bootstrapSdoJava') {
             output.mkdirs()
             def classes = moduleProject.sourceSets.main.output.classesDirs.files.findAll { it.isDirectory() }
             if (classes.isEmpty()) throw new GradleException('Missing compiled Java DataObject classes for ' + entry.path)
-            def classpath = files(toolClasspath, moduleProject.sourceSets.main.runtimeClasspath, classes).asPath
+            def binaryClasspath = files(toolClasspath, moduleProject.sourceSets.main.runtimeClasspath, classes)
+            def classpath = binaryClasspath.asPath
+            // Discover actual read-only DataObject contracts from the compiled
+            // artifact, not every Java interface in its source directories.
+            // The previous coarse scan included AIiSmartDataObject itself:
+            // it implements AIiDataObject but is a framework mutable marker,
+            // not an input conforming to a versioned Defs naming convention.
+            // Pass only selected classes to the CLI so that this bootstrap also
+            // works with an older locally published SDO CLI (which may not yet
+            // exclude mutable descendants during its own binary scan).
+            def binaryUrls = binaryClasspath.files.findAll { it.exists() }
+                    .collect { it.toURI().toURL() }
+            def eligible = new LinkedHashSet<String>()
+            def binaryLoader = new java.net.URLClassLoader(
+                    binaryUrls.toArray(new java.net.URL[0]),
+                    ClassLoader.getPlatformClassLoader())
+            try {
+                def service = Class.forName(
+                        'eu.algites.tool.codegen.sdo.impl.standard.AIcSdoCodegenService',
+                        false, binaryLoader)
+                def readPredicate = service.getMethod('isReadContract', Class.class)
+                def mutableMarker = Class.forName(
+                        'eu.algites.lib.data.smartdataobject.AIiSmartDataObject',
+                        false, binaryLoader)
+                classes.each { directory ->
+                    fileTree(directory).matching { include '**/*.class' }.files.each { compiled ->
+                        def relative = directory.toPath().relativize(compiled.toPath()).toString()
+                        if (relative.contains('$') || relative == 'module-info.class'
+                                || relative.endsWith('/package-info.class')
+                                || relative.endsWith('\\package-info.class')) return
+                        def className = relative.replace(java.io.File.separatorChar, '.' as char)
+                                .replaceAll(/\.class$/, '')
+                        def candidate = Class.forName(className, false, binaryLoader)
+                        if (candidate.isInterface()
+                                && !mutableMarker.isAssignableFrom(candidate)
+                                && Boolean.TRUE.equals(readPredicate.invoke(null, candidate))) {
+                            eligible.add(className)
+                        }
+                    }
+                }
+            } finally {
+                binaryLoader.close()
+            }
+            if (eligible.isEmpty()) {
+                logger.lifecycle('SDO Java: no eligible read-only DataObject contracts in '
+                        + entry.path + '; skipping generator')
+                return
+            }
             def arguments = [
                     '--repository-root=' + moduleProject.projectDir.absolutePath,
                     '--technology-dointf-input-dir=java:build/bootstrap-no-java-source-input',
@@ -133,7 +180,7 @@ tasks.register('bootstrapSdoJava') {
                     '--sdointf-subpackage=impl.intf', '--sdoclass-subpackage=impl',
                     '--generated-dataobject-method-naming-convention=java:algites-java-codegen-standard_1'
             ]
-            classes.each { arguments << '--dointf-input-artifact=' + it.absolutePath }
+            eligible.each { arguments << '--dointf-input-class=' + it }
             arguments << '--dointf-classpath=' + classpath
             naming.each { arguments << '--naming-conventions-file=resource:' + it }
             roles.each { role, suffix ->
