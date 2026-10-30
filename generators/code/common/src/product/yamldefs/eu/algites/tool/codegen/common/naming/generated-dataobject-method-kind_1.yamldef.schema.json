@@ -8,7 +8,8 @@
     "standard_setter",
     "raw_getter",
     "raw_presence_checker_method",
-    "raw_unsetter"
+    "raw_unsetter",
+    "multi_mapped_list_key_synthetic_getter"
   ],
-  "description": "Roles for field-specific methods shared between Defs and SDO generators."
+  "description": "Roles for field-specific methods shared between Defs and SDO generators. The multi_mapped_list_key_synthetic_getter role is a literal method name, not a composition reference."
 }

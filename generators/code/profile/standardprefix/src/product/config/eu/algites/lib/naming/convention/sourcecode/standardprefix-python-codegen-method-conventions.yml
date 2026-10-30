@@ -29,6 +29,8 @@ GeneratedDataObjectMethodNameConventions:
         raw_getter: standard-prefix-python-sdo-raw-getter_1
         raw_presence_checker_method: standard-prefix-python-sdo-presence_1
         raw_unsetter: standard-prefix-python-sdo-unsetter_1
+        # Literal synthetic getter name for JSON/YAML object-keyed values.
+        multi_mapped_list_key_synthetic_getter: _getKey
       SchemaMetadataNaming:
         # Schema declaration field containing the schema URI; blank disables URL extraction.
         schema_source_schema_url: $id

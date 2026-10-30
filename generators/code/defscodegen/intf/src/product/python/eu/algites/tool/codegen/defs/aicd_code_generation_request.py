@@ -26,6 +26,8 @@ class AIcdCodeGenerationRequest:
     xml_type_qname: str | None = None
     naming_convention: str = ''
     contract_role: str = ''
+    common_naming_profile: object | None = None
+    common_keyed_field_names: frozenset[str] = frozenset()
 
     def __post_init__(self):
         """Reject inconsistent XML identity instead of emitting misleading metadata."""

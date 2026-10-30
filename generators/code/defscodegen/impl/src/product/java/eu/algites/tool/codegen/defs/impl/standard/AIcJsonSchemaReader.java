@@ -14,6 +14,7 @@ import eu.algites.tool.codegen.defs.AIcdParsedVersionedName;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AIcdValueConstraints;
 import eu.algites.tool.codegen.defs.AIcdDataType;
+import eu.algites.tool.codegen.defs.AIcdKeyDefinition;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
 import eu.algites.tool.codegen.defs.AInDataTypeKind;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -295,15 +296,29 @@ final class AIcJsonSchemaReader {
                 if (!locItem.asText().equals("null")) { locType = locItem.asText(); break; }
         }
         if ("array".equals(locType) || aSchema.has("items") || aSchema.has("prefixItems")) {
-            if (aSchema.path("prefixItems").isArray() && !aSchema.path("prefixItems").isEmpty())
-                throw new IllegalArgumentException("Positional prefixItems requires canonical POSITIONAL_VALUE support");
-            if (aSchema.path("items").isArray())
-                throw new IllegalArgumentException("Legacy tuple items requires canonical POSITIONAL_VALUE support");
+            JsonNode locModern = aSchema.get("prefixItems");
+            JsonNode locLegacy = aSchema.get("items") != null && aSchema.get("items").isArray()
+                    ? aSchema.get("items") : null;
+            if (locModern != null && !locModern.isArray())
+                throw new IllegalArgumentException("prefixItems must be an array of schemas");
+            if (locModern != null && locLegacy != null)
+                throw new IllegalArgumentException("Conflicting positional tuple declarations");
+            List<AIcdDataType> locPositions = new ArrayList<>();
+            JsonNode locSlots = locModern != null ? locModern : locLegacy;
+            if (locSlots != null) for (JsonNode locSlot : locSlots)
+                locPositions.add(recursiveType(locSlot, aRequest, aVisited));
+            JsonNode locItems = locModern != null ? aSchema.get("items")
+                    : locLegacy != null ? aSchema.get("additionalItems") : aSchema.get("items");
+            if (locItems == null || locItems.isBoolean()) locItems = jsonMapper.createObjectNode();
             return new AIcdDataType(AInDataTypeKind.ARRAY,
-                    recursiveType(aSchema.get("items"), aRequest, aVisited), List.of(), List.of(), null,
-                    AIcScalarConstraints.json(aSchema, AInDataTypeKind.ARRAY));
+                    recursiveType(locItems, aRequest, aVisited), List.of(), List.of(), null,
+                    AIcScalarConstraints.json(aSchema, AInDataTypeKind.ARRAY),
+                    null, List.of(), locPositions);
         }
-        if ("object".equals(locType) || aSchema.has("properties")) {
+        if ("object".equals(locType) || aSchema.has("properties")
+                || aSchema.has("additionalProperties") || aSchema.has("patternProperties")) {
+            if (aSchema.path("patternProperties").size() > 0)
+                throw new IllegalArgumentException("Heterogeneous patternProperties requires explicit typed pattern index mapping");
             Set<String> locRequired = new HashSet<>();
             if (aSchema.path("required").isArray())
                 aSchema.path("required").forEach(aItem -> locRequired.add(aItem.asText()));
@@ -312,8 +327,14 @@ final class AIcJsonSchemaReader {
             if (locObject.isObject()) locObject.fields().forEachRemaining(aEntry ->
                     locProperties.add(property(aEntry.getKey(), aEntry.getValue(),
                             locRequired.contains(aEntry.getKey()), aRequest, aVisited)));
+            JsonNode locDynamic = aSchema.get("additionalProperties");
+            AIcdDataType locKeyed = locDynamic != null && locDynamic.isObject()
+                    ? recursiveType(locDynamic, aRequest, aVisited) : null;
+            List<AIcdKeyDefinition> locKeys = locKeyed == null ? List.of()
+                    : List.of(new AIcdKeyDefinition("json-property-name", List.of("_getKey"), true, true));
             return new AIcdDataType(AInDataTypeKind.OBJECT, null, locProperties, List.of(), null,
-                    AIcScalarConstraints.json(aSchema, AInDataTypeKind.OBJECT));
+                    AIcScalarConstraints.json(aSchema, AInDataTypeKind.OBJECT),
+                    locKeyed, locKeys, List.of());
         }
         if (aSchema.has("enum") || aSchema.has("const"))
             return AIcdDataType.atom(locType == null ? kindFromValue(aSchema) : kind(locType),

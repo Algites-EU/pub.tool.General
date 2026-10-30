@@ -133,12 +133,30 @@ class AIcSchemaContractInterfaceGenerator:
                 getter_type = f' -> {kind_type}' + (' | None' if prop.nullable else '')
             getter_rows.extend([field_decorator, f'    @AIaFieldLabel(label={title!r}, labels={entries})',
                 '    @abstractmethod', f'    def {getter_name}(self){getter_type}:',
+                f'        """Return {prop.description or prop.source_name}.\n\n        Returns:\n            Value of {prop.source_name} according to the generated schema contract.\n        """',
+                '        raise NotImplementedError', ''])
+        if (request.contract_role != 'common'
+                and model.source_kind in (AInDefinitionSourceKind.JSONDEFS, AInDefinitionSourceKind.YAMLDEFS)
+                and model.source_resource.endswith('/additionalProperties')):
+            synthetic_name = request.naming_profile.multi_mapped_list_key_synthetic_getter()
+            getter_rows.extend(['    @abstractmethod',
+                f'    def {synthetic_name}(self) -> str:',
+                '        """Return the parent object property key without writing it as a value field."""',
                 '        raise NotImplementedError', ''])
         parent_import = ''
         base_module, base_type, _ = _TECHNOLOGY_DATA_OBJECT[model.source_kind]
         if request.contract_role == 'common':
             base_module, base_type = ('eu.algites.lib.data.dataobject.aii_data_object', 'AIiDataObject')
         parent_name = base_type + ', ABC'
+        if (model.data_type.keyed_value_type is not None and parent is None
+                and request.common_naming_profile is None):
+            ref_imports.add('from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList')
+            key_type = self.names.render(model.logical_name + '-additional-properties',
+                model.version, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
+            key_file = self.names.render(model.logical_name + '-additional-properties',
+                model.version, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
+            ref_imports.add(f'from .{key_file} import {key_type}')
+            parent_name += f', AIiMultiMappedList[{key_type}]'
         if parent:
             parent_name, parent_module = parent
             parent_import = f'from {parent_module} import {parent_name}\n'
@@ -171,6 +189,7 @@ class AIcSchemaContractInterfaceGenerator:
             + xml_imports
             + '\n'.join(sorted(ref_imports)) + '\n\n' + helpers
             + f'class {interface}({parent_name}):\n'
+            + f'    """Read-only generated contract for {model.logical_name}.\n\n    Author: linhart1.\n    """\n'
             + '    __data_object__ = AIcdDataObject('
             + (f'schema_id={model.identity!r}, ' if model.schema_source_schema_identifier_field != '' else '')
             + (f'schema_version={model.version if model.version is not None else -1}, ' if model.schema_source_schema_version_field != '' else '')
@@ -202,7 +221,13 @@ class AIcSchemaContractInterfaceGenerator:
         extends = ((parent[1] + '.' + parent[0]) if parent else
             ('eu.algites.lib.data.dataobject.AIiDataObject' if request.contract_role == 'common' else
                 _TECHNOLOGY_DATA_OBJECT[model.source_kind][2]))
-        rows = [f'package {request.package_name};', '', '/** Generated schema contract. Do not edit manually. */',
+        if (model.data_type.keyed_value_type is not None and parent is None
+                and request.common_naming_profile is None):
+            key_type = self.names.render(model.logical_name + '-additional-properties',
+                model.version, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
+            extends += ', eu.algites.lib.common.list.AIiMultiMappedList<' + key_type + '>'
+        rows = [f'package {request.package_name};', '',
+            '/**\n * Generated schema contract. Do not edit manually.\n *\n * @author linhart1\n */',
             '@eu.algites.lib.data.dataobject.AIaDataObject('
             + ('schemaId = ' + _java_quote(model.identity) + ', ' if model.schema_source_schema_identifier_field != '' else '')
             + ('schemaVersion = ' + str(model.version if model.version is not None else -1) + ', ' if model.schema_source_schema_version_field != '' else '')
@@ -237,7 +262,7 @@ class AIcSchemaContractInterfaceGenerator:
                 + _java_quote(prop.description) + ')}') if prop.description else ''
             rows.extend([f'    /** <strong>Field Name:</strong> {{@code {prop.source_name}}}. {desc} */',
                 f'    String {self.names.schema_field_name_constant(prop.source_name, request.naming_profile)} = {_java_quote(prop.source_name)};',
-                f'    /** {desc} */',
+                f'    /** {desc}\n     * @return value of the {{@code {prop.source_name}}} schema field; see the field presence and nullability annotations\n     */',
                 f'    @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = {_java_quote(title)}{entries})',
                 '    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = '
                     + _java_quote(prop.source_name)
@@ -255,6 +280,14 @@ class AIcSchemaContractInterfaceGenerator:
                     + ', wildcardNamespace = ' + _java_quote(wire.wildcard_namespace)
                     + ', wildcardProcessContents = ' + _java_quote(wire.wildcard_process_contents) + ')')
             rows.append(f'    {typ} {self.names.getter_name(prop.source_name, request.naming_profile)}();')
+        if (request.contract_role != 'common'
+                and model.source_kind in (AInDefinitionSourceKind.JSONDEFS, AInDefinitionSourceKind.YAMLDEFS)
+                and model.source_resource.endswith('/additionalProperties')):
+            synthetic_name = request.naming_profile.multi_mapped_list_key_synthetic_getter()
+            rows.extend(['    /** Return the synthetic parent JSON/YAML object property key. '
+                + 'This getter is not serialized inside the value object. '
+                + '@return non-null parent property key, stable while stored in a mapped list. */',
+                '    String ' + synthetic_name + '();'])
         rows.append('}')
         return AIcdGeneratedSource(interface, path, '\n'.join(rows) + '\n',
             (AIcdGeneratedTypeIdentity.from_request(request, interface, path, AInDefsNameRole.INTERFACE_TYPE),))

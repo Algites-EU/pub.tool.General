@@ -29,9 +29,26 @@ final class AIcRecursiveContractType {
             AIcdCodeGenerationRequest aRequest, AIcGenerationNames aNames, boolean aJava,
             Set<String> aPythonImports) {
         if (aType.kind() == AInDataTypeKind.ARRAY) {
+            if (!aType.positionTypes().isEmpty()) {
+                if (aJava) throw new IllegalArgumentException(
+                        "Java positional tuple requires generated positional type: " + aPath);
+                List<String> locParts = new java.util.ArrayList<>();
+                for (int locIndex = 0; locIndex < aType.positionTypes().size(); locIndex++)
+                    locParts.add(renderNode(aType.positionTypes().get(locIndex),
+                            aPath + "-prefix-items-" + locIndex, aRequest,
+                            aNames, false, aPythonImports));
+                return "tuple[" + String.join(", ", locParts) + "]";
+            }
             String locMember = renderNode(aType.elementType(), aPath + "-items", aRequest,
                     aNames, aJava, aPythonImports);
             return aJava ? "java.util.List<? extends " + locMember + ">" : "tuple[" + locMember + ", ...]";
+        }
+        if (aType.kind() == AInDataTypeKind.OBJECT && aType.keyedValueType() != null) {
+            String locMember = renderNode(aType.keyedValueType(), aPath + "-additional-properties",
+                    aRequest, aNames, aJava, aPythonImports);
+            if (aJava) return "eu.algites.lib.common.list.AIiMultiMappedList<" + locMember + ">";
+            aPythonImports.add("from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList");
+            return "AIiMultiMappedList[" + locMember + "]";
         }
         boolean locReference = aType.kind() == AInDataTypeKind.REFERENCE;
         boolean locInline = aType.kind() == AInDataTypeKind.OBJECT

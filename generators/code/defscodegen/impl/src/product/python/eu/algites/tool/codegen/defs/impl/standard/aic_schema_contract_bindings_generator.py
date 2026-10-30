@@ -298,8 +298,19 @@ class AIcSchemaContractBindingsGenerator:
                     if kind == 'xmldefs' and role != 'common' and unit.schema in scoped_xml_documents:
                         document = re.sub(r'[^A-Za-z0-9_]', '_', source.stem).lower()
                         output_package += '.xmlschema_' + document
+                    common_profile = None
+                    common_keyed_fields = frozenset()
+                    common_id = configured_roles.get('common')
+                    if role != 'common' and common_id:
+                        common_profile = AIcSelectedNamingCatalog(profile, {
+                            kind: common_id for kind in (AInDefsNameRole.INTERFACE_TYPE,
+                                AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
+                                AInDefsNameRole.DATA_TYPE, AInDefsNameRole.DATA_TYPE_FILE_STEM)})
+                        common_keyed_fields = frozenset(field.source_name
+                            for field in definition.data_type.properties
+                            if field.data_type.keyed_value_type is not None)
                     request = AIcdCodeGenerationRequest(definition, target, output_package, role_profile,
-                        xml_type_qname, selected_id, role)
+                        xml_type_qname, selected_id, role, common_profile, common_keyed_fields)
                     preview = generator.generate(request)
                     key = language + '#' + preview.relative_path
                     requests.setdefault(key, []).append(request)
@@ -453,6 +464,35 @@ class AIcSchemaContractBindingsGenerator:
                         explicit.add(('incompatible', 'implicit-identity'))
                 if explicit:
                     identities = explicit
+            if len(identities) != 1 and common_role:
+                # XML has global named types with one root document namespace,
+                # whereas JSON/YAML $defs has an explicit per-definition ID.
+                # These two distinct wire identities may share a GENERATED
+                # common contract only when the output's uniquely selected
+                # non-XML logical identity agrees, all named XML sources are
+                # children of the same schema root, and merge_common below
+                # proves a compatible typed contract. Never normalize two
+                # conflicting explicit JSON/YAML identities together.
+                structured = [r for r in representations if r.definition.source_kind
+                    in (AInDefinitionSourceKind.JSONDEFS, AInDefinitionSourceKind.YAMLDEFS)]
+                xml_nested = [r for r in representations if r.definition.source_kind
+                    is AInDefinitionSourceKind.XMLDEFS and '#@type/' in r.definition.source_resource]
+                if structured and xml_nested and len(structured) + len(xml_nested) == len(representations):
+                    document_ids = {self._common_identity(r.definition, r.package_name,
+                        self._canonical_identity(r.definition, r.package_name,
+                            units_by_resource, declared_identity_by_source)) for r in structured}
+                    if (len(document_ids) == 1 and all(
+                        r.definition.logical_name == structured[0].definition.logical_name
+                        and r.definition.version == structured[0].definition.version
+                        and r.package_name == structured[0].package_name
+                        and re.sub(r'_[0-9]+$', '', r.definition.source_resource
+                            .split('#', 1)[0].rsplit('/', 1)[-1].removesuffix('.xsd'))
+                          == re.sub(r'_[0-9]+$', '', structured[0].definition.source_resource
+                            .split('#', 1)[0].rsplit('/', 1)[-1]
+                            .removesuffix('.jsondef.schema.json')
+                            .removesuffix('.yamldef.schema.json'))
+                        for r in xml_nested)):
+                        identities = document_ids
             if len(identities) != 1:
                 raise ValueError('Canonical identity collision for one generated output: ' +
                     str([(r.definition.identity, r.definition.source_resource) for r in representations]))
@@ -490,6 +530,11 @@ class AIcSchemaContractBindingsGenerator:
                 for xml_rep in xml_parts:
                     for xml_field in xml_rep.definition.data_type.properties:
                         if xml_field.data_type.kind is not AInDataTypeKind.OBJECT:
+                            continue
+                        if xml_field.data_type.keyed_value_type is not None:
+                            # Both sides use the same typed AIiMultiMappedList
+                            # API. Its key/value compatibility is checked by
+                            # merge_common, never relaxed to Object.
                             continue
                         for doc_rep in document_parts:
                             matching = next((field for field in doc_rep.definition.data_type.properties
@@ -636,10 +681,22 @@ class AIcSchemaContractBindingsGenerator:
                                 rendered = rendered.replace(declaration, declaration +
                                     common.package_name + '.' + preview.type_name + ', ')
                             else:
-                                declaration = f'public sealed interface {pair.type_name} permits '
-                                rendered = rendered.replace(declaration,
-                                    f'public sealed interface {pair.type_name} extends '
-                                    + common.package_name + '.' + preview.type_name + ' permits ')
+                                declaration = f'public sealed interface {pair.type_name}'
+                                start = rendered.find(declaration)
+                                if start < 0:
+                                    raise ValueError('Expected closed choice interface: ' + pair.type_name)
+                                permits = rendered.find(' permits ', start + len(declaration))
+                                if permits < 0:
+                                    raise ValueError('Expected closed choice permit list: ' + pair.type_name)
+                                suffix = rendered[start + len(declaration):permits]
+                                common_parent = common.package_name + '.' + preview.type_name
+                                if suffix.startswith(' extends '):
+                                    suffix += ', ' + common_parent
+                                elif not suffix:
+                                    suffix = ' extends ' + common_parent
+                                else:
+                                    raise ValueError('Unexpected sealed choice declaration: ' + suffix)
+                                rendered = rendered[:start + len(declaration)] + suffix + rendered[permits:]
                         else:
                             stem = preview.relative_path.rsplit('/', 1)[-1].removesuffix('.py')
                             rendered = rendered.replace('from __future__ import annotations\n',

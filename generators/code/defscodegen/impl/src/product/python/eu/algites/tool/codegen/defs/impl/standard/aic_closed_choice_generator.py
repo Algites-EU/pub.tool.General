@@ -94,22 +94,22 @@ class AIcClosedChoiceGenerator:
             variants.append((wrapper, wrapper_file, typ, file))
         if target is AInCodeGenerationTarget.JAVA:
             xml_annotation = ''
-            if request.xml_type_qname:
+            if request.xml_type_qname and request.contract_role != 'common':
                 namespace, local = request.xml_type_qname[1:].split('}', 1)
                 xml_annotation = ('@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject('
                     'definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE, '
                     f'namespace = {json_quote(namespace)}, namespaceLocalName = {json_quote(local)})\n')
             main = ('package ' + request.package_name + ';\n\n'
-                '/** Generated closed ' + kind + ' schema contract. */\n'
+                '/** Generated closed ' + kind + ' schema contract.\n * @author linhart1\n */\n'
                 + xml_annotation
                 + ('public interface ' if request.contract_role == 'common' else 'public sealed interface ') + cls
-                + (' extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject' if model.source_kind is AInDefinitionSourceKind.XMLDEFS else '')
+                + (' extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject' if (model.source_kind is AInDefinitionSourceKind.XMLDEFS and request.contract_role != 'common') else '')
                 + ('' if request.contract_role == 'common' else ' permits ' + ', '.join(wrapper for wrapper, *_ in variants)) + ' {\n}\n')
         else:
             xml_import = ('from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject\n'
-                if model.source_kind is AInDefinitionSourceKind.XMLDEFS else '')
+                if model.source_kind is AInDefinitionSourceKind.XMLDEFS and request.contract_role != 'common' else '')
             xml_annotation = ''
-            if request.xml_type_qname:
+            if request.xml_type_qname and request.contract_role != 'common':
                 namespace, local = request.xml_type_qname[1:].split('}', 1)
                 xml_import += ('from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object import AIaXmlDataObject\n'
                     'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind\n')
@@ -119,16 +119,19 @@ class AIcClosedChoiceGenerator:
             main = ('from __future__ import annotations\n' + xml_import + '\n'
                 'class ' + cls + ('(AIiXmlDataObject)' if model.source_kind is AInDefinitionSourceKind.XMLDEFS else '') + ':\n'
                 + xml_annotation
-                + '    """Generated closed ' + kind + ' choice; use a declared value wrapper."""\n'
+                + '    """Generated closed ' + kind + ' choice; use a declared value wrapper.\n\n    Author: linhart1.\n    """\n'
                 + '    __closed_choice_mode__ = ' + repr(kind) + '\n'
                 + '    __slots__ = ()\n')
         primary = AIcdGeneratedSource(cls, path_prefix + stem + ext, main,
             (AIcdGeneratedTypeIdentity.from_request(request, cls, path_prefix + stem + ext,
                 AInDefsNameRole.INTERFACE_TYPE),))
         generated = [primary]
-        if model.source_kind is AInDefinitionSourceKind.XMLDEFS:
-            # Unlike JSON/YAML schema discovery, XML particles do not create
-            # independent units; emit the nominal read contracts here.
+        if (model.source_kind is AInDefinitionSourceKind.XMLDEFS
+                and any(option.kind is not AInDataTypeKind.REFERENCE
+                        for option in choice.alternatives)):
+            # Anonymous XML particles need emitted nominal branch contracts.
+            # Explicit named branches already have their own XSD type units;
+            # emitting them again would create duplicate source declarations.
             from .aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
             for index, alternative in enumerate(choice.alternatives):
                 if alternative.kind is not AInDataTypeKind.OBJECT:

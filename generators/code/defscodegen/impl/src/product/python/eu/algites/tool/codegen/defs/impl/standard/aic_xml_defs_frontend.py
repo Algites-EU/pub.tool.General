@@ -18,6 +18,7 @@ from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValu
 from eu.algites.tool.codegen.defs.aicd_xml_element_declaration import AIcdXmlElementDeclaration
 from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
 from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
+from eu.algites.tool.codegen.defs.aicd_key_definition import AIcdKeyDefinition
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.impl.standard.aic_scalar_constraints import defaults, decimal_text
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
@@ -88,6 +89,26 @@ class AIcXmlDefsFrontend:
                 or choice.get('maxOccurs', '1') != '1'):
             return None
         branches = self._children(choice)
+        if (len(branches) == 2 and typ.get('name', '').endswith('-choice')
+                and branches[0].tag == self._xs + 'element'
+                and branches[0].get('name') == 'Ref'
+                and branches[1].tag == self._xs + 'sequence'
+                and self._child(branches[1], 'choice') is not None):
+            prefix = typ.get('name')[:-len('-choice')]
+            parsed = self._identities.from_file(request,
+                int(resource[0].get('version')) if resource[0].get('version', '').isdigit() else None)
+            options = []
+            for suffix in ('-reference', '-value'):
+                linked = prefix + suffix
+                if self._named_type(resource[0], linked) is None:
+                    raise ValueError(f'Undeclared XML choice branch type: {linked} in {request.path}')
+                import re
+                logical = re.sub(r'[^A-Za-z0-9]+', '-',
+                    re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', linked)).lower()
+                options.append(AIcdDataType(AInDataTypeKind.REFERENCE,
+                    reference=AIcdDefinitionReference('#@type/' + linked,
+                        parsed.version, logical, AIcdDataType(AInDataTypeKind.OBJECT))))
+            return AIcdDataType.choice(AInDataTypeKind.ONE_OF, options)
         if not branches or any(branch.tag != self._xs + 'element' or
                 bool(branch.get('name')) == bool(branch.get('ref')) or
                 branch.get('minOccurs') or branch.get('maxOccurs') for branch in branches):
@@ -162,6 +183,34 @@ class AIcXmlDefsFrontend:
                     raise ValueError(f'Generated XSD choice type collides with a declared type: {synthetic}')
                 names.add(synthetic)
                 result.append(synthetic)
+        for name, _ in self._synthetic_key_entries(root):
+            if name in names:
+                raise ValueError(f'Generated XSD keyed value type collides with declared type: {name}')
+            names.add(name)
+            result.append(name)
+        return tuple(result)
+
+    def _synthetic_key_entries(self, root):
+        """Discover root-level keyed entries that require generated value contracts."""
+        typ = self._root_type(root)
+        if typ is None:
+            return ()
+        import re
+        root_name = typ.get('name', '')
+        if not root_name:
+            return ()
+        prefix = ''.join(chunk[:1].upper() + chunk[1:]
+                         for chunk in re.split(r'[^A-Za-z0-9]+', root_name) if chunk)
+        result = []
+        for group in self._children(typ, 'sequence', 'all'):
+            for child in self._children(group, 'element'):
+                if not self._children(child, 'key'):
+                    continue
+                sequence = self._child(self._child(child, 'complexType'), 'sequence')
+                entries = self._children(sequence, 'element') if sequence is not None else ()
+                if len(entries) != 1:
+                    raise ValueError('Cannot identify keyed XSD value contract under ' + child.get('name', ''))
+                result.append((prefix + child.get('name', '') + 'AdditionalProperties', entries[0]))
         return tuple(result)
 
     def _descendant_choices(self, typ):
@@ -192,7 +241,9 @@ class AIcXmlDefsFrontend:
     def is_synthetic_choice_type_name(self, path, name):
         """Distinguish generated choice particle types from real XML QName-bearing types."""
         root = self._parse(Path(path))[0]
-        return self._named_type(root, name) is None and self._synthetic_choice(root, name) is not None
+        return (self._named_type(root, name) is None and
+            (self._synthetic_choice(root, name) is not None or
+             any(synthetic == name for synthetic, _ in self._synthetic_key_entries(root))))
 
     def _synthetic_choice_type(self, choice, request, resource):
         """Project one repeated choice item, retaining each branch's XML QName."""
@@ -212,7 +263,9 @@ class AIcXmlDefsFrontend:
         root = resource[0]
         typ = self._named_type(root, name)
         synthetic = self._synthetic_choice(root, name) if typ is None else None
-        if typ is None and synthetic is None:
+        keyed_entry = next((entry for synthetic_name, entry in self._synthetic_key_entries(root)
+                           if synthetic_name == name), None) if typ is None else None
+        if typ is None and synthetic is None and keyed_entry is None:
             raise ValueError(f'Unknown named XSD type {name!r} in {request.path}')
         version_text = root.get('version', '')
         parsed = self._identities.from_file(request, int(version_text) if version_text.isdigit() else None)
@@ -221,6 +274,14 @@ class AIcXmlDefsFrontend:
         logical = re.sub(r'[^A-Za-z0-9]+', '-', re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', name)).lower()
         description = self._documentation(typ)
         title = self._title(typ)
+        if keyed_entry is not None:
+            inner = self._child(keyed_entry, 'complexType')
+            if inner is None:
+                raise ValueError(f'Keyed XML value has no inline complexType in {request.path}')
+            props = self._complex_properties(inner, request, resource, frozenset())
+            return AIcdCanonicalDefinition(identity, parsed.version, logical, self.source_kind,
+                str(request.path) + '#@type/' + name, self._documentation(keyed_entry),
+                AIcdDataType(AInDataTypeKind.OBJECT, properties=props), (), self._title(keyed_entry))
         if synthetic is not None:
             return AIcdCanonicalDefinition(identity, parsed.version, logical, self.source_kind,
                 str(request.path) + '#@type/' + name, self._documentation(synthetic),
@@ -499,6 +560,72 @@ class AIcXmlDefsFrontend:
                              f'reference {lexical!r} in {request.path}')
         return found[0]
 
+    def _keyed_element_type(self, declaration, request, resource):
+        """Preserve a direct XSD xs:key collection as typed KEYED_VALUES.
+
+        A selector must name exactly the one directly repeated child element.
+        All XSD keys selecting it become indexed definitions, including composite
+        keys. The item's regular XML attribute/element fields remain in its value.
+        Other XSD key selectors are constraints outside this mapping and must not
+        be silently treated as a multi-mapped list.
+        """
+        keys = self._children(declaration, 'key')
+        if not keys:
+            return None
+        complex_type = self._child(declaration, 'complexType')
+        if complex_type is None:
+            raise ValueError(f'xs:key on non-inline XML complex type needs named type resolution: {request.path}')
+        sequence = self._child(complex_type, 'sequence')
+        entries = self._children(sequence, 'element') if sequence is not None else ()
+        if len(entries) != 1 or entries[0].get('maxOccurs') not in ('unbounded',) and not (
+                entries[0].get('maxOccurs', '1').isdigit() and int(entries[0].get('maxOccurs', '1')) > 1):
+            raise ValueError(f'xs:key does not describe a single repeated XML entry collection: {request.path}')
+        entry = entries[0]
+        entry_name = entry.get('name', '')
+        entry_complex = self._child(entry, 'complexType')
+        if not entry_name or entry_complex is None:
+            raise ValueError(f'xs:key entry must have a named element and inline typed content: {request.path}')
+        fields = self._complex_properties(entry_complex, request, resource, frozenset())
+        declared_names = {field.source_name for field in fields}
+        definitions = []
+        target_namespace = resource[0].get('targetNamespace', '')
+        entry_qualified = entry.get('form', resource[0].get('elementFormDefault', 'unqualified')) == 'qualified'
+        def local_xpath_name(node, lexical, qualified):
+            """Resolve a simple XSD identity-constraint XPath with exact namespace semantics."""
+            lexical = lexical.removeprefix('./')
+            prefix, sep, local = lexical.partition(':')
+            if not sep:
+                if qualified:
+                    raise ValueError(f'Unqualified XSD XPath cannot select a qualified element: {lexical!r} in {request.path}')
+                return lexical
+            namespace = resource[1].get(id(node), {}).get(prefix)
+            if namespace != target_namespace or not qualified:
+                raise ValueError(f'Wrong namespace for XSD XPath {lexical!r} in {request.path}')
+            return local
+        for key in keys:
+            selector = self._child(key, 'selector')
+            if selector is None or local_xpath_name(selector,
+                    selector.get('xpath', ''), entry_qualified) != entry_name:
+                raise ValueError(f'xs:key selector cannot map directly to this collection: {request.path}')
+            paths = []
+            for field in self._children(key, 'field'):
+                xpath = field.get('xpath', '')
+                if xpath.startswith('@'):
+                    path = xpath[1:]
+                elif xpath:
+                    path = local_xpath_name(field, xpath, entry_qualified)
+                else:
+                    raise ValueError(f'Unsupported xs:key field path {xpath!r} in {request.path}')
+                if path not in declared_names or path in paths:
+                    raise ValueError(f'Unresolved/duplicate xs:key component {path!r} in {request.path}')
+                paths.append(path)
+            definitions.append(AIcdKeyDefinition(key.get('name', ''), tuple(paths)))
+        if len({item.name for item in definitions}) != len(definitions):
+            raise ValueError(f'Duplicate xs:key identity in {request.path}')
+        return AIcdDataType(AInDataTypeKind.OBJECT,
+            keyed_value_type=AIcdDataType(AInDataTypeKind.OBJECT, properties=fields),
+            key_definitions=tuple(definitions))
+
     @staticmethod
     def _compositor_fields(projected, minimum, maximum, inherited_optional, path):
         """Expand a compositor only when its flattened field counts remain equivalent.
@@ -538,6 +665,35 @@ class AIcXmlDefsFrontend:
             presence=AInFieldPresenceKind.ALLOWED if inherited_optional or minimum == 0
                      else AInFieldPresenceKind.REQUIRED),)
 
+    def _elements_fragment(self, branch, request, resource, groups):
+        """Project exactly one typed XSD choice branch without modifying its context."""
+        from xml.etree.ElementTree import Element
+        synthetic = Element(self._xs + 'sequence')
+        synthetic.append(branch)
+        try:
+            yield from self._elements(synthetic, True, request, resource, groups)
+        finally:
+            synthetic.remove(branch)
+
+    def _array_wrapper_type(self, declaration, request, resource):
+        """Map one XML wrapper with a single repeated typed child to ARRAY."""
+        inner = self._child(declaration, 'complexType')
+        if inner is None or self._child(inner, 'attribute', 'anyAttribute', 'choice', 'all') is not None:
+            return None
+        sequence = self._child(inner, 'sequence')
+        members = self._children(sequence, 'element') if sequence is not None else ()
+        if len(members) != 1 or len(self._children(sequence)) != 1:
+            return None
+        member = members[0]
+        minimum, maximum = self._validate_occurs(member, False, request.path)
+        if maximum == 1:
+            return None
+        shape = self._shape(member, member.get('type', ''), request, resource, set())
+        value = from_source_hints(shape.kind, shape.item_kind, shape.reference,
+                   shape.constraints, shape.item_constraints)
+        return AIcdDataType(AInDataTypeKind.ARRAY, element_type=value,
+            constraints=AIcdValueConstraints(min_items=minimum, max_items=maximum))
+
     def _elements(self, parent, optional, request, resource, groups=frozenset()):
         """Project leaf XML fields while resolving acyclic local named compositor groups."""
         for xml_order, node in enumerate(self._children(parent)):
@@ -546,7 +702,27 @@ class AIcXmlDefsFrontend:
                 minimum, maximum = self._validate_occurs(node, True, request.path)
                 if kind == 'choice':
                     if not self._repeated_choice(node):
-                        raise ValueError(f'Nonrepeating nested XSD choice requires an explicit contract: {request.path}')
+                        # Each branch is required *within its choice* but the
+                        # value-level read interface has optional getters for
+                        # mutually exclusive branches. Preserve all typed
+                        # fields; XML's actual XSD still checks the choice.
+                        branches = self._children(node)
+                        if not branches or any(child.tag not in
+                                (self._xs + 'element', self._xs + 'sequence')
+                                for child in branches):
+                            raise ValueError(f'Unsupported nested XSD choice particle: {request.path}')
+                        all_fields = []
+                        for branch in branches:
+                            if branch.tag == self._xs + 'element':
+                                fields = tuple(self._elements_fragment(branch, request, resource, groups))
+                            else:
+                                fields = tuple(self._elements(branch, True, request, resource, groups))
+                            all_fields.extend(replace(field, presence=AInFieldPresenceKind.ALLOWED)
+                                              for field in fields)
+                        if len({field.source_name for field in all_fields}) != len(all_fields):
+                            raise ValueError(f'Overlapping nested XSD choices cannot safely project: {request.path}')
+                        yield from all_fields
+                        continue
                     parent_index = {id(child): parent_node for parent_node in resource[0].iter()
                         for child in parent_node}
                     owner = parent_index.get(id(node))
@@ -603,6 +779,13 @@ class AIcXmlDefsFrontend:
                     shape.kind if repeated else shape.item_kind, shape.reference,
                     AIcdValueConstraints() if repeated else shape.constraints,
                     shape.constraints if repeated else shape.item_constraints)
+                mapped = self._keyed_element_type(declaration, declaration_request, declaration_resource)
+                if mapped is None:
+                    mapped = self._array_wrapper_type(declaration, declaration_request, declaration_resource)
+                if mapped is not None:
+                    if repeated:
+                        raise ValueError(f'Nested repeating xs:key map requires explicit grouping: {request.path}')
+                    data_type = mapped
                 if repeated:
                     data_type = replace(data_type, constraints=AIcdValueConstraints(
                         min_items=minimum, max_items=maximum))

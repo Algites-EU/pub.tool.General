@@ -23,6 +23,7 @@ from eu.algites.tool.codegen.defs.impl.standard.aic_scalar_constraints import fr
 from eu.algites.tool.codegen.defs.impl.standard._json_nullability import _accepts_null, _non_null_kind
 from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
 from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
+from eu.algites.tool.codegen.defs.aicd_key_definition import AIcdKeyDefinition
 
 class AIcJsonSchemaReader:
     """Provides json schema reader functionality."""
@@ -131,7 +132,7 @@ class AIcJsonSchemaReader:
             return AInDataTypeKind.ENUM
         if 'x-algites-defscodegen-choice' in schema:
             return AInDataTypeKind.ONE_OF
-        if schema.get('type') == 'object' or 'properties' in schema:
+        if schema.get('type') == 'object' or 'properties' in schema or 'additionalProperties' in schema:
             return AInDataTypeKind.OBJECT
         declared = schema.get('type')
         if isinstance(declared, list):
@@ -228,19 +229,46 @@ class AIcJsonSchemaReader:
         if isinstance(raw, list):
             raw = next((kind for kind in raw if kind != 'null'), None)
         if raw == 'array' or 'items' in schema or 'prefixItems' in schema:
-            if isinstance(schema.get('prefixItems'), list) and schema['prefixItems']:
-                raise ValueError('Positional prefixItems requires the canonical POSITIONAL_VALUE model; cannot flatten to homogeneous ARRAY')
-            if isinstance(schema.get('items'), list):
-                raise ValueError('Legacy tuple-style items require the canonical POSITIONAL_VALUE model; cannot flatten to homogeneous ARRAY')
+            modern = schema.get('prefixItems')
+            legacy = schema.get('items') if isinstance(schema.get('items'), list) else None
+            if modern is not None and not isinstance(modern, list):
+                raise ValueError('prefixItems must be a sequence of positional schemas')
+            if modern is not None and legacy is not None:
+                raise ValueError('Conflicting modern and legacy tuple declarations')
+            slots = modern if modern is not None else legacy
+            positional_types = tuple(self._recursive_type(item, request, visited)
+                                   for item in (slots or ()))
+            remainder = (schema.get('items', {}) if modern is not None
+                         else schema.get('additionalItems', {}) if legacy is not None
+                         else schema.get('items', {}))
+            if remainder is False:
+                # Empty remainder still needs a defined canonical ARRAY member;
+                # the max-items facet and position_types preserve exact topology.
+                remainder = {}
             return AIcdDataType(AInDataTypeKind.ARRAY,
-                element_type=self._recursive_type(schema.get('items', {}), request, visited),
+                element_type=self._recursive_type(remainder, request, visited),
+                position_types=positional_types,
                 constraints=from_json(schema, AInDataTypeKind.ARRAY))
-        if raw == 'object' or 'properties' in schema:
+        if raw == 'object' or 'properties' in schema or 'additionalProperties' in schema or 'patternProperties' in schema:
             fields = schema.get('properties', {})
             required = set(schema.get('required', ()))
+            dynamic = schema.get('additionalProperties')
+            patterned = schema.get('patternProperties', {})
+            if patterned and not isinstance(patterned, Mapping):
+                raise ValueError('patternProperties must contain schema-valued patterns')
+            if patterned:
+                # Patterns can overlap and can yield different value contracts.
+                # Do not silently turn these heterogeneous properties into ANY.
+                raise ValueError('patternProperties requires explicit pattern-index matching and ' +
+                                 'compatible value schemas; current KEYED_VALUES supports additionalProperties')
+            keyed_type = (self._recursive_type(dynamic, request, visited)
+                          if isinstance(dynamic, Mapping) else None)
+            keys = (AIcdKeyDefinition('json-property-name', ('_getKey',), unique=True, virtual=True),)
             return AIcdDataType(AInDataTypeKind.OBJECT,
                 properties=tuple(self._property(name, node, name in required, request, visited)
                                  for name, node in (fields if isinstance(fields, Mapping) else {}).items()),
+                keyed_value_type=keyed_type,
+                key_definitions=keys if keyed_type is not None else (),
                 constraints=from_json(schema, AInDataTypeKind.OBJECT))
         if 'enum' in schema or 'const' in schema:
             value_kind = _value_kind(raw) if raw else _non_null_kind(schema)

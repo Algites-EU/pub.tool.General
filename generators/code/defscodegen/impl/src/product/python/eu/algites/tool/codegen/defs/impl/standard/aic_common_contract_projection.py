@@ -46,10 +46,24 @@ def _common_type(types, context):
                         for f in matches) else AInFieldPresenceKind.ALLOWED)
             fields.append(replace(field, data_type=shape, presence=presence,
                 nullable=any(f.nullable for f in matches), xml_field=None))
-        return replace(first, properties=tuple(fields), constraints=constraints)
-    if first.kind is AInDataTypeKind.ARRAY:
-        return replace(first, element_type=_common_type([t.element_type for t in types], context + '[]'),
+        has_keys = [t.keyed_value_type is not None for t in types]
+        if any(has_keys) and not all(has_keys):
+            raise ValueError('Incompatible KEYED_VALUES declarations: ' + context)
+        if all(has_keys):
+            if any(len(t.key_definitions) != len(first.key_definitions) for t in types):
+                raise ValueError('Incompatible KEYED_VALUES key count: ' + context)
+            keyed = _common_type([t.keyed_value_type for t in types], context + '{key}')
+        else:
+            keyed = None
+        return replace(first, properties=tuple(fields), keyed_value_type=keyed,
             constraints=constraints)
+    if first.kind is AInDataTypeKind.ARRAY:
+        if any(len(t.position_types) != len(first.position_types) for t in types):
+            raise ValueError('Incompatible POSITION_TYPED_VALUE slots: ' + context)
+        positions = tuple(_common_type([t.position_types[i] for t in types],
+                          context + '[' + str(i) + ']') for i in range(len(first.position_types)))
+        return replace(first, element_type=_common_type([t.element_type for t in types], context + '[]'),
+            position_types=positions, constraints=constraints)
     if first.kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
         if any(len(t.alternatives) != len(first.alternatives) for t in types):
             raise ValueError('Incompatible common choice: ' + context)
@@ -81,10 +95,16 @@ def merge_common(definitions):
     elif first.data_type.kind is AInDataTypeKind.OBJECT:
         data_type = _common_type([d.data_type for d in definitions], first.logical_name)
     else:
-        if any(d.data_type != first.data_type or d.enum_values != first.enum_values
-               for d in definitions):
-            raise ValueError('Non-object common contracts must be identical: ' + first.logical_name)
-        data_type = first.data_type
+        if first.data_type.kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
+            # XML QName and JSON $defs pointers can differ while their
+            # target logical contract and branch order are identical.
+            # _common_type checks every nominal target, never raw pointer text.
+            data_type = _common_type([d.data_type for d in definitions], first.logical_name)
+        else:
+            if any(d.data_type != first.data_type or d.enum_values != first.enum_values
+                   for d in definitions):
+                raise ValueError('Non-object common contracts must be identical: ' + first.logical_name)
+            data_type = first.data_type
     identity = first.identity
     for d in definitions:
         if d.identity.startswith('urn:algites:'):

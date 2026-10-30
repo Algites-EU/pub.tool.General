@@ -14,15 +14,35 @@ import java.util.Objects;
  * @param alternatives choice alternatives, only when kind is ONE_OF or ANY_OF
  * @param reference target identity, only when kind is REFERENCE
  * @param constraints lexical and numeric restrictions of this node
+ * @param keyedValueType type of keyed collection members, or null for non-keyed objects
+ * @param keyDefinitions ordered typed key definitions of the keyed collection
+ * @param positionTypes types assigned by position to the leading array slots
+ * @author linhart1
  */
 public record AIcdDataType(AInDataTypeKind kind, AIcdDataType elementType,
         List<AIcdPropertyDefinition> properties, List<AIcdDataType> alternatives,
-        AIcdDefinitionReference reference, AIcdValueConstraints constraints) {
-    /** Validate recursive invariants and freeze child collections. */
+        AIcdDefinitionReference reference, AIcdValueConstraints constraints,
+        AIcdDataType keyedValueType, List<AIcdKeyDefinition> keyDefinitions,
+        List<AIcdDataType> positionTypes) {
+    /**
+     * Validate recursive invariants and freeze child collections.
+     *
+     * @throws NullPointerException if a required kind is null
+     * @throws IllegalArgumentException if array, key or choice structure is invalid
+     */
     public AIcdDataType {
         Objects.requireNonNull(kind, "kind");
         properties = List.copyOf(properties == null ? List.of() : properties);
         alternatives = List.copyOf(alternatives == null ? List.of() : alternatives);
+        keyDefinitions = List.copyOf(keyDefinitions == null ? List.of() : keyDefinitions);
+        positionTypes = List.copyOf(positionTypes == null ? List.of() : positionTypes);
+        if (keyedValueType != null && kind != AInDataTypeKind.OBJECT)
+            throw new IllegalArgumentException("KEYED_VALUES requires OBJECT parent");
+        if (keyedValueType == null && !keyDefinitions.isEmpty()
+                || keyedValueType != null && keyDefinitions.isEmpty())
+            throw new IllegalArgumentException("KEYED_VALUES requires both type and key definitions");
+        if (!positionTypes.isEmpty() && kind != AInDataTypeKind.ARRAY)
+            throw new IllegalArgumentException("POSITION_TYPED_VALUE requires ARRAY parent");
         constraints = constraints == null ? AIcdValueConstraints.empty() : constraints;
         if (kind == AInDataTypeKind.ARRAY && elementType == null)
             throw new IllegalArgumentException("ARRAY requires elementType");
@@ -31,6 +51,36 @@ public record AIcdDataType(AInDataTypeKind kind, AIcdDataType elementType,
         if (kind == AInDataTypeKind.REFERENCE && reference == null)
             throw new IllegalArgumentException("REFERENCE requires a target");
     }
+    /**
+     * Backwards-compatible constructor for structural type nodes without keyed
+     * or positional children.
+     *
+     * @param kind node kind
+     * @param elementType homogeneous item type or null for non-arrays
+     * @param properties object field declarations
+     * @param alternatives choices associated with this node
+     * @param reference named reference target, when this is a reference node
+     * @param constraints scalar, lexical and collection constraints
+     */
+    public AIcdDataType(AInDataTypeKind kind, AIcdDataType elementType,
+            List<AIcdPropertyDefinition> properties, List<AIcdDataType> alternatives,
+            AIcdDefinitionReference reference, AIcdValueConstraints constraints) {
+        this(kind, elementType, properties, alternatives, reference, constraints, null, List.of(), List.of());
+    }
+
+    /**
+     * Create a map-shaped object with typed values and one or more keys.
+     *
+     * @param valueType non-null value contract
+     * @param definitions nonempty ordered set of key definitions
+     * @return canonical object preserving typed KEYED_VALUES
+     * @throws IllegalArgumentException if no keys were specified
+     */
+    public static AIcdDataType keyedValues(AIcdDataType valueType, List<AIcdKeyDefinition> definitions) {
+        return new AIcdDataType(AInDataTypeKind.OBJECT, null, List.of(), List.of(), null,
+                AIcdValueConstraints.empty(), Objects.requireNonNull(valueType), definitions, List.of());
+    }
+
     /** Construct an atomic type with optional scalar constraints. */
     public static AIcdDataType atom(AInDataTypeKind aKind, AIcdValueConstraints aConstraints) {
         return new AIcdDataType(aKind, null, List.of(), List.of(), null, aConstraints);
@@ -68,7 +118,8 @@ public record AIcdDataType(AInDataTypeKind kind, AIcdDataType elementType,
     public AIcdDataType withProperties(List<AIcdPropertyDefinition> aProperties) {
         if (kind != AInDataTypeKind.OBJECT)
             throw new IllegalStateException("Only an OBJECT data type has named properties");
-        return new AIcdDataType(kind, elementType, aProperties, alternatives, reference, constraints);
+        return new AIcdDataType(kind, elementType, aProperties, alternatives, reference,
+                constraints, keyedValueType, keyDefinitions, positionTypes);
     }
 
     /** Return the reference of this node, or its array element when the node is a collection. */
