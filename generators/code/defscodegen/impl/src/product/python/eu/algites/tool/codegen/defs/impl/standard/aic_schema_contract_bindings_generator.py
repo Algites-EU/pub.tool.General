@@ -985,7 +985,7 @@ class AIcSchemaContractBindingsGenerator:
         override = overrides.get(schema + '#' + pointer)
         if override is not None and override.get('common_one_of_fields', False):
             raise ValueError('common_one_of_fields is obsolete: declare shared properties directly')
-        if not pointer or node.get('type') == 'object' or 'properties' in node or 'enum' in node or 'x-algites-defscodegen-choice' in node:
+        if not pointer or pointer.endswith('/additionalProperties') or node.get('type') == 'object' or 'properties' in node or 'enum' in node or 'x-algites-defscodegen-choice' in node:
             result.append(self.AIcdUnit(schema, pointer, override['name'] if override is not None else name, node, document))
         for keyword in ('properties', '$defs', 'definitions', 'patternProperties'):
             for key, value in node.get(keyword, {}).items():

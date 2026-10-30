@@ -31,6 +31,7 @@ GeneratedDataObjectMethodNameConventions:
         raw_unsetter: standard-prefix-java-sdo-unsetter_1
         # Literal synthetic getter name for JSON/YAML object-keyed values.
         multi_mapped_list_key_synthetic_getter: _getKey
+        multi_mapped_list_value_synthetic_getter: _getValue
       SchemaMetadataNaming:
         # Schema declaration field containing the schema URI; blank disables URL extraction.
         schema_source_schema_url: $id

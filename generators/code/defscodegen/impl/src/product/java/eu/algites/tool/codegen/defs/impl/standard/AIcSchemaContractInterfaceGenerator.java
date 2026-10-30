@@ -10,7 +10,11 @@ import eu.algites.tool.codegen.defs.AInDefsNameRole;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Generate annotated read-only contracts directly from canonical definitions. */
+/**
+ * Generate annotated read-only contracts directly from canonical definitions.
+ *
+ * @author linhart1
+ */
 public final class AIcSchemaContractInterfaceGenerator {
     private final AIcGenerationNames names = new AIcGenerationNames();
 
@@ -132,6 +136,31 @@ public final class AIcSchemaContractInterfaceGenerator {
             rows.add("    " + propertyType + " " + names.getterName(property.sourceName(), aRequest.namingProfile()) + "();");
             locXmlOrder++;
         }
+        boolean syntheticEntry = !aRequest.contractRole().equals("common")
+                && (aRequest.definition().sourceKind() == eu.algites.tool.codegen.defs.AInDefinitionSourceKind.JSONDEFS
+                    || aRequest.definition().sourceKind() == eu.algites.tool.codegen.defs.AInDefinitionSourceKind.YAMLDEFS)
+                && aRequest.definition().sourceResource().endsWith("/additionalProperties");
+        if (syntheticEntry) {
+            String keyName = aRequest.namingProfile().generatedMethodLiteral("multi_mapped_list_key_synthetic_getter");
+            if (keyName == null || keyName.isBlank())
+                throw new IllegalArgumentException("Missing multi_mapped_list_key_synthetic_getter in selected profile");
+            rows.add("    /** Return the containing JSON/YAML object's property name. "
+                    + "This synthetic accessor is not serialized as a field. @return stable, non-null property key */");
+            rows.add("    String " + keyName + "();");
+            AInDataTypeKind kind = aRequest.definition().dataType().kind();
+            if (kind != AInDataTypeKind.OBJECT && kind != AInDataTypeKind.ENUM) {
+                String valueName = aRequest.namingProfile().generatedMethodLiteral("multi_mapped_list_value_synthetic_getter");
+                if (valueName == null || valueName.isBlank())
+                    throw new IllegalArgumentException("Missing multi_mapped_list_value_synthetic_getter in selected profile");
+                String valueType = syntheticValueType(aRequest.definition().dataType(),
+                        aRequest.definition().logicalName(), aRequest);
+                if ("Object".equals(valueType))
+                    throw new IllegalArgumentException("Dynamic JSON/YAML value must not silently widen to Object");
+                rows.add("    /** Return this entry's strongly typed property value, not its synthetic key. "
+                        + "The getter is not serialized inside the value. @return typed JSON/YAML value */");
+                rows.add("    " + valueType + " " + valueName + "();");
+            }
+        }
         rows.add("}");
         String contract = String.join("\n", rows) + "\n";
         String locFileStem = names.fileStem(aRequest.definition(), aRequest.namingProfile(),
@@ -180,6 +209,42 @@ public final class AIcSchemaContractInterfaceGenerator {
                 + AIcScalarGeneration.jquote(locDescription) + ")}";
         return "    @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "
                 + AIcScalarGeneration.jquote(locTitle) + locEntry + ")";
+    }
+
+    /**
+     * Resolve recursive synthetic JSON/YAML values without dropping item typing.
+     * Objects inside arrays are separately generated named interfaces. Scalar
+     * leaves are rendered using the same mappings as ordinary field getters.
+     *
+     * @param valueType canonical type of this virtual map entry
+     * @param logicalName generated logical name of the current nested value
+     * @param request selected output language and explicit naming profile
+     * @return Java type expression without an Object fallback
+     * @throws IllegalArgumentException if the item type cannot be expressed safely
+     */
+    private String syntheticValueType(eu.algites.tool.codegen.defs.AIcdDataType valueType,
+            String logicalName, AIcdCodeGenerationRequest request) {
+        if (valueType.kind() == AInDataTypeKind.ARRAY)
+            return "java.util.List<? extends " + syntheticValueType(valueType.elementType(),
+                    logicalName + "-items", request) + ">";
+        if (valueType.kind() == AInDataTypeKind.REFERENCE) {
+            var reference = valueType.reference();
+            return names.render(reference.logicalName(), reference.version(), request.namingProfile(),
+                    reference.targetsEnum() ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.INTERFACE_TYPE);
+        }
+        if (valueType.kind() == AInDataTypeKind.OBJECT
+                || valueType.kind() == AInDataTypeKind.ONE_OF
+                || valueType.kind() == AInDataTypeKind.ANY_OF)
+            return names.render(logicalName, request.definition().version(), request.namingProfile(),
+                    AInDefsNameRole.INTERFACE_TYPE);
+        if (valueType.kind() == AInDataTypeKind.ENUM)
+            return names.render(logicalName, request.definition().version(), request.namingProfile(),
+                    AInDefsNameRole.ENUM_TYPE);
+        String result = AIcScalarGeneration.scalar(valueType.kind(), valueType.constraints(), true);
+        if ("Object".equals(result))
+            throw new IllegalArgumentException("Synthetic map entry cannot widen to Object: "
+                    + request.definition().sourceResource());
+        return result;
     }
 
     /** Match the Python generator's normalization of field identifiers. */

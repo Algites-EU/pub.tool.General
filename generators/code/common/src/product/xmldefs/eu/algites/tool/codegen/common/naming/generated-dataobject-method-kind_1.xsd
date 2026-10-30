@@ -2,7 +2,7 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            targetNamespace="eu.algites.tool.codegen.common.naming.generated-dataobject-method-kind" version="1">
 	<xs:annotation>
-		<xs:documentation>Six method naming roles shared between Defs and SDO generators.</xs:documentation>
+		<xs:documentation>Seven method naming roles shared between Defs and SDO generators.</xs:documentation>
 	</xs:annotation>
 	<xs:simpleType name="generated-dataobject-method-kind">
 		<xs:restriction base="xs:string">
@@ -12,6 +12,7 @@
 			<xs:enumeration value="raw_presence_checker_method"/>
 			<xs:enumeration value="raw_unsetter"/>
 			<xs:enumeration value="multi_mapped_list_key_synthetic_getter"/>
+			<xs:enumeration value="multi_mapped_list_value_synthetic_getter"/>
 		</xs:restriction>
 	</xs:simpleType>
 </xs:schema>

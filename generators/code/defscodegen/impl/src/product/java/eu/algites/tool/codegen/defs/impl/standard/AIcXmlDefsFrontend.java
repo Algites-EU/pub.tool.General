@@ -4,6 +4,7 @@ package eu.algites.tool.codegen.defs.impl.standard;
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
 import eu.algites.tool.codegen.defs.AIcdDefinitionReference;
+import eu.algites.tool.codegen.defs.AIcdKeyDefinition;
 import eu.algites.tool.codegen.defs.AIcdEnumValueDefinition;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AIcdXmlFieldRepresentation;
@@ -30,7 +31,15 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
-/** Loads the supported XML Schema projection into the format-neutral canonical model. */
+/**
+ * Loads the supported XML Schema projection into the format-neutral canonical model.
+ *
+ * <p>Typed identity constraints remain attached to the collection whose repeated
+ * items they select. Unsupported selectors or identity-reference constraints must
+ * be rejected rather than silently discarded.
+ *
+ * @author linhart1
+ */
 public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
     private static final String XS = XMLConstants.W3C_XML_SCHEMA_NS_URI;
     private static final Set<String> STRINGS = Set.of("string", "normalizedString", "token", "language",
@@ -819,6 +828,13 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                         locRepeated ? locShape.kind() : locShape.itemKind(), locShape.reference(),
                         locRepeated ? AIcdValueConstraints.empty() : locShape.constraints(),
                         locRepeated ? locShape.constraints() : locShape.itemConstraints());
+                AIcdDataType locKeyed = keyedElementType(locDeclaration, locDeclarationRequest,
+                        locDeclarationSchema);
+                if (locKeyed != null) {
+                    if (locRepeated) throw new IOException("Nested repeated keyed XML collection in "
+                            + aRequest.path());
+                    locDataType = locKeyed;
+                }
                 if (locRepeated)
                     locDataType = AIcdDataType.array(locDataType.elementType(), locMinimum, locMaximum);
                 aProperties.add(new AIcdPropertyDefinition(locName, locDataType,
@@ -958,6 +974,174 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                             "required".equals(locUse) ? 1 : 0,
                             "prohibited".equals(locUse) ? 0 : 1)));
         }
+    }
+
+    /**
+     * Project each direct XSD identity constraint to a typed collection index.
+     *
+     * <p>All {@code xs:key} declarations identifying the same single repeated
+     * entry declaration produce independent unique indexes. Their key fields
+     * remain part of the value object. Nested key paths are resolved against
+     * the declarations, not copied from XPath without type checks. Descendant
+     * selectors spanning multiple lists require an aggregate owner and are
+     * deliberately rejected until their runtime projection is available.
+     * {@code xs:keyref} is ignored as a validation-only relationship; full XSD
+     * validation, outside Defs Codegen, must enforce referential integrity.
+     *
+     * @param declaration XML element declaring the keys and item particle
+     * @param request owning schema and naming context
+     * @param schema parsed containing schema
+     * @return keyed canonical object, or {@code null} without any keys
+     * @throws IOException if selectors, key paths or item types are ambiguous
+     */
+    private AIcdDataType keyedElementType(Element declaration,
+            AIcdDefinitionLoadRequest request, Element schema) throws IOException {
+        if (!children(declaration, "unique").isEmpty())
+            throw new IOException("xs:unique identity constraint requires "
+                    + "explicit supported mapping in " + request.path());
+        List<Element> keys = children(declaration, "key");
+        if (keys.isEmpty()) return null;
+        Element complex = child(declaration, "complexType");
+        Element sequence = child(complex, "sequence");
+        List<Element> entries = children(sequence, "element");
+        if (sequence == null || entries.size() != 1)
+            throw new IOException("xs:key requires one repeated direct child in " + request.path());
+        Element entry = entries.get(0);
+        String max = entry.getAttribute("maxOccurs");
+        if (!("unbounded".equals(max) || !max.isBlank() && Integer.parseInt(max) > 1))
+            throw new IOException("xs:key entry must be repeated in " + request.path());
+        Element entryComplex = child(entry, "complexType");
+        if (entry.getAttribute("name").isBlank() || entryComplex == null)
+            throw new IOException("xs:key entry needs a named inline complex type in " + request.path());
+        List<AIcdPropertyDefinition> values = complexProperties(entryComplex, request, schema, new HashSet<>());
+        Set<String> available = new HashSet<>();
+        for (AIcdPropertyDefinition value : values) available.add(value.sourceName());
+        List<AIcdKeyDefinition> definitions = new ArrayList<>();
+        Set<String> names = new HashSet<>();
+        String entryNamespace = fieldNamespace(entry, schema, false);
+        for (Element key : keys) {
+            Element selector = child(key, "selector");
+            if (selector == null || !singleXPathStep(selector,
+                    selector.getAttribute("xpath"), entryNamespace)
+                    .equals(entry.getAttribute("name")))
+                throw new IOException("xs:key selector is not a direct repeated entry in " + request.path());
+            String name = key.getAttribute("name");
+            if (name.isBlank() || !names.add(name))
+                throw new IOException("xs:key names must be distinct and nonempty in " + request.path());
+            List<String> fields = new ArrayList<>();
+            for (Element field : children(key, "field")) {
+                String path = keyFieldPath(entryComplex, field, field.getAttribute("xpath"),
+                        request, schema);
+                if (!available.contains(path.split("\\.")[0]) || fields.contains(path))
+                    throw new IOException("Unresolved or duplicate xs:key component " + path);
+                fields.add(path);
+            }
+            if (fields.isEmpty()) throw new IOException("xs:key has no fields in " + request.path());
+            definitions.add(new AIcdKeyDefinition(name, fields, true, false));
+        }
+        return AIcdDataType.keyedValues(AIcdDataType.object(values), definitions);
+    }
+
+    /**
+     * Resolve an XPath step to the local declaration name with exact namespace identity.
+     *
+     * @param context selector or field declaration resolving the lexical prefix
+     * @param xpath single child or attribute step
+     * @param expectedNamespace expanded namespace of the declared field
+     * @return local name if and only if the namespace matches
+     * @throws IOException if the XPath step is not supported or mismatches its namespace
+     */
+    private static String singleXPathStep(Element context, String xpath,
+            String expectedNamespace) throws IOException {
+        String step = xpath.startsWith("./") ? xpath.substring(2) : xpath;
+        if (step.isBlank() || step.equals(".") || step.equals("..") || step.contains("/")
+                || step.contains("[") || step.contains("|") || step.contains("*"))
+            throw new IOException("Unsupported XSD identity XPath step: " + xpath);
+        boolean attribute = step.startsWith("@");
+        if (attribute) step = step.substring(1);
+        int split = step.indexOf(':');
+        String prefix = split >= 0 ? step.substring(0, split) : null;
+        String name = split >= 0 ? step.substring(split + 1) : step;
+        if (!name.matches("[A-Za-z_][A-Za-z0-9_.-]*"))
+            throw new IOException("Invalid XSD identity XPath step: " + xpath);
+        String namespace = prefix == null ? "" : context.lookupNamespaceURI(prefix);
+        if (namespace == null || !namespace.equals(expectedNamespace))
+            throw new IOException("XPath namespace mismatch for " + xpath
+                    + ": expected {" + expectedNamespace + "}");
+        return name;
+    }
+
+    /**
+     * Resolve a typed nested field path for an identity constraint.
+     *
+     * <p>Intermediate optional elements are allowed and imply nullable
+     * extraction: generated extractors must guard every intermediate hop.
+     * A repeated intermediate would make the key ambiguous and is rejected.
+     *
+     * @param root item complex type owning the path
+     * @param field field declaration containing its XPath expression
+     * @param xpath XPath comprising child steps and an optional terminal attribute
+     * @param request source definition
+     * @param schema containing schema for type and namespace lookup
+     * @return canonical dot-separated field path
+     * @throws IOException if a field is missing, repeated or not of simple type
+     */
+    private String keyFieldPath(Element root, Element field, String xpath,
+            AIcdDefinitionLoadRequest request, Element schema) throws IOException {
+        String expression = xpath.startsWith("./") ? xpath.substring(2) : xpath;
+        if (expression.isBlank() || expression.contains("//") || expression.contains("[")
+                || expression.contains("|") || expression.contains("*"))
+            throw new IOException("Unsupported xs:key field XPath: " + xpath);
+        String[] steps = expression.split("/", -1);
+        Element current = root;
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < steps.length; i++) {
+            String step = steps[i];
+            boolean attribute = step.startsWith("@");
+            if (attribute && i != steps.length - 1)
+                throw new IOException("xs:key attribute cannot have descendants: " + xpath);
+            List<Element> candidates = new ArrayList<>();
+            if (attribute) {
+                candidates.addAll(children(current, "attribute"));
+            } else {
+                Element sequence = child(current, "sequence", "all");
+                candidates.addAll(children(sequence, "element"));
+            }
+            Element selected = null;
+            for (Element candidate : candidates) {
+                String declaredName = candidate.getAttribute("name");
+                if (declaredName.isBlank() || !declaredName.equals(singleXPathStep(field, step,
+                        fieldNamespace(candidate, schema, attribute)))) continue;
+                if (selected != null) throw new IOException("Ambiguous xs:key field " + xpath);
+                selected = candidate;
+            }
+            if (selected == null) throw new IOException("Unresolved xs:key field " + xpath
+                    + " at " + request.path());
+            names.add(selected.getAttribute("name"));
+            if (i < steps.length - 1) {
+                String count = selected.getAttribute("maxOccurs");
+                if ("unbounded".equals(count) || !count.isBlank() && Integer.parseInt(count) > 1)
+                    throw new IOException("Repeated intermediate xs:key field " + xpath);
+                current = child(selected, "complexType");
+                if (current == null && selected.hasAttribute("type")) {
+                    String declared = selected.getAttribute("type");
+                    String qualified = xmlQName(selected, declared, schema.getAttribute("targetNamespace"));
+                    if (qualified.startsWith("{" + schema.getAttribute("targetNamespace") + "}"))
+                        current = namedType(schema, localName(declared));
+                }
+                if (current == null) throw new IOException("Unresolved nested xs:key complex type " + xpath);
+            } else {
+                String count = selected.getAttribute("maxOccurs");
+                if ("unbounded".equals(count) || !count.isBlank() && Integer.parseInt(count) > 1)
+                    throw new IOException("Repeated terminal xs:key field " + xpath);
+                AIcdShape value = shape(selected, selected.getAttribute("type"), request, schema,
+                        new HashSet<>());
+                if (Set.of(AInDataTypeKind.ANY, AInDataTypeKind.OBJECT, AInDataTypeKind.ARRAY,
+                        AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF).contains(value.kind()))
+                    throw new IOException("xs:key requires typed simple field " + xpath);
+            }
+        }
+        return String.join(".", names);
     }
 
     /**

@@ -9,7 +9,8 @@
     "raw_getter",
     "raw_presence_checker_method",
     "raw_unsetter",
-    "multi_mapped_list_key_synthetic_getter"
+    "multi_mapped_list_key_synthetic_getter",
+    "multi_mapped_list_value_synthetic_getter"
   ],
-  "description": "Roles for field-specific methods shared between Defs and SDO generators. The multi_mapped_list_key_synthetic_getter role is a literal method name, not a composition reference."
+  "description": "Roles for field-specific methods shared between Defs and SDO generators. The synthetic key and value getters are configurable literal method names, not composition references; neither becomes a serialized field of a JSON/YAML value."
 }

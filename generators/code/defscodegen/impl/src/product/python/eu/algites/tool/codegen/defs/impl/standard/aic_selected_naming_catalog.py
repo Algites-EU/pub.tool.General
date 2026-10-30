@@ -34,6 +34,23 @@ class AIcSelectedNamingCatalog:
     def matches(self, *args, **kwargs):
         return self.catalog.matches(*args, **kwargs)
 
+    def multi_mapped_list_value_synthetic_getter(self):
+        """Return the configured getter for an unwrapped JSON/YAML keyed value.
+
+        Returns:
+            The nonempty identifier configured by the selected method profile.
+
+        Raises:
+            ValueError: If the generated-method profile or getter is unavailable.
+        """
+        import re
+        profile = getattr(self.catalog, '_generated_method_profile', None)
+        name = self.catalog.profile_value(profile, 'StructureNaming',
+            'multi_mapped_list_value_synthetic_getter') if profile else ''
+        if not name or re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name) is None:
+            raise ValueError('Missing/invalid multi_mapped_list_value_synthetic_getter in method profile')
+        return name
+
     def multi_mapped_list_key_synthetic_getter(self):
         """Return the required literal getter of JSON/YAML synthetic map keys.
 

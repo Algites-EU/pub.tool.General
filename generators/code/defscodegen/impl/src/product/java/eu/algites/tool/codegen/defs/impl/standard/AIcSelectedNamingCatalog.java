@@ -11,6 +11,8 @@ import java.util.Set;
  *
  * <p>The catalog is agnostic about the spelling or versioning of identifiers;
  * missing role bindings are rejected rather than replaced with Algites defaults.
+ *
+ * @author linhart1
  */
 final class AIcSelectedNamingCatalog implements AIiNameConventionCatalog {
     private final AIiNameConventionCatalog catalog;
@@ -40,6 +42,17 @@ final class AIcSelectedNamingCatalog implements AIiNameConventionCatalog {
         String locName = roles.get(aRole);
         if (locName == null) throw new IllegalArgumentException("Missing configured naming role: " + aRole);
         return locName;
+    }
+
+    /**
+     * Resolve one literal method name from the explicitly selected naming profile.
+     *
+     * @param role generated-method role, including synthetic map entry accessors
+     * @return selected method name, or empty when the profile does not define it
+     * @throws IllegalArgumentException if a configured literal is malformed
+     */
+    String generatedMethodLiteral(String role) {
+        return catalog.generatedMethodLiteral(role);
     }
 
     /** {@inheritDoc} */

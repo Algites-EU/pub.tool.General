@@ -560,6 +560,86 @@ class AIcXmlDefsFrontend:
                              f'reference {lexical!r} in {request.path}')
         return found[0]
 
+    def _key_field_path(self, entry_complex, xpath, request, resource):
+        """Resolve one typed XSD key path through declared XML children.
+
+        Paths use the restricted identity-constraint XPath form: child steps
+        followed by an attribute or a simple-valued element. Every intermediate
+        element must have at most one occurrence; optional intermediate objects
+        remain valid and the generated extractor must guard each nullable hop.
+        The returned dotted path is a sequence of canonical field names.
+
+        Args:
+            entry_complex: Complex type declaration of the selected map item.
+            xpath: Nonempty namespace-aware field XPath.
+            request: Source context for diagnostics and same-schema type lookup.
+            resource: Parsed source and its in-scope namespace declarations.
+
+        Returns:
+            Dotted canonical property path preserving the XSD traversal order.
+
+        Raises:
+            ValueError: If an XPath step is ambiguous, untyped, out of scope,
+                uses unsupported navigation, or selects a repeated intermediate.
+        """
+        lexical = xpath.removeprefix('./')
+        if not lexical or '//' in lexical or any(token in lexical for token in ('|', '[', ']', '*', '(', ')')):
+            raise ValueError(f'Unsupported xs:key field XPath {xpath!r} in {request.path}')
+        steps = lexical.split('/')
+        if any(not step or step in ('.', '..') for step in steps):
+            raise ValueError(f'Invalid xs:key field XPath {xpath!r} in {request.path}')
+        root, namespaces = resource
+        target_namespace = root.get('targetNamespace', '')
+        current_type = entry_complex
+        found = []
+        for position, step in enumerate(steps):
+            attribute = step.startswith('@')
+            if attribute and position != len(steps) - 1:
+                raise ValueError(f'An xs:key attribute cannot have descendants: {xpath!r}')
+            name = step[1:] if attribute else step
+            prefix, separator, local = name.partition(':')
+            qualified_name = local if separator else name
+            if not qualified_name or not qualified_name.replace('_', 'a').replace('-', 'a').isalnum():
+                raise ValueError(f'Unsupported xs:key field name {step!r} in {request.path}')
+            current = (self._children(current_type, 'attribute') if attribute else
+                       [child for group in self._children(current_type, 'sequence', 'all')
+                        for child in self._children(group, 'element')])
+            matching = []
+            for child in current:
+                if child.get('name') != qualified_name:
+                    continue
+                namespace = self._field_namespace(child, root, attribute)
+                declared_namespace = namespaces.get(id(child), {}).get(prefix) if separator else ''
+                if namespace == declared_namespace:
+                    matching.append(child)
+            if len(matching) != 1:
+                raise ValueError(f'Unresolved or ambiguous xs:key field step {step!r} in {xpath!r} ({request.path})')
+            child = matching[0]
+            found.append(qualified_name)
+            if not attribute:
+                maximum = child.get('maxOccurs', '1')
+                if position < len(steps) - 1 and (maximum == 'unbounded' or int(maximum) > 1):
+                    raise ValueError(f'Repeated intermediate xs:key field {step!r} in {request.path}')
+            if position < len(steps) - 1:
+                current_type = self._child(child, 'complexType')
+                if current_type is None and child.get('type'):
+                    reference = child.get('type')
+                    type_prefix, type_separator, type_local = reference.partition(':')
+                    declared_namespace = namespaces.get(id(child), {}).get(type_prefix) if type_separator else target_namespace
+                    if declared_namespace == target_namespace:
+                        current_type = self._named_type(root, type_local if type_separator else reference)
+                if current_type is None:
+                    raise ValueError(f'Intermediate xs:key field is not a resolved complex type: {step!r} in {request.path}')
+            else:
+                if not attribute and child.get('maxOccurs', '1') not in ('1', ''):
+                    raise ValueError(f'xs:key field selects multiple values: {xpath!r}')
+                value_shape = self._shape(child, child.get('type', ''), request, resource, set())
+                if value_shape.kind in (AInDataTypeKind.OBJECT, AInDataTypeKind.ARRAY,
+                                        AInDataTypeKind.ANY, AInDataTypeKind.ONE_OF,
+                                        AInDataTypeKind.ANY_OF):
+                    raise ValueError(f'xs:key field requires one typed simple value: {xpath!r}')
+        return '.'.join(found)
+
     def _keyed_element_type(self, declaration, request, resource):
         """Preserve a direct XSD xs:key collection as typed KEYED_VALUES.
 
@@ -567,8 +647,11 @@ class AIcXmlDefsFrontend:
         All XSD keys selecting it become indexed definitions, including composite
         keys. The item's regular XML attribute/element fields remain in its value.
         Other XSD key selectors are constraints outside this mapping and must not
-        be silently treated as a multi-mapped list.
+        be silently treated as a multi-mapped list. xs:keyref is a validation-
+        only relationship, deliberately ignored by structural code generation.
         """
+        if self._children(declaration, 'unique'):
+            raise ValueError(f'Unsupported xs:unique identity constraint: {request.path}')
         keys = self._children(declaration, 'key')
         if not keys:
             return None
@@ -610,15 +693,12 @@ class AIcXmlDefsFrontend:
             paths = []
             for field in self._children(key, 'field'):
                 xpath = field.get('xpath', '')
-                if xpath.startswith('@'):
-                    path = xpath[1:]
-                elif xpath:
-                    path = local_xpath_name(field, xpath, entry_qualified)
-                else:
-                    raise ValueError(f'Unsupported xs:key field path {xpath!r} in {request.path}')
-                if path not in declared_names or path in paths:
+                path = self._key_field_path(entry_complex, xpath, request, resource)
+                if path.split('.', 1)[0] not in declared_names or path in paths:
                     raise ValueError(f'Unresolved/duplicate xs:key component {path!r} in {request.path}')
                 paths.append(path)
+            if not paths:
+                raise ValueError(f'xs:key requires at least one typed field in {request.path}')
             definitions.append(AIcdKeyDefinition(key.get('name', ''), tuple(paths)))
         if len({item.name for item in definitions}) != len(definitions):
             raise ValueError(f'Duplicate xs:key identity in {request.path}')

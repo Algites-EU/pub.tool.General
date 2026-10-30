@@ -1113,7 +1113,7 @@ public final class AIcSchemaContractBindingsGenerator {
         JsonNode override = overrides.get(schema + "#" + pointer);
         if (override != null && override.path("common_one_of_fields").asBoolean())
             throw new IllegalArgumentException("common_one_of_fields is obsolete: declare shared properties directly");
-        if (pointer.isEmpty() || node.path("type").asText().equals("object") || node.has("properties") || node.has("enum") || node.has("x-algites-defscodegen-choice")) {
+        if (pointer.isEmpty() || pointer.endsWith("/additionalProperties") || node.path("type").asText().equals("object") || node.has("properties") || node.has("enum") || node.has("x-algites-defscodegen-choice")) {
             result.add(new AIcdUnit(schema, pointer, override == null ? name : override.required("name").asText(), node, document));
         }
         /* Visit schema-bearing keywords; examples, defaults and documentation are not definitions. */

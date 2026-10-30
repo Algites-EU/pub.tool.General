@@ -53,6 +53,61 @@ def _property_name(value):
     return name + '_' if keyword.iskeyword(name) else name
 
 
+def _synthetic_entry_value_type(model, request, names, *, java=False, imports=None):
+    """Render the typed value of a virtual JSON/YAML map entry.
+
+    Args:
+        model: Canonical synthetic additionalProperties value contract.
+        request: Generation request with an explicit naming profile.
+        names: Structure-aware type name renderer.
+        java: True for Java return types; false for Python.
+        imports: Mutable Python import set; unused for Java.
+
+    Returns:
+        A strongly typed Java or Python declaration without an Object/Any fallback.
+
+    Raises:
+        ValueError: If the recursive value type cannot be expressed safely.
+    """
+    def node(shape, logical):
+        if shape.kind is AInDataTypeKind.ARRAY:
+            value_type = node(shape.element_type, logical + '-items')
+            return f'java.util.List<? extends {value_type}>' if java else f'tuple[{value_type}, ...]'
+        if shape.kind is AInDataTypeKind.REFERENCE:
+            reference = shape.reference
+            role = AInDefsNameRole.ENUM_TYPE if reference.targets_enum else AInDefsNameRole.INTERFACE_TYPE
+            filename_role = (AInDefsNameRole.ENUM_TYPE_FILE_STEM if reference.targets_enum
+                             else AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
+            typename = names.render(reference.logical_name, reference.version, request.naming_profile, role)
+            if not java and imports is not None:
+                filename = names.render(reference.logical_name, reference.version, request.naming_profile, filename_role)
+                imports.add(f'from .{filename} import {typename}')
+            return typename
+        if shape.kind in (AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
+            typename = names.render(logical, model.version, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
+            if not java and imports is not None:
+                filename = names.render(logical, model.version, request.naming_profile,
+                    AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
+                imports.add(f'from .{filename} import {typename}')
+            return typename
+        if shape.kind is AInDataTypeKind.ENUM:
+            typename = names.render(logical, model.version, request.naming_profile, AInDefsNameRole.ENUM_TYPE)
+            if not java and imports is not None:
+                filename = names.render(logical, model.version, request.naming_profile,
+                    AInDefsNameRole.ENUM_TYPE_FILE_STEM)
+                imports.add(f'from .{filename} import {typename}')
+            return typename
+        result = scalar_type(shape.kind, shape.constraints, java=java)
+        if result in ('Object', 'Any'):
+            raise ValueError('Untyped synthetic map value cannot be widened to Object/Any: ' + model.source_resource)
+        if result == 'Decimal' and imports is not None:
+            imports.add('from decimal import Decimal')
+        if result in ('AIcSchemaTemporalValue', 'AIcSchemaDuration'):
+            raise ValueError('Temporal synthetic map values require explicit named contracts: ' + model.source_resource)
+        return result
+    return node(model.data_type, model.logical_name)
+
+
 class AIcSchemaContractInterfaceGenerator:
     """Generate importable AIig and AIng sources without generating any DTO."""
 
@@ -143,6 +198,17 @@ class AIcSchemaContractInterfaceGenerator:
                 f'    def {synthetic_name}(self) -> str:',
                 '        """Return the parent object property key without writing it as a value field."""',
                 '        raise NotImplementedError', ''])
+        if (request.contract_role != 'common'
+                and model.source_kind in (AInDefinitionSourceKind.JSONDEFS, AInDefinitionSourceKind.YAMLDEFS)
+                and model.source_resource.endswith('/additionalProperties')
+                and model.data_type.kind not in (AInDataTypeKind.OBJECT, AInDataTypeKind.ENUM)):
+            value_name = request.naming_profile.multi_mapped_list_value_synthetic_getter()
+            value_type = _synthetic_entry_value_type(model, request, self.names, imports=ref_imports)
+            getter_rows.extend(['    @abstractmethod', f'    def {value_name}(self) -> {value_type}:',
+                '        """Return the typed JSON/YAML property value without serializing this getter.',
+                '', '        Returns:',
+                '            The original typed property value associated with the synthetic key.',
+                '        """', '        raise NotImplementedError', ''])
         parent_import = ''
         base_module, base_type, _ = _TECHNOLOGY_DATA_OBJECT[model.source_kind]
         if request.contract_role == 'common':
@@ -288,6 +354,16 @@ class AIcSchemaContractInterfaceGenerator:
                 + 'This getter is not serialized inside the value object. '
                 + '@return non-null parent property key, stable while stored in a mapped list. */',
                 '    String ' + synthetic_name + '();'])
+        if (request.contract_role != 'common'
+                and model.source_kind in (AInDefinitionSourceKind.JSONDEFS, AInDefinitionSourceKind.YAMLDEFS)
+                and model.source_resource.endswith('/additionalProperties')
+                and model.data_type.kind not in (AInDataTypeKind.OBJECT, AInDataTypeKind.ENUM)):
+            value_name = request.naming_profile.multi_mapped_list_value_synthetic_getter()
+            value_type = _synthetic_entry_value_type(model, request, self.names, java=True)
+            rows.extend(['    /** Return the typed value associated with this synthetic JSON/YAML map entry.',
+                '     * This getter is virtual and does not become a nested serialized field.',
+                '     * @return typed serialized property value; never a synthetic property name',
+                '     */', f'    {value_type} {value_name}();'])
         rows.append('}')
         return AIcdGeneratedSource(interface, path, '\n'.join(rows) + '\n',
             (AIcdGeneratedTypeIdentity.from_request(request, interface, path, AInDefsNameRole.INTERFACE_TYPE),))
