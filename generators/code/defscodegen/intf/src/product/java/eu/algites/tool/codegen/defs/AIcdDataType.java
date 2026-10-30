@@ -38,9 +38,9 @@ public record AIcdDataType(AInDataTypeKind kind, AIcdDataType elementType,
         positionTypes = List.copyOf(positionTypes == null ? List.of() : positionTypes);
         if (keyedValueType != null && kind != AInDataTypeKind.OBJECT)
             throw new IllegalArgumentException("KEYED_VALUES requires OBJECT parent");
-        if (keyedValueType == null && !keyDefinitions.isEmpty()
+        if (keyedValueType == null && !keyDefinitions.isEmpty() && kind != AInDataTypeKind.ARRAY
                 || keyedValueType != null && keyDefinitions.isEmpty())
-            throw new IllegalArgumentException("KEYED_VALUES requires both type and key definitions");
+            throw new IllegalArgumentException("Key definitions require an ARRAY or a keyed OBJECT value type");
         if (!positionTypes.isEmpty() && kind != AInDataTypeKind.ARRAY)
             throw new IllegalArgumentException("POSITION_TYPED_VALUE requires ARRAY parent");
         constraints = constraints == null ? AIcdValueConstraints.empty() : constraints;
@@ -79,6 +79,27 @@ public record AIcdDataType(AInDataTypeKind kind, AIcdDataType elementType,
     public static AIcdDataType keyedValues(AIcdDataType valueType, List<AIcdKeyDefinition> definitions) {
         return new AIcdDataType(AInDataTypeKind.OBJECT, null, List.of(), List.of(), null,
                 AIcdValueConstraints.empty(), Objects.requireNonNull(valueType), definitions, List.of());
+    }
+
+    /**
+     * Create a repeated XML element collection whose entries are uniquely indexed by
+     * one or more direct {@code xs:key} constraints on its owning element.
+     *
+     * @param aElement typed element contract, normally a named XML content reference
+     * @param aMinItems permitted minimum cardinality
+     * @param aMaxItems permitted maximum cardinality, or null for unbounded
+     * @param aKeys nonempty ordered set of key constraints
+     * @return one ordered multi-mapped array whose values are XML element objects
+     * @throws IllegalArgumentException if no key constraints were supplied
+     */
+    public static AIcdDataType keyedArray(AIcdDataType aElement, Integer aMinItems,
+            Integer aMaxItems, List<AIcdKeyDefinition> aKeys) {
+        if (aKeys == null || aKeys.isEmpty())
+            throw new IllegalArgumentException("A keyed XML array needs key definitions");
+        return new AIcdDataType(AInDataTypeKind.ARRAY, Objects.requireNonNull(aElement),
+                List.of(), List.of(), null,
+                AIcdValueConstraints.empty().withArrayBounds(aMinItems, aMaxItems),
+                null, aKeys, List.of());
     }
 
     /** Construct an atomic type with optional scalar constraints. */

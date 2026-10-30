@@ -87,13 +87,17 @@ public final class AItcXmlKeyPathParityTest {
         Path source = directory.resolve("staff_1.xsd");
         try {
             Files.writeString(source, schema("tns:Identity/tns:Code"));
-            var model = new AIcXmlDefsFrontend().load(new AIcdDefinitionLoadRequest(source,
-                    AInDefinitionSourceKind.XMLDEFS, catalog()));
-            var keyed = model.dataType().properties().get(0).dataType();
+            var frontend = new AIcXmlDefsFrontend();
+            var request = new AIcdDefinitionLoadRequest(source,
+                    AInDefinitionSourceKind.XMLDEFS, catalog());
+            frontend.load(request);
+            var keyed = frontend.loadNamedType(request, "staffEmployees")
+                    .dataType().properties().get(0).dataType();
             Assert.assertEquals(keyed.keyDefinitions(), List.of(
                     new AIcdKeyDefinition("ById", List.of("Id"), true, false),
                     new AIcdKeyDefinition("ByCode", List.of("Identity.Code"), true, false)));
-            Assert.assertEquals(keyed.keyedValueType().properties().size(), 2);
+            Assert.assertEquals(frontend.loadNamedType(request, "staffEmployeesEmployee")
+                    .dataType().properties().size(), 2);
         } finally {
             Files.deleteIfExists(source);
             Files.deleteIfExists(directory);
@@ -111,8 +115,9 @@ public final class AItcXmlKeyPathParityTest {
         Path source = directory.resolve("staff_1.xsd");
         try {
             Files.writeString(source, schema("Identity/Code"));
-            Assert.expectThrows(IOException.class, () -> new AIcXmlDefsFrontend().load(
-                    new AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS, catalog())));
+            Assert.expectThrows(IOException.class, () -> new AIcXmlDefsFrontend().loadNamedType(
+                    new AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS, catalog()),
+                    "staffEmployees"));
         } finally {
             Files.deleteIfExists(source);
             Files.deleteIfExists(directory);
@@ -138,9 +143,12 @@ public final class AItcXmlKeyPathParityTest {
                     "</xs:key>(?=\\s*</xs:element>)", "</xs:key>" + keyref);
             Assert.assertEquals(transformed.equals(original), false);
             Files.writeString(source, transformed);
-            var model = new AIcXmlDefsFrontend().load(new AIcdDefinitionLoadRequest(source,
-                    AInDefinitionSourceKind.XMLDEFS, catalog()));
-            var keys = model.dataType().properties().get(0).dataType().keyDefinitions();
+            var frontend = new AIcXmlDefsFrontend();
+            var request = new AIcdDefinitionLoadRequest(source,
+                    AInDefinitionSourceKind.XMLDEFS, catalog());
+            frontend.load(request);
+            var keys = frontend.loadNamedType(request, "staffEmployees")
+                    .dataType().properties().get(0).dataType().keyDefinitions();
             Assert.assertEquals(keys.size(), 2);
             Assert.assertEquals(keys.get(0).name(), "ById");
             Assert.assertEquals(keys.get(1).name(), "ByCode");

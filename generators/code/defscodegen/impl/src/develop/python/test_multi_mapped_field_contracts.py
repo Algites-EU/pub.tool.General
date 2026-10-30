@@ -69,11 +69,16 @@ def test_xml_composite_key_and_second_index_are_preserved(tmp_path):
         <xs:field xpath="@Region"/><xs:field xpath="@Id"/></xs:key>
       <xs:key name="ById"><xs:selector xpath="tns:Employee"/>
         <xs:field xpath="@Id"/></xs:key>'''))
-    contract = AIcXmlDefsFrontend().load(_load(source, AInDefinitionSourceKind.XMLDEFS))
-    mapped = contract.data_type.properties[0].data_type
+    frontend = AIcXmlDefsFrontend()
+    request = _load(source, AInDefinitionSourceKind.XMLDEFS)
+    frontend.load(request)
+    owner = frontend.load_named_type(request, 'employeesEmployees')
+    mapped = owner.data_type.properties[0].data_type
+    assert mapped.kind is AInDataTypeKind.ARRAY
     assert [key.fields for key in mapped.key_definitions] == [('Region', 'Id'), ('Id',)]
     assert all(key.unique for key in mapped.key_definitions)
-    assert {field.source_name for field in mapped.keyed_value_type.properties} == {'Id', 'Region', 'Label'}
+    employee = frontend.load_named_type(request, 'employeesEmployeesEmployee')
+    assert {field.source_name for field in employee.data_type.properties} == {'Id', 'Region', 'Label'}
 
 
 def test_xml_key_selector_with_missing_namespace_is_rejected(tmp_path):
@@ -81,8 +86,9 @@ def test_xml_key_selector_with_missing_namespace_is_rejected(tmp_path):
     source.write_text(_xml_schema('''
       <xs:key name="ById"><xs:selector xpath="Employee"/>
         <xs:field xpath="@Id"/></xs:key>'''))
+    frontend = AIcXmlDefsFrontend()
     with pytest.raises(ValueError, match='Unqualified XSD XPath'):
-        AIcXmlDefsFrontend().load(_load(source, AInDefinitionSourceKind.XMLDEFS))
+        frontend.load_named_type(_load(source, AInDefinitionSourceKind.XMLDEFS), 'employeesEmployees')
 
 
 def test_non_type_preserving_pattern_properties_fails_loudly(tmp_path):
@@ -108,8 +114,8 @@ def test_mapped_getter_uses_interface_not_concrete_implementation(tmp_path, targ
             'properties': {'Name': {'type': 'string'}}}}}}))
     technology = AInCodeGenerationTarget.JAVA if target == 'java' else AInCodeGenerationTarget.PYTHON
     from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-    library = __import__('pathlib').Path(__file__).resolve().parents[9] / 'lib/pub.lib.General'
-    tool = __import__('pathlib').Path(__file__).resolve().parents[9] / 'tool/pub.tool.General'
+    tool = next(p for p in __import__('pathlib').Path(__file__).resolve().parents if p.name == 'pub.tool.General')
+    library = tool.parent / 'pub.lib.General'
     language = 'java' if target == 'java' else 'python'
     profile = AIcNameConventionCatalog.load_many([
         library / 'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode' / f'algites-{language}-name-conventions.yml',
@@ -141,8 +147,11 @@ def test_nested_xml_key_field_preserves_typed_nullable_path(tmp_path):
               </xs:sequence></xs:complexType></xs:element>
               <xs:element name="Label" type="xs:string"/>''')
     source.write_text(schema)
-    contract = AIcXmlDefsFrontend().load(_load(source, AInDefinitionSourceKind.XMLDEFS))
-    assert contract.data_type.properties[0].data_type.key_definitions[0].fields == (
+    frontend = AIcXmlDefsFrontend()
+    request = _load(source, AInDefinitionSourceKind.XMLDEFS)
+    frontend.load(request)
+    owner = frontend.load_named_type(request, 'employeesEmployees')
+    assert owner.data_type.properties[0].data_type.key_definitions[0].fields == (
         'Properties.Identity.Code',)
 
 
@@ -157,10 +166,12 @@ def test_nested_xml_key_rejects_unknown_and_repeating_intermediate(tmp_path):
         </xs:sequence></xs:complexType></xs:element>''')
     source.write_text(schema)
     with pytest.raises(ValueError, match='Repeated intermediate'):
-        AIcXmlDefsFrontend().load(_load(source, AInDefinitionSourceKind.XMLDEFS))
+        AIcXmlDefsFrontend().load_named_type(_load(source, AInDefinitionSourceKind.XMLDEFS),
+                                               'employeesEmployees')
     source.write_text(schema.replace('name="Properties" maxOccurs="unbounded"', 'name="Properties" maxOccurs="1"').replace('tns:Code', 'tns:Absent'))
     with pytest.raises(ValueError, match='Unresolved or ambiguous'):
-        AIcXmlDefsFrontend().load(_load(source, AInDefinitionSourceKind.XMLDEFS))
+        AIcXmlDefsFrontend().load_named_type(_load(source, AInDefinitionSourceKind.XMLDEFS),
+                                               'employeesEmployees')
 
 
 @pytest.mark.parametrize('target', ['java', 'python'])
@@ -175,8 +186,8 @@ def test_synthetic_value_getter_is_configured_and_typed(tmp_path, target):
     source = tmp_path / 'numbers_1.jsondef.schema.json'
     source.write_text(json.dumps({'type': 'integer'}))
     from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-    library = __import__('pathlib').Path(__file__).resolve().parents[9] / 'lib/pub.lib.General'
-    tool = __import__('pathlib').Path(__file__).resolve().parents[9] / 'tool/pub.tool.General'
+    tool = next(p for p in __import__('pathlib').Path(__file__).resolve().parents if p.name == 'pub.tool.General')
+    library = tool.parent / 'pub.lib.General'
     language = 'java' if target == 'java' else 'python'
     profile = AIcNameConventionCatalog.load_many([
         library / 'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode' / f'algites-{language}-name-conventions.yml',
@@ -212,9 +223,8 @@ def test_synthetic_value_getter_retains_object_array_item_contract(tmp_path, tar
     source.write_text(json.dumps({'type': 'array', 'items': {
         'type': 'object', 'properties': {'something': {'type': 'string'}}}}))
     language = target
-    checkout = Path(__file__).resolve().parents[9]
-    library = checkout / 'lib/pub.lib.General'
-    tool = checkout / 'tool/pub.tool.General'
+    tool = next(parent for parent in Path(__file__).resolve().parents if parent.name == 'pub.tool.General')
+    library = tool.parent / 'pub.lib.General'
     catalog = AIcNameConventionCatalog.load_many([
         library / 'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode' / f'algites-{language}-name-conventions.yml',
         tool / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode' / f'algites-{language}-codegen-method-conventions.yml',
@@ -245,7 +255,8 @@ def test_xml_unique_identity_constraint_remains_explicitly_unsupported(tmp_path)
                 '<xs:field xpath="@Region"/></xs:unique>')
     source.write_text(_xml_schema(identity))
     with pytest.raises(ValueError, match='Unsupported xs:unique'):
-        AIcXmlDefsFrontend().load(_load(source, AInDefinitionSourceKind.XMLDEFS))
+        AIcXmlDefsFrontend().load_named_type(
+            _load(source, AInDefinitionSourceKind.XMLDEFS), 'employeesEmployees')
 
 
 def test_xml_keyref_does_not_affect_structural_indexes(tmp_path):
@@ -257,10 +268,13 @@ def test_xml_keyref_does_not_affect_structural_indexes(tmp_path):
       <xs:keyref name="ReferringEmployee" refer="tns:ById">
         <xs:selector xpath="tns:Employee"/>
         <xs:field xpath="@Region"/></xs:keyref>'''))
-    contract = AIcXmlDefsFrontend().load(_load(source, AInDefinitionSourceKind.XMLDEFS))
-    mapped = contract.data_type.properties[0].data_type
+    mapped = AIcXmlDefsFrontend().load_named_type(
+        _load(source, AInDefinitionSourceKind.XMLDEFS), 'employeesEmployees'
+    ).data_type.properties[0].data_type
     assert [key.name for key in mapped.key_definitions] == ['ById']
-    assert {field.source_name for field in mapped.keyed_value_type.properties} == {'Id', 'Region', 'Label'}
+    employee = AIcXmlDefsFrontend().load_named_type(
+        _load(source, AInDefinitionSourceKind.XMLDEFS), 'employeesEmployeesEmployee')
+    assert {field.source_name for field in employee.data_type.properties} == {'Id', 'Region', 'Label'}
 
 
 def test_xml_keyref_alone_creates_no_index(tmp_path):

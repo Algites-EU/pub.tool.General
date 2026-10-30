@@ -148,6 +148,13 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                 throw new IOException("Duplicate or unnamed global XSD type in " + aPath);
             if (locType != locRoot) locNames.add(locName);
         }
+        for (Element locInline : inlineComplexTypes(locSchema)) {
+            if (locInline == locRoot) continue;
+            String locName = syntheticInlineName((Element) locInline.getParentNode());
+            if (!locSeen.add(locName))
+                throw new IOException("Generated inline XML type collides with an existing declaration: " + locName);
+            locNames.add(locName);
+        }
         for (Element locType : children(locSchema, "complexType")) {
             String locParent = locType.getAttribute("name");
             int locOrdinal = 0;
@@ -161,6 +168,51 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             }
         }
         return List.copyOf(locNames);
+    }
+
+    /**
+     * Find anonymous nested content types, retaining their owning element path.
+     *
+     * @param aSchema XML Schema document element
+     * @return anonymous complex types in schema document order
+     */
+    private static List<Element> inlineComplexTypes(Element aSchema) {
+        List<Element> locResult = new ArrayList<>();
+        collectInlineComplexTypes(aSchema, locResult);
+        return locResult;
+    }
+
+    /** Collect nested anonymous content without altering the DOM. */
+    private static void collectInlineComplexTypes(Element aParent, List<Element> aResult) {
+        for (Element locChild : children(aParent)) {
+            if ("complexType".equals(locChild.getLocalName())
+                    && locChild.getParentNode() instanceof Element locOwner
+                    && "element".equals(locOwner.getLocalName())) aResult.add(locChild);
+            collectInlineComplexTypes(locChild, aResult);
+        }
+    }
+
+    /**
+     * Deterministic nominal name for an inline element content contract.
+     *
+     * @param aElement element bearing an anonymous complexType
+     * @return concatenation of its named XML element ancestors
+     */
+    private static String syntheticInlineName(Element aElement) {
+        List<String> locParts = new ArrayList<>();
+        Node locNode = aElement;
+        while (locNode instanceof Element locElement) {
+            if ("element".equals(locElement.getLocalName()) && !locElement.getAttribute("name").isBlank())
+                locParts.add(0, locElement.getAttribute("name"));
+            if ("complexType".equals(locElement.getLocalName())
+                    && !locElement.getAttribute("name").isBlank()) {
+                locParts.add(0, locElement.getAttribute("name"));
+                break;
+            }
+            locNode = locElement.getParentNode();
+        }
+        if (locParts.isEmpty()) throw new IllegalArgumentException("Unnamed inline XML content");
+        return String.join("", locParts);
     }
 
     /** Finds XSD particles under a named complexType without crossing into nested type declarations. */
@@ -245,6 +297,15 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             throws IOException {
         Element locSchema = schema(aRequest.path());
         Element locType = namedType(locSchema, aName);
+        if (locType == null) {
+            for (Element locInline : inlineComplexTypes(locSchema)) {
+                if (locInline != rootType(locSchema)
+                        && syntheticInlineName((Element) locInline.getParentNode()).equals(aName)) {
+                    locType = locInline;
+                    break;
+                }
+            }
+        }
         Element locSynthetic = locType == null ? syntheticChoice(locSchema, aName) : null;
         if (locType == null && locSynthetic == null)
             throw new IOException("Unknown named XSD type '" + aName + "' in " + aRequest.path());
@@ -284,6 +345,15 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             throws IOException {
         Element locSchema = schema(aRequest.path());
         Element locType = namedType(locSchema, aName);
+        if (locType == null) {
+            for (Element locInline : inlineComplexTypes(locSchema)) {
+                if (locInline != rootType(locSchema)
+                        && syntheticInlineName((Element) locInline.getParentNode()).equals(aName)) {
+                    locType = locInline;
+                    break;
+                }
+            }
+        }
         if (locType == null) throw new IOException("Unknown XSD type '" + aName + "' in " + aRequest.path());
         return extensionBaseQName(locSchema, locType, aRequest.path());
     }
@@ -828,15 +898,19 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                         locRepeated ? locShape.kind() : locShape.itemKind(), locShape.reference(),
                         locRepeated ? AIcdValueConstraints.empty() : locShape.constraints(),
                         locRepeated ? locShape.constraints() : locShape.itemConstraints());
-                AIcdDataType locKeyed = keyedElementType(locDeclaration, locDeclarationRequest,
-                        locDeclarationSchema);
-                if (locKeyed != null) {
-                    if (locRepeated) throw new IOException("Nested repeated keyed XML collection in "
-                            + aRequest.path());
-                    locDataType = locKeyed;
+                Element locOwnerType = (Element) locElement.getParentNode().getParentNode();
+                Element locOwner = locOwnerType.getParentNode() instanceof Element locParent
+                        && "element".equals(locParent.getLocalName()) ? locParent : null;
+                AIcdDataType locOwnerKeys = locOwner == null ? null
+                        : keyedElementType(locOwner, aRequest, aSchema);
+                if (locRepeated) {
+                    locDataType = locOwnerKeys == null
+                            ? AIcdDataType.array(locDataType.elementType(), locMinimum, locMaximum)
+                            : AIcdDataType.keyedArray(locDataType.elementType(), locMinimum, locMaximum,
+                                    locOwnerKeys.keyDefinitions());
+                } else if (locOwnerKeys != null) {
+                    throw new IOException("xs:key selects a non-repeating child: " + locName);
                 }
-                if (locRepeated)
-                    locDataType = AIcdDataType.array(locDataType.elementType(), locMinimum, locMaximum);
                 aProperties.add(new AIcdPropertyDefinition(locName, locDataType,
                         locMaximum != null && locMaximum == 0 ? AInFieldPresenceKind.FORBIDDEN
                         : !aOptional && locMinimum > 0 ? AInFieldPresenceKind.REQUIRED : AInFieldPresenceKind.ALLOWED,
@@ -1011,6 +1085,8 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
         if (!("unbounded".equals(max) || !max.isBlank() && Integer.parseInt(max) > 1))
             throw new IOException("xs:key entry must be repeated in " + request.path());
         Element entryComplex = child(entry, "complexType");
+        if (entryComplex == null && !entry.getAttribute("type").isBlank())
+            entryComplex = namedType(schema, localName(entry.getAttribute("type")));
         if (entry.getAttribute("name").isBlank() || entryComplex == null)
             throw new IOException("xs:key entry needs a named inline complex type in " + request.path());
         List<AIcdPropertyDefinition> values = complexProperties(entryComplex, request, schema, new HashSet<>());
@@ -1162,7 +1238,18 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
     private AIcdShape shape(Element aContext, String aName, AIcdDefinitionLoadRequest aRequest,
             Element aSchema, Set<String> aVisited) throws IOException {
         if (aName.isBlank()) {
-            if (child(aContext, "complexType") != null) return new AIcdShape(AInDataTypeKind.OBJECT, null, null);
+            if (child(aContext, "complexType") != null) {
+                Element locInline = child(aContext, "complexType");
+                if (locInline == rootType(aSchema))
+                    return new AIcdShape(AInDataTypeKind.OBJECT, null, null);
+                String locName = syntheticInlineName(aContext);
+                var locParsed = identities.fromFileName(aRequest, integer(aSchema.getAttribute("version")));
+                String locLogical = locName.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+                        .replaceAll("[^A-Za-z0-9]+", "-").toLowerCase(java.util.Locale.ROOT);
+                return new AIcdShape(AInDataTypeKind.REFERENCE, null,
+                        new AIcdDefinitionReference("#@type/" + locName, locParsed.version(),
+                                locLogical, AIcdDataType.atom(AInDataTypeKind.OBJECT, null)));
+            }
             Element locSimple = child(aContext, "simpleType");
             return locSimple == null ? new AIcdShape(AInDataTypeKind.ANY, null, null)
                     : simpleShape(locSimple, aRequest, aSchema, aVisited);

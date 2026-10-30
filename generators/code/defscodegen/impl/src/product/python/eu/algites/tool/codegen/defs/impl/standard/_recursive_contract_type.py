@@ -31,6 +31,11 @@ def contract_type(prop, request, names, *, java=False, imports=None):
                 trailing = node(shape.element_type, logical + '-items')
                 return 'tuple[' + ', '.join(prefix + ['*tuple[' + trailing + ', ...]']) + ']'
             inner = node(shape.element_type, logical + '-items')
+            if shape.key_definitions:
+                if not java and imports is not None:
+                    imports.add('from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList')
+                return ('eu.algites.lib.common.list.AIiMultiMappedList<' + inner + '>'
+                        if java else 'AIiMultiMappedList[' + inner + ']')
             return f'java.util.List<? extends {inner}>' if java else f'tuple[{inner}, ...]'
         if kind is AInDataTypeKind.OBJECT and shape.keyed_value_type is not None:
             inner = node(shape.keyed_value_type, logical + '-additional-properties', keyed_entry=True)

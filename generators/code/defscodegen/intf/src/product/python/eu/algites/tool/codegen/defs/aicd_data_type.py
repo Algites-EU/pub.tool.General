@@ -32,8 +32,8 @@ class AIcdDataType:
             raise ValueError('KEYED_VALUES requires an OBJECT parent')
         if self.keyed_value_type is not None and not self.key_definitions:
             raise ValueError('KEYED_VALUES requires an explicit key definition')
-        if self.key_definitions and self.keyed_value_type is None:
-            raise ValueError('KEYED_VALUES key definitions need a value type')
+        if self.key_definitions and self.keyed_value_type is None and self.kind is not AInDataTypeKind.ARRAY:
+            raise ValueError('Key definitions require an ARRAY or a keyed OBJECT')
         if self.position_types and self.kind is not AInDataTypeKind.ARRAY:
             raise ValueError('POSITION_TYPED_VALUE requires ARRAY')
         if self.kind is AInDataTypeKind.ARRAY and self.element_type is None:

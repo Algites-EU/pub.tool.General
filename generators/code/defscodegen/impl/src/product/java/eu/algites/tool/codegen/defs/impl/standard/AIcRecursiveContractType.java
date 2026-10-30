@@ -41,6 +41,11 @@ final class AIcRecursiveContractType {
             }
             String locMember = renderNode(aType.elementType(), aPath + "-items", aRequest,
                     aNames, aJava, aPythonImports);
+            if (!aType.keyDefinitions().isEmpty()) {
+                if (aJava) return "eu.algites.lib.common.list.AIiMultiMappedList<" + locMember + ">";
+                aPythonImports.add("from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList");
+                return "AIiMultiMappedList[" + locMember + "]";
+            }
             return aJava ? "java.util.List<? extends " + locMember + ">" : "tuple[" + locMember + ", ...]";
         }
         if (aType.kind() == AInDataTypeKind.OBJECT && aType.keyedValueType() != null) {

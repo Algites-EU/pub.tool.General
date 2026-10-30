@@ -183,11 +183,44 @@ class AIcXmlDefsFrontend:
                     raise ValueError(f'Generated XSD choice type collides with a declared type: {synthetic}')
                 names.add(synthetic)
                 result.append(synthetic)
+        for name, _ in self._inline_content_types(root):
+            if name in names:
+                raise ValueError(f'Anonymous XML type collides with global type: {name}')
+            names.add(name)
+            result.append(name)
         for name, _ in self._synthetic_key_entries(root):
             if name in names:
                 raise ValueError(f'Generated XSD keyed value type collides with declared type: {name}')
             names.add(name)
             result.append(name)
+        return tuple(result)
+
+    def _inline_content_types(self, root):
+        """Find every non-root anonymous complex type as a nominal sibling contract.
+
+        The deterministic name is the concatenation of surrounding element names,
+        anchored at its containing global complex type when applicable. The DOM
+        structure, not the XPath selector, establishes the generated type identity.
+        """
+        parents = {id(child): parent for parent in root.iter() for child in parent}
+        primary = self._root_type(root)
+        result = []
+        for owner in root.iter(self._xs + 'element'):
+            content = self._child(owner, 'complexType')
+            if content is None or content is primary:
+                continue
+            parts = []
+            cursor = owner
+            while cursor is not None:
+                if cursor.tag == self._xs + 'element' and cursor.get('name'):
+                    parts.insert(0, cursor.get('name'))
+                if cursor.tag == self._xs + 'complexType' and cursor.get('name'):
+                    parts.insert(0, cursor.get('name'))
+                    break
+                cursor = parents.get(id(cursor))
+            if not parts:
+                raise ValueError('Cannot name anonymous XML complex content')
+            result.append((''.join(parts), content))
         return tuple(result)
 
     def _synthetic_key_entries(self, root):
@@ -262,6 +295,9 @@ class AIcXmlDefsFrontend:
         resource = self._parse(request.path)
         root = resource[0]
         typ = self._named_type(root, name)
+        if typ is None:
+            typ = next((content for inline_name, content in self._inline_content_types(root)
+                        if inline_name == name), None)
         synthetic = self._synthetic_choice(root, name) if typ is None else None
         keyed_entry = next((entry for synthetic_name, entry in self._synthetic_key_entries(root)
                            if synthetic_name == name), None) if typ is None else None
@@ -304,6 +340,9 @@ class AIcXmlDefsFrontend:
         """Get the direct named extension parent, independent of the XSD root type."""
         resource = self._parse(request.path)
         typ = self._named_type(resource[0], name)
+        if typ is None:
+            typ = next((content for inline_name, content in self._inline_content_types(resource[0])
+                        if inline_name == name), None)
         if typ is None:
             raise ValueError(f'Unknown named XSD type {name!r} in {request.path}')
         return self._extension_base_qname(resource, typ, request.path)
@@ -666,8 +705,10 @@ class AIcXmlDefsFrontend:
         entry = entries[0]
         entry_name = entry.get('name', '')
         entry_complex = self._child(entry, 'complexType')
+        if entry_complex is None and entry.get('type'):
+            entry_complex = self._named_type(resource[0], entry.get('type').split(':')[-1])
         if not entry_name or entry_complex is None:
-            raise ValueError(f'xs:key entry must have a named element and inline typed content: {request.path}')
+            raise ValueError(f'xs:key entry must have named, typed XML content: {request.path}')
         fields = self._complex_properties(entry_complex, request, resource, frozenset())
         declared_names = {field.source_name for field in fields}
         definitions = []
@@ -859,16 +900,18 @@ class AIcXmlDefsFrontend:
                     shape.kind if repeated else shape.item_kind, shape.reference,
                     AIcdValueConstraints() if repeated else shape.constraints,
                     shape.constraints if repeated else shape.item_constraints)
-                mapped = self._keyed_element_type(declaration, declaration_request, declaration_resource)
-                if mapped is None:
-                    mapped = self._array_wrapper_type(declaration, declaration_request, declaration_resource)
-                if mapped is not None:
-                    if repeated:
-                        raise ValueError(f'Nested repeating xs:key map requires explicit grouping: {request.path}')
-                    data_type = mapped
+                parents = {id(child): parent for parent in resource[0].iter() for child in parent}
+                containing_sequence = parents.get(id(node))
+                containing_type = parents.get(id(containing_sequence))
+                owner = parents.get(id(containing_type))
+                mapped = (self._keyed_element_type(owner, request, resource)
+                          if owner is not None and owner.tag == self._xs + 'element' else None)
+                if not repeated and mapped is not None:
+                    raise ValueError(f'xs:key selects non-repeating XML element: {local_name}')
                 if repeated:
                     data_type = replace(data_type, constraints=AIcdValueConstraints(
-                        min_items=minimum, max_items=maximum))
+                        min_items=minimum, max_items=maximum),
+                        key_definitions=mapped.key_definitions if mapped is not None else ())
                 yield AIcdPropertyDefinition(local_name, data_type,
                     AInFieldPresenceKind.FORBIDDEN if maximum == 0 else
                     (AInFieldPresenceKind.REQUIRED if not optional and minimum > 0 else AInFieldPresenceKind.ALLOWED),
@@ -978,7 +1021,22 @@ class AIcXmlDefsFrontend:
     def _shape(self, context, name, request, resource, visited):
         root, namespaces = resource
         if not name:
-            if self._child(context, 'complexType') is not None: return _AIcdXmlShape(AInDataTypeKind.OBJECT)
+            content = self._child(context, 'complexType')
+            if content is not None:
+                if content is self._root_type(root):
+                    return _AIcdXmlShape(AInDataTypeKind.OBJECT)
+                inline_name = next((inline_name for inline_name, candidate
+                                    in self._inline_content_types(root) if candidate is content), None)
+                if inline_name is None:
+                    raise ValueError('Unresolved anonymous XML content type')
+                import re
+                logical = re.sub(r'[^A-Za-z0-9]+', '-',
+                    re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', inline_name)).lower()
+                parsed = self._identities.from_file(request,
+                    int(root.get('version')) if root.get('version', '').isdigit() else None)
+                return _AIcdXmlShape(AInDataTypeKind.REFERENCE,
+                    reference=AIcdDefinitionReference('#@type/' + inline_name,
+                        parsed.version, logical, AIcdDataType(AInDataTypeKind.OBJECT)))
             simple = self._child(context, 'simpleType')
             return _AIcdXmlShape(AInDataTypeKind.ANY) if simple is None else self._simple_shape(simple, request, resource, visited)
         local = name.split(':')[-1]

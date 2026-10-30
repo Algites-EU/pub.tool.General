@@ -13,6 +13,7 @@ import sys
 from inspect import isclass
 from typing import get_type_hints, get_args, get_origin, Union
 from types import UnionType
+from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject
 from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object_namespace import AIiXmlDataObjectNamespace
@@ -485,7 +486,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             if not getter.isidentifier() or not suffix.isidentifier():
                 raise ValueError('Invalid field getter: ' + getter)
             nested_details = _nested_contract(read_contract, getter, name)
-            nested_type = (('list[' + names_for(nested_details[0])[0] + ']'
+            keyed_collection = get_origin(_unwrap_optional(_field_annotation(read_contract, getter, name))[0]) is AIiMultiMappedList
+            nested_type = ((('AIiMultiMappedList[' if keyed_collection else 'list[') + names_for(nested_details[0])[0] + ']' 
                 if nested_details[2] else names_for(nested_details[0])[0])
                 + (' | None' if nested_details[1] else '')) if nested_details else None
             if technology == 'xmldefs':
@@ -498,13 +500,16 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     xml_nested_imports[name] = nested_concrete_module + ':' + nested_concrete
             typed_value = nested_type or 'object'
             variable = type_variables.get(name)
-            interface_type = ((f'list[{variable}]' if nested_details[2] else variable)
+            interface_type = (((f'AIiMultiMappedList[{variable}]' if keyed_collection else f'list[{variable}]') if nested_details[2] else variable)
                               + (' | None' if nested_details[1] else '')) if variable else typed_value
             if nested_type is not None:
                 nested_class = nested_details[0]
                 nested_name = names_for(nested_class)[0]
                 nested_package = nested_class.__module__.rsplit('.', 1)[0]
                 nested_file = stem_for(nested_name, True, nested_class)
+                if keyed_collection:
+                    mutable_imports.append('from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList')
+                    concrete_imports.append('from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList')
                 mutable_imports.append(f'from {subpackage(nested_package, mutable_subpackage)}.{nested_file} import {nested_name}')
                 concrete_imports.append(f'from {subpackage(nested_package, mutable_subpackage)}.{nested_file} import {nested_name}')
             if nested_type is not None:
@@ -608,7 +613,7 @@ def _nested_contract(read_contract: type, getter: str, field_name: str = '') -> 
     """Discover referenced contracts under optional single values and repeated collections."""
     annotation, nullable = _unwrap_optional(_field_annotation(read_contract, getter, field_name))
     repeated = False
-    if get_origin(annotation) in (list, tuple):
+    if get_origin(annotation) in (list, tuple, AIiMultiMappedList):
         args = get_args(annotation)
         if args:
             repeated = True
@@ -621,8 +626,8 @@ def _nested_contract(read_contract: type, getter: str, field_name: str = '') -> 
 def _repeated_contract_field(read_contract: type, getter: str, field_name: str, descriptor) -> bool:
     """Recognize XML repeated element contracts even when the items are scalars."""
     annotation, _ = _unwrap_optional(_field_annotation(read_contract, getter, field_name))
-    return (get_origin(annotation) in (list, tuple)
-            or getattr(descriptor, 'expected_type', None) in (list, tuple))
+    return (get_origin(annotation) in (list, tuple, AIiMultiMappedList)
+            or getattr(descriptor, 'expected_type', None) in (list, tuple, AIiMultiMappedList))
 
 
 def _default_field_title(name: str) -> str:

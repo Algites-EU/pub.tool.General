@@ -115,6 +115,15 @@ public final class AIcSchemaContractInterfaceGenerator {
             String propertyType = AIcRecursiveContractType.render(property, aRequest, names,
                     true, java.util.Set.of());
             rows.add(fieldLabelAnnotation(property));
+            if (!property.dataType().keyDefinitions().isEmpty()
+                    && property.dataType().kind() == AInDataTypeKind.ARRAY) {
+                for (var locKey : property.dataType().keyDefinitions()) {
+                    String locFields = locKey.fields().stream()
+                            .map(AIcScalarGeneration::jquote).reduce((a, b) -> a + ", " + b).orElseThrow();
+                    rows.add("    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition(name = "
+                            + AIcScalarGeneration.jquote(locKey.name()) + ", fields = {" + locFields + "})");
+                }
+            }
             rows.add("    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = "
                     + AIcScalarGeneration.jquote(property.sourceName())
                     + ", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind." + property.presence().name()

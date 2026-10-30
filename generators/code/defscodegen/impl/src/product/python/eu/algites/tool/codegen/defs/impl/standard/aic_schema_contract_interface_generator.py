@@ -149,6 +149,7 @@ class AIcSchemaContractInterfaceGenerator:
         metadata_rows = []
         label_rows = []
         xml_field_rows = []
+        xml_key_rows = []
         has_temporal = False
         for field_order, prop in enumerate(model.data_type.properties):
             name = _property_name(self.names.property_name(prop.source_name, request.naming_profile))
@@ -170,6 +171,10 @@ class AIcSchemaContractInterfaceGenerator:
             title = _visible_title(prop.title, prop.source_name)
             entries = (f'(AIaFieldLabel.Entry(roleCode=AIaFieldLabel.FIELD_DESCRIPTION, label={prop.description!r}),)'
                 if prop.description else '()')
+            if prop.data_type.kind is AInDataTypeKind.ARRAY and prop.data_type.key_definitions:
+                xml_key_rows.append('        ' + repr(prop.source_name) + ': '
+                    + repr(tuple((entry.name, tuple(entry.fields))
+                                 for entry in prop.data_type.key_definitions)) + ',')
             if prop.xml_field is not None:
                 wire = prop.xml_field
                 xml_field_rows.append(f'        {prop.source_name!r}: AIaXmlDataObjectField('
@@ -179,12 +184,25 @@ class AIcSchemaContractInterfaceGenerator:
                     f'wildcard_namespace={wire.wildcard_namespace!r}, '
                     f'wildcard_process_contents={wire.wildcard_process_contents!r}),')
             label_rows.append(f'        {prop.source_name!r}: AIaFieldLabel(label={title!r}, labels={entries}),')
+            expected_type = None
+            if model.source_kind is AInDefinitionSourceKind.XMLDEFS:
+                expected_type = {
+                    AInDataTypeKind.STRING: 'str', AInDataTypeKind.INTEGER: 'int',
+                    AInDataTypeKind.NUMBER: 'Decimal', AInDataTypeKind.BOOLEAN: 'bool',
+                }.get(prop.data_type.kind)
+                if array:
+                    expected_type = 'AIiMultiMappedList' if prop.data_type.key_definitions else 'list'
             field_decorator = ('    @AIaDataObjectField(field_name=' + repr(prop.source_name)
                 + ', presence=AInFieldPresenceKind.' + prop.presence.name
                 + ', allows_null=' + str(bool(prop.nullable))
+                + (', expected_type=' + expected_type if expected_type else '')
                 + ', setter_inheritance_policy=AInFieldSetterInheritancePolicy.' + effective_default().name + ')')
+            if expected_type == 'AIiMultiMappedList':
+                ref_imports.add('from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList')
             getter_type = ''
-            if reference is not None and not array and not reference.targets_enum:
+            if ((reference is not None and not array and not reference.targets_enum)
+                    or (array and prop.data_type.element_type is not None
+                        and prop.data_type.element_type.referenced_definition() is not None)):
                 getter_type = f' -> {kind_type}' + (' | None' if prop.nullable else '')
             getter_rows.extend([field_decorator, f'    @AIaFieldLabel(label={title!r}, labels={entries})',
                 '    @abstractmethod', f'    def {getter_name}(self){getter_type}:',
@@ -239,6 +257,9 @@ class AIcSchemaContractInterfaceGenerator:
             xml_metadata = ('    __xml_data_object__ = AIaXmlDataObject('
                 f'definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace={namespace!r}, '
                 f'namespace_local_name={local!r})\n')
+        if xml_key_rows:
+            xml_metadata += ('    __xml_key_definitions__ = {\n'
+                + '\n'.join(xml_key_rows) + '\n    }\n')
         if xml_field_rows:
             xml_imports += ('from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField\n'
                 'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValueKind\n')
@@ -335,6 +356,11 @@ class AIcSchemaContractInterfaceGenerator:
                     + ', presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.' + prop.presence.name
                     + ', allowsNull = ' + str(bool(prop.nullable)).lower()
                     + ', setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.' + effective_default().name + ')'])
+            if prop.data_type.kind is AInDataTypeKind.ARRAY:
+                for key in prop.data_type.key_definitions:
+                    fields = ', '.join(_java_quote(field) for field in key.fields)
+                    rows.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition('
+                                + 'name = ' + _java_quote(key.name) + ', fields = {' + fields + '})')
             if prop.xml_field is not None:
                 wire = prop.xml_field
                 rows.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField('

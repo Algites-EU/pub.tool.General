@@ -377,6 +377,15 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     .append(locFieldPolicies.get(locName)).append(")\n");
             locInterface.append("    ").append(fieldLabelAnnotation(locGetter, locName));
             locInterface.append("    ").append(xmlFieldAnnotation(locGetter));
+            for (var locKey : locGetter.getAnnotationsByType(
+                    eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition.class)) {
+                String locPaths = java.util.Arrays.stream(locKey.fields())
+                        .map(aPath -> "\"" + escape(aPath) + "\"")
+                        .collect(java.util.stream.Collectors.joining(", "));
+                locInterface.append("    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition(name = \"")
+                        .append(escape(locKey.name())).append("\", fields = {")
+                        .append(locPaths).append("})\n");
+            }
             locInterface.append("    ").append(defaultValueAnnotation(locGetter));
             locInterface.append("    ").append(smartFieldAnnotation(locGetter));
             locInterface.append("    @Override ").append(locInterfaceType).append(' ')
@@ -457,7 +466,17 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     .append("     */\n")
                     .append("    public static ").append(locConcrete).append(" fromXml(String aXml) {\n")
                     .append("        return eu.algites.lib.data.smartdataobject.impl.xmldefs.AIcXmlSmartDataObject.fromXml(\n")
-                    .append("                aXml, ").append(locConcrete).append(".class, ");
+                    .append("                aXml, ").append(locConcrete).append(".class, xmlNestedTypes());\n")
+                    .append("    }\n")
+                    .append("    /**\n")
+                    .append("     * Return the generated direct-child concrete type associations used to\n")
+                    .append("     * resolve nested XML content, including during recursion.\n")
+                    .append("     *\n")
+                    .append("     * @return immutable mapping from local field identity to generated SDO class\n")
+                    .append("     */\n")
+                    .append("    public static java.util.Map<String, Class<? extends ")
+                    .append("eu.algites.lib.data.smartdataobject.impl.xmldefs.AIcXmlSmartDataObject>> xmlNestedTypes() {\n")
+                    .append("        return ");
             var locNested = new java.util.LinkedHashMap<String, String>();
             for (var locField : locAll.values()) {
                 Method locGetter = locField.method();
@@ -471,7 +490,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                         aConcreteSubpackage));
             }
             if (locNested.isEmpty()) {
-                locImplementation.append("java.util.Map.of());\n");
+                locImplementation.append("java.util.Map.of();\n");
             } else {
                 locImplementation.append("java.util.Map.ofEntries(\n");
                 int locIndex = 0;
@@ -481,7 +500,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                             .append(escape(locEntry.getKey())).append("\", ")
                             .append(locEntry.getValue()).append(".class)");
                 }
-                locImplementation.append("));\n");
+                locImplementation.append(");\n");
             }
             locImplementation.append("    }\n");
         }
@@ -928,8 +947,9 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * @return true if its setter supports a generic value parameter
      */
     private static boolean supportsGenericSetterValue(Method aGetter) {
-        return referencedContract(aGetter) != null
-                || java.util.List.class.isAssignableFrom(aGetter.getReturnType());
+        return !eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(aGetter.getReturnType())
+                && (referencedContract(aGetter) != null
+                    || java.util.List.class.isAssignableFrom(aGetter.getReturnType()));
     }
 
     /**
@@ -1007,6 +1027,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableNames,
             AIcNameConventionCatalog aConcreteNames, String aMutableSubpackage) {
         Class<?> locReturn = aGetter.getReturnType();
+        if (eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locReturn))
+            return aGetter.getGenericReturnType().getTypeName().replace('$', '.');
         if (isReadContract(locReturn)) {
             return qualifiedMutableValueName(locReturn, aMarker,
                     aInput, aMutableNames, aConcreteNames, aMutableSubpackage);
