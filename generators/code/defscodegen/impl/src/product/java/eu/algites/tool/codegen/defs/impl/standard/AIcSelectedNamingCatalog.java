@@ -51,7 +51,7 @@ final class AIcSelectedNamingCatalog implements AIiNameConventionCatalog {
      * @return selected method name, or empty when the profile does not define it
      * @throws IllegalArgumentException if a configured literal is malformed
      */
-    String generatedMethodLiteral(String role) {
+    @Override public String generatedMethodLiteral(String role) {
         return catalog.generatedMethodLiteral(role);
     }
 
@@ -69,6 +69,14 @@ final class AIcSelectedNamingCatalog implements AIiNameConventionCatalog {
     /** {@inheritDoc} */
     @Override public Map<String, String> parse(String aProfile, String aStructure, String aName) {
         return catalog.parse(aProfile, aStructure, aName);
+    }
+    /** {@inheritDoc} */
+    @Override public String convertIdentifierByDeclaredStyle(String aValue, String aSource, String aTarget) {
+        return catalog.convertIdentifierByDeclaredStyle(aValue, aSource, aTarget);
+    }
+    /** {@inheritDoc} */
+    @Override public String identifierConvention(String aProfile, String aStructure) {
+        return catalog.identifierConvention(aProfile, aStructure);
     }
     /** {@inheritDoc} */
     @Override public boolean matches(String aProfile, String aStructure, String aName) {

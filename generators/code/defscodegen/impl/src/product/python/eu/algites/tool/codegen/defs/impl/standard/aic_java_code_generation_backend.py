@@ -29,21 +29,38 @@ class AIcJavaCodeGenerationBackend:
                 self._enum_constant(value, request)
                 for value in request.definition.enum_values
             )
+            const_rows = "\n".join(
+                '        /** Canonical serialized field name for enum member '
+                + self.names.enum_constant(value.value, request.naming_profile) + '. */\n'
+                + '        String ' + self.names.enum_field_name_constant(value.value, request.naming_profile)
+                + ' = ' + _java_quote(value.value) + ';'
+                for value in request.definition.enum_values
+            )
             source = (
                 f"package {request.package_name};\n\n"
                 f"{self._type_javadoc(request.definition)}"
-                f"public enum {type_name} {{\n{body};\n\n"
+                f"public enum {type_name} implements eu.algites.lib.common.enums.AIiEnumItem {{\n{body};\n\n"
+                f"    /** Canonical identity of this schema definition. */\n"
                 f"    public static final String CANONICAL_SOURCE_ID = {_java_quote(request.definition.identity)};\n"
+                f"    /** Version of this schema definition. */\n"
                 f"    public static final Integer CANONICAL_SOURCE_VERSION = {_java_integer(request.definition.version)};\n"
+                f"    /** Source location of the schema definition. */\n"
                 f"    public static final String CANONICAL_SOURCE_RESOURCE = {_java_quote(request.definition.source_resource)};\n\n"
-                "    private final String wireValue;\n\n"
-                f"    {type_name}(String aWireValue) {{\n        wireValue = aWireValue;\n    }}\n\n"
+                "    private final String code;\n\n"
+                f"    {type_name}(String aCode) {{\n        code = aCode;\n    }}\n\n"
                 "    /**\n"
-                "     * Returns the exact serialized value declared by the canonical definition.\n"
+                "     * Returns the exact serialized enum value, independently of the Java enum name.\n"
                 "     *\n"
-                "     * @return canonical wire value\n"
+                "     * @return canonical wire-level code\n"
                 "     */\n"
-                "    public String wireValue() {\n        return wireValue;\n    }\n"
+                "    @Override public String code() {\n        return code;\n    }\n\n"
+                "    /**\n"
+                "     * Schema-defined serialized enum codes. These constants preserve the\n"
+                "     * original wire values independently of Java member identifiers.\n"
+                "     */\n"
+                "    public interface CONST {\n"
+                f"{const_rows}\n"
+                "    }\n"
                 "}\n"
             )
         else:
@@ -81,7 +98,7 @@ class AIcJavaCodeGenerationBackend:
             "    /**\n"
             f"     * {description}\n"
             "     */\n"
-            f"    {constant_name}({_java_quote(value.value)})"
+            f"    {constant_name}(CONST.{self.names.enum_field_name_constant(value.value, request.naming_profile)})"
         )
 
     def _schema_field_constants(self, request) -> str:
@@ -107,7 +124,7 @@ class AIcJavaCodeGenerationBackend:
         description = cls._doc(definition.description, f"Generated representation of canonical definition {definition.logical_name}.")
         rows = ["/**", f" * {description}", " *", f" * <p>Generated from canonical definition {cls._escape(definition.identity)}/{definition.version}. Source: {cls._escape(definition.source_resource)}. Do not edit manually.</p>"]
         rows.extend(parameter_docs)
-        rows.append(" */")
+        rows.extend([" *", " * @author linhart1", " */"])
         return "\n".join(rows) + "\n"
 
     @staticmethod

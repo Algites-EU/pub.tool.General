@@ -62,6 +62,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
     @Override
     public AIcdCanonicalDefinition load(AIcdDefinitionLoadRequest aRequest) throws IOException {
         Element locSchema = schema(aRequest.path());
+        validateNamedTypes(locSchema, aRequest);
         var locParsed = identities.fromFileName(aRequest, integer(locSchema.getAttribute("version")));
         String locIdentity = locSchema.getAttribute("targetNamespace");
         if (locIdentity.isBlank()) locIdentity = locParsed.logicalName();
@@ -99,6 +100,27 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
      * @return closed recursive type, or null when no direct choice is declared
      * @throws IOException when the choice lies outside the supported exact-one subset
      */
+    /**
+     * Resolve an explicitly declared XML type using the same lexical-to-canonical
+     * conversion as named JSON/YAML definitions.
+     *
+     * @param name name declared by the XSD type
+     * @param request source naming context
+     * @return canonical local identifier
+     * @throws IllegalArgumentException if the type violates its source profile
+     */
+    private static String typeIdentifier(String name, AIcdDefinitionLoadRequest request) {
+        return AIcDeclaredTypeIdentity.canonicalTypeIdentifier(request.namingProfile(),
+                AIcDefinitionIdentityResolver.sourceProfile(request), name);
+    }
+
+    /** Validate every global XSD type before loading or referencing it. */
+    private static void validateNamedTypes(Element schema, AIcdDefinitionLoadRequest request) {
+        for (Element type : children(schema, "complexType", "simpleType")) {
+            if (type.hasAttribute("name")) typeIdentifier(type.getAttribute("name"), request);
+        }
+    }
+
     private AIcdDataType rootChoice(Element aType, AIcdDefinitionLoadRequest aRequest,
             Element aSchema) throws IOException {
         Element locChoice = child(aType, "choice");
@@ -114,16 +136,62 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
         List<Element> locBranches = children(locChoice);
         if (locBranches.isEmpty()) throw new IOException("Empty XSD choice in " + aRequest.path());
         List<AIcdDataType> locAlternatives = new ArrayList<>();
-        List<AIcdPropertyDefinition> locFields = new ArrayList<>();
-        elements(locChoice, false, aRequest, aSchema, locFields);
-        if (locFields.size() != locBranches.size())
-            throw new IOException("Invalid XSD choice projection in " + aRequest.path());
         for (Element locBranch : locBranches) {
-            if (!"element".equals(locBranch.getLocalName())
-                    || locBranch.hasAttribute("name") == locBranch.hasAttribute("ref")
-                    || locBranch.hasAttribute("minOccurs") || locBranch.hasAttribute("maxOccurs"))
+            if (locBranch.hasAttribute("minOccurs") || locBranch.hasAttribute("maxOccurs"))
+                throw new IOException("Unsupported XSD choice occurrence in " + aRequest.path());
+            String locKind = locBranch.getLocalName();
+            if (!("element".equals(locKind) || "sequence".equals(locKind)))
                 throw new IOException("Unsupported XSD choice branch in " + aRequest.path());
-            locAlternatives.add(AIcdDataType.object(List.of(locFields.get(locAlternatives.size()))));
+            List<AIcdPropertyDefinition> locFields = new ArrayList<>();
+            if ("sequence".equals(locKind)) {
+                elements(locBranch, false, aRequest, aSchema, locFields);
+            } else {
+                /* An element particle is parsed under a temporary, syntactic
+                 * sequence wrapper: neither its name nor any naming suffix
+                 * is used to infer the meaning of the choice branch. */
+                Element locWrapper = aSchema.getOwnerDocument().createElementNS(XS, "xs:sequence");
+                locWrapper.appendChild(locBranch.cloneNode(true));
+                aSchema.appendChild(locWrapper);
+                try {
+                    elements(locWrapper, false, aRequest, aSchema, locFields);
+                } finally {
+                    aSchema.removeChild(locWrapper);
+                }
+            }
+            if (locFields.isEmpty()) throw new IOException("Empty XSD choice branch in " + aRequest.path());
+            /* Recognize an existing nominal branch exclusively by its content
+             * model, without requiring any particular type-name suffix. */
+            List<String> locMatchingTypes = new ArrayList<>();
+            for (Element locCandidate : children(aSchema, "complexType")) {
+                if (locCandidate == aType) continue;
+                List<AIcdPropertyDefinition> locCandidateFields = complexProperties(
+                        locCandidate, aRequest, aSchema, new HashSet<>());
+                if (locCandidateFields.size() != locFields.size()) continue;
+                boolean locEquivalent = true;
+                for (int locIndex = 0; locIndex < locFields.size(); locIndex++) {
+                    var left = locFields.get(locIndex);
+                    var right = locCandidateFields.get(locIndex);
+                    if (!left.sourceName().equals(right.sourceName())
+                            || !left.dataType().equals(right.dataType())
+                            || !Objects.equals(left.xmlField(), right.xmlField())
+                            || left.nullable() != right.nullable()) {
+                        locEquivalent = false;
+                        break;
+                    }
+                }
+                if (locEquivalent) locMatchingTypes.add(locCandidate.getAttribute("name"));
+            }
+            if (locMatchingTypes.size() > 1) throw new IOException(
+                    "Ambiguous structurally equivalent XSD choice branch: " + locMatchingTypes);
+            if (locMatchingTypes.isEmpty()) {
+                locAlternatives.add(AIcdDataType.object(locFields));
+            } else {
+                String locName = locMatchingTypes.get(0);
+                var locParsed = identities.fromFileName(aRequest, integer(aSchema.getAttribute("version")));
+                locAlternatives.add(AIcdDataType.reference(new AIcdDefinitionReference(
+                        "#@type/" + locName, locParsed.version(), typeIdentifier(locName, aRequest),
+                        AIcdDataType.object(List.of()))));
+            }
         }
         return AIcdDataType.choice(AInDataTypeKind.ONE_OF, locAlternatives);
     }
@@ -296,6 +364,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
     public AIcdCanonicalDefinition loadNamedType(AIcdDefinitionLoadRequest aRequest, String aName)
             throws IOException {
         Element locSchema = schema(aRequest.path());
+        validateNamedTypes(locSchema, aRequest);
         Element locType = namedType(locSchema, aName);
         if (locType == null) {
             for (Element locInline : inlineComplexTypes(locSchema)) {
@@ -312,8 +381,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
         var locParsed = identities.fromFileName(aRequest, integer(locSchema.getAttribute("version")));
         String locIdentity = locSchema.getAttribute("targetNamespace");
         if (locIdentity.isBlank()) locIdentity = locParsed.logicalName();
-        String locLogical = aName.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-                .replaceAll("[^A-Za-z0-9]+", "-").toLowerCase(java.util.Locale.ROOT);
+        String locLogical = typeIdentifier(aName, aRequest);
         if (locSynthetic != null) return new AIcdCanonicalDefinition(
                 locIdentity, locParsed.version(), locLogical, sourceKind(),
                 aRequest.path() + "#@type/" + aName, documentation(locSynthetic),
@@ -344,6 +412,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
     public String namedTypeExtensionBaseQName(AIcdDefinitionLoadRequest aRequest, String aName)
             throws IOException {
         Element locSchema = schema(aRequest.path());
+        validateNamedTypes(locSchema, aRequest);
         Element locType = namedType(locSchema, aName);
         if (locType == null) {
             for (Element locInline : inlineComplexTypes(locSchema)) {
@@ -399,6 +468,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
     /** Expanded QName of the XSD content type projected by load(). */
     public String rootTypeQName(AIcdDefinitionLoadRequest aRequest) throws IOException {
         Element locSchema = schema(aRequest.path());
+        validateNamedTypes(locSchema, aRequest);
         Element locType = rootType(locSchema);
         String locName = locType == null ? "__root__" : locType.getAttribute("name");
         return "{" + locSchema.getAttribute("targetNamespace") + "}"
@@ -416,6 +486,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
      */
     public String rootExtensionBaseQName(AIcdDefinitionLoadRequest aRequest) throws IOException {
         Element locSchema = schema(aRequest.path());
+        validateNamedTypes(locSchema, aRequest);
         return extensionBaseQName(locSchema, rootType(locSchema), aRequest.path());
     }
 
@@ -847,8 +918,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                     if (locOrdinal <= 0) throw new IOException("Cannot identify XSD choice ordinal");
                     String locChoiceName = locOwner.getAttribute("name") + "Choice" + locOrdinal;
                     var locParsed = identities.fromFileName(aRequest, integer(aSchema.getAttribute("version")));
-                    String locLogical = locChoiceName.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-                            .replaceAll("[^A-Za-z0-9]+", "-").toLowerCase(java.util.Locale.ROOT);
+                    String locLogical = typeIdentifier(locChoiceName, aRequest);
                     var locReference = new AIcdDefinitionReference(
                             "#@type/" + locChoiceName,
                             locParsed.version(), locLogical, syntheticChoiceType(locElement, aRequest, aSchema));
@@ -1244,8 +1314,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                     return new AIcdShape(AInDataTypeKind.OBJECT, null, null);
                 String locName = syntheticInlineName(aContext);
                 var locParsed = identities.fromFileName(aRequest, integer(aSchema.getAttribute("version")));
-                String locLogical = locName.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-                        .replaceAll("[^A-Za-z0-9]+", "-").toLowerCase(java.util.Locale.ROOT);
+                String locLogical = typeIdentifier(locName, aRequest);
                 return new AIcdShape(AInDataTypeKind.REFERENCE, null,
                         new AIcdDefinitionReference("#@type/" + locName, locParsed.version(),
                                 locLogical, AIcdDataType.atom(AInDataTypeKind.OBJECT, null)));
@@ -1271,8 +1340,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                 /* A local named complexType has its own generated contract.
                    Preserve the reference instead of turning it into an opaque map. */
                 var locParsed = identities.fromFileName(aRequest, integer(aSchema.getAttribute("version")));
-                String locLogical = locLocal.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-                        .replaceAll("[^A-Za-z0-9]+", "-").toLowerCase(java.util.Locale.ROOT);
+                String locLogical = typeIdentifier(locLocal, aRequest);
                 /* The selected primary type is emitted as the source root,
                  * not as a separate @type sibling. */
                 boolean locPrimary = locType == rootType(aSchema);

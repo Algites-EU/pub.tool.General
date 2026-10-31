@@ -18,8 +18,7 @@ final class AIcGenerationNames {
     private static String type(AIiNameConventionCatalog aCatalog, String aIdentifier, Integer aVersion,
             AInDefsNameRole aRole, String aStructure) {
         String locProfile = selected(aCatalog, aRole);
-        /* Derived schema-pointer ordinals must not imitate a filename version suffix. */
-        String locIdentifier = aIdentifier.replaceAll("(?<=[a-z])-(?=[0-9]+(?:-|$))", "");
+        String locIdentifier = aIdentifier;
         Map<String, String> locVariables = aVersion == null
                 ? Map.of("identifier", locIdentifier)
                 : Map.of("identifier", locIdentifier, "version", aVersion.toString());
@@ -27,7 +26,7 @@ final class AIcGenerationNames {
     }
 
     String typeName(AIcdCanonicalDefinition aDefinition, AIiNameConventionCatalog aProfile, AInDefsNameRole aKind) {
-        return type(aProfile, aDefinition.logicalName(), aDefinition.version(), aKind, "main_container_name");
+        return type(aProfile, aDefinition.logicalName(), aDefinition.version(), aKind, "type_name");
     }
 
     String fileStem(AIcdCanonicalDefinition aDefinition, AIiNameConventionCatalog aProfile, AInDefsNameRole aKind) {
@@ -36,7 +35,7 @@ final class AIcGenerationNames {
 
     String referenceTypeName(String aName, Integer aVersion, AIiNameConventionCatalog aProfile, AInDefsNameRole aKind) {
         return type(aProfile, aName, aVersion, aKind,
-                aKind.name().endsWith("FILE_STEM") ? "file_name_stem" : "main_container_name");
+                aKind.name().endsWith("FILE_STEM") ? "file_name_stem" : "type_name");
     }
 
     /**
@@ -112,6 +111,21 @@ final class AIcGenerationNames {
 
     String enumConstant(String aName, AIiNameConventionCatalog aProfile) {
         return property(aProfile, aName, "enum_item_name", "lower_snake_case_1", AInDefsNameRole.INTERFACE_TYPE);
+    }
+
+    /**
+     * Renders an enum's serialized field-name constant using the configured constant convention.
+     *
+     * @param aWireValue exact serialized enum item code
+     * @param aProfile active naming catalog with an explicit output role
+     * @return qualified constant identifier with a double-underscore boundary
+     */
+    String enumFieldNameConstant(String aWireValue, AIiNameConventionCatalog aProfile) {
+        String locPrefix = property(aProfile, "field_name", "constant_name",
+                "lower_snake_case_1", AInDefsNameRole.INTERFACE_TYPE);
+        String locItem = property(aProfile, aWireValue, "constant_name",
+                "lower_snake_case_1", AInDefsNameRole.INTERFACE_TYPE);
+        return String.join("_", locPrefix, "", locItem);
     }
 
     /**

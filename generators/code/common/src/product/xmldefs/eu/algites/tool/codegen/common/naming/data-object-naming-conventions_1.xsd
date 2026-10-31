@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:common="eu.algites.lib.naming.convention.common-naming-conventions"
-           xmlns:kind="eu.algites.tool.codegen.common.naming.generated-dataobject-method-kind"
+           xmlns:kind="eu.algites.tool.codegen.common.naming.generated-dataobject-structure-kind"
            xmlns:metadata="eu.algites.tool.codegen.common.naming.generated-dataobject-schema-metadata-kind"
            targetNamespace="eu.algites.tool.codegen.common.naming.data-object-naming-conventions" version="1">
 	<xs:annotation>
@@ -10,13 +10,13 @@
 	</xs:annotation>
 	<xs:import namespace="eu.algites.lib.naming.convention.common-naming-conventions"
 	           schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"/>
-	<xs:import namespace="eu.algites.tool.codegen.common.naming.generated-dataobject-method-kind"
-	           schemaLocation="generated-dataobject-method-kind_1.xsd"/>
+	<xs:import namespace="eu.algites.tool.codegen.common.naming.generated-dataobject-structure-kind"
+	           schemaLocation="generated-dataobject-structure-kind_1.xsd"/>
 	<xs:import namespace="eu.algites.tool.codegen.common.naming.generated-dataobject-schema-metadata-kind"
 	           schemaLocation="generated-dataobject-schema-metadata-kind_1.xsd"/>
-	<xs:complexType name="data-object-naming-conventions">
+	<xs:complexType name="DataObjectNamingConventions">
 		<xs:complexContent>
-			<xs:extension base="common:common-naming-conventions">
+			<xs:extension base="common:CommonNamingConventions">
 				<xs:sequence>
 					<xs:element name="GeneratedDataObjectMethodNameConventions">
 						<xs:complexType>
@@ -35,7 +35,7 @@
 																			<xs:simpleContent>
 																				<xs:extension base="xs:string">
 																					<xs:attribute name="kind"
-																					              type="kind:generated-dataobject-method-kind"
+																					              type="kind:GeneratedDataobjectStructureKind"
 																					              use="required"/>
 																				</xs:extension>
 																			</xs:simpleContent>
@@ -56,7 +56,7 @@
 																			<xs:simpleContent>
 																				<xs:extension base="xs:string">
 																					<xs:attribute name="kind"
-																					              type="metadata:generated-dataobject-schema-metadata-kind"
+																					              type="metadata:GeneratedDataobjectSchemaMetadataKind"
 																					              use="required"/>
 																				</xs:extension>
 																			</xs:simpleContent>

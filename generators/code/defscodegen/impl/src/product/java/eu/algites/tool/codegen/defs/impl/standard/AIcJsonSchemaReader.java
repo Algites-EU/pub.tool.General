@@ -159,8 +159,7 @@ final class AIcJsonSchemaReader {
         if (ref != null) {
             String resource = ref.split("#", 2)[0];
             Path referencedPath = referencePath(resource, request);
-            String stem = AIcDefinitionIdentityResolver.stripDefinitionExtensions(referencedPath.getFileName().toString());
-            AIcdParsedVersionedName parsed = AIcDefinitionIdentityResolver.parseVersionedStem(stem, null);
+            AIcdParsedVersionedName parsed = new AIcDefinitionIdentityResolver().fromFileName(new AIcdDefinitionLoadRequest(referencedPath, request.sourceKind(), request.namingProfile()), null);
             AInDataTypeKind targetKind = detectReferencedKind(referencedPath);
             JsonNode locReferencedSchema;
             try {
@@ -262,12 +261,13 @@ final class AIcJsonSchemaReader {
                 if (locTokens.length == 2 && (locTokens[0].equals("$defs") || locTokens[0].equals("definitions"))
                         && (locResolved.has("properties") || "object".equals(text(locResolved, "type"))
                             || locResolved.has("enum") || locResolved.has("x-algites-defscodegen-choice"))) {
-                    String locStem = AIcDefinitionIdentityResolver.stripDefinitionExtensions(locTarget.getFileName().toString());
-                    AIcdParsedVersionedName locParsed = AIcDefinitionIdentityResolver.parseVersionedStem(locStem, null);
+                    AIcdParsedVersionedName locParsed = new AIcDefinitionIdentityResolver().fromFileName(new AIcdDefinitionLoadRequest(locTarget, aRequest.sourceKind(), aRequest.namingProfile()), null);
                     String locToken = locTokens[1].replace("~1", "/").replace("~0", "~");
-                    String locKebab = locToken.replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-                            .replaceAll("[^a-zA-Z0-9]+", "-").replaceAll("^-|-$", "")
-                            .toLowerCase(java.util.Locale.ROOT);
+                    String locProfile = AIcDefinitionIdentityResolver.sourceProfile(
+                            new AIcdDefinitionLoadRequest(locTarget, aRequest.sourceKind(),
+                                    aRequest.namingProfile(), aRequest.sourceNamingProfile()));
+                    String locIdentifier = AIcDeclaredTypeIdentity.canonicalTypeIdentifier(
+                            aRequest.namingProfile(), locProfile, locToken);
                     AInDataTypeKind locKind = localDefinitionKind(locResolved);
                     /* A back-edge carries the nominal identity without embedding
                      * the same named choice again in targetDataType. */
@@ -277,7 +277,7 @@ final class AIcJsonSchemaReader {
                                         aRequest.sourceKind(), aRequest.namingProfile()), aVisited)
                                 : AIcdDataType.atom(locKind, null);
                     return AIcdDataType.reference(new AIcdDefinitionReference(locRef, locParsed.version(),
-                            locParsed.logicalName() + "-definition-" + locKebab, locTargetType));
+                            locIdentifier, locTargetType));
                 }
                 if (!locEntered)
                     throw new IllegalArgumentException("Circular inline schema alias '" + locRef

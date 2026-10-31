@@ -37,6 +37,13 @@ import java.util.Objects;
 
 /** Generate mutable contracts and concrete SmartDataObjects from annotated read-only DataObject contracts. */
 public final class AIcSdoCodegenService implements AIiSdoCodegenService {
+    /**
+     * Schema model revision emitted by this generator binary. Bootstrap verifies
+     * it before reading read-contract classes, avoiding stale SNAPSHOT generators
+     * silently writing source incompatible with the current runtime.
+     */
+    public static final String KEYED_SDO_GENERATOR_REVISION = "indexed-collection-delegation-20261031-1";
+
     private record AIcdGetter(Method method, AIaDataObjectField field) { }
 
     /** {@inheritDoc} */
@@ -192,13 +199,13 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         if (locSourceConvention == null || locSourceConvention.isBlank())
             throw new IllegalArgumentException("Missing explicit input naming convention for " + locContractRole);
         Map<String, String> locParsedNames = aInputNames.parse(locSourceConvention,
-                "main_container_name", aReadContract.getSimpleName());
+                "type_name", aReadContract.getSimpleName());
         if (locSchemaId.isBlank()) {
             String locIdentifier = locParsedNames.get("identifier");
             if (locIdentifier == null || locIdentifier.isBlank())
                 throw new IllegalArgumentException("Input naming profile has no identifier: " + locSourceConvention);
             locSchemaId = locPackage + "." + AIcNameConventionCatalog.convertIdentifier(
-                    locIdentifier, aInputNames.identifierConvention(locSourceConvention, "main_container_name"),
+                    locIdentifier, aInputNames.identifierConvention(locSourceConvention, "type_name"),
                     "lower_kebab_case_1");
         }
         if (locSchemaVersion < 0) {
@@ -293,6 +300,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         String locMutableParents = locParentDeclarations.stream()
                 .reduce("", (aLeft, aRight) -> aLeft + ", " + aRight);
         String locConcreteParent = implementationBase(aReadContract);
+        Class<?> locMappedValue = mappedValueContract(aReadContract);
+        String locMappedValueName = locMappedValue == null ? null : locMappedValue.getCanonicalName();
         String locConcreteArguments = locTypeVariables.isEmpty() ? "" : "<" + String.join(", ",
                 locTypeVariables.keySet().stream().map(aName -> {
                     return genericSetterElementBound(locAll.get(aName).method(),
@@ -311,12 +320,89 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 + "/** Generated mutable implementation of " + aReadContract.getSimpleName() + ". */\n"
                 + locConcreteAnnotationLiteral
                 + "public class " + locConcrete + " extends " + locConcreteParent
-                + " implements " + locMutablePackage + "." + locMutable + locConcreteArguments + " {\n"
+                + " implements " + locMutablePackage + "." + locMutable + locConcreteArguments
+                + (locMappedValueName == null ? "" : ", eu.algites.lib.common.list.AIiMultiMappedListForwarding<" + locMappedValueName + ">")
+                + " {\n"
                 + "    /** Create an object whose raw fields are initially absent. */\n"
                 + "    public " + locConcrete + "() { super(); }\n"
                 + "    /** Reconstruct an identity-preserving typed SmartDataObject graph. */\n"
                 + "    public " + locConcrete
                 + "(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }\n");
+        if (locMappedValueName != null) {
+            locImplementation.append("    /** Ordered entries with the runtime's unique/grouped key indexes. */\n")
+                    .append("    private eu.algites.lib.common.list.AIcMultiMappedList<")
+                    .append(locMappedValueName).append("> mappedEntries = new eu.algites.lib.common.list.AIcMultiMappedList<>();\n")
+                    .append("    /** Construct a keyed list with explicit, stable schema index definitions.\n")
+                    .append("     * @param aDefinitions independently named, unique/grouped key definitions\n")
+                    .append("     * @throws IllegalArgumentException if a definition is repeated or invalid\n")
+                    .append("     */\n")
+                    .append("    public ").append(locConcrete)
+                    .append("(java.util.Collection<? extends eu.algites.lib.common.list.AIiKeyDefinition<")
+                    .append(locMappedValueName).append(", ?>> aDefinitions) {\n")
+                    .append("        super();\n")
+                    .append("        mappedEntries = new eu.algites.lib.common.list.AIcMultiMappedList<>(aDefinitions);\n")
+                    .append("    }\n")
+                    .append("    /** Ordered-list value equality as required by java.util.List.\n")
+                    .append("     * @param aOther object to compare\n")
+                    .append("     * @return true when the other list contains equivalent ordered elements\n")
+                    .append("     */\n")
+                    .append("    @Override public boolean equals(Object aOther) {\n")
+                    .append("        return aOther instanceof java.util.List<?> aList && mappedEntries.equals(aList);\n")
+                    .append("    }\n")
+                    .append("    /** @return standard order-sensitive Java List hash code */\n")
+                    .append("    @Override public int hashCode() { return mappedEntries.hashCode(); }\n")
+                    .append("    /** Return the real list/index delegate; no list state is duplicated.\n")
+                    .append("     * @return ordered entries and registered index views\n")
+                    .append("     */\n")
+                    .append("    @Override public eu.algites.lib.common.list.AIiMultiMappedList<")
+                    .append(locMappedValueName).append("> multiMappedDelegate() { return mappedEntries; }\n");
+        }
+        String locSyntheticKeyName = aInputNames.generatedMethodLiteral(
+                "multi_mapped_list_key_synthetic_getter");
+        Method locSyntheticKeyGetter = syntheticGetter(aReadContract, locSyntheticKeyName);
+        if (locSyntheticKeyGetter != null) {
+            if (!AIiJsonDataObject.class.isAssignableFrom(aReadContract)
+                    && !AIiYamlDataObject.class.isAssignableFrom(aReadContract))
+                throw new IllegalArgumentException("Virtual JSON/YAML map-entry keys cannot be XML fields: "
+                        + aReadContract.getName());
+            locImplementation.append("    /** Actual parent JSON/YAML object property name; never an embedded field. */\n")
+                    .append("    private String parentPropertyKey;\n")
+                    .append("    /** Construct an entry with its parent object's property name.\n")
+                    .append("     * @param aPropertyKey nonempty name of the parent object property\n")
+                    .append("     * @throws IllegalArgumentException if the key is absent\n")
+                    .append("     */\n")
+                    .append("    public ").append(locConcrete).append("(String aPropertyKey) {\n")
+                    .append("        super();\n")
+                    .append("        this.parentPropertyKey = requireParentPropertyKey(aPropertyKey);\n")
+                    .append("    }\n")
+                    .append("    /** Construct an entry populated from an identity-preserving field graph.\n")
+                    .append("     * @param aMapping typed field graph\n")
+                    .append("     * @param aPropertyKey actual parent property key\n")
+                    .append("     */\n")
+                    .append("    public ").append(locConcrete)
+                    .append("(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping, String aPropertyKey) {\n")
+                    .append("        super(aMapping);\n")
+                    .append("        this.parentPropertyKey = requireParentPropertyKey(aPropertyKey);\n")
+                    .append("    }\n")
+                    .append("    /** Require a nonempty external parent property name.\n")
+                    .append("     * @param aKey candidate property name\n")
+                    .append("     * @return the validated key\n")
+                    .append("     */\n")
+                    .append("    private static String requireParentPropertyKey(String aKey) {\n")
+                    .append("        if (aKey == null || aKey.isEmpty())\n")
+                    .append("            throw new IllegalArgumentException(\"Missing JSON/YAML parent property key\");\n")
+                    .append("        return aKey;\n")
+                    .append("    }\n")
+                    .append("    /** Return the actual external key, not a synthesized object field.\n")
+                    .append("     * @return the containing property name\n")
+                    .append("     * @throws IllegalStateException if the entry has no containing map key\n")
+                    .append("     */\n")
+                    .append("    @Override public String ").append(locSyntheticKeyName).append("() {\n")
+                    .append("        if (parentPropertyKey == null)\n")
+                    .append("            throw new IllegalStateException(\"Map entry has no parent property key\");\n")
+                    .append("        return parentPropertyKey;\n")
+                    .append("    }\n");
+        }
         for (var locField : locOwn.values()) {
             Method locGetter = locField.method();
             String locName = semanticFieldId(locField.method(), aInputNames);
@@ -595,6 +681,64 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 .append(aResolver.factoryClass().getCanonicalName()).append(".class")
                 .append(", factoryCategory = \"").append(escape(aResolver.factoryCategory())).append("\"")
                 .append(", factoryProviderId = \"").append(escape(aResolver.factoryProviderId())).append("\")");
+    }
+
+    /**
+     * Resolve the declared element type of a schema-generated mapped-list contract.
+     *
+     * <p>Traversal follows actual generic interface inheritance, never textual
+     * assumptions about generated class names or schema field spellings.
+     * A raw or unresolved mapped-list contract is unsupported because generating
+     * one would erase its published element type.
+     *
+     * @param aType source read-only DataObject contract
+     * @return the list element contract, or {@code null} for ordinary objects
+     * @throws IllegalArgumentException if an inherited mapped-list binding is unresolved
+     */
+    private static Class<?> mappedValueContract(Class<?> aType) {
+        if (!eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(aType)) return null;
+        for (Type locParent : aType.getGenericInterfaces()) {
+            if (locParent instanceof ParameterizedType locParameterized) {
+                Type locRaw = locParameterized.getRawType();
+                if (locRaw == eu.algites.lib.common.list.AIiMultiMappedList.class) {
+                    Type locValue = locParameterized.getActualTypeArguments()[0];
+                    if (locValue instanceof Class<?> locClass) return locClass;
+                    throw new IllegalArgumentException("Unresolved mapped-list element type: " + aType + " / " + locValue);
+                }
+                if (locRaw instanceof Class<?> locClass
+                        && eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locClass)) {
+                    Class<?> locResolved = mappedValueContract(locClass);
+                    if (locResolved != null) return locResolved;
+                }
+            } else if (locParent instanceof Class<?> locClass
+                    && eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locClass)) {
+                Class<?> locResolved = mappedValueContract(locClass);
+                if (locResolved != null) return locResolved;
+            }
+        }
+        throw new IllegalArgumentException("Missing typed AIiMultiMappedList ancestor: " + aType);
+    }
+
+    /**
+     * Find the virtual parent-map key accessor, which is not a schema field.
+     *
+     * @param aReadContract source type defining (or inheriting) the accessor
+     * @param aMethodName configured accessor name from the method naming catalog
+     * @return accessor or null when this is not a keyed map entry
+     * @throws IllegalArgumentException if the accessor has an invalid declaration
+     */
+    private static Method syntheticGetter(Class<?> aReadContract, String aMethodName) {
+        if (aMethodName == null || aMethodName.isBlank()) return null;
+        Method locMethod;
+        try {
+            locMethod = aReadContract.getMethod(aMethodName);
+        } catch (NoSuchMethodException locMissing) {
+            return null;
+        }
+        if (locMethod.getParameterCount() != 0 || locMethod.getReturnType() != String.class
+                || locMethod.getAnnotation(AIaDataObjectField.class) != null)
+            throw new IllegalArgumentException("Invalid synthetic map key accessor: " + locMethod);
+        return locMethod;
     }
 
     /** Choose the source-family mutable contract marker from the actual read interface. */
@@ -896,11 +1040,11 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         AIaDataObject locMetadata = aContract.getDeclaredAnnotation(AIaDataObject.class);
         String locSourceRole = locMetadata != null && !locMetadata.namingConvention().isBlank()
                 ? locMetadata.namingConvention() : aInput.selectedRole(locSemanticRole);
-        var locVars = aInput.parse(locSourceRole, "main_container_name", aContract.getSimpleName());
+        var locVars = aInput.parse(locSourceRole, "type_name", aContract.getSimpleName());
         AIcNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
         String locTargetRole = locTarget.selectedRole(locSemanticRole);
-        return locTarget.format(locTargetRole, "main_container_name", locVars,
-                aInput.identifierConvention(locSourceRole, "main_container_name"));
+        return locTarget.format(locTargetRole, "type_name", locVars,
+                aInput.identifierConvention(locSourceRole, "type_name"));
     }
 
     private static String fileName(String aType, boolean aMutable,
@@ -909,8 +1053,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         AIcNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
         if (locTarget == null) throw new IllegalArgumentException("Missing SDO output naming profile");
         String locRole = locTarget.selectedRole(aContractRole);
-        var locVars = locTarget.parse(locRole, "main_container_name", aType);
-        String locConvention = locTarget.identifierConvention(locRole, "main_container_name");
+        var locVars = locTarget.parse(locRole, "type_name", aType);
+        String locConvention = locTarget.identifierConvention(locRole, "type_name");
         return locTarget.format(locRole, "file_name_stem", locVars, locConvention)
                 + locTarget.format(locRole, "file_name_suffix", locVars, locConvention);
     }
@@ -947,9 +1091,10 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * @return true if its setter supports a generic value parameter
      */
     private static boolean supportsGenericSetterValue(Method aGetter) {
-        return !eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(aGetter.getReturnType())
-                && (referencedContract(aGetter) != null
-                    || java.util.List.class.isAssignableFrom(aGetter.getReturnType()));
+        return isReadContract(aGetter.getReturnType())
+                || (!eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(aGetter.getReturnType())
+                    && (referencedContract(aGetter) != null
+                        || java.util.List.class.isAssignableFrom(aGetter.getReturnType())));
     }
 
     /**
@@ -992,7 +1137,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
 
     /** Express a mutable getter and setter through the same interface-level variable. */
     private static String genericMutableValueType(Method aGetter, String aVariable) {
-        return java.util.List.class.isAssignableFrom(aGetter.getReturnType())
+        return !isReadContract(aGetter.getReturnType())
+                && java.util.List.class.isAssignableFrom(aGetter.getReturnType())
                 ? "java.util.List<? extends " + aVariable + ">" : aVariable;
     }
 
@@ -1027,12 +1173,12 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableNames,
             AIcNameConventionCatalog aConcreteNames, String aMutableSubpackage) {
         Class<?> locReturn = aGetter.getReturnType();
-        if (eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locReturn))
-            return aGetter.getGenericReturnType().getTypeName().replace('$', '.');
         if (isReadContract(locReturn)) {
             return qualifiedMutableValueName(locReturn, aMarker,
                     aInput, aMutableNames, aConcreteNames, aMutableSubpackage);
         }
+        if (eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locReturn))
+            return aGetter.getGenericReturnType().getTypeName().replace('$', '.');
         if (java.util.List.class.isAssignableFrom(locReturn)) {
             Class<?> locNested = referencedContract(aGetter);
             if (locNested != null) {

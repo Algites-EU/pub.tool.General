@@ -59,20 +59,30 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
         List<String> constants = request.definition().enumValues().stream()
                 .map(value -> enumConstantSource(value, request))
                 .toList();
+        String fieldNameConstants = request.definition().enumValues().stream()
+                .map(value -> "        /** Exact serialized value of "
+                        + names.enumConstant(value.value(), request.namingProfile()) + ". */\n"
+                        + "        String " + names.enumFieldNameConstant(value.value(), request.namingProfile())
+                        + " = " + quote(value.value()) + ";")
+                .collect(java.util.stream.Collectors.joining("\n"));
         return "package " + request.packageName() + ";\n\n" +
                 typeJavadoc(request.definition(), List.of()) +
-                "public enum " + typeName + " {\n" + String.join(",\n", constants) + ";\n\n" +
+                "public enum " + typeName + " implements eu.algites.lib.common.enums.AIiEnumItem {\n"
+                        + String.join(",\n", constants) + ";\n\n" +
+                "    /** Canonical identity of this schema definition. */\n" +
                 "    public static final String CANONICAL_SOURCE_ID = " + quote(request.definition().identity()) + ";\n" +
+                "    /** Version of this schema definition. */\n" +
                 "    public static final Integer CANONICAL_SOURCE_VERSION = " + request.definition().version() + ";\n" +
+                "    /** Source location of this schema definition. */\n" +
                 "    public static final String CANONICAL_SOURCE_RESOURCE = " + quote(request.definition().sourceResource()) + ";\n\n" +
-                "    private final String wireValue;\n\n" +
-                "    " + typeName + "(String aWireValue) {\n        wireValue = aWireValue;\n    }\n\n" +
-                "    /**\n" +
-                "     * Returns the exact serialized value declared by the canonical definition.\n" +
-                "     *\n" +
-                "     * @return canonical wire value\n" +
-                "     */\n" +
-                "    public String wireValue() {\n        return wireValue;\n    }\n" +
+                "    private final String code;\n\n" +
+                "    " + typeName + "(String aCode) {\n        code = aCode;\n    }\n\n" +
+                "    /**\n     * Returns the exact serialized enum code.\n     *\n"
+                        + "     * @return canonical wire-level code\n     */\n" +
+                "    @Override public String code() {\n        return code;\n    }\n\n" +
+                "    /**\n     * Schema-defined serialized enum codes. These constants are not derived\n" +
+                "     * from Java enum member names and must match the source schema exactly.\n     */\n" +
+                "    public interface CONST {\n" + fieldNameConstants + "\n    }\n" +
                 "}\n";
     }
 
@@ -89,7 +99,7 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
         return "    /**\n" +
                 "     * " + description + "\n" +
                 "     */\n" +
-                "    " + constantName + "(" + quote(value.value()) + ")";
+                "    " + constantName + "(CONST." + names.enumFieldNameConstant(value.value(), request.namingProfile()) + ")";
     }
 
     /**
@@ -161,7 +171,7 @@ public final class AIcJavaCodeGenerationBackend implements AIiCodeGenerationBack
         result.append("\n *\n * <p>Generated from canonical definition ").append(escapeJavadoc(definition.identity())).append('/').append(definition.version());
         result.append(". Source: ").append(escapeJavadoc(definition.sourceResource())).append(". Do not edit manually.</p>\n");
         for (String parameterDoc : parameterDocs) result.append(parameterDoc).append('\n');
-        result.append(" */\n");
+        result.append(" *\n * @author linhart1\n */\n");
         return result.toString();
     }
 

@@ -13,7 +13,7 @@ def test_xsd_parity_and_publication_metadata():
     xsd_root = MODULE / 'src/product/xmldefs/eu/algites/tool/codegen/common/naming'
     json_root = MODULE / 'src/product/jsondefs/eu/algites/tool/codegen/common/naming'
     yaml_root = MODULE / 'src/product/yamldefs/eu/algites/tool/codegen/common/naming'
-    for name in ('generated-dataobject-method-kind_1', 'data-object-naming-conventions_1'):
+    for name in ('generated-dataobject-structure-kind_1', 'data-object-naming-conventions_1'):
         xsd = xsd_root / (name + '.xsd')
         assert xsd.is_file()
         assert (json_root / (name + '.jsondef.schema.json')).is_file()
@@ -25,7 +25,7 @@ def test_xsd_parity_and_publication_metadata():
 
 def test_xsd_method_roles_and_common_base():
     root = MODULE / 'src/product/xmldefs/eu/algites/tool/codegen/common/naming'
-    roles = (root / 'generated-dataobject-method-kind_1.xsd').read_text()
+    roles = (root / 'generated-dataobject-structure-kind_1.xsd').read_text()
     for role in ('standard_getter', 'standard_setter', 'raw_getter',
                  'raw_presence_checker_method', 'raw_unsetter'):
         assert role in roles

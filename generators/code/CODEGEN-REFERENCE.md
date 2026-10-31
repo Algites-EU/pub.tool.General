@@ -207,7 +207,7 @@ NameConventions:
   custom-java-do-interface:
     ContainerStructureType: interface
     StructureNaming:
-      main_container_name: generated-interface-stem
+      type_name: generated-interface-stem
       file_name_stem: generated-interface-stem
       file_name_suffix: source-suffix
 ```

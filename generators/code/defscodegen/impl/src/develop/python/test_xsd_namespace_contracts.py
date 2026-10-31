@@ -89,7 +89,7 @@ def test_namespace_naming_role_is_independent_from_xml_element_naming(language, 
     assert name == 'AIigd_xnXmlDataObjectUrnBuilderTechnology'
     assert stem == (name if language == 'java' else 'aiigd__xn_xml_data_object_urn_builder_technology')
     assert module == 'example.contracts.' + stem
-    assert catalog.format(element_id, 'main_container_name', {'identifier': 'invoice', 'version': '1'},
+    assert catalog.format(element_id, 'type_name', {'identifier': 'invoice', 'version': '1'},
         'lower_kebab_case_1') == 'AIig_xeInvoice_1'
     # The namespace contract uses the selected namespace convention rather than
     # an XML element prefix, and does not acquire the version suffix of the element.

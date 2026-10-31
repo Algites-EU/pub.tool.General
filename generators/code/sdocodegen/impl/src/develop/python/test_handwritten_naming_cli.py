@@ -16,7 +16,7 @@ def test_handwritten_contract_uses_annotated_convention_not_filename(tmp_path: P
     packaged = AIcNameConventionCatalog.load_resource('algites-python-name-conventions.yml')
     profile = dict(packaged._config['SourceStructureNameConventions']['NameConventions']['algites-python-gen-intf-versioned_1'])
     profile['StructureNaming'] = dict(profile['StructureNaming'])
-    profile['StructureNaming']['main_container_name'] = 'handwritten-container_1'
+    profile['StructureNaming']['type_name'] = 'handwritten-container_1'
     custom = {'IdentifierConventions': dict(packaged._config['IdentifierConventions']),
               'VersionConventions': dict(packaged._config['VersionConventions']),
               'NameFragments': dict(packaged._config['NameFragments']),

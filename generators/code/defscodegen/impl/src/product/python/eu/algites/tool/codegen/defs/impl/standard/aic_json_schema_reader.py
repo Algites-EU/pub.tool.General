@@ -94,7 +94,7 @@ class AIcJsonSchemaReader:
                         and 'properties' not in referenced and 'type' not in referenced):
                     canonical_type = self._recursive_type(aliases[0],
                         AIcdDefinitionLoadRequest(target_path, request.source_kind,
-                            request.naming_profile), visited)
+                            request.naming_profile, request.source_naming_profile), visited)
                 if canonical_type.kind is AInDataTypeKind.REFERENCE:
                     return AIcdPropertyDefinition(str(name), canonical_type,
                         AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED,
@@ -107,7 +107,7 @@ class AIcJsonSchemaReader:
                 visited.add(reference_key)
                 try:
                     normalized = self._property(name, referenced, required,
-                        AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), visited)
+                        AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile, request.source_naming_profile), visited)
                     return AIcdPropertyDefinition(str(name), normalized.data_type,
                         AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED,
                         nullable and normalized.nullable, schema.get('description', normalized.description),
@@ -115,7 +115,7 @@ class AIcJsonSchemaReader:
                 finally:
                     visited.remove(reference_key)
             target_path = self._reference_path(resource, request)
-            parsed = AIcDefinitionIdentityResolver.parse_versioned_stem(_strip_extensions(target_path.name), None)
+            parsed = self.identities.from_file(AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), None)
             target_kind = self._detect_referenced_kind(target_path)
             nullable = nullable and _accepts_null(load_schema(target_path))
             return AIcdPropertyDefinition(str(name), from_source_hints(AInDataTypeKind.REFERENCE, None, AIcdDefinitionReference(ref, parsed.version, parsed.logical_name, AIcdDataType(target_kind) if target_kind else None), AIcdValueConstraints(), AIcdValueConstraints()), (AInFieldPresenceKind.REQUIRED if required else AInFieldPresenceKind.ALLOWED), nullable, schema.get("description"), schema.get("title"), None)
@@ -201,8 +201,15 @@ class AIcJsonSchemaReader:
             key = (target_path.resolve(), unescaped)
             entered = key not in visited
             if named:
-                stem = AIcDefinitionIdentityResolver.parse_versioned_stem(_strip_extensions(target_path.name), None)
-                kebab = re.sub(r'[^a-z0-9]+', '-', re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', tokens[1]).lower()).strip('-')
+                stem = self.identities.from_file(AIcdDefinitionLoadRequest(target_path, request.source_kind, request.naming_profile), None)
+                from .aic_declared_type_identity import canonical_type_identifier
+                profile = request.source_naming_profile
+                if not profile:
+                    selected = request.naming_profile.recognize_filename(target_path.name)
+                    if selected is None:
+                        raise ValueError(f'No source naming profile matches {target_path}')
+                    profile = selected.convention_name
+                kebab = canonical_type_identifier(request.naming_profile, profile, tokens[1])
                 kind = self._local_definition_kind(resolved)
                 if not entered:
                     target_type = None
@@ -210,19 +217,19 @@ class AIcJsonSchemaReader:
                     visited.add(key)
                     try:
                         target_type = self._recursive_type(resolved, AIcdDefinitionLoadRequest(
-                            target_path, request.source_kind, request.naming_profile), visited)
+                            target_path, request.source_kind, request.naming_profile, request.source_naming_profile), visited)
                     finally:
                         visited.remove(key)
                 else:
                     target_type = AIcdDataType(kind)
                 return AIcdDataType(AInDataTypeKind.REFERENCE, reference=AIcdDefinitionReference(
-                    ref, stem.version, stem.logical_name + '-definition-' + kebab, target_type))
+                    ref, stem.version, kebab, target_type))
             if not entered:
                 raise ValueError(f"Circular inline schema alias '{ref}' in {request.path}")
             visited.add(key)
             try:
                 return self._recursive_type(resolved, AIcdDefinitionLoadRequest(target_path,
-                    request.source_kind, request.naming_profile), visited)
+                    request.source_kind, request.naming_profile, request.source_naming_profile), visited)
             finally:
                 visited.remove(key)
         raw = schema.get('type')

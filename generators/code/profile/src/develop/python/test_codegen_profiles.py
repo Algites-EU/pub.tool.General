@@ -21,9 +21,9 @@ def test_roles_are_composed_without_algites_prefix(style, stem, result, technolo
     catalog = AIcNameConventionCatalog.load(
         LIB/'profile'/style/'src/product/config'/PATH/f'{stem}-{technology}-name-conventions.yml')
     profile = f'{stem}-{technology}-gen-data-yaml-intf-versioned_1'
-    assert catalog.format(profile, 'main_container_name',
+    assert catalog.format(profile, 'type_name',
                           {'identifier':'Customer','version':'1'}, 'upper_camel_case_1') == result
-    assert catalog.matches(profile, 'main_container_name', result)
+    assert catalog.matches(profile, 'type_name', result)
 
 @pytest.mark.parametrize('technology', ('java','python'))
 def test_arbitrary_user_name_remains_part_of_the_entity(technology):
@@ -32,7 +32,7 @@ def test_arbitrary_user_name_remains_part_of_the_entity(technology):
         LIB/'profile'/'standardpostfix'/'src/product/config'/PATH/
         f'standard-postfix-{technology}-name-conventions.yml')
     profile = f'standard-postfix-{technology}-gen-class-versioned_1'
-    assert catalog.format(profile, 'main_container_name',
+    assert catalog.format(profile, 'type_name',
                           {'identifier':'MyImpl','version':'1'}, 'upper_camel_case_1') == 'MyImpl_GenImpl_1'
 
 @pytest.mark.parametrize('style,stem', (('standardprefix','standard-prefix'),('standardpostfix','standard-postfix'),
@@ -121,7 +121,7 @@ def test_sdo_generator_emits_native_types_under_selected_profile(style):
     incoming = f'{stem}-python-gen-intf-versioned_1'
     mutable = f'{stem}-python-gen-data-intf-versioned_1'
     implementation = f'{stem}-python-gen-data-class-versioned_1'
-    typename = catalog.format(incoming, 'main_container_name',
+    typename = catalog.format(incoming, 'type_name',
                               {'identifier': 'Customer', 'version': '1'}, 'upper_camel_case_1')
     read_contract = type(typename, (AIiDataObject,), {
         '__module__': 'demo.contracts.'+typename.lower(),
@@ -132,9 +132,9 @@ def test_sdo_generator_emits_native_types_under_selected_profile(style):
     })
     roles = ({'common': incoming}, {'common': mutable}, {'common': implementation}, catalog)
     result = AIcSdoCodegenService().generate(read_contract, naming=roles)
-    expected_interface = catalog.format(mutable, 'main_container_name',
+    expected_interface = catalog.format(mutable, 'type_name',
               {'identifier': 'Customer', 'version': '1'}, 'upper_camel_case_1')
-    expected_class = catalog.format(implementation, 'main_container_name',
+    expected_class = catalog.format(implementation, 'type_name',
               {'identifier': 'Customer', 'version': '1'}, 'upper_camel_case_1')
     assert result.mutable_interface.type_name == expected_interface
     assert result.implementation.type_name == expected_class

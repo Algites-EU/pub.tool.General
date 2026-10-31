@@ -21,7 +21,7 @@
               "StructureNaming": {
                 "type": "object",
                 "propertyNames": {
-                  "$ref": "generated-dataobject-method-kind_1.yamldef.schema.json"
+                  "$ref": "generated-dataobject-structure-kind_1.yamldef.schema.json"
                 },
                 "additionalProperties": {
                   "type": "string"
@@ -175,5 +175,7 @@
   ],
   "x-algites-defscodegen-extends": [
     "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
-  ]
+  ],
+  "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.data-object-naming-conventions",
+  "x-algites-schema-version": 1
 }

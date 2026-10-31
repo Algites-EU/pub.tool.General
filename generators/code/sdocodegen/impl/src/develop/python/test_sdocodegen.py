@@ -465,3 +465,53 @@ def test_decorated_getter_semantic_identity_is_independent_of_field_name():
     assert "self.get_EffectiveField('CustomerId'" in source
     assert 'def setCustomerId(' in source
     assert 'def setExternalCustomerId(' not in source
+
+
+def test_generated_mapped_data_object_delegates_complete_sequence_and_indexes():
+    """A named indexed contract must not become an unrelated list field.
+
+    Every abstract MutableSequence method and every multi-map operation is
+    implemented by a real backed collection while the object retains its SDO
+    inheritance. This fixture checks emitted source without editing outputs.
+    """
+    from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject
+    from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList
+
+    class AIigMappedDocument_1(AIiXmlDataObject, AIiMultiMappedList[str]):
+        __data_object__ = AIcdDataObject(schema_id='test.mapped', schema_version=1)
+
+    AIigMappedDocument_1.__module__ = 'example.contracts.aiig_mapped_document_1'
+    generated = configured_service().generate(AIigMappedDocument_1)
+    source = generated.implementation.source
+    compile(source, '<mapped-sdo>', 'exec')
+    assert 'self._mapped_entries = AIcMultiMappedList(definitions)' in source
+    for method in ('__len__', '__getitem__', '__setitem__', '__delitem__', 'insert',
+                   'map_by_key_type', 'key_definition', 'copy_range', 'sub_list'):
+        assert f'def {method}(' in source
+
+
+def test_generated_json_yaml_virtual_map_key_is_not_a_serialized_field():
+    """A dynamic property name is external to its map-entry value contract."""
+    from eu.algites.lib.data.dataobject.jsondefs.aii_json_data_object import AIiJsonDataObject
+    from eu.algites.lib.data.dataobject.yamldefs.aii_yaml_data_object import AIiYamlDataObject
+
+    class AIigJsonMapEntry_1(AIiJsonDataObject):
+        __data_object__ = AIcdDataObject(schema_id='test.json.map', schema_version=1)
+
+        def _getKey(self) -> str:
+            raise NotImplementedError
+
+    class AIigYamlMapEntry_1(AIiYamlDataObject):
+        __data_object__ = AIcdDataObject(schema_id='test.yaml.map', schema_version=1)
+
+        def _getKey(self) -> str:
+            raise NotImplementedError
+
+    for contract in (AIigJsonMapEntry_1, AIigYamlMapEntry_1):
+        contract.__module__ = 'example.contracts.' + contract.__name__.lower()
+        generated = configured_service().generate(contract)
+        source = generated.implementation.source
+        compile(source, '<keyed-sdo>', 'exec')
+        assert 'def _getKey(self) -> str:' in source
+        assert 'self._parent_property_key = parent_property_key' in source
+        assert "self.get_EffectiveField('_getKey')" not in source

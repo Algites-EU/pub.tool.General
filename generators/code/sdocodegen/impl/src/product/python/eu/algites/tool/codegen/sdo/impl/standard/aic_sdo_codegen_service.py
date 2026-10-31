@@ -192,19 +192,19 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             input_catalog = catalog() or naming[0]
             source = getattr(contract, '__data_object__', None)
             source_profile = getattr(source, 'naming_convention', '') or selected(contract, 0)
-            values = input_catalog.parse(source_profile, 'main_container_name', contract.__name__)
-            return (input_catalog.format(selected(contract, 1), 'main_container_name', values,
-                                          input_catalog.identifier_convention(source_profile, 'main_container_name')),
-                    input_catalog.format(selected(contract, 2), 'main_container_name', values,
-                                          input_catalog.identifier_convention(source_profile, 'main_container_name')))
+            values = input_catalog.parse(source_profile, 'type_name', contract.__name__)
+            return (input_catalog.format(selected(contract, 1), 'type_name', values,
+                                          input_catalog.identifier_convention(source_profile, 'type_name')),
+                    input_catalog.format(selected(contract, 2), 'type_name', values,
+                                          input_catalog.identifier_convention(source_profile, 'type_name')))
 
         def stem_for(type_name, is_mutable, contract=None):
             target = contract or read_contract
             profile = selected(target, 1 if is_mutable else 2)
             all_catalog = catalog() or naming[1 if is_mutable else 2]
-            values = all_catalog.parse(profile, 'main_container_name', type_name)
+            values = all_catalog.parse(profile, 'type_name', type_name)
             return all_catalog.format(profile, 'file_name_stem', values,
-                                      all_catalog.identifier_convention(profile, 'main_container_name'))
+                                      all_catalog.identifier_convention(profile, 'type_name'))
 
         def extension_for(is_mutable):
             profile = selected(read_contract, 1 if is_mutable else 2)
@@ -356,7 +356,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         input_catalog = catalog() or naming[0]
         selected_source_profile = (getattr(inherited_definition, 'naming_convention', '')
                                    or input_role)
-        details = input_catalog.parse(selected_source_profile, 'main_container_name',
+        details = input_catalog.parse(selected_source_profile, 'type_name',
                                       read_contract.__name__)
         if not schema_id:
             identifier = details.get('identifier')
@@ -364,7 +364,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 raise ValueError('Input naming convention does not identify the contract: '
                                  + selected_source_profile)
             lexical = input_catalog.identifier_convention(selected_source_profile,
-                                                          'main_container_name')
+                                                          'type_name')
             logical = input_catalog.convert_identifier(identifier, lexical, 'lower_kebab_case_1')
             schema_id = read_contract.__module__.rsplit('.', 1)[0] + '.' + logical
         if schema_version < 0:
@@ -447,6 +447,91 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         concrete_lines.extend(['', '', f'class {concrete_name}({concrete_base}, {mutable_name}' + ('' if not type_variables else '[' + ', '.join(repr(names_for(generic_fields[key][0])[0]) for key in type_variables) + ']') + '):',
                                f'    __data_object__ = AIcdDataObject(schema_id={schema_id!r}, schema_version={schema_version}, naming_convention={concrete_role!r}, setter_inheritance_policy=AInFieldSetterInheritancePolicy.{(inherited.setter_inheritance_policy if inherited.setter_inheritance_policy is not AInFieldSetterInheritancePolicy.DEFAULT else _default_setter_inheritance_policy()).name})',
                                '    """Generated implementation; inherited fields use parent behavior."""'])
+        # A named schema type may be both a SmartDataObject and the owner of
+        # an ordered indexed collection.  A SmartDataObject base has no list
+        # storage: build a real AIcMultiMappedList and delegate every ABC method.
+        mapped_contract = issubclass(read_contract, AIiMultiMappedList)
+        method_catalog = catalog()
+        synthetic_key_method = None
+        if method_catalog is not None and method_catalog._generated_method_profile:
+            composition = method_catalog.generated_method_reference(
+                'multi_mapped_list_key_synthetic_getter')
+            if composition is not None:
+                # Synthetic getter role stores its literal identifier directly.
+                # Unlike accessor method roles, this is not a composition ID.
+                candidate = composition
+                if not candidate.isidentifier():
+                    raise ValueError('Invalid synthetic key getter identifier: ' + repr(candidate))
+                if callable(getattr(read_contract, candidate, None)):
+                    if not (issubclass(read_contract, AIiJsonDataObject)
+                            or issubclass(read_contract, AIiYamlDataObject)):
+                        raise ValueError('Virtual object-property key getter is only valid for JSON/YAML')
+                    if candidate in all_fields:
+                        raise ValueError('Virtual parent property key cannot be a serialized field')
+                    synthetic_key_method = candidate
+        if mapped_contract or synthetic_key_method is not None:
+            concrete_lines.extend(['',
+                '    def __init__(self, aMapping=None, *, definitions=(), parent_property_key=None):',
+                '        """Initialize the SDO and its nonserialized collection/key identity.',
+                '',
+                '        Args:',
+                '            aMapping: Optional typed virtual field graph.',
+                '            definitions: Stable key definitions owned by this mapped collection.',
+                '            parent_property_key: Actual property name of this JSON/YAML map entry.',
+                '        """',
+                '        super().__init__(aMapping)'])
+            if mapped_contract:
+                concrete_lines.insert(4,
+                    'from eu.algites.lib.common.list.aic_multi_mapped_list import AIcMultiMappedList')
+                concrete_lines.append('        self._mapped_entries = AIcMultiMappedList(definitions)')
+            if synthetic_key_method is not None:
+                concrete_lines.extend([
+                    '        if parent_property_key is not None and (not isinstance(parent_property_key, str) or not parent_property_key):',
+                    "            raise ValueError('Map property key must be nonempty text')",
+                    '        self._parent_property_key = parent_property_key',
+                    '',
+                    f'    def {synthetic_key_method}(self) -> str:',
+                    '        """Return the containing map property name, never a data field."""',
+                    '        if self._parent_property_key is None:',
+                    "            raise ValueError('Map entry was not constructed with its parent property key')",
+                    '        return self._parent_property_key'])
+            if mapped_contract:
+                concrete_lines.extend(['',
+                    '    def __len__(self):',
+                    '        """Return the number of indexed elements."""',
+                    '        return len(self._mapped_entries)',
+                    '',
+                    '    def __getitem__(self, index):',
+                    '        """Return the element at an index."""',
+                    '        return self._mapped_entries[index]',
+                    '',
+                    '    def __setitem__(self, index, value):',
+                    '        """Replace an indexed value using atomic key validation."""',
+                    '        self._mapped_entries[index] = value',
+                    '',
+                    '    def __delitem__(self, index):',
+                    '        """Remove an indexed entry and refresh key maps."""',
+                    '        del self._mapped_entries[index]',
+                    '',
+                    '    def insert(self, index, value):',
+                    '        """Insert an entry, rejecting conflicting unique keys."""',
+                    '        self._mapped_entries.insert(index, value)',
+                    '',
+                    '    def map_by_key_type(self, definition):',
+                    '        """Return the cached live map for an exact registered definition."""',
+                    '        return self._mapped_entries.map_by_key_type(definition)',
+                    '',
+                    '    def key_definition(self, identifier):',
+                    '        """Look up the registered definition by schema index identity."""',
+                    '        return self._mapped_entries.key_definition(identifier)',
+                    '',
+                    '    def copy_range(self, start, stop):',
+                    '        """Return a detached indexed shallow copy of the given range."""',
+                    '        return self._mapped_entries.copy_range(start, stop)',
+                    '',
+                    '    def sub_list(self, start, stop):',
+                    '        """Return a tracked membership-backed subsequence."""',
+                    '        return self._mapped_entries.sub_list(start, stop)'])
         mutable_imports = []
         concrete_imports = []
         xml_nested_imports = {}

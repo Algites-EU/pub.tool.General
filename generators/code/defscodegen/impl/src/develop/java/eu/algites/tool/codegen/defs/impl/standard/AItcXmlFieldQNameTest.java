@@ -150,7 +150,7 @@ public final class AItcXmlFieldQNameTest {
                     Map<String, String> aVariables, String aLexical) {
                 String locName = aVariables.getOrDefault("identifier", "Ledger");
                 return switch (aStructure) {
-                    case "main_container_name", "file_name_stem" -> "AIig" + locName.replace("_", "") + "_1";
+                    case "type_name", "file_name_stem" -> "AIig" + locName.replace("_", "") + "_1";
                     case "field_name" -> "get" + locName;
                     case "constant_name" -> locName.toUpperCase(java.util.Locale.ROOT);
                     default -> locName;

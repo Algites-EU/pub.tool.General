@@ -6,7 +6,7 @@
 			generated method names.
 		</xs:documentation>
 	</xs:annotation>
-	<xs:simpleType name="generated-dataobject-schema-metadata-kind">
+	<xs:simpleType name="GeneratedDataobjectSchemaMetadataKind">
 		<xs:restriction base="xs:string">
 			<xs:enumeration value="schema_source_schema_url">
 				<xs:annotation>

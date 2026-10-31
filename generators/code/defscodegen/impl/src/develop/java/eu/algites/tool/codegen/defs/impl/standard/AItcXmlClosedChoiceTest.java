@@ -82,7 +82,7 @@ public final class AItcXmlClosedChoiceTest {
                 String locId = aVariables.getOrDefault("identifier", "Unknown");
                 String locName = locId.replaceAll("[^A-Za-z0-9]", "");
                 return switch (aStructure) {
-                    case "main_container_name", "file_name_stem" -> "AIig" + locName + "_1";
+                    case "type_name", "file_name_stem" -> "AIig" + locName + "_1";
                     case "field_name" -> "get" + locName;
                     case "constant_name" -> locName.toUpperCase(java.util.Locale.ROOT);
                     default -> locName;

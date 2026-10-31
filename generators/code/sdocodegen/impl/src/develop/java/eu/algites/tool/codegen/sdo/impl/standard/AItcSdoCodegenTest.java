@@ -70,6 +70,128 @@ public final class AItcSdoCodegenTest {
         }
     }
 
+    /** XML value owned by a mapped collection; a key is its ordinary name field. */
+    @AIaDataObject(schemaId = "test:sdo-indexed-value", schemaVersion = 1)
+    public interface AIigIndexedValue_1
+            extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject {
+        /** @return non-null name serving as the test's unique key */
+        @AIaDataObjectField(fieldName = "Name")
+        String getName();
+    }
+
+    /** Collection that is both a typed XML DataObject and a multi-indexed list. */
+    @AIaDataObject(schemaId = "test:sdo-indexed-container", schemaVersion = 1)
+    public interface AIigIndexedContainer_1
+            extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject,
+                    eu.algites.lib.common.list.AIiMultiMappedList<AIigIndexedValue_1> { }
+
+    /** Parent contract treating a named mapped list as a single nested object. */
+    @AIaDataObject(schemaId = "test:sdo-indexed-owner", schemaVersion = 1)
+    public interface AIigIndexedOwner_1 extends AIiDataObject {
+        /** @return one named indexed collection, not a list of collections */
+        @AIaDataObjectField(fieldName = "Collection")
+        AIigIndexedContainer_1 getCollection();
+    }
+
+    /** Specialized XML representation of the same owner contract. */
+    @AIaDataObject(schemaId = "test:sdo-indexed-xml-owner", schemaVersion = 1)
+    public interface AIigIndexedXmlOwner_1 extends AIigIndexedOwner_1,
+            eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject { }
+
+    /** JSON entry whose parent map key is virtual, never a serialized field. */
+    @AIaDataObject(schemaId = "test:sdo-json-key", schemaVersion = 1)
+    public interface AIigVirtualJsonKey_1
+            extends eu.algites.lib.data.dataobject.jsondefs.AIiJsonDataObject {
+        /** @return the containing JSON object property name */
+        String _getKey();
+    }
+
+    /** YAML entry whose parent map key is virtual, never a serialized field. */
+    @AIaDataObject(schemaId = "test:sdo-yaml-key", schemaVersion = 1)
+    public interface AIigVirtualYamlKey_1
+            extends eu.algites.lib.data.dataobject.yamldefs.AIiYamlDataObject {
+        /** @return the containing YAML map property name */
+        String _getKey();
+    }
+
+    /**
+     * A schema type that extends a list must compile with the SmartDataObject
+     * runtime and retain atomic uniqueness checking and cached map views.
+     *
+     * @throws Exception when generation, Java compilation, reflection or the list contract fails
+     */
+    @Test
+    public void AIcCompilesAndRunsGeneratedMappedDataObject() throws Exception {
+        var locService = new AItcConfiguredSdoCodegenService();
+        var locValue = locService.generate(AIigIndexedValue_1.class, "d");
+        var locList = locService.generate(AIigIndexedContainer_1.class, "d");
+        var locOwner = locService.generate(AIigIndexedOwner_1.class, "d");
+        var locXmlOwner = locService.generate(AIigIndexedXmlOwner_1.class, "d");
+        Assert.assertFalse(locOwner.mutableInterface().source().contains("List<? extends TCollection>"));
+        Assert.assertTrue(locOwner.mutableInterface().source().contains("TCollection getCollection()"));
+        Assert.assertTrue(locList.implementation().source().contains("AIiMultiMappedListForwarding<"));
+        Assert.assertTrue(locList.implementation().source().contains("multiMappedDelegate()"));
+        Path locRoot = Files.createTempDirectory("sdo-mapped-runtime-test-");
+        Path locClasses = Files.createDirectory(locRoot.resolve("classes"));
+        var locPaths = new java.util.ArrayList<String>();
+        for (var locGenerated : java.util.List.of(locValue, locList, locOwner, locXmlOwner)) {
+            for (var locUnit : java.util.List.of(locGenerated.mutableInterface(), locGenerated.implementation())) {
+                Path locFile = locRoot.resolve(locUnit.relativePath());
+                Files.createDirectories(locFile.getParent());
+                Files.writeString(locFile, locUnit.source());
+                locPaths.add(locFile.toString());
+            }
+        }
+        var locCompilerOptions = new java.util.ArrayList<String>(java.util.List.of(
+                "-cp", System.getProperty("java.class.path"), "-d", locClasses.toString()));
+        locCompilerOptions.addAll(locPaths);
+        Assert.assertEquals(ToolProvider.getSystemJavaCompiler().run(
+                null, null, null, locCompilerOptions.toArray(String[]::new)), 0);
+        try (var locLoader = new URLClassLoader(new java.net.URL[] {locClasses.toUri().toURL()},
+                getClass().getClassLoader())) {
+            Class<?> locValueClass = locLoader.loadClass(
+                    locValue.implementation().fullyQualifiedTypeName());
+            Class<?> locListClass = locLoader.loadClass(
+                    locList.implementation().fullyQualifiedTypeName());
+            var locFirst = (AIigIndexedValue_1) locValueClass.getConstructor().newInstance();
+            var locSecond = (AIigIndexedValue_1) locValueClass.getConstructor().newInstance();
+            locValueClass.getMethod("setName", String.class).invoke(locFirst, "alpha");
+            locValueClass.getMethod("setName", String.class).invoke(locSecond, "alpha");
+            var locDefinition = new eu.algites.lib.common.list.AIcKeyDefinition<AIigIndexedValue_1, String>(
+                    "name", AIigIndexedValue_1::getName, true);
+            @SuppressWarnings("unchecked")
+            var locInstance = (eu.algites.lib.common.list.AIiMultiMappedList<AIigIndexedValue_1>)
+                    locListClass.getConstructor(java.util.Collection.class)
+                            .newInstance(java.util.List.of(locDefinition));
+            locInstance.add(locFirst);
+            Assert.assertEquals(locInstance.get(0), locFirst);
+            Assert.assertSame(locInstance.keyDefinition("name"), locDefinition);
+            Assert.assertEquals(locInstance.mapByKeyType(locDefinition).get("alpha"),
+                    java.util.List.of(locFirst));
+            Assert.expectThrows(IllegalArgumentException.class, () -> locInstance.add(locSecond));
+            Assert.assertEquals(locInstance.size(), 1);
+            locInstance.remove(0);
+            Assert.assertTrue(locInstance.mapByKeyType(locDefinition).isEmpty());
+        }
+    }
+
+    /**
+     * A synthetic parent JSON/YAML map key must be an external constructor
+     * parameter and must never silently appear as a regular serialized field.
+     */
+    @Test
+    public void AIcGeneratesRealVirtualParentMapKeys() {
+        var locService = new AItcConfiguredSdoCodegenService();
+        for (Class<?> locEntry : java.util.List.of(
+                AIigVirtualJsonKey_1.class, AIigVirtualYamlKey_1.class)) {
+            var locGenerated = locService.generate(locEntry, "d");
+            String locSource = locGenerated.implementation().source();
+            Assert.assertTrue(locSource.contains("parentPropertyKey"));
+            Assert.assertTrue(locSource.contains("@Override public String _getKey()"));
+            Assert.assertFalse(locSource.contains("get_RawField(\"_getKey\")"));
+        }
+    }
+
     /** Metadata fixture whose valid annotation values contain Java string-literal special characters. */
     @AIaDataObject(schemaId = "test:escaped-metadata", schemaVersion = 1,
             title = "A \"quoted\" title and a \\ slash",

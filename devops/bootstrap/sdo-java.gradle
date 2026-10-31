@@ -202,13 +202,22 @@ tasks.register('bootstrapSdoJava') {
                     binaryUrls.toArray(new java.net.URL[0]),
                     ClassLoader.getPlatformClassLoader())
             try {
-                def service = Class.forName(
-                        'eu.algites.tool.codegen.sdo.impl.standard.AIcSdoCodegenService',
-                        false, binaryLoader)
-                def readPredicate = service.getMethod('isReadContract', Class.class)
-                def mutableMarker = Class.forName(
-                        'eu.algites.lib.data.smartdataobject.AIiSmartDataObject',
-                        false, binaryLoader)
+                // Determine DataObject eligibility without loading the generator
+                // implementation. Source prerequisites without read contracts must
+                // remain buildable even when the locally published generator is old.
+                // A module that has no DataObject API on its classpath cannot
+                // declare DataObject contracts. Do not require the SDO engine.
+                def loadOptional = { String name ->
+                    try {
+                        return Class.forName(name, false, binaryLoader)
+                    } catch (ClassNotFoundException missing) {
+                        return null
+                    }
+                }
+                def readMarker = loadOptional('eu.algites.lib.data.dataobject.AIiDataObject')
+                def mutableMarker = loadOptional('eu.algites.lib.data.smartdataobject.AIiSmartDataObject')
+                def xmlNamespaceMarker = loadOptional('eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObjectNamespace')
+                def dataObjectAnnotation = loadOptional('eu.algites.lib.data.dataobject.AIaDataObject')
                 classes.each { directory ->
                     fileTree(directory).matching { include '**/*.class' }.files.each { compiled ->
                         def relative = directory.toPath().relativize(compiled.toPath()).toString()
@@ -219,8 +228,14 @@ tasks.register('bootstrapSdoJava') {
                                 .replaceAll(/\.class$/, '')
                         def candidate = Class.forName(className, false, binaryLoader)
                         if (candidate.isInterface()
-                                && !mutableMarker.isAssignableFrom(candidate)
-                                && Boolean.TRUE.equals(readPredicate.invoke(null, candidate))) {
+                                && !candidate.packageName.startsWith('eu.algites.lib.data.dataobject')
+                                && readMarker != null && readMarker.isAssignableFrom(candidate)
+                                && (mutableMarker == null || !mutableMarker.isAssignableFrom(candidate))
+                                && !(xmlNamespaceMarker != null
+                                    && xmlNamespaceMarker.isAssignableFrom(candidate)
+                                    && !candidate.declaredAnnotations.any {
+                                        it.annotationType() == dataObjectAnnotation
+                                    })) {
                             eligible.add(className)
                         }
                     }
@@ -232,6 +247,32 @@ tasks.register('bootstrapSdoJava') {
                 logger.lifecycle('SDO Java: no eligible read-only DataObject contracts in '
                         + entry.path + '; skipping generator')
                 return
+            }
+            // A generator revision is required only when this artifact really
+            // needs SDO generation. Validate it before launching the CLI.
+            def revisionLoader = new java.net.URLClassLoader(
+                    binaryUrls.toArray(new java.net.URL[0]),
+                    ClassLoader.getPlatformClassLoader())
+            try {
+                def service = Class.forName(
+                        'eu.algites.tool.codegen.sdo.impl.standard.AIcSdoCodegenService',
+                        false, revisionLoader)
+                def origin = service.protectionDomain?.codeSource?.location
+                logger.lifecycle('SDO Java: generator implementation ' + origin)
+                def revision
+                try {
+                    revision = service.getField('KEYED_SDO_GENERATOR_REVISION').get(null)
+                } catch (NoSuchFieldException obsolete) {
+                    throw new GradleException('Outdated SDO generator binary at ' + origin
+                            + ': missing indexed-collection revision. Rebuild and publish the '
+                            + 'pub.tool.General SDO Codegen CLI/impl before source bootstrap.', obsolete)
+                }
+                if (revision != 'indexed-collection-delegation-20261031-1') {
+                    throw new GradleException('Incompatible SDO generator revision ' + revision
+                            + ' at ' + origin + '; require indexed-collection-delegation-20261031-1')
+                }
+            } finally {
+                revisionLoader.close()
             }
             def arguments = [
                     '--repository-root=' + moduleProject.projectDir.absolutePath,

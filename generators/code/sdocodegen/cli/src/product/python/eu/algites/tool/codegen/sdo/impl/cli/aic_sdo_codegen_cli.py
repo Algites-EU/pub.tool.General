@@ -137,7 +137,7 @@ def main(args=None):
             if match is not None:
                 parsed = catalog.parse(name, 'file_name_stem', source.stem)
                 try:
-                    class_name = catalog.format(name, 'main_container_name', parsed,
+                    class_name = catalog.format(name, 'type_name', parsed,
                                                 catalog.identifier_convention(name, 'file_name_stem'))
                 except (KeyError, ValueError):
                     continue

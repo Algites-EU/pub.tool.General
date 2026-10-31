@@ -149,13 +149,18 @@ class AIcSchemaContractBindingsGenerator:
                     id_field = source_catalog.schema_metadata_fields(source_profile).get(
                         'schema_source_schema_identifier', '')
                     declared_identity_by_source[schema] = bool(id_field and document.get(id_field))
-                base = re.sub(r'_[0-9]+$', '', source.name[:-len(suffix)])
+                match = source_catalogs[kind].recognize_filename(source.name,
+                    {profile_by_source[schema]})
+                if match is None or not match.variables.get('identifier'):
+                    raise ValueError('Schema file name cannot be parsed by source profile: ' + schema)
+                base = match.variables['identifier']
                 if kind == 'xmldefs':
                     units.append(self.AIcdUnit(schema, '', base, {}, {}))
                     for name in AIcXmlDefsFrontend().additional_named_type_names(source):
                         units.append(self.AIcdUnit(schema, '@type/' + name, name, {}, {}))
                 else:
-                    self._collect(document, '', base, schema, document, overrides, units)
+                    self._collect(document, '', base, schema, document, overrides, units,
+                        source_catalogs[kind], profile_by_source[schema])
         if existing_source_directories == 0:
             print('Defs Codegen: no configured schema input directory exists; nothing to generate',
                   file=__import__('sys').stderr)
@@ -178,7 +183,7 @@ class AIcSchemaContractBindingsGenerator:
             if not target_profiles:
                 raise ValueError('No output naming profile configured')
             load = AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS,
-                next(iter(target_profiles.values())))
+                next(iter(target_profiles.values())), profile_by_source[unit.schema])
             if unit.pointer.startswith('@type/') and xml_scope_frontend.is_synthetic_choice_type_name(
                     source, unit.pointer[6:]):
                 continue
@@ -232,7 +237,8 @@ class AIcSchemaContractBindingsGenerator:
                     raise ValueError(f'No output naming profile configured for {language}')
                 load = AIcdDefinitionLoadRequest(source,
                     {'yamldefs': AInDefinitionSourceKind.YAMLDEFS, 'jsondefs': AInDefinitionSourceKind.JSONDEFS,
-                     'xmldefs': AInDefinitionSourceKind.XMLDEFS}[kind], profile)
+                     'xmldefs': AInDefinitionSourceKind.XMLDEFS}[kind], profile,
+                     profile_by_source[unit.schema])
                 if kind == 'xmldefs':
                     definition = (AIcXmlDefsFrontend().load_named_type(load, unit.pointer[6:])
                                   if unit.pointer.startswith('@type/') else AIcXmlDefsFrontend().load(load))
@@ -485,12 +491,12 @@ class AIcSchemaContractBindingsGenerator:
                         r.definition.logical_name == structured[0].definition.logical_name
                         and r.definition.version == structured[0].definition.version
                         and r.package_name == structured[0].package_name
-                        and re.sub(r'_[0-9]+$', '', r.definition.source_resource
-                            .split('#', 1)[0].rsplit('/', 1)[-1].removesuffix('.xsd'))
-                          == re.sub(r'_[0-9]+$', '', structured[0].definition.source_resource
-                            .split('#', 1)[0].rsplit('/', 1)[-1]
-                            .removesuffix('.jsondef.schema.json')
-                            .removesuffix('.yamldef.schema.json'))
+                        and (lambda xml_name, json_name: (
+                            source_catalogs['xmldefs'].recognize_filename(xml_name).variables['identifier']
+                            == source_catalogs[structured[0].definition.source_kind.value]
+                                .recognize_filename(json_name).variables['identifier']))(
+                            Path(r.definition.source_resource.split('#', 1)[0]).name,
+                            Path(structured[0].definition.source_resource.split('#', 1)[0]).name)
                         for r in xml_nested)):
                         identities = document_ids
             if len(identities) != 1:
@@ -614,7 +620,8 @@ class AIcSchemaContractBindingsGenerator:
                 if xml_origin is None:
                     raise ValueError(f'Unknown XSD source {first.definition.source_resource}')
                 load = AIcdDefinitionLoadRequest(self._inside(repository, xml_origin.schema),
-                    AInDefinitionSourceKind.XMLDEFS, first.naming_profile)
+                    AInDefinitionSourceKind.XMLDEFS, first.naming_profile,
+                    profile_by_source[xml_origin.schema])
                 parent_qname = (AIcXmlDefsFrontend().named_type_extension_base_qname(load, xml_origin.pointer[6:])
                     if xml_origin.pointer.startswith('@type/')
                     else AIcXmlDefsFrontend().root_extension_base_qname(load))
@@ -744,7 +751,8 @@ class AIcSchemaContractBindingsGenerator:
             local_types, local_elements, local_value_types = {}, {}, {}
             for schema, pointer, req in xml_requests:
                 loaded = AIcdDefinitionLoadRequest(self._inside(repository, schema),
-                    AInDefinitionSourceKind.XMLDEFS, req.naming_profile)
+                    AInDefinitionSourceKind.XMLDEFS, req.naming_profile,
+                    profile_by_source[schema])
                 if pointer.startswith('@type/') and xml_frontend.is_synthetic_choice_type_name(
                         loaded.path, pointer[6:]):
                     continue
@@ -961,7 +969,10 @@ class AIcSchemaContractBindingsGenerator:
                         published = 'src/product/' + kind + '/' + parsed.path[len(prefix):]
                         break
             candidates = {r.package_name for representations in requests.values() for r in representations
-                if r.target is request.target and (r.definition.source_resource.split('#', 1)[0] in (local, published)
+                if r.target is request.target and (r.definition.source_resource.split('#', 1)[0] == local
+                    or (published is not None and
+                        (r.definition.source_resource.split('#', 1)[0] == published or
+                         r.definition.source_resource.split('#', 1)[0].endswith('/' + published)))
                     or r.definition.identity == resource)}
             if len(candidates) != 1:
                 raise ValueError(f'Cannot resolve generated reference package: {ref.identity} in {owner}')
@@ -979,7 +990,14 @@ class AIcSchemaContractBindingsGenerator:
                 source = re.sub(r'(?<![A-Za-z0-9_$.])' + re.escape(typ) + r'\b', lambda _: package + '.' + typ, source)
         return source
 
-    def _collect(self, node, pointer, name, schema, document, overrides, result):
+    def _collect(self, node, pointer, name, schema, document, overrides, result,
+                 source_catalog, source_profile):
+        """Discover schema contracts; named definitions retain local type identity.
+
+        Named ``$defs`` contracts have an independently validated local name.
+        Their schema-qualified identity remains the containing schema plus the
+        exact JSON Pointer, and is never guessed from the document filename.
+        """
         if not isinstance(node, dict):
             return
         override = overrides.get(schema + '#' + pointer)
@@ -990,13 +1008,23 @@ class AIcSchemaContractBindingsGenerator:
         for keyword in ('properties', '$defs', 'definitions', 'patternProperties'):
             for key, value in node.get(keyword, {}).items():
                 token = key.replace('~', '~0').replace('/', '~1')
-                separator = '-definition-' if keyword in ('$defs', 'definitions') else ('-pattern-' if keyword == 'patternProperties' else '-')
-                self._collect(value, pointer + '/' + keyword + '/' + token, name + separator + self._kebab(key), schema, document, overrides, result)
+                if keyword in ('$defs', 'definitions'):
+                    from .aic_declared_type_identity import canonical_type_identifier
+                    child_name = canonical_type_identifier(source_catalog, source_profile, key)
+                else:
+                    child_name = name + ('-pattern-' if keyword == 'patternProperties' else '-') + self._kebab(key)
+                self._collect(value, pointer + '/' + keyword + '/' + token,
+                    child_name, schema, document, overrides, result,
+                    source_catalog, source_profile)
         for keyword in ('items', 'additionalProperties'):
-            self._collect(node.get(keyword), pointer + '/' + keyword, name + '-' + self._kebab(keyword), schema, document, overrides, result)
+            self._collect(node.get(keyword), pointer + '/' + keyword,
+                name + '-' + self._kebab(keyword), schema, document, overrides,
+                result, source_catalog, source_profile)
         for keyword in ('prefixItems',):
             for index, value in enumerate(node.get(keyword, ())):
-                self._collect(value, pointer + '/' + keyword + '/' + str(index), name + '-' + self._kebab(keyword) + '-' + str(index), schema, document, overrides, result)
+                self._collect(value, pointer + '/' + keyword + '/' + str(index),
+                    name + '-' + self._kebab(keyword) + '-' + str(index),
+                    schema, document, overrides, result, source_catalog, source_profile)
 
     @staticmethod
     def _kebab(name):

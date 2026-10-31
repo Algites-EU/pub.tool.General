@@ -56,17 +56,28 @@ public final class AIcPythonCodeGenerationBackend implements AIiCodeGenerationBa
      * @return complete Python module source
      */
     private String enumSource(AIcdCodeGenerationRequest request, String typeName) {
+        String constType = "_" + typeName + "_CONST";
         List<String> constants = request.definition().enumValues().stream()
-                .map(value -> "    " + names.enumConstant(value.value(), request.namingProfile()) + " = " + pythonQuote(value.value())).toList();
+                .map(value -> "    " + names.enumConstant(value.value(), request.namingProfile()) + " = "
+                        + constType + "." + names.enumFieldNameConstant(value.value(), request.namingProfile())).toList();
         List<String> valueDocs = request.definition().enumValues().stream()
-                .map(value -> names.enumConstant(value.value(), request.namingProfile()) + ": " + pythonDocumentation(value.description(), "Canonical enum value " + value.value() + "."))
+                .map(value -> names.enumConstant(value.value(), request.namingProfile()) + ": "
+                        + pythonDocumentation(value.description(), "Canonical enum value " + value.value() + "."))
                 .toList();
-        return "from enum import Enum\n\n\nclass " + typeName + "(str, Enum):\n" +
+        List<String> fieldConstants = request.definition().enumValues().stream()
+                .map(value -> "    " + names.enumFieldNameConstant(value.value(), request.namingProfile())
+                        + ": ClassVar[str] = " + pythonQuote(value.value())).toList();
+        return "from enum import Enum\nfrom typing import ClassVar\n\n\n" +
+                "class " + constType + ":\n" +
+                "    \"\"\"Exact serialized field-name constants from the schema.\"\"\"\n" +
+                String.join("\n", fieldConstants) + "\n\n\n" +
+                "class " + typeName + "(str, Enum):\n" +
                 pythonDocstring(request.definition(), List.of(), valueDocs) +
-                "    __canonical_source_id__ = " + pythonQuote(request.definition().identity()) + "\n" +
-                "    __canonical_source_version__ = " + request.definition().version() + "\n" +
-                "    __canonical_source_resource__ = " + pythonQuote(request.definition().sourceResource()) + "\n" +
-                String.join("\n", constants) + "\n";
+                String.join("\n", constants) + "\n\n" +
+                "    def code(self) -> str:\n" +
+                "        \"\"\"Return the exact serialized enum code.\"\"\"\n" +
+                "        return str(self.value)\n\n" +
+                typeName + ".CONST = " + constType + "\n";
     }
 
     /**

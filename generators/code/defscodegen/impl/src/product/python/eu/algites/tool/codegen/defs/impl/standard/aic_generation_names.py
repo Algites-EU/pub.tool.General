@@ -21,13 +21,10 @@ class AIcGenerationNames:
         structure = 'file_name_stem' if kind in (AInDefsNameRole.DATA_TYPE_FILE_STEM,
             AInDefsNameRole.ENUM_TYPE_FILE_STEM, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
             AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM,
-            AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM) else 'main_container_name'
+            AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM) else 'type_name'
         values = {'identifier': logical_name}
         if version is not None:
             values['version'] = str(version)
-        # A trailing numeric schema-pointer ordinal is a derived identifier fragment,
-        # not a separate version. Keep lexical segments unambiguous against _<version>.
-        values['identifier'] = re.sub(r'(?<=[a-z])-(?=[0-9]+(?:-|$))', '', values['identifier'])
         return profile.format(profile_name, structure, values, 'lower_kebab_case_1')
 
     def type_name(self, definition, profile, kind):
@@ -105,6 +102,16 @@ class AIcGenerationNames:
         prefix = self._field('_'.join(('schema', 'field', 'name')), profile, 'constant_name', 'lower_snake_case_1')
         field = self._field(source_name, profile, 'constant_name', self._source_field_convention(source_name))
         return '_'.join((prefix, '', field))
+
+    def enum_field_name_constant(self, wire_value, profile):
+        """Name one enum wire-value constant using the active constant convention.
+
+        The FIELD_NAME qualifier and the enum-item identifier are formatted
+        independently, preserving the unambiguous double-underscore boundary.
+        """
+        prefix = self._field('field_name', profile, 'constant_name', 'lower_snake_case_1')
+        suffix = self._field(wire_value, profile, 'constant_name', 'lower_snake_case_1')
+        return '_'.join((prefix, '', suffix))
 
     def reference_type(self, ref, profile):
         """Compute the generated type name for a referenced definition."""

@@ -29,8 +29,14 @@ class AIcPythonCodeGenerationBackend:
         type_name = self.names.type_name(request.definition, request.naming_profile, type_kind)
         file_stem = self.names.file_stem(request.definition, request.naming_profile, file_kind)
         if is_enum:
+            const_type = '_' + type_name + '_CONST'
+            const_rows = '\n'.join(
+                f'    {self.names.enum_field_name_constant(value.value, request.naming_profile)}: ClassVar[str] = {value.value!r}'
+                for value in request.definition.enum_values
+            )
             fields = "\n".join(
-                f"    {self.names.enum_constant(value.value, request.naming_profile)} = {value.value!r}"
+                f"    {self.names.enum_constant(value.value, request.naming_profile)} = "
+                f"{const_type}.{self.names.enum_field_name_constant(value.value, request.naming_profile)}"
                 for value in request.definition.enum_values
             )
             values = tuple(
@@ -38,13 +44,17 @@ class AIcPythonCodeGenerationBackend:
                 for value in request.definition.enum_values
             )
             source = (
-                "from enum import Enum\n\n\n"
+                "from enum import Enum\nfrom typing import ClassVar\n\n\n"
+                f"class {const_type}:\n"
+                "    \"\"\"Exact serialized field-name constants from the schema.\"\"\"\n"
+                f"{const_rows}\n\n\n"
                 f"class {type_name}(str, Enum):\n"
                 f"{self._type_docstring(request.definition, values=values)}"
-                f"    __canonical_source_id__ = {request.definition.identity!r}\n"
-                f"    __canonical_source_version__ = {request.definition.version!r}\n"
-                f"    __canonical_source_resource__ = {request.definition.source_resource!r}\n"
-                f"{fields}\n"
+                f"{fields}\n\n"
+                "    def code(self) -> str:\n"
+                "        \"\"\"Return the exact serialized enum code.\"\"\"\n"
+                "        return str(self.value)\n\n"
+                f"{type_name}.CONST = {const_type}\n"
             )
         else:
             from eu.algites.tool.codegen.defs.impl.standard.aic_scalar_generation import python_data_source

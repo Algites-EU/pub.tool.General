@@ -46,10 +46,34 @@ class AIcXmlDefsFrontend:
     def __init__(self):
         self._identities = AIcDefinitionIdentityResolver()
 
+    @staticmethod
+    def _type_identifier(name, request):
+        """Validate a declared or synthetic type name and convert via naming rules.
+
+        Explicit XSD names are parsed against the source profile. Synthetic names
+        are formed from schema syntax and validated against that same profile.
+        """
+        profile = request.source_naming_profile
+        catalog = request.naming_profile
+        if not profile:
+            found = catalog.recognize_filename(request.path.name)
+            if found is None:
+                raise ValueError(f'No source naming profile matches {request.path}')
+            profile = found.convention_name
+        from .aic_declared_type_identity import canonical_type_identifier
+        return canonical_type_identifier(catalog, profile, name)
+
+    def _validate_named_types(self, request, root):
+        """Require every globally declared type to follow the input type_name rule."""
+        for typ in self._children(root, 'complexType', 'simpleType'):
+            if typ.get('name'):
+                self._type_identifier(typ.get('name'), request)
+
     def load(self, request):
         """Read an XSD source and normalize its types, fields and documentation."""
         resource = self._parse(request.path)
         root = resource[0]
+        self._validate_named_types(request, root)
         version = int(root.attrib['version']) if root.attrib.get('version', '').isdigit() else None
         parsed = self._identities.from_file(request, version)
         identity = root.attrib.get('targetNamespace') or parsed.logical_name
@@ -89,35 +113,49 @@ class AIcXmlDefsFrontend:
                 or choice.get('maxOccurs', '1') != '1'):
             return None
         branches = self._children(choice)
-        if (len(branches) == 2 and typ.get('name', '').endswith('-choice')
-                and branches[0].tag == self._xs + 'element'
-                and branches[0].get('name') == 'Ref'
-                and branches[1].tag == self._xs + 'sequence'
-                and self._child(branches[1], 'choice') is not None):
-            prefix = typ.get('name')[:-len('-choice')]
-            parsed = self._identities.from_file(request,
-                int(resource[0].get('version')) if resource[0].get('version', '').isdigit() else None)
-            options = []
-            for suffix in ('-reference', '-value'):
-                linked = prefix + suffix
-                if self._named_type(resource[0], linked) is None:
-                    raise ValueError(f'Undeclared XML choice branch type: {linked} in {request.path}')
-                import re
-                logical = re.sub(r'[^A-Za-z0-9]+', '-',
-                    re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', linked)).lower()
-                options.append(AIcdDataType(AInDataTypeKind.REFERENCE,
-                    reference=AIcdDefinitionReference('#@type/' + linked,
-                        parsed.version, logical, AIcdDataType(AInDataTypeKind.OBJECT))))
-            return AIcdDataType.choice(AInDataTypeKind.ONE_OF, options)
-        if not branches or any(branch.tag != self._xs + 'element' or
-                bool(branch.get('name')) == bool(branch.get('ref')) or
-                branch.get('minOccurs') or branch.get('maxOccurs') for branch in branches):
+        if not branches or any(branch.tag not in (self._xs + 'element',
+                self._xs + 'sequence') for branch in branches):
             raise ValueError(f'Unsupported XSD choice branch in {request.path}')
-        fields = tuple(self._elements(choice, False, request, resource))
-        if len(fields) != len(branches):
-            raise ValueError(f'Invalid XSD choice projection in {request.path}')
-        return AIcdDataType.choice(AInDataTypeKind.ONE_OF,
-            tuple(AIcdDataType(AInDataTypeKind.OBJECT, properties=(field,)) for field in fields))
+        alternatives = []
+        for branch in branches:
+            if branch.get('minOccurs') is not None or branch.get('maxOccurs') is not None:
+                raise ValueError(f'Unsupported XSD choice branch occurrence in {request.path}')
+            if branch.tag == self._xs + 'element':
+                fields = tuple(self._elements_fragment(branch, request, resource, frozenset()))
+            else:
+                fields = tuple(self._elements(branch, False, request, resource, frozenset()))
+            if not fields:
+                raise ValueError(f'Empty XSD choice branch in {request.path}')
+            # A named global type may have exactly the same content model as a
+            # branch. Discover it structurally, never by a name suffix.
+            def equivalent(left, right):
+                return (len(left) == len(right) and all(
+                    a.source_name == b.source_name and a.data_type == b.data_type
+                    and a.xml_field == b.xml_field and a.nullable == b.nullable
+                    for a, b in zip(left, right)))
+            candidates = []
+            for candidate in self._children(resource[0], 'complexType'):
+                if candidate is typ:
+                    continue
+                try:
+                    contents = self._complex_properties(candidate, request, resource, frozenset())
+                except ValueError:
+                    continue
+                if equivalent(fields, contents):
+                    candidates.append(candidate.get('name'))
+            if len(candidates) > 1:
+                raise ValueError(f'Ambiguous structural XSD choice branch in {request.path}: {candidates}')
+            if candidates:
+                name = candidates[0]
+                parsed = self._identities.from_file(request,
+                    int(resource[0].get('version')) if resource[0].get('version', '').isdigit() else None)
+                alternatives.append(AIcdDataType(AInDataTypeKind.REFERENCE,
+                    reference=AIcdDefinitionReference('#@type/' + name,
+                        parsed.version, self._type_identifier(name, request),
+                        AIcdDataType(AInDataTypeKind.OBJECT))))
+            else:
+                alternatives.append(AIcdDataType(AInDataTypeKind.OBJECT, properties=fields))
+        return AIcdDataType.choice(AInDataTypeKind.ONE_OF, tuple(alternatives))
 
     def global_element_declarations(self, request):
         """Read all global declarations; do not conflate element identity with type identity."""
@@ -228,18 +266,19 @@ class AIcXmlDefsFrontend:
         typ = self._root_type(root)
         if typ is None:
             return ()
-        import re
         root_name = typ.get('name', '')
         if not root_name:
             return ()
-        prefix = ''.join(chunk[:1].upper() + chunk[1:]
-                         for chunk in re.split(r'[^A-Za-z0-9]+', root_name) if chunk)
+        prefix = root_name
         result = []
         for group in self._children(typ, 'sequence', 'all'):
             for child in self._children(group, 'element'):
                 if not self._children(child, 'key'):
                     continue
-                sequence = self._child(self._child(child, 'complexType'), 'sequence')
+                content = self._child(child, 'complexType')
+                if content is None and child.get('type'):
+                    content = self._named_type(root, child.get('type').split(':')[-1])
+                sequence = self._child(content, 'sequence')
                 entries = self._children(sequence, 'element') if sequence is not None else ()
                 if len(entries) != 1:
                     raise ValueError('Cannot identify keyed XSD value contract under ' + child.get('name', ''))
@@ -294,6 +333,7 @@ class AIcXmlDefsFrontend:
         """Project a separately declared type without changing the root file contract."""
         resource = self._parse(request.path)
         root = resource[0]
+        self._validate_named_types(request, root)
         typ = self._named_type(root, name)
         if typ is None:
             typ = next((content for inline_name, content in self._inline_content_types(root)
@@ -306,8 +346,7 @@ class AIcXmlDefsFrontend:
         version_text = root.get('version', '')
         parsed = self._identities.from_file(request, int(version_text) if version_text.isdigit() else None)
         identity = root.get('targetNamespace') or parsed.logical_name
-        import re
-        logical = re.sub(r'[^A-Za-z0-9]+', '-', re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', name)).lower()
+        logical = self._type_identifier(name, request)
         description = self._documentation(typ)
         title = self._title(typ)
         if keyed_entry is not None:
@@ -327,6 +366,23 @@ class AIcXmlDefsFrontend:
         if values:
             return AIcdCanonicalDefinition(identity, parsed.version, logical, self.source_kind, resource_name, description, AIcdDataType(AInDataTypeKind.ENUM), values, title)
         if typ.tag == self._xs + 'complexType':
+            # xs:key belongs to the element that uses a named complexType,
+            # not to the complexType declaration. The latter nevertheless
+            # represents the keyed collection's logical type. Preserve the
+            # element's physical key field in its XML-specialized value and
+            # project the named contract as KEYED_VALUES, as for a JSON/YAML
+            # named additionalProperties map. Never infer this from its name.
+            keyed_owners = [element for element in root.iter(self._xs + 'element')
+                if element.get('type', '').split(':')[-1] == name
+                and self._children(element, 'key')]
+            if keyed_owners:
+                mapped = [self._keyed_element_type(element, request, resource)
+                          for element in keyed_owners]
+                if any(candidate != mapped[0] for candidate in mapped[1:]):
+                    raise ValueError('Incompatible xs:key usages of named type '
+                        + name + ' in ' + str(request.path))
+                return AIcdCanonicalDefinition(identity, parsed.version, logical,
+                    self.source_kind, resource_name, description, mapped[0], (), title)
             choice = self._root_choice(typ, request, resource)
             if choice is not None:
                 return AIcdCanonicalDefinition(identity, parsed.version, logical, self.source_kind, resource_name, description, choice, (), title)
@@ -486,7 +542,38 @@ class AIcXmlDefsFrontend:
                         or old.max_occurs >= 0 and (new.max_occurs < 0 or new.max_occurs > old.max_occurs)):
                     raise ValueError(f'XSD restriction relaxes minOccurs/maxOccurs of {field.source_name!r} in {request.path}')
             if not self._same_type_shape(previous.data_type, field.data_type):
-                raise ValueError(f'XSD restriction changes the type of {field.source_name!r} in {request.path}')
+                # An imported named complex type can be represented by the XML
+                # frontend as the imported schema's root reference, while the
+                # same type within its declaring schema uses a local @type
+                # reference. These are identical XSD types when their expanded
+                # QNames are equal, so keep the resolved inherited shape.
+                def expanded_type(node, node_resource):
+                    if node is None or not node.get('type'):
+                        return None
+                    lexical = node.get('type')
+                    prefix, separator, local = lexical.rpartition(':')
+                    namespace = node_resource[1][id(node)].get(prefix if separator else '')
+                    if separator and namespace is None:
+                        return None
+                    return (namespace if namespace is not None else
+                            node_resource[0].get('targetNamespace', ''),
+                            local if separator else lexical)
+
+                inherited_element = next((element for element in
+                    self._children(base_sequence) if
+                    element.get('name') == field.source_name), None) if base_sequence is not None else None
+                restricted_element = next((element for element in
+                    self._children(restricted_sequence) if
+                    element.get('name') == field.source_name), None) if restricted_sequence is not None else None
+                inherited_qname = expanded_type(inherited_element, base_resource)
+                restricted_qname = expanded_type(restricted_element, resource)
+                if (previous.data_type.kind is AInDataTypeKind.REFERENCE and
+                        field.data_type.kind is AInDataTypeKind.REFERENCE and
+                        inherited_qname is not None and
+                        inherited_qname == restricted_qname):
+                    field = replace(field, data_type=previous.data_type)
+                else:
+                    raise ValueError(f'XSD restriction changes the type of {field.source_name!r} in {request.path}')
             if previous.data_type.constraints.data_type != field.data_type.constraints.data_type:
                 raise ValueError(f'Unsupported XSD restriction changes the scalar family of {field.source_name!r} in {request.path}')
             self._validate_restriction_facets(previous.data_type.constraints, field.data_type.constraints, request.path)
@@ -695,8 +782,10 @@ class AIcXmlDefsFrontend:
         if not keys:
             return None
         complex_type = self._child(declaration, 'complexType')
+        if complex_type is None and declaration.get('type'):
+            complex_type = self._named_type(resource[0], declaration.get('type').split(':')[-1])
         if complex_type is None:
-            raise ValueError(f'xs:key on non-inline XML complex type needs named type resolution: {request.path}')
+            raise ValueError(f'xs:key collection type is not a locally resolved XML complex type: {request.path}')
         sequence = self._child(complex_type, 'sequence')
         entries = self._children(sequence, 'element') if sequence is not None else ()
         if len(entries) != 1 or entries[0].get('maxOccurs') not in ('unbounded',) and not (
@@ -856,9 +945,7 @@ class AIcXmlDefsFrontend:
                     if ordinal is None:
                         raise ValueError('Cannot resolve ordinal of nested XSD choice')
                     name = owner.get('name') + 'Choice' + str(ordinal)
-                    import re
-                    logical = re.sub(r'[^A-Za-z0-9]+', '-',
-                        re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', name)).lower()
+                    logical = self._type_identifier(name, request)
                     parsed = self._identities.from_file(request,
                         int(resource[0].get('version')) if resource[0].get('version', '').isdigit() else None)
                     choice_type = self._synthetic_choice_type(node, request, resource)
@@ -904,8 +991,20 @@ class AIcXmlDefsFrontend:
                 containing_sequence = parents.get(id(node))
                 containing_type = parents.get(id(containing_sequence))
                 owner = parents.get(id(containing_type))
-                mapped = (self._keyed_element_type(owner, request, resource)
-                          if owner is not None and owner.tag == self._xs + 'element' else None)
+                mapped_owner = owner if owner is not None and owner.tag == self._xs + 'element' else None
+                if mapped_owner is None and containing_type is not None and containing_type.get('name'):
+                    # xs:key is declared on the element *using* a named
+                    # complexType, not on the type itself. Resolve that owner
+                    # without changing the original XML wire representation.
+                    type_name = containing_type.get('name')
+                    matching_owners = [candidate for candidate in resource[0].iter(self._xs + 'element')
+                        if candidate.get('type', '').split(':')[-1] == type_name
+                        and self._children(candidate, 'key')]
+                    if len(matching_owners) > 1:
+                        raise ValueError(f'Ambiguous keyed XML owner of named type {type_name!r} in {request.path}')
+                    mapped_owner = matching_owners[0] if matching_owners else None
+                mapped = (self._keyed_element_type(mapped_owner, request, resource)
+                          if mapped_owner is not None else None)
                 if not repeated and mapped is not None:
                     raise ValueError(f'xs:key selects non-repeating XML element: {local_name}')
                 if repeated:
@@ -1029,9 +1128,7 @@ class AIcXmlDefsFrontend:
                                     in self._inline_content_types(root) if candidate is content), None)
                 if inline_name is None:
                     raise ValueError('Unresolved anonymous XML content type')
-                import re
-                logical = re.sub(r'[^A-Za-z0-9]+', '-',
-                    re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', inline_name)).lower()
+                logical = self._type_identifier(inline_name, request)
                 parsed = self._identities.from_file(request,
                     int(root.get('version')) if root.get('version', '').isdigit() else None)
                 return _AIcdXmlShape(AInDataTypeKind.REFERENCE,
@@ -1056,9 +1153,7 @@ class AIcXmlDefsFrontend:
                 # A named complexType is an independently emitted contract.
                 # Keep its identity just as JSON $ref does, rather than losing
                 # the type and rendering a Map[str, object] / Map<String, Object>.
-                import re
-                logical = re.sub(r'[^A-Za-z0-9]+', '-',
-                    re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', local)).lower()
+                logical = self._type_identifier(local, request)
                 parsed = self._identities.from_file(request,
                     int(root.get('version')) if root.get('version', '').isdigit() else None)
                 # The schema's selected primary type is emitted as the root

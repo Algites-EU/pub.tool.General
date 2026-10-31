@@ -2,4 +2,4 @@
 # $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/pltf/modustro/builder/publication/global-publication-user-metadata_1.yamldef.schema.json
 $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/pltf/modustro/builder/publication/global-publication-user-metadata_1.yamldef.schema.json
 
-GlobalPublicationPathId: eu/algites/tool/codegen/common/naming/generated-dataobject-method-kind_1.xsd
+GlobalPublicationPathId: eu/algites/tool/codegen/common/naming/generated-dataobject-structure-kind_1.xsd

@@ -21,7 +21,7 @@ def test_python_java_schema_contract_identities():
     for target, ext in ((AInCodeGenerationTarget.PYTHON,'.py'),(AInCodeGenerationTarget.JAVA,'.java')):
         profile=(catalog('python') if target is AInCodeGenerationTarget.PYTHON
                  else catalog('java'))
-        load=AIcdDefinitionLoadRequest(Path('example_2.json'),AInDefinitionSourceKind.JSONDEFS,profile)
+        load=AIcdDefinitionLoadRequest(Path('example_2.jsondef.schema.json'),AInDefinitionSourceKind.JSONDEFS,profile)
         definition=reader.read(schema,load,AInDefinitionSourceKind.JSONDEFS,
                                'x-aac-schema-id','x-aac-schema-version','x-jsondefs-name')
         request=AIcdCodeGenerationRequest(definition,target,'eu.algites.example',rendering_catalog(profile, 'java' if target is AInCodeGenerationTarget.JAVA else 'python'),None,

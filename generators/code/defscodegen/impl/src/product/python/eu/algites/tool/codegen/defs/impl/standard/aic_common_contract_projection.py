@@ -5,6 +5,41 @@ from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstra
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 
 
+def _compatible_key_definitions(types, context):
+    """Validate explicit versus virtual keys without discarding their meaning.
+
+    XML ``xs:key`` obtains its unique string key from a required physical item
+    field; JSON/YAML ``additionalProperties`` obtains that key from the property
+    name. They may share a canonical map only when both encode one mandatory,
+    unique string key per item. Unrelated composite and nonunique indexes do
+    not become equivalent merely because their counts match.
+    """
+    definitions = [t.key_definitions for t in types]
+    first = definitions[0]
+    if all(value == first for value in definitions):
+        return first
+    if any(len(value) != 1 for value in definitions):
+        raise ValueError('Incompatible common key definitions: ' + context)
+    keys = [value[0] for value in definitions]
+    virtual = [key for key in keys if key.virtual]
+    physical = [key for key in keys if not key.virtual]
+    if not virtual or not physical or not all(key.unique for key in keys):
+        raise ValueError('Incompatible common key definitions: ' + context)
+    if any(key.fields != virtual[0].fields or key.name != virtual[0].name for key in virtual):
+        raise ValueError('Incompatible virtual common key definitions: ' + context)
+    for typ, key in zip(types, keys):
+        if key.virtual:
+            continue
+        if len(key.fields) != 1 or '.' in key.fields[0]:
+            raise ValueError('Incompatible physical common key definition: ' + context)
+        field = next((candidate for candidate in typ.keyed_value_type.properties
+                      if candidate.source_name == key.fields[0]), None)
+        if (field is None or field.data_type.kind is not AInDataTypeKind.STRING
+                or field.presence is not AInFieldPresenceKind.REQUIRED or field.nullable):
+            raise ValueError('Physical common key must be a required string: ' + context)
+    return (virtual[0],)
+
+
 def _common_type(types, context):
     """Keep structural types, intersect object members and relax wire-specific facets."""
     first = types[0]
@@ -50,13 +85,13 @@ def _common_type(types, context):
         if any(has_keys) and not all(has_keys):
             raise ValueError('Incompatible KEYED_VALUES declarations: ' + context)
         if all(has_keys):
-            if any(len(t.key_definitions) != len(first.key_definitions) for t in types):
-                raise ValueError('Incompatible KEYED_VALUES key count: ' + context)
+            common_keys = _compatible_key_definitions(types, context)
             keyed = _common_type([t.keyed_value_type for t in types], context + '{key}')
         else:
+            common_keys = ()
             keyed = None
         return replace(first, properties=tuple(fields), keyed_value_type=keyed,
-            constraints=constraints)
+            key_definitions=common_keys, constraints=constraints)
     if first.kind is AInDataTypeKind.ARRAY:
         if any(len(t.position_types) != len(first.position_types) for t in types):
             raise ValueError('Incompatible POSITION_TYPED_VALUE slots: ' + context)

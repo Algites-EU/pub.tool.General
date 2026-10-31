@@ -7,12 +7,15 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import difflib
+import io
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
+import tokenize
 import unittest
 
 from explicit_naming_fixture import explicit_algites_manifest
@@ -25,7 +28,7 @@ def create_fixture(root):
     manifest = root / 'bindings.json'
     override_schema = 'intf/src/product/jsondefs/example/contracts/root_1.jsondef.schema.json'
     manifest.write_text(json.dumps(explicit_algites_manifest(dict(artifact='intf', implementation_artifact='impl', languages=['python', 'java'],
-        bindings=[dict(schema=override_schema, pointer='/$defs/valueSource', name='shared-value-source')]))), encoding='utf-8')
+        bindings=[dict(schema=override_schema, pointer='/$defs/ValueSource', name='shared-value-source')]))), encoding='utf-8')
     for kind, suffix in (('jsondefs', 'jsondef.schema.json'), ('yamldefs', 'yamldef.schema.json')):
         directory = root / 'intf/src/product' / kind / 'example'
         contracts = directory / 'contracts'; contracts.mkdir(parents=True)
@@ -60,43 +63,71 @@ def create_fixture(root):
         schema = dict(type='object', description='Root contract documentation.', properties=props,
             required=['Name','Count','Amount','Flag','Nothing','Child','Children','State','States'],
             **{'$defs':{'Thing':dict(type='object', properties={'DefinitionValue':dict(type='integer')}),
-                'sourceA':dict(type='object', properties={'Source':dict(type='string', const='a'), 'Value':dict(type='string')}, required=['Source','Value']),
-                'sourceB':dict(type='object', properties={'Source':dict(type='string', const='b'), 'Value':dict(type='string')}, required=['Source']),
-                'valueSource':dict(type='object', properties={'Source': dict(type='string'), 'Value': dict(type='string')}, oneOf=[{'$ref':'#/$defs/sourceA'},{'$ref':'#/$defs/sourceB'}])}})
+                'SourceA':dict(type='object', properties={'Source':dict(type='string', const='a'), 'Value':dict(type='string')}, required=['Source','Value']),
+                'SourceB':dict(type='object', properties={'Source':dict(type='string', const='b'), 'Value':dict(type='string')}, required=['Source']),
+                'ValueSource':dict(type='object', properties={'Source': dict(type='string'), 'Value': dict(type='string')}, oneOf=[{'$ref':'#/$defs/SourceA'},{'$ref':'#/$defs/SourceB'}])}})
         # The explicit shared union override has only one representation; leave equivalent
         # plain objects in the second format to verify the normal merger independently.
         if kind == 'yamldefs':
-            del schema['$defs']['valueSource']
+            del schema['$defs']['ValueSource']
         (contracts / f'root_1.{suffix}').write_text(json.dumps(schema), encoding='utf-8')
         (values / f'scalar_1.{suffix}').write_text('{"type":"number","minimum":0.12345678901234567890123456789}', encoding='utf-8')
         (contracts / 'ignored.meta.yml').write_text('GlobalPublicationPathId: fixture\n', encoding='utf-8')
     return manifest
 
 def normalized_python(source):
-    """Compare executable Python exactly while ignoring whitespace in documentation literals.
+    """Ignore only lexical whitespace while preserving Python syntax and literals.
 
-    Generated DataObject classes can place a standalone documentation string
-    after canonical metadata assignments, not necessarily as their first member.
-    The expression has no executable effect there; normalizing only the first
-    statement would report false implementation mismatches.
+    INDENT/DEDENT and logical NEWLINE tokens remain visible: changing the block
+    hierarchy or statement boundaries cannot accidentally pass as formatting.
+    Comments keep their wording but ignore the spacing within the comment.
+    Unlike comparing ASTs this rejects alternative implementations, parentheses,
+    changed literals, and reordered declarations even when their meaning matches.
     """
-    tree = ast.parse(source)
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+    tokens = []
+    reader = io.BytesIO(source.encode('utf-8')).readline
+    for item in tokenize.tokenize(reader):
+        if item.type in (tokenize.ENCODING, tokenize.ENDMARKER, tokenize.NL):
             continue
-        for statement in node.body:
-            if (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant)
-                    and isinstance(statement.value.value, str)):
-                statement.value.value = ' '.join(statement.value.value.split())
-    return ast.dump(tree, include_attributes=False)
+        if item.type in (tokenize.INDENT, tokenize.DEDENT):
+            tokens.append((item.type, ''))
+        elif item.type == tokenize.COMMENT:
+            tokens.append((item.type, ' '.join(item.string.split())))
+        else:
+            tokens.append((item.type, item.string if item.type != tokenize.NEWLINE else ''))
+    return tuple(tokens)
 
 
 def normalized_java(source):
     """Ignore spacing outside literals and normalize comment whitespace only."""
-    pattern = r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*[\s\S]*?\*/|//[^\n]*|[A-Za-z_$][A-Za-z0-9_$]*|[0-9]+|[^\s]'
+    pattern = r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*[\s\S]*?\*/|//[^\n]*|[A-Za-z_$][A-Za-z0-9_$]*|[0-9]+|>>>=|<<=|>>=|>>>|\.\.\.|::|->|==|!=|<=|>=|&&|\|\||\+\+|--|<<|>>|[+*/%&|^!=<>-]=|[^\s]'
     tokens = re.findall(pattern, source)
     return tuple(' '.join(token.split()) if token.startswith(('/*','//')) else token for token in tokens)
 
+
+
+def assert_identical_outputs(test, expected, actual, language):
+    """Reject missing/extra sources and show a focused source-level parity diff.
+
+    Args:
+        test: active unittest instance
+        expected: paths and emitted sources from the JVM generator
+        actual: paths and emitted sources from the Python generator
+        language: target technology name for the diagnostic
+    Raises:
+        AssertionError: For a missing, additional, or lexically unequal source
+    """
+    missing = sorted(set(expected) - set(actual))
+    extra = sorted(set(actual) - set(expected))
+    test.assertFalse(missing or extra,
+        f'{language}: generated file set differs\nMissing in Python: {missing}\nExtra in Python: {extra}')
+    normalizer = normalized_python if language == 'python' else normalized_java
+    for relative in sorted(expected):
+        if normalizer(expected[relative]) != normalizer(actual[relative]):
+            diff = ''.join(difflib.unified_diff(expected[relative].splitlines(True),
+                actual[relative].splitlines(True), fromfile='java-generator/' + relative,
+                tofile='python-generator/' + relative))
+            raise AssertionError(f'{language}: non-whitespace output difference in {relative}\n{diff[:20000]}')
 
 
 class AItcGeneratorImplementationParityTest(unittest.TestCase):
@@ -141,16 +172,33 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
                 result[output.relative_to(root).as_posix()] = output.read_text()
         return result
 
+    def test_whitespace_normalizers_do_not_mask_semantic_differences(self):
+        """Regress strict parity: only whitespace outside tokens may be ignored."""
+        self.assertEqual(normalized_python('def f():\n    return 1\n'),
+                         normalized_python('def f( ):\n        return 1\n'))
+        self.assertNotEqual(normalized_python('def f():\n    return 1\n'),
+                            normalized_python('def f():\n    return 2\n'))
+        self.assertNotEqual(normalized_python('if ready:\n    return_value = 1\n'),
+                            normalized_python('if ready:\n    pass\nreturn_value = 1\n'))
+        self.assertEqual(normalized_java('class Test { int a=1; }'),
+                         normalized_java('class  Test{int a = 1;}'))
+        self.assertNotEqual(normalized_java('class Test { int a=1; }'),
+                            normalized_java('class Test { int a=2; }'))
+        self.assertNotEqual(normalized_java('int x = a + +b;'),
+                            normalized_java('int x = a++b;'))
+
     def test_contract_repository_output_parity(self):
         result = {name: self.generate(name) for name in self.repositories}
         self.assertEqual(result['jvm'], result['python'])
         a, b = (self._outputs(name) for name in ('jvm', 'python'))
-        self.assertEqual(set(a), set(b))
-        self.assertTrue(a)
+        self.assertTrue(a, 'No generated sources: parity test must never pass vacuously')
         self.assertFalse(any('/impl/' in path or 'aicgd_' in path for path in a))
-        for path in a:
-            normalize = normalized_python if path.endswith('.py') else normalized_java
-            self.assertEqual(normalize(a[path]), normalize(b[path]), path)
+        for language, extension in (('java', '.java'), ('python', '.py')):
+            java_outputs = {path: source for path, source in a.items() if path.endswith(extension)}
+            python_outputs = {path: source for path, source in b.items() if path.endswith(extension)}
+            self.assertTrue(java_outputs, f'JVM generator emitted no {language} files')
+            self.assertTrue(python_outputs, f'Python generator emitted no {language} files')
+            assert_identical_outputs(self, java_outputs, python_outputs, language)
         for name in self.repositories:
             before = self._outputs(name)
             self.generate(name, check=True)
@@ -172,7 +220,7 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
                 profile = AIcNameConventionCatalog.load_many([
                     f'resource:algites-{family}-name-conventions.yml'
                     for family in (language, 'jsondef', 'yamldef', 'xmldef')])
-                for stem in ('parity-root', 'parity-child', 'parity-leaf', 'parity-status', 'parity-builtins'):
+                for stem in ('parity-supported', 'parity-child', 'parity-leaf', 'parity-status', 'parity-supported-builtins'):
                     with self.subTest(kind=kind, target=target, stem=stem):
                         source = resources / kind.value / (stem + '_1.' + suffix)
                         model = AIcDefaultDefsCodegenService().load(configured_load(source, kind, profile))

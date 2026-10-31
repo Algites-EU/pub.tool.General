@@ -226,13 +226,21 @@ public final class AIcSchemaContractBindingsGenerator {
                         declaredIdentityBySchema.put(schema, !locIdField.isBlank()
                                 && !document.path(locIdField).asText("").isBlank());
                     }
-                    String base = source.getFileName().toString().substring(0, source.getFileName().toString().length() - suffix.length()).replaceFirst("_[0-9]+$", "");
+                    AIcNameConventionCatalog locInputCatalog = sourceCatalogs.get(kind);
+                    if (locInputCatalog == null || !profileBySchema.containsKey(schema))
+                        throw new IllegalArgumentException("Missing source naming catalog/profile for " + schema);
+                    var locFilename = locInputCatalog.recognizeFilename(source.getFileName().toString(),
+                            Set.of(profileBySchema.get(schema)));
+                    if (locFilename == null || !locFilename.variables().containsKey("identifier"))
+                        throw new IllegalArgumentException("Cannot parse schema identifier via naming profile: " + schema);
+                    String base = locFilename.variables().get("identifier");
                     if (kind.equals("xmldefs")) {
                         units.add(new AIcdUnit(schema, "", base, mapper.createObjectNode(), document));
                         for (String locTypeName : new AIcXmlDefsFrontend().additionalNamedTypeNames(source))
                             units.add(new AIcdUnit(schema, "@type/" + locTypeName, locTypeName,
                                     mapper.createObjectNode(), document));
-                    } else collect(document, "", base, schema, document, overrides, units);
+                    } else collect(document, "", base, schema, document, overrides, units,
+                            locInputCatalog, profileBySchema.get(schema));
                 }
             }
         }
@@ -330,7 +338,10 @@ public final class AIcSchemaContractBindingsGenerator {
                     case "xmldefs" -> AInDefinitionSourceKind.XMLDEFS;
                     default -> AInDefinitionSourceKind.JSONDEFS;
                 };
-                var load = new AIcdDefinitionLoadRequest(source, sourceType, baseProfile);
+                AIiNameConventionCatalog locInputCatalog = sourceCatalogs.containsKey(sourceKind)
+                        ? sourceCatalogs.get(sourceKind) : baseProfile;
+                var load = new AIcdDefinitionLoadRequest(source, sourceType, locInputCatalog,
+                        profileBySchema.getOrDefault(unit.schema, ""));
                 var loaded = sourceKind.equals("xmldefs")
                         ? (unit.pointer().startsWith("@type/")
                             ? new AIcXmlDefsFrontend().loadNamedType(load, unit.pointer().substring(6))
@@ -1108,7 +1119,8 @@ public final class AIcSchemaContractBindingsGenerator {
     }
 
     private void collect(JsonNode node, String pointer, String name, String schema, JsonNode document,
-                         Map<String, JsonNode> overrides, List<AIcdUnit> result) {
+                         Map<String, JsonNode> overrides, List<AIcdUnit> result,
+                         AIiNameConventionCatalog sourceCatalog, String sourceProfile) {
         if (!node.isObject()) return;
         JsonNode override = overrides.get(schema + "#" + pointer);
         if (override != null && override.path("common_one_of_fields").asBoolean())
@@ -1122,15 +1134,21 @@ public final class AIcSchemaContractBindingsGenerator {
             while (entries.hasNext()) {
                 var entry = entries.next();
                 String token = entry.getKey().replace("~", "~0").replace("/", "~1");
-                collect(entry.getValue(), pointer + "/" + map + "/" + token, name + (map.equals("$defs") || map.equals("definitions") ? "-definition-" : map.equals("patternProperties") ? "-pattern-" : "-") + kebab(entry.getKey()), schema, document, overrides, result);
+                String childName = map.equals("$defs") || map.equals("definitions")
+                        ? AIcDeclaredTypeIdentity.canonicalTypeIdentifier(sourceCatalog, sourceProfile, entry.getKey())
+                        : name + (map.equals("patternProperties") ? "-pattern-" : "-") + kebab(entry.getKey());
+                collect(entry.getValue(), pointer + "/" + map + "/" + token, childName,
+                        schema, document, overrides, result, sourceCatalog, sourceProfile);
             }
         }
         for (String single : List.of("items", "additionalProperties")) {
-            collect(node.path(single), pointer + "/" + single, name + "-" + kebab(single), schema, document, overrides, result);
+            collect(node.path(single), pointer + "/" + single, name + "-" + kebab(single), schema, document, overrides, result,
+                        sourceCatalog, sourceProfile);
         }
         for (String array : List.of("prefixItems")) {
             JsonNode variants = node.path(array);
-            for (int i = 0; i < variants.size(); i++) collect(variants.get(i), pointer + "/" + array + "/" + i, name + "-" + kebab(array) + "-" + i, schema, document, overrides, result);
+            for (int i = 0; i < variants.size(); i++) collect(variants.get(i), pointer + "/" + array + "/" + i, name + "-" + kebab(array) + "-" + i, schema, document, overrides, result,
+                        sourceCatalog, sourceProfile);
         }
     }
 
