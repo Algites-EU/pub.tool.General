@@ -46,6 +46,17 @@ tasks.register('bootstrapSdoJava') {
     // `classes` does not guarantee the JARs exist before we fork Java.
     dependsOn subprojects.collect { it.tasks.named('jar') }
     doLast {
+        if (System.getenv('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED') == '1') {
+            def ids = bootstrapSdoManifest.collect { it.artifactId }.toSet()
+            if (ids != ['pub.lib.General_naming.convention.intf'].toSet() ||
+                    System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') != 'source') {
+                throw new GradleException('Defs-only SDO ABI seed is permitted only for '
+                        + 'the naming conventions source artifact')
+            }
+            logger.lifecycle('SDO Java: naming ABI seed; deferring SDO generation '
+                    + 'until the source SDO Codegen CLI is built')
+            return
+        }
         def candidates = bootstrapSdoManifest.findAll { entry ->
             def folder = project(':' + entry.project).projectDir
             def roots = [new File(folder, 'src/product/java'), new File(folder, 'src/product/java.gen')]

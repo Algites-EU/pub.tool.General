@@ -209,6 +209,46 @@ def resolve(repository: Path, root: Path, available: dict[str, Artifact]) -> tup
     return ordered, groups
 
 
+# The naming definition module owns the read-only contracts consumed by the
+# SDO generator's own naming implementation. Bootstrap it in two stages:
+# first publish its Defs-only ABI, then compile the generator from source,
+# and finally regenerate/publish the complete naming artifact. This seed is
+# strictly confined to the generator's dependency graph.
+NAMING_ABI_SEED = 'pub.lib.General_naming.convention.intf'
+SDO_CLI = 'pub.tool.General_generators.code.sdocodegen.cli'
+
+
+def build_prerequisite(artifact: Artifact, *, seed: bool = False) -> None:
+    command = ['bash', str(artifact.repository / 'devops/bootstrap/bootstrap.sh'),
+               '--root', artifact.relative.as_posix(), '--prepare-only']
+    env = dict(os.environ, MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE='source',
+               MODUSTRO_BOOTSTRAP_SOURCE_PREREQUISITES_READY='1')
+    env.pop('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED', None)
+    if seed:
+        if artifact.identifier != NAMING_ABI_SEED:
+            raise ValueError(f'ABI seed is forbidden for {artifact.identifier}')
+        env['MODUSTRO_BOOTSTRAP_SDO_ABI_SEED'] = '1'
+    print(f"Building source prerequisite {artifact.identifier}" +
+          (' (Defs-only naming ABI seed)' if seed else ''), flush=True)
+    subprocess.run(command, cwd=artifact.repository, env=env, check=True)
+
+
+def prepare_sdo_generator(repository: Path, available: dict[str, Artifact]) -> None:
+    """Build the CLI and its source prerequisites, seeding the naming ABI.
+
+    This must not silently reuse a previously published CLI. The generator
+    itself is prepared with its complete normal dependency graph, except for
+    the one ABI-only naming seed required to break the bootstrap cycle.
+    """
+    cli = available.get(SDO_CLI)
+    if cli is None:
+        raise ValueError('Source mode requires the SDO CLI checkout: ' + SDO_CLI)
+    prerequisites, _ = resolve(cli.repository, cli.repository / cli.relative, available)
+    for artifact in prerequisites:
+        build_prerequisite(artifact, seed=artifact.identifier == NAMING_ABI_SEED)
+    build_prerequisite(cli)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=('plan', 'prepare', 'groups'))
@@ -219,7 +259,8 @@ def main() -> None:
     root = args.root.resolve(strict=True)
     if not root.is_relative_to(repository):
         raise ValueError(f'Source root must be inside its repository: {root}')
-    todo, groups = resolve(repository, root, catalog(checkouts(repository)))
+    available = catalog(checkouts(repository))
+    todo, groups = resolve(repository, root, available)
     if args.action == 'groups':
         print(','.join(sorted(groups)))
         return
@@ -228,13 +269,20 @@ def main() -> None:
         print(f'  {artifact.identifier} [{artifact.group}:{artifact.version}] '
               f'from {artifact.repository.name}/{artifact.relative}', flush=True)
     if args.action == 'prepare':
+        identifiers = {item.identifier for item in todo}
+        roots = {item.identifier for item in available.values()
+                 if item.repository == repository and (root == repository or
+                     (item.repository / item.relative).is_relative_to(root))}
+        generator_root = SDO_CLI in roots or any(item.startswith(
+            'pub.tool.General_generators.code.sdocodegen.') for item in roots)
+        if (NAMING_ABI_SEED in identifiers or NAMING_ABI_SEED in roots) and not generator_root:
+            # The target depends on generated naming contracts. Build the
+            # generator *first*, without accepting an old cached CLI binary.
+            # The generator's own bootstrap uses the Defs-only naming seed.
+            prepare_sdo_generator(repository, available)
         for artifact in todo:
-            command = ['bash', str(artifact.repository / 'devops/bootstrap/bootstrap.sh'),
-                       '--root', artifact.relative.as_posix(), '--prepare-only']
-            env = dict(os.environ, MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE='source',
-                       MODUSTRO_BOOTSTRAP_SOURCE_PREREQUISITES_READY='1')
-            print(f'Building source prerequisite {artifact.identifier}', flush=True)
-            subprocess.run(command, cwd=artifact.repository, env=env, check=True)
+            build_prerequisite(artifact, seed=(generator_root and
+                               artifact.identifier == NAMING_ABI_SEED))
 
 
 if __name__ == '__main__':

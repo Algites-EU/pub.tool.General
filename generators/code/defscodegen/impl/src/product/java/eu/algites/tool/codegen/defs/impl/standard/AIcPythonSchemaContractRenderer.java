@@ -30,6 +30,11 @@ final class AIcPythonSchemaContractRenderer {
         boolean locTemporal = false;
         List<String> locXmlFields = new ArrayList<>();
         for (AIcdPropertyDefinition locProperty : locDefinition.dataType().properties()) {
+            // Do not expose SchemaMetadataNaming transport keys as regular fields.
+            String locWireName = locProperty.sourceName();
+            if (!locWireName.isEmpty() && (locWireName.equals(locDefinition.dataSourceSchemaUrlField())
+                    || locWireName.equals(locDefinition.dataSourceSchemaIdentifierField())
+                    || locWireName.equals(locDefinition.dataSourceSchemaVersionField()))) continue;
             String locField = identifier(names.propertyName(locProperty.sourceName(), aRequest.namingProfile()));
             String locGetterName = names.getterName(locProperty.sourceName(), aRequest.namingProfile());
             boolean locArray = locProperty.dataType().kind() == AInDataTypeKind.ARRAY;

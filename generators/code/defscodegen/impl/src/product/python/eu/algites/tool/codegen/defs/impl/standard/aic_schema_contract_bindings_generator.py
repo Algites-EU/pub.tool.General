@@ -250,8 +250,8 @@ class AIcSchemaContractBindingsGenerator:
                 # legacy XML contract annotations instead of applying JSON metadata
                 # requirements to an XSD without such source fields.
                 output_fields = ({} if kind == 'xmldefs' else
-                    profile.schema_metadata_fields(profile._generated_method_profile)
-                    if profile._generated_method_profile else fields)
+                    profile.schema_metadata_fields(profile.generated_method_profile)
+                    if profile.generated_method_profile else fields)
                 for suffix in ('url', 'identifier', 'version'):
                     output_key = f'data_source_schema_{suffix}'
                     if output_fields.get(output_key) and (

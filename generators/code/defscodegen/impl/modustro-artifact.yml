@@ -37,17 +37,11 @@ Dependencies:
       - GroupId: com.fasterxml.jackson.core
         ArtifactId: jackson-databind
         Usages: [product_implementation]
-        VersionRequirement:
-          Minimum: ">=2.0.0"
-          Maximum: "<3.0.0"
-          MaximumStrict: true
+        VersionRequirement: { Exact: "2.18.3" }
       - GroupId: com.fasterxml.jackson.dataformat
         ArtifactId: jackson-dataformat-yaml
         Usages: [product_implementation]
-        VersionRequirement:
-          Minimum: ">=2.0.0"
-          Maximum: "<3.0.0"
-          MaximumStrict: true
+        VersionRequirement: { Exact: "2.18.3" }
       - GroupId: org.testng
         ArtifactId: testng
         Usages: [develop_implementation]

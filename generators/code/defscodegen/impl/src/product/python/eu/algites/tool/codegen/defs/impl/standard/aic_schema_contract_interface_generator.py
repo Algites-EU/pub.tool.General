@@ -152,6 +152,14 @@ class AIcSchemaContractInterfaceGenerator:
         xml_key_rows = []
         has_temporal = False
         for field_order, prop in enumerate(model.data_type.properties):
+            # SchemaMetadataNaming defines transport metadata, not domain fields.
+            # Compare the original wire name, never a normalized accessor name.
+            if prop.source_name in (
+                    model.data_source_schema_url_field,
+                    model.data_source_schema_identifier_field,
+                    model.data_source_schema_version_field,
+            ) and prop.source_name:
+                continue
             name = _property_name(self.names.property_name(prop.source_name, request.naming_profile))
             getter_name = self.names.getter_name(prop.source_name, request.naming_profile)
             field_type = contract_type(prop, request, self.names, imports=ref_imports)
@@ -184,14 +192,15 @@ class AIcSchemaContractInterfaceGenerator:
                     f'wildcard_namespace={wire.wildcard_namespace!r}, '
                     f'wildcard_process_contents={wire.wildcard_process_contents!r}),')
             label_rows.append(f'        {prop.source_name!r}: AIaFieldLabel(label={title!r}, labels={entries}),')
-            expected_type = None
-            if model.source_kind is AInDefinitionSourceKind.XMLDEFS:
-                expected_type = {
-                    AInDataTypeKind.STRING: 'str', AInDataTypeKind.INTEGER: 'int',
-                    AInDataTypeKind.NUMBER: 'Decimal', AInDataTypeKind.BOOLEAN: 'bool',
-                }.get(prop.data_type.kind)
-                if array:
-                    expected_type = 'AIiMultiMappedList' if prop.data_type.key_definitions else 'list'
+            # A common contract and its XML/JSON/YAML implementations must expose
+            # the same semantic type. Restricting expected_type to XMLDEFS makes
+            # unrelated branches of the generated inheritance diamond conflict.
+            expected_type = {
+                AInDataTypeKind.STRING: 'str', AInDataTypeKind.INTEGER: 'int',
+                AInDataTypeKind.NUMBER: 'Decimal', AInDataTypeKind.BOOLEAN: 'bool',
+            }.get(prop.data_type.kind)
+            if array:
+                expected_type = 'AIiMultiMappedList' if prop.data_type.key_definitions else 'list'
             field_decorator = ('    @AIaDataObjectField(field_name=' + repr(prop.source_name)
                 + ', presence=AInFieldPresenceKind.' + prop.presence.name
                 + ', allows_null=' + str(bool(prop.nullable))
@@ -341,6 +350,14 @@ class AIcSchemaContractInterfaceGenerator:
                 'definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE, '
                 + 'namespace = ' + _java_quote(namespace) + ', namespaceLocalName = ' + _java_quote(local) + ')')
         for field_order, prop in enumerate(model.data_type.properties):
+            # SchemaMetadataNaming defines transport metadata, not domain fields.
+            # Compare the original wire name, never a normalized accessor name.
+            if prop.source_name in (
+                    model.data_source_schema_url_field,
+                    model.data_source_schema_identifier_field,
+                    model.data_source_schema_version_field,
+            ) and prop.source_name:
+                continue
             desc = re.sub(r'\s+', ' ', (prop.description or f'Canonical field {prop.source_name}.').replace('*/', '* /')).replace('<', '&lt;').replace('>', '&gt;')
             name = java_identifier(self.names.property_name(prop.source_name, request.naming_profile))
             typ = contract_type(prop, request, self.names, java=True)

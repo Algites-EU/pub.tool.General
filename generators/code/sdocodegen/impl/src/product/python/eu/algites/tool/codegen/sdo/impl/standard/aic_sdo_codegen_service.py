@@ -26,6 +26,7 @@ from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLa
 from eu.algites.tool.codegen.sdo.aicd_generated_sdo_source import AIcdGeneratedSdoSource
 from eu.algites.tool.codegen.sdo.aicd_sdo_generation_result import AIcdSdoGenerationResult
 from eu.algites.tool.codegen.sdo.aii_sdo_codegen_service import AIiSdoCodegenService
+from eu.algites.lib.naming.convention.aii_name_convention_catalog import AIiNameConventionCatalog
 
 
 
@@ -169,8 +170,12 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 return result
             raise ValueError(f'SDO naming profile for role {role}/{index} must be explicitly selected')
 
-        def catalog():
-            return naming[3] if naming is not None and len(naming) == 4 else None
+        def catalog() -> AIiNameConventionCatalog | None:
+            """Return the naming catalog through its public contract."""
+            chosen = naming[3] if naming is not None and len(naming) == 4 else None
+            if chosen is not None and not isinstance(chosen, AIiNameConventionCatalog):
+                raise TypeError('SDO naming catalog must implement AIiNameConventionCatalog')
+            return chosen
 
         def accessor_profile(contract, index):
             """Require configured naming catalogs and roles for every generated accessor."""
@@ -453,7 +458,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         mapped_contract = issubclass(read_contract, AIiMultiMappedList)
         method_catalog = catalog()
         synthetic_key_method = None
-        if method_catalog is not None and method_catalog._generated_method_profile:
+        if method_catalog is not None and method_catalog.generated_method_profile:
             composition = method_catalog.generated_method_reference(
                 'multi_mapped_list_key_synthetic_getter')
             if composition is not None:
@@ -544,8 +549,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             getter = descriptor.getter_name or accessor_name(read_contract, descriptor, 'getter_method_name', 0)
             suffix = name[:1].upper() + name[1:]
             method_catalog = catalog() if naming is not None else None
-            if method_catalog is not None and method_catalog._generated_method_profile:
-                method_profile = method_catalog._generated_method_profile
+            if method_catalog is not None and method_catalog.generated_method_profile:
+                method_profile = method_catalog.generated_method_profile
                 identifier, source_convention = semantic_identifier(name)
                 def method_name(kind):
                     if method_catalog.generated_method_reference(kind) is None:

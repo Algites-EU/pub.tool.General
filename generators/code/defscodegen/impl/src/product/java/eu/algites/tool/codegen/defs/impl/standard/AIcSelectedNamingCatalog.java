@@ -56,6 +56,18 @@ final class AIcSelectedNamingCatalog implements AIiNameConventionCatalog {
     }
 
     /** {@inheritDoc} */
+    @Override public String selectedRole(String aRole) {
+        return catalog.selectedRole(aRole);
+    }
+    /** {@inheritDoc} */
+    @Override public String generatedMethodProfile() {
+        return catalog.generatedMethodProfile();
+    }
+    /** {@inheritDoc} */
+    @Override public String generatedMethodReference(String aRole) {
+        return catalog.generatedMethodReference(aRole);
+    }
+    /** {@inheritDoc} */
     @Override public String schemaMetadataField(String aProfile, String aSide, String aKind) {
         return catalog.schemaMetadataField(aProfile, aSide, aKind);
     }

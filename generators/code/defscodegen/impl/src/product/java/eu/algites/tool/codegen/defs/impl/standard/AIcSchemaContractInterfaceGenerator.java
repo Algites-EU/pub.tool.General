@@ -105,6 +105,11 @@ public final class AIcSchemaContractInterfaceGenerator {
         rows.add("    String CANONICAL_SOURCE_RESOURCE = " + AIcScalarGeneration.jquote(aRequest.definition().sourceResource()) + ";");
         int locXmlOrder = 0;
         for (AIcdPropertyDefinition property : aRequest.definition().dataType().properties()) {
+            // Configured instance schema metadata is not a DataObject field.
+            String locWireName = property.sourceName();
+            if (!locWireName.isEmpty() && (locWireName.equals(aRequest.definition().dataSourceSchemaUrlField())
+                    || locWireName.equals(aRequest.definition().dataSourceSchemaIdentifierField())
+                    || locWireName.equals(aRequest.definition().dataSourceSchemaVersionField()))) continue;
             String description = property.description() == null ? "Canonical field " + property.sourceName() + "." : property.description();
             description = description.replace("*/", "* /").replaceAll("\\s+", " ").replace("<", "&lt;").replace(">", "&gt;");
             String name = names.propertyName(property.sourceName(), aRequest.namingProfile());
@@ -238,16 +243,16 @@ public final class AIcSchemaContractInterfaceGenerator {
                     logicalName + "-items", request) + ">";
         if (valueType.kind() == AInDataTypeKind.REFERENCE) {
             var reference = valueType.reference();
-            return names.render(reference.logicalName(), reference.version(), request.namingProfile(),
+            return names.referenceTypeName(reference.logicalName(), reference.version(), request.namingProfile(),
                     reference.targetsEnum() ? AInDefsNameRole.ENUM_TYPE : AInDefsNameRole.INTERFACE_TYPE);
         }
         if (valueType.kind() == AInDataTypeKind.OBJECT
                 || valueType.kind() == AInDataTypeKind.ONE_OF
                 || valueType.kind() == AInDataTypeKind.ANY_OF)
-            return names.render(logicalName, request.definition().version(), request.namingProfile(),
+            return names.referenceTypeName(logicalName, request.definition().version(), request.namingProfile(),
                     AInDefsNameRole.INTERFACE_TYPE);
         if (valueType.kind() == AInDataTypeKind.ENUM)
-            return names.render(logicalName, request.definition().version(), request.namingProfile(),
+            return names.referenceTypeName(logicalName, request.definition().version(), request.namingProfile(),
                     AInDefsNameRole.ENUM_TYPE);
         String result = AIcScalarGeneration.scalar(valueType.kind(), valueType.constraints(), true);
         if ("Object".equals(result))

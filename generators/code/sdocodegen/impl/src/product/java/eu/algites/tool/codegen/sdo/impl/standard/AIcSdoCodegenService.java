@@ -17,6 +17,7 @@ import eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition;
 import eu.algites.lib.common.object.props.labels.AIaFieldLabel;
 import eu.algites.lib.data.dataobject.AIiDataObject;
 import eu.algites.lib.data.smartdataobject.AIiSmartDataObject;
+import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -66,8 +67,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      */
     public Map<Path, AIcdSdoGenerationResult> generateFromSources(Path aSourceRoot,
             List<Path> aContractSources, String aImplementationMarker, List<Path> aDependencyClassPath,
-            AIcNameConventionCatalog aInputNames, AIcNameConventionCatalog aMutableNames,
-            AIcNameConventionCatalog aConcreteNames) {
+            AIiNameConventionCatalog aInputNames, AIiNameConventionCatalog aMutableNames,
+            AIiNameConventionCatalog aConcreteNames) {
         return generateFromSources(aSourceRoot, aContractSources, aImplementationMarker,
                 aDependencyClassPath, aInputNames, aMutableNames, aConcreteNames, "", "");
     }
@@ -88,8 +89,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      */
     public Map<Path, AIcdSdoGenerationResult> generateFromSources(Path aSourceRoot,
             List<Path> aContractSources, String aImplementationMarker, List<Path> aDependencyClassPath,
-            AIcNameConventionCatalog aInputNames, AIcNameConventionCatalog aMutableNames,
-            AIcNameConventionCatalog aConcreteNames,
+            AIiNameConventionCatalog aInputNames, AIiNameConventionCatalog aMutableNames,
+            AIiNameConventionCatalog aConcreteNames,
             String aMutableSubpackage, String aConcreteSubpackage) {
         return generateFromSources(aSourceRoot, aContractSources, aImplementationMarker,
                 aDependencyClassPath, aInputNames, aMutableNames, aConcreteNames,
@@ -117,8 +118,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      */
     public Map<Path, AIcdSdoGenerationResult> generateFromSources(Path aSourceRoot,
             List<Path> aContractSources, String aImplementationMarker, List<Path> aDependencyClassPath,
-            AIcNameConventionCatalog aInputNames, AIcNameConventionCatalog aMutableNames,
-            AIcNameConventionCatalog aConcreteNames,
+            AIiNameConventionCatalog aInputNames, AIiNameConventionCatalog aMutableNames,
+            AIiNameConventionCatalog aConcreteNames,
             String aMutableSubpackage, String aConcreteSubpackage, Set<String> aEnabledRoles) {
         Objects.requireNonNull(aContractSources, "contract sources");
         if (aContractSources.isEmpty()) return Map.of();
@@ -140,8 +141,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
 
     /** Generates SDO classes using the selected YAML naming catalogs for each of the three roles. */
     public AIcdSdoGenerationResult generate(Class<?> aReadContract, String aImplementationMarker,
-            AIcNameConventionCatalog aInputNames, AIcNameConventionCatalog aMutableNames,
-            AIcNameConventionCatalog aConcreteNames) {
+            AIiNameConventionCatalog aInputNames, AIiNameConventionCatalog aMutableNames,
+            AIiNameConventionCatalog aConcreteNames) {
         return generate(aReadContract, aImplementationMarker, aInputNames, aMutableNames,
                 aConcreteNames, "", "");
     }
@@ -159,8 +160,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * @return pair of generated sources with exact output paths
      */
     public AIcdSdoGenerationResult generate(Class<?> aReadContract, String aImplementationMarker,
-            AIcNameConventionCatalog aInputNames, AIcNameConventionCatalog aMutableNames,
-            AIcNameConventionCatalog aConcreteNames,
+            AIiNameConventionCatalog aInputNames, AIiNameConventionCatalog aMutableNames,
+            AIiNameConventionCatalog aConcreteNames,
             String aMutableSubpackage, String aConcreteSubpackage) {
         if (aInputNames == null || aMutableNames == null || aConcreteNames == null)
             throw new IllegalArgumentException("Missing explicit SDO input/mutable/implementation naming profiles");
@@ -413,7 +414,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     : genericMutableValueType(locGetter, locVariable);
 
             String locSuffix = Character.toUpperCase(locName.charAt(0)) + locName.substring(1);
-            AIcNameConventionCatalog locAccessorCatalog = Objects.requireNonNull(aMutableNames, "mutable naming profile");
+            AIiNameConventionCatalog locAccessorCatalog = Objects.requireNonNull(aMutableNames, "mutable naming profile");
             String locSetterProfile = locMutableConvention;
             String locIdentifierConvention = "upper_camel_case_1";
             String locSetterName = locAccessorCatalog.format(locSetterProfile, "setter_method_name",
@@ -880,7 +881,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
 
     /** Collect the complete inherited contract tree, detecting incompatible redeclarations. */
     private static LinkedHashMap<String, AIcdGetter> inheritedFields(Class<?> aType,
-            AIcNameConventionCatalog aInputNames) {
+            AIiNameConventionCatalog aInputNames) {
         var locResult = new LinkedHashMap<String, AIcdGetter>();
         for (Class<?> locParent : aType.getInterfaces()) {
             if (!AIiDataObject.class.isAssignableFrom(locParent)) continue;
@@ -900,7 +901,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * @return ancestor fields in deterministic depth-first declaration order
      */
     private static List<AIcdGetter> inheritedDeclarations(Class<?> aType,
-            AIcNameConventionCatalog aInputNames) {
+            AIiNameConventionCatalog aInputNames) {
         List<AIcdGetter> locFields = new ArrayList<>();
         for (Class<?> locParent : aType.getInterfaces()) {
             if (!isReadContract(locParent)) continue;
@@ -944,12 +945,17 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
     }
 
     private static LinkedHashMap<String, AIcdGetter> fields(Method[] aMethods,
-            AIcNameConventionCatalog aInputNames) {
+            AIiNameConventionCatalog aInputNames) {
         var locResult = new LinkedHashMap<String, AIcdGetter>();
         Arrays.stream(aMethods).sorted(Comparator.comparing(Method::getName)).forEach(aMethod -> {
             if (aMethod.isBridge() || aMethod.isSynthetic()) return;
             AIaDataObjectField locAnnotation = aMethod.getDeclaredAnnotation(AIaDataObjectField.class);
             if (locAnnotation == null) return;
+            AIaDataObject locDocument = aMethod.getDeclaringClass().getDeclaredAnnotation(AIaDataObject.class);
+            if (locDocument != null && !locAnnotation.fieldName().isBlank()
+                    && (locAnnotation.fieldName().equals(locDocument.dataSourceSchemaUrlField())
+                    || locAnnotation.fieldName().equals(locDocument.dataSourceSchemaIdentifierField())
+                    || locAnnotation.fieldName().equals(locDocument.dataSourceSchemaVersionField()))) return;
             if (aMethod.getParameterCount() != 0 || Modifier.isStatic(aMethod.getModifiers())
                     || aMethod.getReturnType() == void.class) {
                 throw new IllegalArgumentException("Annotated method is not a value getter: " + aMethod);
@@ -972,11 +978,11 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * @param aInputNames complete input naming catalog
      * @return normalized UpperCamelCase semantic identifier
      */
-    private static String semanticFieldId(Method aGetter, AIcNameConventionCatalog aInputNames) {
+    private static String semanticFieldId(Method aGetter, AIiNameConventionCatalog aInputNames) {
         Class<?> locOwner = aGetter.getDeclaringClass();
         String locRole = dataObjectRole(locOwner);
         AIaDataObject locMetadata = locOwner.getDeclaredAnnotation(AIaDataObject.class);
-        AIcNameConventionCatalog locCatalog = Objects.requireNonNull(aInputNames, "input naming profile");
+        AIiNameConventionCatalog locCatalog = Objects.requireNonNull(aInputNames, "input naming profile");
         String locProfile = locMetadata != null && !locMetadata.namingConvention().isBlank()
                 ? locMetadata.namingConvention() : locCatalog.selectedRole(locRole);
         if (locProfile == null || locProfile.isBlank())
@@ -1001,7 +1007,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * @param aInputNames input naming catalog
      * @return semantic identifier to canonical data name
      */
-    private static Map<String, String> effectiveDataNames(Class<?> aType, AIcNameConventionCatalog aInputNames) {
+    private static Map<String, String> effectiveDataNames(Class<?> aType, AIiNameConventionCatalog aInputNames) {
         LinkedHashMap<String, String> locNames = new LinkedHashMap<>();
         for (Class<?> locParent : aType.getInterfaces()) {
             if (!AIiDataObject.class.isAssignableFrom(locParent)) continue;
@@ -1032,8 +1038,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
     }
 
     private static String typeName(Class<?> aContract, String aMarker, boolean aMutable,
-            AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableCatalog,
-            AIcNameConventionCatalog aConcreteCatalog) {
+            AIiNameConventionCatalog aInput, AIiNameConventionCatalog aMutableCatalog,
+            AIiNameConventionCatalog aConcreteCatalog) {
         if (aInput == null || aMutableCatalog == null || aConcreteCatalog == null)
             throw new IllegalArgumentException("Missing required input/mutable/concrete SDO naming profiles");
         String locSemanticRole = dataObjectRole(aContract);
@@ -1041,16 +1047,16 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         String locSourceRole = locMetadata != null && !locMetadata.namingConvention().isBlank()
                 ? locMetadata.namingConvention() : aInput.selectedRole(locSemanticRole);
         var locVars = aInput.parse(locSourceRole, "type_name", aContract.getSimpleName());
-        AIcNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
+        AIiNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
         String locTargetRole = locTarget.selectedRole(locSemanticRole);
         return locTarget.format(locTargetRole, "type_name", locVars,
                 aInput.identifierConvention(locSourceRole, "type_name"));
     }
 
     private static String fileName(String aType, boolean aMutable,
-            AIcNameConventionCatalog aMutableCatalog, AIcNameConventionCatalog aConcreteCatalog,
+            AIiNameConventionCatalog aMutableCatalog, AIiNameConventionCatalog aConcreteCatalog,
             String aContractRole) {
-        AIcNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
+        AIiNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
         if (locTarget == null) throw new IllegalArgumentException("Missing SDO output naming profile");
         String locRole = locTarget.selectedRole(aContractRole);
         var locVars = locTarget.parse(locRole, "type_name", aType);
@@ -1113,8 +1119,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * @return full Java type name forming the upper bound and implementation argument
      */
     private static String genericSetterElementBound(Method aGetter, String aMarker,
-            AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableNames,
-            AIcNameConventionCatalog aConcreteNames, String aMutableSubpackage) {
+            AIiNameConventionCatalog aInput, AIiNameConventionCatalog aMutableNames,
+            AIiNameConventionCatalog aConcreteNames, String aMutableSubpackage) {
         Class<?> locNested = referencedContract(aGetter);
         if (locNested != null)
             return qualifiedMutableValueName(locNested, aMarker, aInput,
@@ -1170,8 +1176,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
 
     /** A nested read contract becomes a covariant mutable value in the generated SDO API. */
     private static String mutableValueType(Method aGetter, String aMarker,
-            AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableNames,
-            AIcNameConventionCatalog aConcreteNames, String aMutableSubpackage) {
+            AIiNameConventionCatalog aInput, AIiNameConventionCatalog aMutableNames,
+            AIiNameConventionCatalog aConcreteNames, String aMutableSubpackage) {
         Class<?> locReturn = aGetter.getReturnType();
         if (isReadContract(locReturn)) {
             return qualifiedMutableValueName(locReturn, aMarker,
@@ -1195,8 +1201,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * generated interface in the public bound of another generated type variable.
      */
     private static String qualifiedMutableValueName(Class<?> aRead, String aMarker,
-            AIcNameConventionCatalog aInput, AIcNameConventionCatalog aMutableNames,
-            AIcNameConventionCatalog aConcreteNames, String aSubpackage) {
+            AIiNameConventionCatalog aInput, AIiNameConventionCatalog aMutableNames,
+            AIiNameConventionCatalog aConcreteNames, String aSubpackage) {
         String locName = qualifiedName(aRead, typeName(aRead, aMarker, true,
                 aInput, aMutableNames, aConcreteNames), aSubpackage);
         long locCount = inheritedFields(aRead, aInput).values().stream()

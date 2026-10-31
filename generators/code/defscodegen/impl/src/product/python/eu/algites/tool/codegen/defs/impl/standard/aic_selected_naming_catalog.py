@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
+from eu.algites.lib.naming.convention.aii_name_convention_catalog import AIiNameConventionCatalog
 
 
-class AIcSelectedNamingCatalog:
+class AIcSelectedNamingCatalog(AIiNameConventionCatalog):
     """Bind the semantic generated names to exact identifiers in a shared catalog."""
 
     def __init__(self, catalog, roles: dict[AInDefsNameRole, str]):
@@ -25,6 +26,39 @@ class AIcSelectedNamingCatalog:
         except KeyError as error:
             raise ValueError(f'No naming profile configured for {role.name}') from error
 
+    @property
+    def generated_method_profile(self) -> str | None:
+        """Return the selected generated-method profile of the underlying catalog."""
+        return self.catalog.generated_method_profile
+
+    def generated_method_reference(self, role: str) -> str | None:
+        """Resolve a generated-method role through the underlying catalog."""
+        return self.catalog.generated_method_reference(role)
+
+    def with_generated_method_profile(self, profile: str) -> AIiNameConventionCatalog:
+        """Return a new role-scoped adapter with the named method profile."""
+        return AIcSelectedNamingCatalog(self.catalog.with_generated_method_profile(profile), self.roles)
+
+    def identifier_convention(self, profile_name: str, structure: str) -> str | None:
+        """Return the identifier convention declared for a structure."""
+        return self.catalog.identifier_convention(profile_name, structure)
+
+    def convert_identifier(self, value: str, source: str, target: str) -> str:
+        """Convert an identifier through the underlying catalog."""
+        return self.catalog.convert_identifier(value, source, target)
+
+    def profile_value(self, name: str, section: str, key: str) -> str:
+        """Resolve a literal profile value from the underlying catalog."""
+        return self.catalog.profile_value(name, section, key)
+
+    def composition_reference(self, profile: str, role: str) -> str:
+        """Resolve a named composition reference through the underlying catalog."""
+        return self.catalog.composition_reference(profile, role)
+
+    def schema_metadata_fields(self, profile: str) -> dict[str, str]:
+        """Return configured schema metadata names without introducing defaults."""
+        return self.catalog.schema_metadata_fields(profile)
+
     def format(self, *args, **kwargs):
         return self.catalog.format(*args, **kwargs)
 
@@ -44,7 +78,7 @@ class AIcSelectedNamingCatalog:
             ValueError: If the generated-method profile or getter is unavailable.
         """
         import re
-        profile = getattr(self.catalog, '_generated_method_profile', None)
+        profile = self.generated_method_profile
         name = self.catalog.profile_value(profile, 'StructureNaming',
             'multi_mapped_list_value_synthetic_getter') if profile else ''
         if not name or re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name) is None:
@@ -61,7 +95,7 @@ class AIcSelectedNamingCatalog:
             ValueError: Missing profile, missing role or invalid identifier.
         """
         import re
-        profile = getattr(self.catalog, '_generated_method_profile', None)
+        profile = self.generated_method_profile
         result = self.catalog.profile_value(profile, 'StructureNaming',
                     'multi_mapped_list_key_synthetic_getter') if profile else ''
         if not result or re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', result) is None:

@@ -6,6 +6,7 @@ import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AInDefinitionSourceKind;
 import eu.algites.tool.codegen.defs.AInDefsNameRole;
 import eu.algites.tool.codegen.defs.AInDataTypeKind;
+import java.util.List;
 import java.util.Set;
 
 /** Project nested schema shapes to actual repository-discovered named contracts. */
