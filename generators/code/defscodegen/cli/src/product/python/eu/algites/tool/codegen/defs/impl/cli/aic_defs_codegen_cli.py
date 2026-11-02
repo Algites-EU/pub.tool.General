@@ -21,86 +21,126 @@ class AIcDefsCodegenCli:
 
     @staticmethod
     def _expand_settings(args: list[str]) -> list[str]:
-        """Load all configuration layers and convert qualified settings to CLI options."""
+        """Load all configuration layers without rewriting qualified option names."""
         return expand_layered_settings(args, 'defscodegen', 'python', 'defs')
 
     @staticmethod
     def _batch(args: list[str]) -> int:
-        """Bind source and output roles independently of the catalog file locations."""
-        parser = argparse.ArgumentParser(description='Defs Codegen with explicit semantic naming roles')
-        parser.add_argument('--repository-root', type=Path, default=Path.cwd())
-        parser.add_argument('--schema-input-dir', action='append', default=[])
-        parser.add_argument('--input-schema-naming-convention', action='append', default=[])
-        parser.add_argument('--technology-dointf-output-dir', action='append', default=[])
-        parser.add_argument('--output-interface-technology-naming-convention', action='append', default=[])
-        parser.add_argument('--output-enum-technology-naming-convention', action='append', default=[])
-        parser.add_argument('--naming-conventions-file', action='append', default=[])
-        parser.add_argument('--generated-dataobject-method-naming-convention', action='append', default=[])
-        parser.add_argument('--setter-inheritance-policy', choices=('INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'))
-        parser.add_argument('--check', action='store_true')
-        parser.add_argument('--clean-only', action='store_true')
-        parser.add_argument('--allow-unversioned-schemas', action='store_true')
-        options = parser.parse_args(args)
-        valid_inputs = {'xmldefs', 'yamldefs', 'jsondefs'}
-        valid_targets = {'java', 'python'}
-        valid_roles = {'common', 'xmldefs_type', 'xmldefs_element', 'xmldefs_namespace', 'yamldefs', 'jsondefs'}
-
-        def split_map(values, kinds, label):
-            result = {}
-            for value in values:
-                key, sep, name = value.partition(':')
-                if sep != ':' or key not in kinds or not name:
-                    parser.error(f'Invalid {label}: {value!r}')
-                result[key] = name
-            return result
-
-        inputs = split_map(options.input_schema_naming_convention, valid_inputs, 'source convention')
-        output_dirs = split_map(options.technology_dointf_output_dir, valid_targets, 'output directory')
-        enumerations = split_map(options.output_enum_technology_naming_convention, valid_targets, 'enum convention')
-        roots = [dict(kind=kind, directory=name) for kind, name in
-            (entry.split(':', 1) for entry in options.schema_input_dir)]
-        if any(item['kind'] not in valid_inputs or not item['directory'] for item in roots):
-            parser.error('Each --schema-input-dir requires xmldefs|yamldefs|jsondefs:path')
-        roles = {}
-        for value in options.output_interface_technology_naming_convention:
-            parts = value.split(':', 2)
-            if (len(parts) != 3 or parts[0] not in valid_targets or parts[1] not in valid_roles
-                    or not parts[2].startswith('defsintf=') or not parts[2][len('defsintf='):]):
-                parser.error('Expected technology:role:defsintf=<naming-convention-id>')
-            roles.setdefault(parts[0], {})[parts[1]] = parts[2][len('defsintf='):]
-        if not options.clean_only and (not roots or not output_dirs):
-            parser.error('Select schema roots and at least one output technology')
-        if not options.clean_only and any(kind not in inputs for kind in {entry['kind'] for entry in roots}):
-            parser.error('Each selected schema input requires an input naming convention')
-        if any(technology not in output_dirs for technology in roles):
-            parser.error('Naming role has no corresponding output technology root')
-        if not options.naming_conventions_file:
-            parser.error('At least one --naming-conventions-file is required')
-        if options.check and options.clean_only:
-            parser.error('--check conflicts with --clean-only')
-        method_profiles = split_map(options.generated_dataobject_method_naming_convention,
-                                    valid_targets, 'generated DataObject method naming convention')
-        manifest = dict(artifact='.', schema_inputs=roots, schema_input_naming_conventions=inputs,
-            technology_outputs=output_dirs, technology_output_naming_conventions=roles,
-            technology_enum_output_naming_conventions=enumerations,
-            generated_dataobject_method_naming_conventions=method_profiles,
-            naming_convention_files=list(dict.fromkeys(options.naming_conventions_file)),
-            languages=list(output_dirs), clean_only=options.clean_only,
-            allow_unversioned_schemas=options.allow_unversioned_schemas)
+        """Parse qualified settings directly; no conversion to legacy options."""
+        from contextlib import ExitStack
+        from tempfile import TemporaryDirectory
+        from zipfile import ZipFile
+        from eu.algites.tool.codegen.common.artifact_resolver import (
+            parse_artifacts, resolve_artifacts)
         import os
+
+        root = Path.cwd()
+        inputs: dict[str, str] = {}
+        input_profiles: dict[str, str] = {}
+        output_dirs: dict[str, str] = {}
+        enumerations: dict[str, str] = {}
+        method_profiles: dict[str, str] = {}
+        roles: dict[str, dict[str, str]] = {}
+        catalogs: list[str] = []
+        artifact_lists: dict[str, str] = {}
+        setter_policy = None
+        check = clean = allow_unversioned = False
+        targets = {'java', 'python'}
+        formats = {'xmldefs', 'yamldefs', 'jsondefs'}
+        known_roles = {'common', 'xmldefs_type', 'xmldefs_element', 'xmldefs_namespace', 'yamldefs', 'jsondefs'}
+        for option in args:
+            if option in ('--check', '--clean-only', '--allow-unversioned-schemas'):
+                if option == '--check': check = True
+                elif option == '--clean-only': clean = True
+                else: allow_unversioned = True
+                continue
+            if not option.startswith('--') or '=' not in option:
+                raise ValueError(f'Invalid qualified Defs option: {option}')
+            key, value = option[2:].split('=', 1)
+            name, *qualifiers = key.split(':')
+            if name in {'repository-root', 'setter-inheritance-policy'} and not qualifiers:
+                if name == 'repository-root': root = Path(value).resolve()
+                else: setter_policy = value
+            elif name == 'naming-conventions-file' and len(qualifiers) == 1:
+                catalogs.append(value)
+            elif name in {'schema-input-dir', 'input-schema-naming-convention'} and len(qualifiers) == 1 and qualifiers[0] in formats:
+                (inputs if name == 'schema-input-dir' else input_profiles)[qualifiers[0]] = value
+            elif name in {'technology-dointf-output-dir', 'output-enum-technology-naming-convention',
+                          'generated-dataobject-method-naming-convention', 'defs-input-artifacts'} and len(qualifiers) == 1 and qualifiers[0] in targets:
+                dest = {'technology-dointf-output-dir': output_dirs,
+                        'output-enum-technology-naming-convention': enumerations,
+                        'generated-dataobject-method-naming-convention': method_profiles,
+                        'defs-input-artifacts': artifact_lists}[name]
+                dest[qualifiers[0]] = value
+            elif name == 'output-interface-technology-naming-convention' and len(qualifiers) == 3 and qualifiers[0] in targets and qualifiers[1] in known_roles and qualifiers[2] == 'defsintf':
+                roles.setdefault(qualifiers[0], {})[qualifiers[1]] = value
+            else:
+                raise ValueError(f'Unrecognized or unqualified Defs option: {option}')
+        if check and clean:
+            raise ValueError('--check conflicts with --clean-only')
+        if not catalogs:
+            raise ValueError('At least one --naming-conventions-file:<id> is required')
+        if not clean and (not (inputs or artifact_lists) or not output_dirs):
+            raise ValueError('Select schema roots/artifacts and output technologies')
+        if any(kind not in input_profiles for kind in inputs):
+            raise ValueError('Each input schema directory requires a naming convention')
+        if any(tech not in output_dirs for tech in roles):
+            raise ValueError('Output naming role requires an output directory')
         original = os.environ.get('ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY')
-        if options.setter_inheritance_policy is not None:
-            os.environ['ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY'] = options.setter_inheritance_policy
+        if setter_policy is not None:
+            if setter_policy not in {'INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'}:
+                raise ValueError('Invalid setter-inheritance-policy: ' + setter_policy)
+            os.environ['ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY'] = setter_policy
         try:
-            results = AIcSchemaContractBindingsGenerator().generate_manifest(options.repository_root, manifest, options.check)
+            with ExitStack() as stack:
+                # Archive inputs are copied into an owned temporary root inside
+                # the repository because the generator validates containment.
+                schema_roots = dict(inputs)
+                if artifact_lists:
+                    temp = Path(stack.enter_context(TemporaryDirectory(prefix='defs-artifacts-',
+                                               dir=root / 'build' if (root / 'build').is_dir() else root)))
+                    suffix_to_kind = {'.xsd': 'xmldefs', '.yamldef.schema.json': 'yamldefs',
+                                      '.jsondef.schema.json': 'jsondefs'}
+                    for tech, configured in artifact_lists.items():
+                        specs = parse_artifacts(configured, tech)
+                        for index, archive in enumerate(resolve_artifacts(specs, tech)):
+                            with ZipFile(archive) as zf:
+                                for member in zf.infolist():
+                                    if member.is_dir(): continue
+                                    kind = next((v for k, v in suffix_to_kind.items() if member.filename.endswith(k)), None)
+                                    if kind is None: continue
+                                    # Extraction is path-safe and deterministic; naming
+                                    # includes origin to avoid collisions across archives.
+                                    relative = Path(member.filename)
+                                    if '..' in relative.parts or relative.is_absolute():
+                                        raise ValueError(f'Unsafe schema archive member: {member.filename}')
+                                    dest = temp / kind / tech / str(index) / relative
+                                    dest.parent.mkdir(parents=True, exist_ok=True)
+                                    dest.write_bytes(zf.read(member))
+                                    # Each archive gets a separate schema root.
+                                    schema_roots[f'{kind}:{tech}:{index}'] = str(temp / kind / tech / str(index))
+                    if not schema_roots:
+                        raise ValueError('No schemas found in selected input archives')
+                roots = [{'kind': key.split(':')[0], 'directory': value} for key, value in schema_roots.items()]
+                for item in roots:
+                    if item['kind'] not in input_profiles:
+                        raise ValueError('Missing naming convention for artifact schema kind ' + item['kind'])
+                manifest = dict(artifact='.', schema_inputs=roots,
+                    schema_input_naming_conventions=input_profiles,
+                    technology_outputs=output_dirs,
+                    technology_output_naming_conventions=roles,
+                    technology_enum_output_naming_conventions=enumerations,
+                    generated_dataobject_method_naming_conventions=method_profiles,
+                    naming_convention_files=list(dict.fromkeys(catalogs)),
+                    languages=list(output_dirs), clean_only=clean,
+                    allow_unversioned_schemas=allow_unversioned)
+                results = AIcSchemaContractBindingsGenerator().generate_manifest(root, manifest, check)
+                for item in results:
+                    print(item['path'])
         finally:
-            if options.setter_inheritance_policy is not None:
-                if original is None:
-                    os.environ.pop('ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY', None)
-                else:
-                    os.environ['ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY'] = original
-        for item in results:
-            print(item['path'])
+            if setter_policy is not None:
+                if original is None: os.environ.pop('ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY', None)
+                else: os.environ['ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY'] = original
         return 0
 
 

@@ -46,167 +46,243 @@ def _clean_sdo_outputs(catalog, mutable_root: Path, concrete_root: Path,
 
 
 def main(args=None):
-    """Generate selected mutable and implementation roles from explicit DataObject inputs."""
+    """Generate SDO sources from selected Python source roots and distribution artifacts.
+
+    Every qualified option is interpreted directly.  Explicit input classes
+    restrict selection rather than adding unwanted transitive contracts.
+    """
+    from contextlib import ExitStack
+    from tempfile import TemporaryDirectory
+    from zipfile import ZipFile
+    from eu.algites.tool.codegen.common.artifact_resolver import (
+        parse_artifacts, resolve_artifacts)
+
     arguments = _settings(list(args) if args is not None else sys.argv[1:])
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--repository-root', default='.')
-    parser.add_argument('--technology-dointf-input-dir', action='append', default=[])
-    parser.add_argument('--technology-sdointf-output-dir', action='append', default=[])
-    parser.add_argument('--technology-sdoimpl-output-dir', action='append', default=[])
-    parser.add_argument('--input-technology-naming-convention', action='append', default=[])
-    parser.add_argument('--output-technology-naming-convention', action='append', default=[])
-    parser.add_argument('--naming-conventions-file', action='append', default=[])
-    parser.add_argument('--generated-dataobject-method-naming-convention', action='append', default=[])
-    parser.add_argument('--dointf-classpath', action='append', default=[])
-    parser.add_argument('--sdointf-subpackage', default='')
-    parser.add_argument('--sdoclass-subpackage', default='')
-    parser.add_argument('--setter-inheritance-policy', choices=(
-        'INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'))
-    parser.add_argument('--check', action='store_true')
-    parser.add_argument('--clean-only', action='store_true')
-    options = parser.parse_args(arguments)
-    if options.check and options.clean_only:
-        parser.error('--clean-only and --check cannot both be used')
-    root = Path(options.repository_root).resolve()
-
-    def directory(values):
-        selected = None
-        for value in values:
-            kind, sep, path = value.partition(':')
-            if kind != 'python' or sep != ':' or not path:
-                continue
-            selected = (root / path).resolve()
-        return selected
-
-    source_root = directory(options.technology_dointf_input_dir)
-    mutable_root = directory(options.technology_sdointf_output_dir)
-    concrete_root = directory(options.technology_sdoimpl_output_dir)
-    if mutable_root is None or concrete_root is None:
-        parser.error('Python mutable and implementation output directories are required')
-    if not options.clean_only and source_root is None:
-        parser.error('Python DataObject input directory is required')
-    if not options.naming_conventions_file:
-        parser.error('At least one --naming-conventions-file is required')
-    sources = [value if value.startswith(('classpath:', 'resource:'))
-               else str((root / value).resolve()) for value in options.naming_conventions_file]
-    with expand_naming_catalogs(sources) as resolved_catalogs:
-        catalog = AIcNameConventionCatalog.load_many(resolved_catalogs)
-    for entry in options.generated_dataobject_method_naming_convention:
-        technology, sep, profile = entry.partition(':')
-        if not sep or not profile or technology not in ('java', 'python'):
-            parser.error(f'Invalid generated method naming profile: {entry}')
-        if technology == 'python':
-            catalog = catalog.with_generated_method_profile(profile)
-    profiles = [{}, {}, {}]
-    for value in options.input_technology_naming_convention:
-        parts = value.split(':', 2)
-        if len(parts) != 3 or parts[0] not in {'java', 'python'} or parts[1] not in _ROLES:
-            parser.error(f'Invalid input naming convention: {value}')
-        if parts[0] == 'python':
-            if not parts[2].startswith('defsintf=') or not parts[2][9:]:
-                parser.error(f'Invalid defsintf assignment: {value}')
-            profiles[0][parts[1]] = parts[2][9:]
-    for value in options.output_technology_naming_convention:
-        parts = value.split(':', 2)
-        if len(parts) != 3 or parts[0] not in {'java', 'python'} or parts[1] not in _ROLES:
-            parser.error(f'Invalid output naming convention: {value}')
-        if parts[0] != 'python':
+    root = Path('.')
+    directories: dict[str, str] = {}
+    input_roles: dict[str, str] = {}
+    mutable_roles: dict[str, str] = {}
+    concrete_roles: dict[str, str] = {}
+    naming_sources: list[str] = []
+    classpaths: list[str] = []
+    input_classes: list[str] = []
+    input_artifacts = ''
+    input_paths: list[str] = []
+    method_profile = None
+    mutable_package = concrete_package = ''
+    setter_policy = None
+    check = clean = False
+    for option in arguments:
+        if option in {'--check', '--clean-only'}:
+            if option == '--check': check = True
+            else: clean = True
             continue
-        for entry in parts[2].split(','):
-            key, sep, name = entry.partition('=')
-            if sep != '=' or not name or key not in {'sdointf', 'sdoclass'}:
-                parser.error(f'Invalid SDO role assignment: {entry}')
-            profiles[1 if key == 'sdointf' else 2][parts[1]] = name
-    for entry in profiles:
-        for role, name in entry.items():
-            try:
-                catalog.profile(name)
+        if not option.startswith('--') or '=' not in option:
+            raise ValueError(f'Invalid SDO option: {option}')
+        key, value = option[2:].split('=', 1)
+        name, *qualifiers = key.split(':')
+        if (qualifiers and qualifiers[0] == 'java'
+                and name in {'technology-dointf-input-dir', 'technology-sdointf-output-dir',
+                             'technology-sdoimpl-output-dir', 'generated-dataobject-method-naming-convention',
+                             'input-technology-naming-convention', 'output-technology-naming-convention',
+                             'dointf-classpath', 'dointf-input-classes', 'dointf-input-artifacts',
+                             'dointf-input-paths'}):
+            continue  # The Java SDO CLI consumes the corresponding Java keys.
+        if name in {'repository-root', 'sdointf-subpackage', 'sdoclass-subpackage',
+                    'setter-inheritance-policy'} and not qualifiers:
+            if name == 'repository-root': root = Path(value).resolve()
+            elif name == 'sdointf-subpackage': mutable_package = value
+            elif name == 'sdoclass-subpackage': concrete_package = value
+            else: setter_policy = value
+        elif name == 'naming-conventions-file' and len(qualifiers) == 1:
+            naming_sources.append(value)
+        elif name in {'technology-dointf-input-dir', 'technology-sdointf-output-dir',
+                      'technology-sdoimpl-output-dir'} and qualifiers == ['python']:
+            directories[name] = value
+        elif name == 'generated-dataobject-method-naming-convention' and qualifiers == ['python']:
+            method_profile = value
+        elif name == 'input-technology-naming-convention' and len(qualifiers) == 3 and qualifiers[0] == 'python' and qualifiers[1] in _ROLES and qualifiers[2] == 'defsintf':
+            input_roles[qualifiers[1]] = value
+        elif name == 'output-technology-naming-convention' and len(qualifiers) == 3 and qualifiers[0] == 'python' and qualifiers[1] in _ROLES and qualifiers[2] in {'sdointf', 'sdoclass'}:
+            (mutable_roles if qualifiers[2] == 'sdointf' else concrete_roles)[qualifiers[1]] = value
+        elif name == 'dointf-classpath' and qualifiers == ['python']:
+            classpaths.extend(value.split(os.pathsep))
+        elif name == 'dointf-input-artifacts' and qualifiers == ['python']:
+            input_artifacts = value
+        elif name == 'dointf-input-paths' and qualifiers == ['python']:
+            input_paths = [part.strip() for part in value.split(';') if part.strip()]
+        elif name == 'dointf-input-classes' and qualifiers == ['python']:
+            input_classes = [item.strip() for item in value.split(';') if item.strip()]
+        else:
+            raise ValueError(f'Unknown or unqualified Python SDO option: {option}')
+    if check and clean:
+        raise ValueError('--check and --clean-only cannot both be used')
+    # Avoid loading profiles for an optional source root that is absent.
+    # Source bootstrap intentionally invokes the CLI only when eligible
+    # contracts exist, while direct invocations may use an empty root.
+    source_dir = directories.get('technology-dointf-input-dir')
+    if (not clean and source_dir and not input_artifacts and not input_paths
+            and not input_classes and not (root / source_dir).is_dir()):
+        print(f'SDO Codegen: skipping configured input directory (not found): {(root / source_dir).resolve()}',
+              file=sys.stderr)
+        return 0
+    if not naming_sources:
+        raise ValueError('At least one --naming-conventions-file:<id> is required')
+    if setter_policy is not None and setter_policy not in {'INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'}:
+        raise ValueError('Invalid setter inheritance policy: ' + setter_policy)
+    if not {'technology-sdointf-output-dir', 'technology-sdoimpl-output-dir'} <= directories.keys():
+        raise ValueError('Both Python SDO output directories are required')
+    mutable_root = (root / directories['technology-sdointf-output-dir']).resolve()
+    concrete_root = (root / directories['technology-sdoimpl-output-dir']).resolve()
+    sources = [s if s.startswith(('classpath:', 'resource:')) else str((root / s).resolve())
+               for s in naming_sources]
+    with expand_naming_catalogs(sources) as paths:
+        catalog = AIcNameConventionCatalog.load_many(paths)
+    if method_profile:
+        catalog = catalog.with_generated_method_profile(method_profile)
+    profiles = [input_roles, mutable_roles, concrete_roles]
+    for roles in profiles:
+        for role, profile in roles.items():
+            try: catalog.profile(profile)
             except KeyError as exc:
-                raise ValueError(f'Missing naming convention {name!r} for role {role}') from exc
-    if options.clean_only:
+                raise ValueError(f'Missing naming profile {profile!r} for {role}') from exc
+    if clean:
         _clean_sdo_outputs(catalog, mutable_root, concrete_root, profiles)
         return 0
-    if not source_root.is_dir():
-        print(f'SDO Codegen: skipping configured input directory (not found): {source_root}', file=sys.stderr)
-        return 0
-    selected = {}
-    for source in sorted(source_root.rglob('*.py')):
-        matches = []
-        for role, name in profiles[0].items():
-            match = catalog.recognize_filename(source.name, {name})
-            if match is not None:
-                parsed = catalog.parse(name, 'file_name_stem', source.stem)
-                try:
-                    class_name = catalog.format(name, 'type_name', parsed,
-                                                catalog.identifier_convention(name, 'file_name_stem'))
-                except (KeyError, ValueError):
-                    continue
-                matches.append((role, class_name))
-        names = {name for _, name in matches}
-        if len(names) > 1:
-            raise ValueError(f'Ambiguous input DataObject class in {source}: {matches}')
-        if names and any(role in profiles[1] and role in profiles[2] for role, _ in matches):
-            selected[source.relative_to(source_root)] = next(iter(names))
-            continue
-        # Manually authored contracts do not have to match the Algites filename
-        # grammar. Their explicit metadata and actual marker bases select a role.
-        module = ast.parse(source.read_text(encoding='utf-8'), filename=str(source))
-        annotated_classes = []
-        for declaration in module.body:
-            if not isinstance(declaration, ast.ClassDef):
-                continue
-            if any(isinstance(node, (ast.Assign, ast.AnnAssign)) and (
-                    any(isinstance(target, ast.Name) and target.id == '__data_object__'
-                        for target in node.targets) if isinstance(node, ast.Assign)
-                    else isinstance(node.target, ast.Name) and node.target.id == '__data_object__')
-                    for node in declaration.body):
-                annotated_classes.append(declaration.name)
-        if len(annotated_classes) > 1:
-            raise ValueError(f'Multiple manually authored DataObject types in {source}: {annotated_classes}')
-        if annotated_classes:
-            selected[source.relative_to(source_root)] = annotated_classes[0]
-    if not selected:
-        return 0
-    added = []
-    for item in options.dointf_classpath:
-        for path in item.split(os.pathsep):
-            absolute = str((root / path).resolve())
+    source_roots: list[Path] = []
+    source_dir = directories.get('technology-dointf-input-dir')
+    if source_dir:
+        candidate = (root / source_dir).resolve()
+        if candidate.is_dir(): source_roots.append(candidate)
+        else: print(f'SDO Python: input root does not exist: {candidate}', file=sys.stderr)
+    if not source_roots and not input_artifacts and not input_classes and not input_paths:
+        if source_dir:
+            return 0  # Missing optional source root (same behavior as before).
+        raise ValueError('No Python DataObject inputs selected')
+    selected_qualified = set()
+    for item in input_classes:
+        module, separator, class_name = item.partition(':')
+        if not separator or not module or not class_name.isidentifier():
+            raise ValueError(f'Expected module.path:ClassName in --dointf-input-classes:python: {item}')
+        selected_qualified.add((module, class_name))
+    with ExitStack() as stack:
+        archives = list(resolve_artifacts(parse_artifacts(input_artifacts, 'python'), 'python')) if input_artifacts else []
+        archives += [(root / value).resolve() for value in input_paths]
+        for archive in archives:
+            if archive.is_dir():
+                source_roots.append(archive)
+            elif not archive.is_file():
+                raise FileNotFoundError(f'Missing Python DataObject input: {archive}')
+        for index, archive in enumerate(a for a in archives if a.is_file()):
+            target = Path(stack.enter_context(TemporaryDirectory(prefix=f'sdo-wheel-{index}-')))
+            with ZipFile(archive) as zf:
+                for entry in zf.infolist():
+                    if entry.is_dir() or not entry.filename.endswith('.py'): continue
+                    relative = Path(entry.filename)
+                    if relative.is_absolute() or '..' in relative.parts:
+                        raise ValueError(f'Invalid path in wheel: {entry.filename}')
+                    output = target / relative
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(zf.read(entry))
+            source_roots.append(target)
+        if selected_qualified and not source_roots:
+            raise ValueError('Explicit classes require a selected source root or input artifact')
+        added = []
+        for value in classpaths:
+            absolute = str((root / value).resolve())
             if absolute not in sys.path:
                 sys.path.insert(0, absolute)
                 added.append(absolute)
-    try:
+        results = {}
+        found = set()
         policy_key = 'ALGITES_SDO_CODEGEN_SETTER_INHERITANCE_POLICY'
         previous_policy = os.environ.get(policy_key)
-        if options.setter_inheritance_policy is not None:
-            os.environ[policy_key] = options.setter_inheritance_policy
+        if setter_policy is not None: os.environ[policy_key] = setter_policy
         try:
-            generated = AIcSdoCodegenService().generate_from_sources(
-                source_root, selected, naming=(*profiles, catalog),
-                mutable_subpackage=options.sdointf_subpackage,
-                concrete_subpackage=options.sdoclass_subpackage,
-                enabled_roles=set(profiles[0]) & set(profiles[1]) & set(profiles[2]))
+            for source_root in source_roots:
+                selected = {}
+                for source in sorted(source_root.rglob('*.py')):
+                    matches = []
+                    for role, name in profiles[0].items():
+                        match = catalog.recognize_filename(source.name, {name})
+                        if match is not None:
+                            parsed = catalog.parse(name, 'file_name_stem', source.stem)
+                            try:
+                                class_name = catalog.format(name, 'type_name', parsed,
+                                                            catalog.identifier_convention(name, 'file_name_stem'))
+                            except (KeyError, ValueError):
+                                continue
+                            matches.append((role, class_name))
+                    names = {name for _, name in matches}
+                    if len(names) > 1:
+                        raise ValueError(f'Ambiguous input DataObject class in {source}: {matches}')
+                    if names and any(role in profiles[1] and role in profiles[2] for role, _ in matches):
+                        selected[source.relative_to(source_root)] = next(iter(names))
+                        continue
+                    # Manually authored contracts do not have to match the Algites filename
+                    # grammar. Their explicit metadata and actual marker bases select a role.
+                    module = ast.parse(source.read_text(encoding='utf-8'), filename=str(source))
+                    annotated_classes = []
+                    for declaration in module.body:
+                        if not isinstance(declaration, ast.ClassDef):
+                            continue
+                        if any(isinstance(node, (ast.Assign, ast.AnnAssign)) and (
+                                any(isinstance(target, ast.Name) and target.id == '__data_object__'
+                                    for target in node.targets) if isinstance(node, ast.Assign)
+                                else isinstance(node.target, ast.Name) and node.target.id == '__data_object__')
+                                for node in declaration.body):
+                            annotated_classes.append(declaration.name)
+                    if len(annotated_classes) > 1:
+                        raise ValueError(f'Multiple manually authored DataObject types in {source}: {annotated_classes}')
+                    if annotated_classes:
+                        selected[source.relative_to(source_root)] = annotated_classes[0]
+                # Explicit module:Class selectors can name hand-written
+                # contracts that do not use the generated filename grammar.
+                for module, selected_class in selected_qualified:
+                    candidate = Path(*module.split('.')).with_suffix('.py')
+                    if (source_root / candidate).is_file():
+                        declarations = ast.parse((source_root / candidate).read_text(encoding='utf-8'))
+                        if any(isinstance(item, ast.ClassDef) and item.name == selected_class
+                               for item in declarations.body):
+                            selected[candidate] = selected_class
+                if selected_qualified:
+                    selected = {rel: name for rel, name in selected.items()
+                        if ('.'.join(rel.with_suffix('').parts), name) in selected_qualified}
+                for rel, name in selected.items():
+                    found.add(('.'.join(rel.with_suffix('').parts), name))
+                if selected:
+                    generated = AIcSdoCodegenService().generate_from_sources(
+                        source_root, selected, naming=(*profiles, catalog),
+                        mutable_subpackage=mutable_package,
+                        concrete_subpackage=concrete_package,
+                        enabled_roles=set(input_roles) & set(mutable_roles) & set(concrete_roles))
+                    results.update({(source_root, key): item for key, item in generated.items()})
+            missing = selected_qualified - found
+            if missing:
+                raise ValueError(f'Explicit Python DataObject contracts not found: {sorted(missing)}')
         finally:
-            if options.setter_inheritance_policy is not None:
-                if previous_policy is None:
-                    os.environ.pop(policy_key, None)
-                else:
-                    os.environ[policy_key] = previous_policy
-    finally:
-        for path in added:
-            sys.path.remove(path)
-    paths: set[Path] = set()
-    for result in generated.values():
-        for target in ((mutable_root, result.mutable_interface),
-                       (concrete_root, result.implementation)):
-            output = (target[0] / target[1].relative_path).resolve()
-            if output in paths:
-                raise ValueError(f'SDO naming roles generate duplicate output path: {output}')
-            paths.add(output)
-    if not options.check:
-        _clean_sdo_outputs(catalog, mutable_root, concrete_root, profiles)
-    for result in generated.values():
-        _write(mutable_root, result.mutable_interface, options.check)
-        _write(concrete_root, result.implementation, options.check)
+            if setter_policy is not None:
+                if previous_policy is None: os.environ.pop(policy_key, None)
+                else: os.environ[policy_key] = previous_policy
+            for path in added:
+                sys.path.remove(path)
+        if not results:
+            if input_artifacts or input_paths:
+                raise ValueError('No eligible DataObject contracts in selected input artifacts')
+            return 0
+        outputs: set[Path] = set()
+        for item in results.values():
+            for out_root, generated in ((mutable_root, item.mutable_interface),
+                                        (concrete_root, item.implementation)):
+                path = (out_root / generated.relative_path).resolve()
+                if path in outputs:
+                    raise ValueError(f'Conflicting generated SDO path: {path}')
+                outputs.add(path)
+        if not check:
+            _clean_sdo_outputs(catalog, mutable_root, concrete_root, profiles)
+        for item in results.values():
+            _write(mutable_root, item.mutable_interface, check)
+            _write(concrete_root, item.implementation, check)
     return 0
 
 

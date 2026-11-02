@@ -251,7 +251,7 @@ def prepare_sdo_generator(repository: Path, available: dict[str, Artifact]) -> N
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('plan', 'prepare', 'groups'))
+    parser.add_argument('action', choices=('plan', 'prepare', 'groups', 'identifiers'))
     parser.add_argument('--repository', type=Path, required=True)
     parser.add_argument('--root', type=Path, required=True)
     args = parser.parse_args()
@@ -263,6 +263,12 @@ def main() -> None:
     todo, groups = resolve(repository, root, available)
     if args.action == 'groups':
         print(','.join(sorted(groups)))
+        return
+    if args.action == 'identifiers':
+        selected = [item.identifier for item in available.values()
+                    if item.repository == repository and (root == repository or
+                        (item.repository / item.relative).is_relative_to(root))]
+        print(','.join(sorted(set(selected) | {item.identifier for item in todo})))
         return
     print(f'Source prerequisites: {len(todo)} artifact(s) for {root.relative_to(repository)}', flush=True)
     for artifact in todo:

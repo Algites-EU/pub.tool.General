@@ -5,4 +5,12 @@ Artifact:
   - python
   Name: Shared DO and SDO code generation naming definitions
   Description: Shared configuration schemas and standard generated-method naming profiles.
-Dependencies: []
+Dependencies:
+  - DependencyKind: python
+    Items:
+      - ArtifactId: packaging
+        Usages: [product_implementation]
+        VersionRequirement:
+          Minimum: ">=24.0"
+          Maximum: "<27.0"
+          MaximumStrict: true

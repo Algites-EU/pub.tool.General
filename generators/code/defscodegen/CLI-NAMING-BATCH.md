@@ -72,9 +72,9 @@ using the **entire key before `=`**, including qualifiers separated by `:`.
 The higher layer wins; `--key=` removes an inherited entry. Repeatable options
 such as `--naming-conventions-file:standard=...` have individually named keys.
 Boolean options accept `--check=true` / `--check=false` (bare `--check` is
-accepted as `true`). Legacy `--schema-input-dir=KIND:PATH` and other prior
-command-line mappings remain accepted for existing callers and are normalized
-before layering; use qualified keys in new settings and build scripts.
+accepted as `true`). The old `--schema-input-dir=KIND:PATH` translation is removed. All
+technology and role qualifiers remain part of the option name until consumed
+by the native CLI parser.
 
 The neutral generator defaults do not select naming catalogs. The external
 codegen profile supplies the `classpath:...` resources and semantic roles. The
@@ -105,3 +105,12 @@ from the same source as the referring YAML file, including ZIP resources.
 Java uses each resource's own JAR/directory for referenced sibling catalogs.
 Classpath references accept only a simple YAML filename, not path traversal.
 The previous `resource:NAME.yml` spelling remains a compatibility alias.
+
+
+## External schema resources
+
+Use `--defs-input-artifacts:java=group:artifact:version;...` or
+`--defs-input-artifacts:python=distribution>=version;...` to select packaged
+XMLDEFS, YAMLDEFS, and JSONDEFS source schemas. See
+[CODEGEN-ARTIFACT-INPUTS.md](../CODEGEN-ARTIFACT-INPUTS.md) for Modustro
+selectors, PEP 508 constraints and source bootstrap requirements.

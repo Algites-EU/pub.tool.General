@@ -33,8 +33,8 @@ public final class AItcLayeredCodegenSettingsTest {
         if (locSettings.stream().noneMatch(aValue ->
                 aValue.endsWith("classpath:standard-conventions.yml")))
             throw new AssertionError("Unmodified naming catalog was lost: " + locSettings);
-        if (!locSettings.contains("--output-technology-naming-convention=java:yamldefs:sdointf=algites-java-gen-data-yaml-intf-versioned_1")
-                || !locSettings.contains("--output-technology-naming-convention=java:yamldefs:sdoclass=algites-java-gen-data-yaml-class-versioned_1"))
+        if (!locSettings.contains("--output-technology-naming-convention:java:yamldefs:sdointf=algites-java-gen-data-yaml-intf-versioned_1")
+                || !locSettings.contains("--output-technology-naming-convention:java:yamldefs:sdoclass=algites-java-gen-data-yaml-class-versioned_1"))
             throw new AssertionError("Independent SDO naming roles were not preserved: " + locSettings);
     }
 }

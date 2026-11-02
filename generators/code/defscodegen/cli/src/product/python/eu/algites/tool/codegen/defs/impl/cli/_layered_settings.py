@@ -70,8 +70,9 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
         path = Path(file_options[0])
         sources.append((str(path), path.read_text(encoding='utf-8')))
 
+    # Qualified option names are the stable configuration identity. Do not
+    # translate them into the obsolete kind:value parser representation.
     merged: dict[str, str] = {}
-    legacy_counters: dict[str, int] = {}
 
     def push(token: str) -> None:
         if token in {'--check', '--clean-only', '--allow-unversioned-schemas'}:
@@ -81,30 +82,7 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
         key, value = token.split('=', 1)
         if key == '--settings-file':
             raise ValueError('Nested settings-file is not supported')
-        # Accept older unqualified arguments to keep existing build clients working.
-        if ':' not in key:
-            if key in {'--naming-conventions-file', '--dointf-classpath', '--dointf-input-artifact', '--dointf-input-class'}:
-                legacy_counters[key] = legacy_counters.get(key, 0) + 1
-                key += f':legacy-{legacy_counters[key]:08d}'
-            elif key in {'--schema-input-dir', '--input-schema-naming-convention',
-                         '--technology-dointf-output-dir', '--technology-dointf-input-dir',
-                         '--technology-sdointf-output-dir', '--technology-sdoimpl-output-dir',
-                         '--output-enum-technology-naming-convention'}:
-                sub, sep, actual = value.partition(':')
-                if sep:
-                    key, value = f'{key}:{sub}', actual
-            elif key in {'--output-interface-technology-naming-convention',
-                         '--input-technology-naming-convention', '--output-technology-naming-convention'}:
-                fields = value.split(':', 2)
-                if len(fields) == 3:
-                    kind, role, fields_value = fields
-                    for part in fields_value.split(','):
-                        sub, sep, actual = part.partition('=')
-                        if not sep:
-                            raise ValueError(f'Malformed naming assignment: {token}')
-                        push(f'{key}:{kind}:{role}:{sub}={actual}')
-                    return
-        if not value:
+        if value == '':
             merged.pop(key, None)
         else:
             merged[key] = value
@@ -122,21 +100,11 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
 
     expanded: list[str] = []
     for key, value in merged.items():
-        base_key, sep, qualifier = key.partition(':')
-        if base_key in {'--check', '--clean-only', '--allow-unversioned-schemas'}:
+        if key in {'--check', '--clean-only', '--allow-unversioned-schemas'}:
             if value.lower() not in {'true', 'false'}:
-                raise ValueError(f'Expected boolean for {base_key}: {value}')
+                raise ValueError(f'Expected boolean for {key}: {value}')
             if value.lower() == 'true':
-                expanded.append(base_key)
-        elif not sep or base_key in {'--naming-conventions-file', '--dointf-classpath',
-                                    '--dointf-input-artifact', '--dointf-input-class'}:
-            expanded.append(f'{base_key}={value}')
-        elif base_key in {'--output-interface-technology-naming-convention',
-                          '--input-technology-naming-convention', '--output-technology-naming-convention'}:
-            pieces = qualifier.rsplit(':', 1)
-            if len(pieces) != 2:
-                raise ValueError(f'Invalid qualified naming option: {key}')
-            expanded.append(f'{base_key}={pieces[0]}:{pieces[1]}={value}')
+                expanded.append(key)
         else:
-            expanded.append(f'{base_key}={qualifier}:{value}')
+            expanded.append(f'{key}={value}')
     return expanded

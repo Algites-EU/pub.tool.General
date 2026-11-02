@@ -29,9 +29,9 @@ def test_qualified_defaults_and_explicit_settings_override(monkeypatch, tmp_path
     explicit.write_text('--schema-input-dir:xmldefs=\n--schema-input-dir:jsondefs=\n--naming-conventions-file:xmldefs=\n--naming-conventions-file:custom=resource:algites-yamldef-name-conventions.yml\n--setter-inheritance-policy=INHERIT_AS_FIXED_PARAMETER\n')
     result = AIcDefsCodegenCli._expand_settings([f'--settings-file={explicit}',
         '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER'])
-    assert '--schema-input-dir=yamldefs:src/product/yamldefs' in result
-    assert not any(option.startswith('--schema-input-dir=xmldefs:') for option in result)
-    assert not any(option.startswith('--schema-input-dir=jsondefs:') for option in result)
+    assert '--schema-input-dir:yamldefs=src/product/yamldefs' in result
+    assert not any(option.startswith('--schema-input-dir:xmldefs=') for option in result)
+    assert not any(option.startswith('--schema-input-dir:jsondefs=') for option in result)
     assert result.count('--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER') == 1
     assert not any(option.endswith('classpath:algites-xmldef-name-conventions.yml') for option in result)
     assert any(option.endswith('resource:algites-yamldef-name-conventions.yml') for option in result)
@@ -40,11 +40,11 @@ def test_qualified_defaults_and_explicit_settings_override(monkeypatch, tmp_path
 def test_legacy_arguments_still_normalize_to_qualified_values(monkeypatch):
     monkeypatch.chdir(__import__('pathlib').Path(__file__).resolve().parents[7])
     result = AIcDefsCodegenCli._expand_settings([
-        '--schema-input-dir=yamldefs:other/yamldefs',
-        '--output-interface-technology-naming-convention=python:yamldefs:defsintf=my-role'])
-    assert '--schema-input-dir=yamldefs:other/yamldefs' in result
-    assert '--schema-input-dir=yamldefs:src/product/yamldefs' not in result
-    assert '--output-interface-technology-naming-convention=python:yamldefs:defsintf=my-role' in result
+        '--schema-input-dir:yamldefs=other/yamldefs',
+        '--output-interface-technology-naming-convention:python:yamldefs:defsintf=my-role'])
+    assert '--schema-input-dir:yamldefs=other/yamldefs' in result
+    assert '--schema-input-dir:yamldefs=src/product/yamldefs' not in result
+    assert '--output-interface-technology-naming-convention:python:yamldefs:defsintf=my-role' in result
 
 
 def test_classpath_settings_overlay_and_explicit_priority(monkeypatch, tmp_path):
@@ -58,7 +58,7 @@ def test_classpath_settings_overlay_and_explicit_priority(monkeypatch, tmp_path)
     monkeypatch.syspath_prepend(str(tmp_path))
     merged = AIcDefsCodegenCli._expand_settings([])
     assert '--setter-inheritance-policy=INHERIT_AS_FIXED_PARAMETER' in merged
-    assert not any(option.startswith('--schema-input-dir=xmldefs:') for option in merged)
+    assert not any(option.startswith('--schema-input-dir:xmldefs=') for option in merged)
     explicit = AIcDefsCodegenCli._expand_settings([
         '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER'])
     assert '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER' in explicit
@@ -83,16 +83,16 @@ def test_all_sys_path_settings_are_merged_before_explicit_invocation(monkeypatch
     monkeypatch.setattr(sys, 'path', [str(first), str(second)] + sys.path)
     merged = AIcDefsCodegenCli._expand_settings([])
     assert '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER' in merged
-    assert '--naming-conventions-file=classpath:second-catalog.yml' in merged
-    assert '--naming-conventions-file=classpath:first-catalog.yml' in merged
+    assert '--naming-conventions-file:second=classpath:second-catalog.yml' in merged
+    assert '--naming-conventions-file:first=classpath:first-catalog.yml' in merged
     explicit = tmp_path / 'invocation.settings'
     explicit.write_text('--setter-inheritance-policy=INHERIT_AS_FIXED_PARAMETER\n'
                         '--naming-conventions-file:second=\n')
     merged = AIcDefsCodegenCli._expand_settings([f'--settings-file={explicit}',
         '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER'])
     assert '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER' in merged
-    assert '--naming-conventions-file=classpath:second-catalog.yml' not in merged
-    assert '--naming-conventions-file=classpath:first-catalog.yml' in merged
+    assert '--naming-conventions-file:second=classpath:second-catalog.yml' not in merged
+    assert '--naming-conventions-file:first=classpath:first-catalog.yml' in merged
 
 
 def test_packaged_and_direct_sys_path_settings_accumulate(monkeypatch, tmp_path):
@@ -118,5 +118,5 @@ def test_packaged_and_direct_sys_path_settings_accumulate(monkeypatch, tmp_path)
     (direct / name).write_text('--naming-conventions-file:direct=classpath:direct-only.yml\n')
     monkeypatch.setattr(sys, 'path', [str(direct)] + sys.path)
     values = AIcDefsCodegenCli._expand_settings([])
-    assert '--naming-conventions-file=classpath:package-only.yml' in values
-    assert '--naming-conventions-file=classpath:direct-only.yml' in values
+    assert '--naming-conventions-file:packaged=classpath:package-only.yml' in values
+    assert '--naming-conventions-file:direct=classpath:direct-only.yml' in values

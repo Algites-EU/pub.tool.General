@@ -17,24 +17,12 @@ import java.util.Set;
  *
  * <p>Defaults bundled with the generator are overlaid with the optional classpath
  * resource, the invocation settings file, and explicit command-line arguments.
- * Empty assignments remove inherited entries; the resulting entries are converted
- * to the existing internal CLI syntax only after all layers have been merged.
+ * Empty assignments remove inherited entries; qualified option keys remain unchanged
+ * throughout parsing and execution.
  */
 public final class AIcLayeredCodegenSettings {
     private static final Set<String> FLAGS = Set.of(
             "--check", "--clean-only", "--allow-unversioned-schemas");
-    private static final Set<String> REPEATABLE = Set.of(
-            "--naming-conventions-file", "--dointf-classpath",
-            "--dointf-input-artifact", "--dointf-input-class");
-    private static final Set<String> QUALIFIED_ONE = Set.of(
-            "--schema-input-dir", "--input-schema-naming-convention",
-            "--technology-dointf-output-dir", "--technology-dointf-input-dir",
-            "--technology-sdointf-output-dir", "--technology-sdoimpl-output-dir",
-            "--output-enum-technology-naming-convention");
-    private static final Set<String> QUALIFIED_NAMING = Set.of(
-            "--output-interface-technology-naming-convention",
-            "--input-technology-naming-convention", "--output-technology-naming-convention");
-
     private AIcLayeredCodegenSettings() { }
 
     /**
@@ -44,7 +32,7 @@ public final class AIcLayeredCodegenSettings {
      * @param aGenerator standard generator name such as defscodegen or sdocodegen
      * @param aTechnology native target language, java or python
      * @param aPackage resource package leaf, defs or sdo
-     * @return merged arguments compatible with the generator's existing batch parser
+     * @return merged, fully qualified arguments with no obsolete value conversion
      * @throws IOException when an input file or resource cannot be read
      */
     public static String[] expand(String[] aArgs, String aGenerator,
@@ -64,18 +52,17 @@ public final class AIcLayeredCodegenSettings {
         String locBase = "generators/code/" + aGenerator
                 + "/intf/src/product/config/" + locResourceRoot;
         LinkedHashMap<String, String> locSettings = new LinkedHashMap<>();
-        Map<String, Integer> locLegacyIndices = new LinkedHashMap<>();
         String locBuiltIn = readBuiltIn(locResourceRoot + locDefaultName,
                 Path.of(locBase, locDefaultName));
-        addLines(locSettings, locLegacyIndices, locBuiltIn, locDefaultName);
+        addLines(locSettings, locBuiltIn, locDefaultName);
         for (var locOverlay : readOverlays(locResourceRoot + locOverrideName,
                 Path.of(locBase, locOverrideName)))
-            addLines(locSettings, locLegacyIndices, locOverlay.getValue(), locOverlay.getKey());
+            addLines(locSettings, locOverlay.getValue(), locOverlay.getKey());
         if (locSpecifiedFile != null)
-            addLines(locSettings, locLegacyIndices,
+            addLines(locSettings,
                     Files.readString(Path.of(locSpecifiedFile)), locSpecifiedFile);
         for (String locArg : locInvocation)
-            addOption(locSettings, locLegacyIndices, locArg);
+            addOption(locSettings, locArg);
         List<String> locExpanded = new ArrayList<>();
         for (var locSetting : locSettings.entrySet()) {
             String locKey = locSetting.getKey();
@@ -86,16 +73,8 @@ public final class AIcLayeredCodegenSettings {
                 if (!locValue.equalsIgnoreCase("true") && !locValue.equalsIgnoreCase("false"))
                     throw new IllegalArgumentException("Expected boolean for " + locKey + ": " + locValue);
                 if (locValue.equalsIgnoreCase("true")) locExpanded.add(locBaseKey);
-            } else if (locColon < 0 || REPEATABLE.contains(locBaseKey)) {
-                locExpanded.add(locBaseKey + "=" + locValue);
-            } else if (QUALIFIED_NAMING.contains(locBaseKey)) {
-                int locLastColon = locKey.lastIndexOf(':');
-                if (locLastColon <= locColon)
-                    throw new IllegalArgumentException("Invalid qualified naming key: " + locKey);
-                locExpanded.add(locBaseKey + "=" + locKey.substring(locColon + 1, locLastColon)
-                        + ":" + locKey.substring(locLastColon + 1) + "=" + locValue);
             } else {
-                locExpanded.add(locBaseKey + "=" + locKey.substring(locColon + 1) + ":" + locValue);
+                locExpanded.add(locKey + "=" + locValue);
             }
         }
         return locExpanded.toArray(String[]::new);
@@ -148,7 +127,7 @@ public final class AIcLayeredCodegenSettings {
         return locResult;
     }
 
-    private static void addLines(Map<String, String> aMerged, Map<String, Integer> aCounters,
+    private static void addLines(Map<String, String> aMerged,
                                  String aContent, String aSource) {
         int locNumber = 0;
         for (String locLine : aContent.lines().toList()) {
@@ -157,11 +136,11 @@ public final class AIcLayeredCodegenSettings {
             if (locTrimmed.isEmpty() || locTrimmed.startsWith("#")) continue;
             if (locTrimmed.chars().anyMatch(Character::isWhitespace))
                 throw new IllegalArgumentException("Malformed settings: " + aSource + ":" + locNumber);
-            addOption(aMerged, aCounters, locTrimmed);
+            addOption(aMerged, locTrimmed);
         }
     }
 
-    private static void addOption(Map<String, String> aMerged, Map<String, Integer> aCounters,
+    private static void addOption(Map<String, String> aMerged,
                                   String aOption) {
         if (FLAGS.contains(aOption)) aOption += "=true";
         int locEquals = aOption.indexOf('=');
@@ -171,31 +150,6 @@ public final class AIcLayeredCodegenSettings {
         String locValue = aOption.substring(locEquals + 1);
         if (locKey.equals("--settings-file"))
             throw new IllegalArgumentException("Nested settings-file is not allowed");
-        if (locKey.indexOf(':') < 0) {
-            if (REPEATABLE.contains(locKey)) {
-                int locCounter = aCounters.merge(locKey, 1, Integer::sum);
-                locKey += ":legacy-" + String.format("%08d", locCounter);
-            } else if (QUALIFIED_ONE.contains(locKey)) {
-                int locColon = locValue.indexOf(':');
-                if (locColon > 0) {
-                    locKey += ":" + locValue.substring(0, locColon);
-                    locValue = locValue.substring(locColon + 1);
-                }
-            } else if (QUALIFIED_NAMING.contains(locKey)) {
-                String[] locParts = locValue.split(":", 3);
-                if (locParts.length == 3) {
-                    for (String locElement : locParts[2].split(",")) {
-                        int locAssignment = locElement.indexOf('=');
-                        if (locAssignment <= 0)
-                            throw new IllegalArgumentException("Invalid naming assignment: " + locElement);
-                        addOption(aMerged, aCounters, locKey + ":" + locParts[0] + ":" + locParts[1]
-                                + ":" + locElement.substring(0, locAssignment) + "="
-                                + locElement.substring(locAssignment + 1));
-                    }
-                    return;
-                }
-            }
-        }
         if (locValue.isEmpty()) aMerged.remove(locKey);
         else aMerged.put(locKey, locValue);
     }

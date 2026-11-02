@@ -8,8 +8,9 @@ def test_defaults_are_keyed_and_split_into_named_sdo_roles(monkeypatch):
     monkeypatch.chdir(Path(__file__).resolve().parents[7])
     result = _settings([])
     assert '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER' in result
-    assert '--output-technology-naming-convention=python:yamldefs:sdointf=algites-python-gen-data-yaml-intf-versioned_1' in result
-    assert '--output-technology-naming-convention=python:yamldefs:sdoclass=algites-python-gen-data-yaml-class-versioned_1' in result
+    assert '--technology-sdointf-output-dir:python=src/product/python.gen' in result
+    assert '--technology-sdoimpl-output-dir:python=src/product/python.gen' in result
+    assert not any(entry.startswith('--output-technology-naming-convention=') for entry in result)
 
 
 def test_explicit_sdo_settings_and_boolean_removal(monkeypatch, tmp_path):
@@ -52,16 +53,16 @@ def test_all_sys_path_settings_are_merged_before_explicit_invocation(monkeypatch
     monkeypatch.setattr(sys, 'path', [str(first), str(second)] + sys.path)
     merged = _settings([])
     assert '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER' in merged
-    assert '--naming-conventions-file=classpath:second-catalog.yml' in merged
-    assert '--naming-conventions-file=classpath:first-catalog.yml' in merged
+    assert '--naming-conventions-file:second=classpath:second-catalog.yml' in merged
+    assert '--naming-conventions-file:first=classpath:first-catalog.yml' in merged
     explicit = tmp_path / 'invocation.settings'
     explicit.write_text('--setter-inheritance-policy=INHERIT_AS_FIXED_PARAMETER\n'
                         '--naming-conventions-file:second=\n')
     merged = _settings([f'--settings-file={explicit}',
         '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER'])
     assert '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER' in merged
-    assert '--naming-conventions-file=classpath:second-catalog.yml' not in merged
-    assert '--naming-conventions-file=classpath:first-catalog.yml' in merged
+    assert '--naming-conventions-file:second=classpath:second-catalog.yml' not in merged
+    assert '--naming-conventions-file:first=classpath:first-catalog.yml' in merged
 
 
 def test_packaged_and_direct_sys_path_settings_accumulate(monkeypatch, tmp_path):
@@ -87,8 +88,8 @@ def test_packaged_and_direct_sys_path_settings_accumulate(monkeypatch, tmp_path)
     (direct / name).write_text('--naming-conventions-file:direct=classpath:direct-only.yml\n')
     monkeypatch.setattr(sys, 'path', [str(direct)] + sys.path)
     values = _settings([])
-    assert '--naming-conventions-file=classpath:package-only.yml' in values
-    assert '--naming-conventions-file=classpath:direct-only.yml' in values
+    assert '--naming-conventions-file:packaged=classpath:package-only.yml' in values
+    assert '--naming-conventions-file:direct=classpath:direct-only.yml' in values
 
 
 def test_packaged_defaults_resolve_from_python_source_classpath_outside_checkout(monkeypatch, tmp_path):

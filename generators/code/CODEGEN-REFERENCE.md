@@ -145,8 +145,9 @@ See [SDO Codegen naming CLI](sdocodegen/CLI-NAMING-BATCH.md).
 | `--output-technology-naming-convention:TECH:ROLE:sdointf=ID` and `--output-technology-naming-convention:TECH:ROLE:sdoclass=ID` | Independent output naming conventions. |
 | `--naming-conventions-file:ENTRY_ID=PATH` | Repeatable shared YAML catalog or `classpath:NAME`. |
 | `--sdointf-subpackage=SUFFIX`, `--sdoclass-subpackage=SUFFIX` | Optional, independent package suffixes; defaults are in settings. |
-| `--dointf-classpath=PATHS` | Java input-class dependencies, preserved from the old CLI. |
-| `--dointf-input-artifact=PATH`, `--dointf-input-class=TYPE` | Java only: JAR/classdir or class specifically selected for generation. |
+| `--dointf-classpath:TECH=PATHS` | Supporting Java binary / Python import-path dependencies, not generation inputs. |
+| `--dointf-input-artifacts:TECH=LIST`, `--dointf-input-classes:TECH=LIST` | Semicolon-delimited artifact selectors or explicit Java/Python contract names. |
+| `--dointf-input-paths:TECH=LIST` | Explicit local JAR/class-directory or wheel/Python-directory inputs. |
 | `--settings-file=PATH`, `--check`, `--clean-only` | Layered settings, verification and cleanup. |
 
 Java SDO uses source compilation/reflection and can also scan full compiled
@@ -464,3 +465,11 @@ by its own QName and preserve order, cardinality and variants. Complete the
 cross-language XML round-trip and invalid-input tests before declaring this
 feature supported end-to-end. This is independent of the Security
 `ProfileType` XSD 1.0 `xs:all` contract.
+
+
+## Qualified artifact inputs (1.1-SNAPSHOT)
+
+See [CODEGEN-ARTIFACT-INPUTS.md](CODEGEN-ARTIFACT-INPUTS.md). Qualified
+parameter names are now parsed directly without the obsolete kind:value
+conversion. Artifact selector lists use semicolons, and fully specified lists
+replace earlier values under the same qualified key.

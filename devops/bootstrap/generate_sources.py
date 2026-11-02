@@ -326,17 +326,19 @@ def generate_sdo_python(repository: Path, root: Path, output: Path) -> int:
                     shutil.copyfile(item, target)
             arguments = [
                 f'--repository-root={repository}',
-                f'--technology-dointf-input-dir=python:{staging}',
-                f'--technology-sdointf-output-dir=python:{destination}',
-                f'--technology-sdoimpl-output-dir=python:{destination}',
+                f'--technology-dointf-input-dir:python={staging}',
+                f'--technology-sdointf-output-dir:python={destination}',
+                f'--technology-sdoimpl-output-dir:python={destination}',
                 '--sdointf-subpackage=impl.intf', '--sdoclass-subpackage=impl',
-                '--generated-dataobject-method-naming-convention=python:algites-python-codegen-standard_1',
+                '--generated-dataobject-method-naming-convention:python=algites-python-codegen-standard_1',
             ]
-            arguments += [f'--naming-conventions-file={value}' for value in ALGITES_NAMING_FILES]
+            arguments += [f'--naming-conventions-file:catalog-{index}={value}'
+                          for index, value in enumerate(ALGITES_NAMING_FILES)]
             for role, suffix in _SDO_ROLES.items():
                 arguments.extend((
-                    f'--input-technology-naming-convention=python:{role}:defsintf=algites-python-gen{suffix}-intf-versioned_1',
-                    f'--output-technology-naming-convention=python:{role}:sdointf=algites-python-gen-data{suffix}-intf-versioned_1,sdoclass=algites-python-gen-data{suffix}-class-versioned_1',
+                    f'--input-technology-naming-convention:python:{role}:defsintf=algites-python-gen{suffix}-intf-versioned_1',
+                    f'--output-technology-naming-convention:python:{role}:sdointf=algites-python-gen-data{suffix}-intf-versioned_1',
+                    f'--output-technology-naming-convention:python:{role}:sdoclass=algites-python-gen-data{suffix}-class-versioned_1',
                 ))
             old_modules = set(destination.rglob('*.py'))
             outcome = cli(arguments)

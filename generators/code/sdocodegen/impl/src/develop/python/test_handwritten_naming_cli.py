@@ -46,16 +46,16 @@ class ContractInvoice_1(AIiYamlDataObject):
     settings = tmp_path / 'custom.settings'
     settings.write_text('\n'.join([
         f'--repository-root={tmp_path}',
-        '--technology-dointf-input-dir=python:source',
-        '--technology-sdointf-output-dir=python:generated',
-        '--technology-sdoimpl-output-dir=python:generated',
+        '--technology-dointf-input-dir:python=source',
+        '--technology-sdointf-output-dir:python=generated',
+        '--technology-sdoimpl-output-dir:python=generated',
         '--sdointf-subpackage=impl.intf',
         '--sdoclass-subpackage=impl',
-        '--input-technology-naming-convention=python:yamldefs:defsintf=handwritten-python-intf_1',
-        '--output-technology-naming-convention=python:yamldefs:sdointf=algites-python-gen-data-yaml-intf-versioned_1,sdoclass=algites-python-gen-data-yaml-class-versioned_1',
-        '--naming-conventions-file=resource:standard-conventions.yml',
-        '--naming-conventions-file=resource:algites-python-name-conventions.yml',
-        f'--naming-conventions-file={config / "handwritten.yml"}',
+        '--input-technology-naming-convention:python:yamldefs:defsintf=handwritten-python-intf_1',
+        '--output-technology-naming-convention:python:yamldefs:sdointf=algites-python-gen-data-yaml-intf-versioned_1' + '\n' + '--output-technology-naming-convention:python:yamldefs:sdoclass=algites-python-gen-data-yaml-class-versioned_1',
+        '--naming-conventions-file:standard=resource:standard-conventions.yml',
+        '--naming-conventions-file:algites=resource:algites-python-name-conventions.yml',
+        f'--naming-conventions-file:custom={config / "handwritten.yml"}',
     ]) + '\n', encoding='utf-8')
     assert main([f'--settings-file={settings}']) == 0
     files = sorted((tmp_path / 'generated').rglob('*.py'))
@@ -82,3 +82,48 @@ def test_shared_package_is_allowed_for_distinct_names(tmp_path: Path):
     sources = sorted((tmp_path / 'generated' / 'exampleinvoice').glob('*.py'))
     assert len(sources) == 2
     assert all('naming_convention=' in file.read_text(encoding='utf-8') for file in sources)
+
+
+def test_explicit_python_input_class(tmp_path: Path):
+    """An explicit module:Class selector narrows the Python generation set."""
+    test_handwritten_contract_uses_annotated_convention_not_filename(tmp_path)
+    settings = tmp_path / 'custom.settings'
+    settings.write_text(settings.read_text(encoding='utf-8') +
+                        '--dointf-input-classes:python=exampleinvoice.invoice_models:ContractInvoice_1\n',
+                        encoding='utf-8')
+    assert main([f'--settings-file={settings}']) == 0
+    assert len(list((tmp_path / 'generated').rglob('*.py'))) == 2
+
+
+def test_missing_explicit_python_input_class_fails(tmp_path: Path):
+    """A missing explicit contract must not silently select arbitrary inputs."""
+    import pytest
+    test_handwritten_contract_uses_annotated_convention_not_filename(tmp_path)
+    settings = tmp_path / 'custom.settings'
+    settings.write_text(settings.read_text(encoding='utf-8') +
+                        '--dointf-input-classes:python=exampleinvoice.invoice_models:Missing_1\n',
+                        encoding='utf-8')
+    with pytest.raises(ValueError, match='not found'):
+        main([f'--settings-file={settings}'])
+
+
+def test_python_wheel_artifact_input(tmp_path: Path, monkeypatch):
+    """A selected wheel supplies DataObject contracts without a source input dir."""
+    from zipfile import ZipFile
+    test_handwritten_contract_uses_annotated_convention_not_filename(tmp_path)
+    home = tmp_path / 'home'
+    wheels = home / '.modustro/artifact-repos/python/wheels'
+    wheels.mkdir(parents=True)
+    with ZipFile(wheels / 'example_contracts-1.0.0-py3-none-any.whl', 'w') as wheel:
+        wheel.write(tmp_path / 'source/exampleinvoice/invoice_models.py',
+                    'exampleinvoice/invoice_models.py')
+    monkeypatch.setenv('HOME', str(home))
+    settings = tmp_path / 'custom.settings'
+    lines = [line for line in settings.read_text(encoding='utf-8').splitlines()
+             if not line.startswith('--technology-dointf-input-dir:')]
+    settings.write_text('\n'.join(lines + [
+        '--dointf-input-artifacts:python=example-contracts==1.0.0',
+        '--dointf-input-classes:python=exampleinvoice.invoice_models:ContractInvoice_1',
+    ]) + '\n', encoding='utf-8')
+    assert main([f'--settings-file={settings}']) == 0
+    assert len(list((tmp_path / 'generated').rglob('*.py'))) == 2

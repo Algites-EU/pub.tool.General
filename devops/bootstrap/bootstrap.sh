@@ -80,6 +80,15 @@ if [[ "$locAction" == --plan-only ]]; then
     exit 0
 fi
 
+# Source mode exposes the resolved build-time graph to Codegen. Internal
+# artifacts selected only by an undeclared CLI option may not be loaded from
+# an unrelated old snapshot in the local binary repository.
+if [[ "${MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE:-remote}" == source ]]; then
+    export MODUSTRO_BOOTSTRAP_PREPARED_ARTIFACTS="$("$locPython" \
+        "$locBootstrapDirectory/source-dependencies.py" identifiers \
+        --repository "$locRepository" --root "$locRoot")"
+fi
+
 # A fresh build can NEVER use previously generated source files. Cleanup is
 # exactly the same operation in every repository and runs before ANY generator.
 "$locPython" "$locBootstrapDirectory/clean_generated.py" clean --repository "$locRepository" --root "$locRoot"

@@ -36,24 +36,23 @@ path is resolved relative to the repository; `classpath:NAME` explicitly
 loads a catalog packaged in the naming library, independently of checkout paths. The generator imposes no naming-ID
 version suffix policy. In Algites defaults the IDs end in `_1`.
 
-## Java binary inputs
+## Explicit Java and Python inputs
 
-The Java CLI also accepts repeatable selectors:
+Both native CLIs accept `--dointf-input-artifacts:TECH=LIST`,
+`--dointf-input-classes:TECH=LIST` and `--dointf-input-paths:TECH=LIST`.
+Items in a list are separated by semicolons. The explicit class selector is
+`fully.qualified.JavaClass` in Java and `importable.module:PythonClass` in
+Python. Java artifacts are JARs or directories of `.class` files; Python
+artifacts are distributions with importable source contracts. The supporting
+`--dointf-classpath:TECH=PATHS` affects loading and is never scanned as an
+additional set of contracts. See
+[CODEGEN-ARTIFACT-INPUTS.md](../CODEGEN-ARTIFACT-INPUTS.md) for complete
+selector grammar and source-mode behavior.
 
-- `--dointf-input-class=fully.qualified.Contract` for one compiled class;
-- `--dointf-input-artifact=PATH` for all eligible DataObject contracts in a
-  JAR or directory containing `.class` files;
-- `--dointf-classpath=PATHS` for supporting binary dependencies, separated
-  with the operating-system path separator.
-
-The last option is **dependency classpath only**, not a selector. Module JARs
-can be inspected as classpath entries for generation, bypassing JPMS module
-encapsulation at build time. Resulting generated packages must still be
-compatible with actual named JPMS modules at runtime.
-
-Both native CLIs also accept input source roots (`--technology-dointf-input-dir`).
-Handwritten DataObject types with explicit metadata are valid inputs even
-when their class and filename do not follow the standard Algites names.
+Both native CLIs also accept a source root via
+`--technology-dointf-input-dir:TECH=PATH`. Handwritten DataObject contracts
+are supported without a generated filename prefix when they have the
+appropriate type metadata.
 
 ## Output packages, settings, and verification
 

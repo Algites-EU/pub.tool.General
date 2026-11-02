@@ -37,8 +37,8 @@ public final class AItcCumulativeCodegenSettingsTest {
             List<String> locMerged = Arrays.asList(AIcLayeredCodegenSettings.expand(
                     new String[0], "sdocodegen", "java", "sdo"));
             if (!locMerged.contains("--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER")
-                    || !locMerged.contains("--naming-conventions-file=classpath:first.yml")
-                    || !locMerged.contains("--naming-conventions-file=classpath:second.yml"))
+                    || !locMerged.contains("--naming-conventions-file:first=classpath:first.yml")
+                    || !locMerged.contains("--naming-conventions-file:second=classpath:second.yml"))
                 throw new AssertionError("Not all classpath settings were merged: " + locMerged);
             Path locExplicit = locRoot.resolve("invocation.settings");
             Files.writeString(locExplicit, "--naming-conventions-file:second=\n"
@@ -47,8 +47,8 @@ public final class AItcCumulativeCodegenSettingsTest {
                     "--settings-file=" + locExplicit,
                     "--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER"},
                     "sdocodegen", "java", "sdo"));
-            if (locMerged.contains("--naming-conventions-file=classpath:second.yml")
-                    || !locMerged.contains("--naming-conventions-file=classpath:first.yml")
+            if (locMerged.contains("--naming-conventions-file:second=classpath:second.yml")
+                    || !locMerged.contains("--naming-conventions-file:first=classpath:first.yml")
                     || !locMerged.contains("--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER"))
                 throw new AssertionError("Explicit settings/CLI precedence failed: " + locMerged);
         } finally {

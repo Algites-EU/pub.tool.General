@@ -287,18 +287,28 @@ tasks.register('bootstrapSdoJava') {
             }
             def arguments = [
                     '--repository-root=' + moduleProject.projectDir.absolutePath,
-                    '--technology-dointf-input-dir=java:build/bootstrap-no-java-source-input',
-                    '--technology-sdointf-output-dir=java:' + output.absolutePath,
-                    '--technology-sdoimpl-output-dir=java:' + output.absolutePath,
+                    '--technology-dointf-input-dir:java=build/bootstrap-no-java-source-input',
+                    '--technology-sdointf-output-dir:java=' + output.absolutePath,
+                    '--technology-sdoimpl-output-dir:java=' + output.absolutePath,
                     '--sdointf-subpackage=impl.intf', '--sdoclass-subpackage=impl',
-                    '--generated-dataobject-method-naming-convention=java:algites-java-codegen-standard_1'
+                    '--generated-dataobject-method-naming-convention:java=algites-java-codegen-standard_1'
             ]
-            eligible.each { arguments << '--dointf-input-class=' + it }
-            arguments << '--dointf-classpath=' + classpath
-            naming.each { arguments << '--naming-conventions-file=resource:' + it }
+            arguments << '--dointf-input-classes:java=' + eligible.join(';')
+            arguments << '--dointf-classpath:java=' + classpath
+            // Each catalogue needs a distinct qualified key. Keep the Gradle
+            // script independent of Groovy eachWithIndex closure inference: it
+            // is compiled during configuration even for bootstrap modules
+            // without DataObject contracts.
+            for (int locCatalogIndex = 0; locCatalogIndex < naming.size(); locCatalogIndex++) {
+                // The complete argument must be one Groovy expression: a '+' at
+                // the start of the next statement invokes String.positive().
+                String catalogArgument = '--naming-conventions-file:catalog-' + locCatalogIndex + '=resource:' + naming[locCatalogIndex]
+                arguments.add(catalogArgument)
+            }
             roles.each { role, suffix ->
-                arguments << "--input-technology-naming-convention=java:${role}:defsintf=algites-java-gen${suffix}-intf-versioned_1"
-                arguments << "--output-technology-naming-convention=java:${role}:sdointf=algites-java-gen-data${suffix}-intf-versioned_1,sdoclass=algites-java-gen-data${suffix}-class-versioned_1"
+                arguments << "--input-technology-naming-convention:java:${role}:defsintf=algites-java-gen${suffix}-intf-versioned_1"
+                arguments << "--output-technology-naming-convention:java:${role}:sdointf=algites-java-gen-data${suffix}-intf-versioned_1"
+                arguments << "--output-technology-naming-convention:java:${role}:sdoclass=algites-java-gen-data${suffix}-class-versioned_1"
             }
             // Groovy interpolation yields GString values. ProcessBuilder expects
             // java.lang.String entries and otherwise fails converting its varargs

@@ -1,6 +1,7 @@
 package eu.algites.tool.codegen.sdo.impl.cli;
 
 import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
+import eu.algites.tool.codegen.common.AIcCodegenArtifactResolver;
 import eu.algites.tool.codegen.sdo.AIcdGeneratedSdoSource;
 import eu.algites.tool.codegen.sdo.AIcdSdoGenerationResult;
 import eu.algites.tool.codegen.sdo.impl.standard.AIcSdoCodegenService;
@@ -53,6 +54,12 @@ public final class AIcSdoCodegenCli {
         return AIcLayeredCodegenSettings.expand(aArgs, "sdocodegen", "java", "sdo");
     }
 
+    private static void requireQualifiers(String[] aQualified, String aTechnology) {
+        if (aQualified.length != 2 || !aQualified[1].equals(aTechnology))
+            throw new IllegalArgumentException("Expected option qualified by :" + aTechnology
+                    + " but received " + String.join(":", aQualified));
+    }
+
     private static void batch(String[] aArgs) throws Exception {
         Path locRepository = Path.of(".").toAbsolutePath().normalize();
         Map<String, String> locDirectories = new LinkedHashMap<>();
@@ -61,6 +68,7 @@ public final class AIcSdoCodegenCli {
         Map<String, String> locConcreteRoles = new LinkedHashMap<>();
         List<String> locCatalogSources = new ArrayList<>();
         List<String> locArtifacts = new ArrayList<>();
+        String locResolvedArtifacts = null;
         List<String> locClasses = new ArrayList<>();
         List<String> locClassPathParts = new ArrayList<>();
         String locMutableSubpackage = "";
@@ -76,7 +84,10 @@ public final class AIcSdoCodegenCli {
                 throw new IllegalArgumentException("Invalid SDO CLI option: " + locOption);
             String locName = locOption.substring(2, locEquals);
             String locValue = locOption.substring(locEquals + 1);
-            switch (locName) {
+            String[] locQualified = locName.split(":");
+            String locBase = locQualified[0];
+            if (locQualified.length > 1 && locQualified[1].equals("python")) continue;
+            switch (locBase) {
                 case "setter-inheritance-policy" -> {
                     var locPolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.valueOf(locValue);
                     if (locPolicy == eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.DEFAULT)
@@ -84,52 +95,54 @@ public final class AIcSdoCodegenCli {
                     System.setProperty("algites.sdocodegen.setterInheritancePolicy", locPolicy.name());
                 }
                 case "repository-root" -> locRepository = Path.of(locValue).toAbsolutePath().normalize();
-                case "naming-conventions-file" -> locCatalogSources.add(locValue);
-                case "generated-dataobject-method-naming-convention" -> {
-                    String[] locSelected = locValue.split(":", 2);
-                    if (locSelected.length != 2 || locSelected[1].isBlank())
-                        throw new IllegalArgumentException("Expected technology:method-profile: " + locValue);
-                    if (locSelected[0].equals("java")) locGeneratedMethodsProfile = locSelected[1];
-                    else if (!locSelected[0].equals("python"))
-                        throw new IllegalArgumentException("Unsupported technology: " + locSelected[0]);
+                case "naming-conventions-file" -> {
+                    if (locQualified.length != 2 || locQualified[1].isBlank())
+                        throw new IllegalArgumentException("Catalog option needs a unique qualifier: " + locOption);
+                    locCatalogSources.add(locValue);
                 }
-                case "dointf-classpath" -> locClassPathParts.addAll(Arrays.asList(
-                        locValue.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))));
-                case "dointf-input-artifact" -> locArtifacts.add(locValue);
-                case "dointf-input-class" -> locClasses.add(locValue);
+                case "generated-dataobject-method-naming-convention" -> {
+                    requireQualifiers(locQualified, "java");
+                    locGeneratedMethodsProfile = locValue;
+                }
+                case "dointf-classpath" -> {
+                    requireQualifiers(locQualified, "java");
+                    locClassPathParts.addAll(Arrays.asList(
+                            locValue.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))));
+                }
+                case "dointf-input-artifacts" -> {
+                    requireQualifiers(locQualified, "java");
+                    locResolvedArtifacts = locValue;
+                }
+                case "dointf-input-paths" -> {
+                    requireQualifiers(locQualified, "java");
+                    locArtifacts.addAll(Arrays.asList(locValue.split(";", -1)));
+                }
+                case "dointf-input-classes" -> {
+                    requireQualifiers(locQualified, "java");
+                    locClasses.addAll(Arrays.asList(locValue.split(";", -1)));
+                }
                 case "sdointf-subpackage" -> locMutableSubpackage = locValue;
                 case "sdoclass-subpackage" -> locConcreteSubpackage = locValue;
                 case "technology-dointf-input-dir", "technology-sdointf-output-dir",
                         "technology-sdoimpl-output-dir" -> {
-                    String[] locParts = locValue.split(":", 2);
-                    if (locParts.length != 2 || !locParts[0].equals("java") || locParts[1].isBlank()) {
-                        if (!locValue.startsWith("python:"))
-                            throw new IllegalArgumentException("Expected java:path in " + locOption);
-                    } else locDirectories.put(locName, locParts[1]);
+                    requireQualifiers(locQualified, "java");
+                    locDirectories.put(locBase, locValue);
                 }
                 case "input-technology-naming-convention" -> {
-                    String[] locParts = locValue.split(":", 3);
-                    if (locParts.length != 3 || !ROLES.contains(locParts[1]) || !locParts[2].startsWith("defsintf=")
-                            || locParts[2].length() <= 9)
-                        throw new IllegalArgumentException("Expected technology:role:defsintf=<id>: " + locValue);
-                    if (locParts[0].equals("java")) locInputRoles.put(locParts[1], locParts[2].substring(9));
-                    else if (!locParts[0].equals("python")) throw new IllegalArgumentException("Unsupported technology: " + locParts[0]);
+                    if (locQualified.length != 4 || !locQualified[1].equals("java")
+                            || !ROLES.contains(locQualified[2]) || !locQualified[3].equals("defsintf"))
+                        throw new IllegalArgumentException("Expected :java:role:defsintf in " + locOption);
+                    locInputRoles.put(locQualified[2], locValue);
                 }
                 case "output-technology-naming-convention" -> {
-                    String[] locParts = locValue.split(":", 3);
-                    if (locParts.length != 3 || !ROLES.contains(locParts[1]))
-                        throw new IllegalArgumentException("Expected technology:role:sdointf=id,sdoclass=id: " + locValue);
-                    if (!locParts[0].equals("java") && !locParts[0].equals("python"))
-                        throw new IllegalArgumentException("Unknown technology " + locParts[0]);
-                    for (String locEntry : locParts[2].split(",")) {
-                        String[] locAssignment = locEntry.split("=", 2);
-                        if (locAssignment.length != 2 || locAssignment[1].isBlank())
-                            throw new IllegalArgumentException("Invalid SDO role assignment: " + locEntry);
-                        if (locParts[0].equals("python")) continue;
-                        if (locAssignment[0].equals("sdointf")) locMutableRoles.put(locParts[1], locAssignment[1]);
-                        else if (locAssignment[0].equals("sdoclass")) locConcreteRoles.put(locParts[1], locAssignment[1]);
-                        else throw new IllegalArgumentException("Unknown SDO output role: " + locAssignment[0]);
-                    }
+                    if (locQualified.length != 4 || !locQualified[1].equals("java")
+                            || !ROLES.contains(locQualified[2]))
+                        throw new IllegalArgumentException("Expected :java:role:output in " + locOption);
+                    if (locQualified[3].equals("sdointf"))
+                        locMutableRoles.put(locQualified[2], locValue);
+                    else if (locQualified[3].equals("sdoclass"))
+                        locConcreteRoles.put(locQualified[2], locValue);
+                    else throw new IllegalArgumentException("Unknown SDO naming output: " + locOption);
                 }
                 default -> throw new IllegalArgumentException("Unknown SDO CLI argument: " + locOption);
             }
@@ -192,6 +205,8 @@ public final class AIcSdoCodegenCli {
             }
         }
         List<Path> locBinaryInputs = new ArrayList<>();
+        if (locResolvedArtifacts != null)
+            locBinaryInputs.addAll(AIcCodegenArtifactResolver.resolveJava(locResolvedArtifacts));
         for (String locItem : locArtifacts) locBinaryInputs.add(root(locRepository, locItem));
         List<URL> locUrls = new ArrayList<>();
         for (Path locDependency : locDependencies) locUrls.add(locDependency.toUri().toURL());
