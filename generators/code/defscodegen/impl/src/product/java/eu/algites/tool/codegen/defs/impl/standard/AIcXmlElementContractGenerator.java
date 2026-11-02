@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdGeneratedSource;
 import eu.algites.tool.codegen.defs.AIcdGeneratedTypeIdentity;
@@ -41,18 +43,18 @@ public final class AIcXmlElementContractGenerator {
         String locHead = aElement.substitutionHeadQName() == null ? null
                 : aElementTypes.get(aElement.substitutionHeadQName());
         if (aElement.substitutionHeadQName() != null && locHead == null)
-            throw new IllegalArgumentException("Unresolved XML substitution head " + aElement.substitutionHeadQName());
+            throw new AIxCodegenValidationException("Unresolved XML substitution head " + aElement.substitutionHeadQName(), "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
         String locBase = aContentTypes.get(aElement.typeQName());
         boolean locScalarContent = aValueTypes.contains(aElement.typeQName());
         String[] locBuiltin = null;
         if (aElement.typeQName().startsWith("{" + XS + "}"))
             locBuiltin = scalar(aElement.typeQName().substring(XS.length() + 2));
         else if (locBase == null)
-            throw new IllegalArgumentException("No generated XML content contract for " + aElement.typeQName());
+            throw new AIxCodegenValidationException("No generated XML content contract for " + aElement.typeQName(), "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
         else if (locScalarContent)
             locBuiltin = new String[] {locBase, locBase.substring(locBase.lastIndexOf('.') + 1)};
         if (aElement.typeQName().startsWith("{" + XS + "}") && locBuiltin == null)
-            throw new IllegalArgumentException("Unsupported XML scalar: " + aElement.typeQName());
+            throw new AIxCodegenValidationException("Unsupported XML scalar: " + aElement.typeQName(), "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
         LinkedHashSet<String> locParents = new LinkedHashSet<>();
         /* Python resolves multiple inheritance left-to-right. A substitution head can
          * already extend its content type, so the more specific head must come first. */
@@ -95,7 +97,7 @@ public final class AIcXmlElementContractGenerator {
             List<String> locBaseNames = new ArrayList<>();
             for (String locParent : locParents) {
                 int locDot = locParent.lastIndexOf('.');
-                if (locDot < 1) throw new IllegalArgumentException("Expected module-qualified Python type " + locParent);
+                if (locDot < 1) throw new AIxCodegenValidationException("Expected module-qualified Python type " + locParent, "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
                 locImports.add("from " + locParent.substring(0, locDot) + " import " + locParent.substring(locDot + 1));
                 locBaseNames.add(locParent.substring(locDot + 1));
             }

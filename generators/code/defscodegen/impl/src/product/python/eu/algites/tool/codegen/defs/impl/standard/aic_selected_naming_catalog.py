@@ -1,6 +1,8 @@
 """Role-scoped naming adapter for explicit CLI semantic-role selection."""
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from eu.algites.lib.naming.convention.aii_name_convention_catalog import AIiNameConventionCatalog
 
@@ -13,7 +15,7 @@ class AIcSelectedNamingCatalog(AIiNameConventionCatalog):
         self.roles = dict(roles)
         for identity in self.roles.values():
             if identity not in catalog.names:
-                raise ValueError(f'Unknown naming convention {identity!r}')
+                raise AIxCodegenValidationException(f'Unknown naming convention {identity!r}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
 
     @property
     def names(self):
@@ -24,7 +26,7 @@ class AIcSelectedNamingCatalog(AIiNameConventionCatalog):
         try:
             return self.roles[role]
         except KeyError as error:
-            raise ValueError(f'No naming profile configured for {role.name}') from error
+            raise AIxCodegenValidationException(f'No naming profile configured for {role.name}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.') from error
 
     @property
     def generated_method_profile(self) -> str | None:
@@ -82,7 +84,7 @@ class AIcSelectedNamingCatalog(AIiNameConventionCatalog):
         name = self.catalog.profile_value(profile, 'StructureNaming',
             'multi_mapped_list_value_synthetic_getter') if profile else ''
         if not name or re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name) is None:
-            raise ValueError('Missing/invalid multi_mapped_list_value_synthetic_getter in method profile')
+            raise AIxCodegenValidationException('Missing/invalid multi_mapped_list_value_synthetic_getter in method profile', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         return name
 
     def multi_mapped_list_key_synthetic_getter(self):
@@ -99,5 +101,5 @@ class AIcSelectedNamingCatalog(AIiNameConventionCatalog):
         result = self.catalog.profile_value(profile, 'StructureNaming',
                     'multi_mapped_list_key_synthetic_getter') if profile else ''
         if not result or re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', result) is None:
-            raise ValueError('Missing/invalid multi_mapped_list_key_synthetic_getter in method profile')
+            raise AIxCodegenValidationException('Missing/invalid multi_mapped_list_key_synthetic_getter in method profile', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         return result

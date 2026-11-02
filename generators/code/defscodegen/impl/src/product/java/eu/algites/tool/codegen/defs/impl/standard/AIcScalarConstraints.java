@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 import eu.algites.tool.codegen.defs.AIcdValueConstraints;
 import eu.algites.tool.codegen.defs.AInDataTypeKind;
@@ -56,7 +58,7 @@ final class AIcScalarConstraints {
         if (!aNode.has(aName)) return null;
         JsonNode locValue = aNode.get(aName);
         if (!locValue.isIntegralNumber() || !locValue.canConvertToInt() || locValue.intValue() < 0)
-            throw new IllegalArgumentException(aName + " must be a non-negative 32-bit integer");
+            throw new AIxCodegenValidationException(aName + " must be a non-negative 32-bit integer", "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
         return locValue.intValue();
     }
 }

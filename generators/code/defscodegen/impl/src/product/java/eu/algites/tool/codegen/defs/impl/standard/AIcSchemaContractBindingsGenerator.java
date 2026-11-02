@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
@@ -136,11 +138,11 @@ public final class AIcSchemaContractBindingsGenerator {
                 sourceCatalogs.put(locEntry.getKey(), locSharedNames);
         }
         if (!locConfigured && !manifest.has("technology_naming_profiles"))
-            throw new IllegalArgumentException("No explicit output naming catalog configured");
+            throw new AIxCodegenValidationException("No explicit output naming catalog configured", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         if (explicit && !locConfigured) {
             for (String technology : outputRoots.keySet())
                 if (!catalogs.containsKey(technology))
-                    throw new IllegalArgumentException("Missing output naming profile for " + technology);
+                    throw new AIxCodegenValidationException("Missing output naming profile for " + technology, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         }
         /* Recorded output ownership, never matching a naming profile alone,
          * determines which old files the generator is permitted to remove. */
@@ -153,7 +155,7 @@ public final class AIcSchemaContractBindingsGenerator {
         for (String old : previouslyRecorded) {
             Path stale = inside(repository, old);
             if (!hasGeneratedRoot(stale))
-                throw new IllegalArgumentException("Invalid ownership state: " + old);
+                throw new AIxCodegenValidationException("Invalid ownership state: " + old, "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
             if (outputRoots.values().stream().anyMatch(stale::startsWith)) previouslyOwned.add(stale);
             else unrelatedOwned.add(stale);
         }
@@ -200,27 +202,27 @@ public final class AIcSchemaContractBindingsGenerator {
                     if (!source.getFileName().toString().endsWith(suffix)) continue;
                     String schema = portable(repository.relativize(source));
                     if (rootBySchema.putIfAbsent(schema, root) != null)
-                        throw new IllegalArgumentException("Overlapping input roots for " + schema);
+                        throw new AIxCodegenValidationException("Overlapping input roots for " + schema, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
                     kindBySchema.put(schema, kind);
                     AIcNameConventionCatalog sourceCatalog = sourceCatalogs.get(kind);
                     if (sourceCatalog != null) {
                         String locRequired = locConfigured
                                 ? manifest.path("schema_input_naming_conventions").path(kind).asText("") : null;
                         if (locConfigured && locRequired.isEmpty())
-                            throw new IllegalArgumentException("Missing schema input naming convention for " + kind);
+                            throw new AIxCodegenValidationException("Missing schema input naming convention for " + kind, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                         var named = sourceCatalog.recognizeFilename(source.getFileName().toString(),
                                 locRequired == null ? null : Set.of(locRequired));
-                        if (named == null) throw new IllegalArgumentException("Invalid schema filename: " + schema);
+                        if (named == null) throw new AIxCodegenValidationException("Invalid schema filename: " + schema, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
                         profileBySchema.put(schema, named.conventionName());
                         if (!manifest.path("allow_unversioned_schemas").asBoolean()
                                 && !named.variables().containsKey("version"))
-                            throw new IllegalArgumentException("Unversioned schema is not allowed: " + schema);
+                            throw new AIxCodegenValidationException("Unversioned schema is not allowed: " + schema, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
                     }
                     JsonNode document = kind.equals("xmldefs") ? mapper.createObjectNode() : mapper.readTree(source.toFile());
                     if (!kind.equals("xmldefs")) {
                         AIcNameConventionCatalog locCatalog = sourceCatalogs.get(kind);
                         if (locCatalog == null || !profileBySchema.containsKey(schema))
-                            throw new IllegalArgumentException("Missing source naming catalog/profile for " + schema);
+                            throw new AIxCodegenValidationException("Missing source naming catalog/profile for " + schema, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                         String locSourceProfile = profileBySchema.get(schema);
                         String locIdField = locCatalog.schemaMetadataField(locSourceProfile, "schema_source", "identifier");
                         declaredIdentityBySchema.put(schema, !locIdField.isBlank()
@@ -228,11 +230,11 @@ public final class AIcSchemaContractBindingsGenerator {
                     }
                     AIcNameConventionCatalog locInputCatalog = sourceCatalogs.get(kind);
                     if (locInputCatalog == null || !profileBySchema.containsKey(schema))
-                        throw new IllegalArgumentException("Missing source naming catalog/profile for " + schema);
+                        throw new AIxCodegenValidationException("Missing source naming catalog/profile for " + schema, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                     var locFilename = locInputCatalog.recognizeFilename(source.getFileName().toString(),
                             Set.of(profileBySchema.get(schema)));
                     if (locFilename == null || !locFilename.variables().containsKey("identifier"))
-                        throw new IllegalArgumentException("Cannot parse schema identifier via naming profile: " + schema);
+                        throw new AIxCodegenValidationException("Cannot parse schema identifier via naming profile: " + schema, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                     String base = locFilename.variables().get("identifier");
                     if (kind.equals("xmldefs")) {
                         units.add(new AIcdUnit(schema, "", base, mapper.createObjectNode(), document));
@@ -258,7 +260,7 @@ public final class AIcSchemaContractBindingsGenerator {
         for (AIcdUnit locUnit : units) {
             if (!"xmldefs".equals(kindBySchema.get(locUnit.schema()))) continue;
             Path locSource = inside(repository, locUnit.schema());
-            if (targetProfiles.isEmpty()) throw new IllegalArgumentException("No output naming profile configured");
+            if (targetProfiles.isEmpty()) throw new AIxCodegenValidationException("No output naming profile configured", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
             var locLoad = new AIcdDefinitionLoadRequest(locSource, AInDefinitionSourceKind.XMLDEFS,
                     targetProfiles.values().iterator().next());
             if (locUnit.pointer().startsWith("@type/") && locScopeFrontend.isSyntheticChoiceTypeName(
@@ -282,7 +284,7 @@ public final class AIcSchemaContractBindingsGenerator {
             if (locOwners.size() > 1) locScopedXmlDocuments.addAll(locOwners);
         for (String key : overrides.keySet()) {
             if (units.stream().noneMatch(unit -> (unit.schema + "#" + unit.pointer).equals(key))) {
-                throw new IllegalArgumentException("Binding override no longer identifies a schema object: " + key);
+                throw new AIxCodegenValidationException("Binding override no longer identifies a schema object: " + key, "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
             }
         }
         Map<Path, String> pending = new TreeMap<>();
@@ -298,14 +300,14 @@ public final class AIcSchemaContractBindingsGenerator {
             Path schemaRoot = rootBySchema.get(unit.schema);
             String packageName = portable(schemaRoot.relativize(source.getParent())).replace('/', '.');
             if (!packageName.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")) {
-                throw new IllegalArgumentException("Schema must have a legal package path: " + unit.schema);
+                throw new AIxCodegenValidationException("Schema must have a legal package path: " + unit.schema, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
             }
             ObjectNode projection = ((ObjectNode) unit.node).deepCopy();
             if (!sourceKind.equals("xmldefs")) {
                 if (unit.document.has("$defs")) projection.set("$defs", unit.document.get("$defs"));
                 AIcNameConventionCatalog locSourceCatalog = sourceCatalogs.get(sourceKind);
                 if (locSourceCatalog == null || !profileBySchema.containsKey(unit.schema))
-                    throw new IllegalArgumentException("Missing source naming catalog/profile for " + unit.schema);
+                    throw new AIxCodegenValidationException("Missing source naming catalog/profile for " + unit.schema, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                 String locSourceProfile = profileBySchema.get(unit.schema);
                 String locIdKey = locSourceCatalog != null && !locSourceProfile.isBlank()
                         ? locSourceCatalog.schemaMetadataField(locSourceProfile, "schema_source", "identifier") : "";
@@ -328,11 +330,11 @@ public final class AIcSchemaContractBindingsGenerator {
                 AInCodeGenerationTarget target = switch (targetText) {
                     case "python" -> AInCodeGenerationTarget.PYTHON;
                     case "java" -> AInCodeGenerationTarget.JAVA;
-                    default -> throw new IllegalArgumentException("Unsupported target: " + targetText);
+                    default -> throw new AIxCodegenValidationException("Unsupported target: " + targetText, "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
                 };
                 AIiNameConventionCatalog baseProfile = targetProfiles.get(targetText);
                 if (baseProfile == null)
-                    throw new IllegalArgumentException("No output naming profile configured for " + targetText);
+                    throw new AIxCodegenValidationException("No output naming profile configured for " + targetText, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                 var sourceType = switch (sourceKind) {
                     case "yamldefs" -> AInDefinitionSourceKind.YAMLDEFS;
                     case "xmldefs" -> AInDefinitionSourceKind.XMLDEFS;
@@ -435,7 +437,7 @@ public final class AIcSchemaContractBindingsGenerator {
                     + locCandidate.xmlTypeQName();
             var locPrevious = locXmlTypeRequests.putIfAbsent(locKey, locCandidate);
             if (locPrevious != null && !locPrevious.packageName().equals(locCandidate.packageName()))
-                throw new IllegalArgumentException("Ambiguous XML named type " + locCandidate.xmlTypeQName());
+                throw new AIxCodegenValidationException("Ambiguous XML named type " + locCandidate.xmlTypeQName(), "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
         }
         /* XML-only namespace contracts are resolved before rendering their type-safe wildcard getters. */
         Map<String, AIcdCodeGenerationRequest> locNamespaceOwners = new LinkedHashMap<>();
@@ -507,11 +509,11 @@ public final class AIcSchemaContractBindingsGenerator {
                 String locSelectedName = locInterfaceGenerator.generate(locSelected).typeName();
                 if (locInlineRequests.stream().anyMatch(item ->
                         !locInterfaceGenerator.generate(item).typeName().equals(locSelectedName)))
-                    throw new IllegalArgumentException("Ambiguous common XML item bridge: " + locXmlSchema);
+                    throw new AIxCodegenValidationException("Ambiguous common XML item bridge: " + locXmlSchema, "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
                 String locBridgeKey = locLanguage + "#" + locXmlSchema + "#" + locPointer;
                 var locPrevious = locXmlInlineBridges.putIfAbsent(locBridgeKey, locSelected);
                 if (locPrevious != null && !locInterfaceGenerator.generate(locPrevious).typeName().equals(locSelectedName))
-                    throw new IllegalArgumentException("Conflicting common XML item bridge: " + locBridgeKey);
+                    throw new AIxCodegenValidationException("Conflicting common XML item bridge: " + locBridgeKey, "Check xs:key/xs:unique selectors and all xs:field paths against the selected repeated element. A key requires complete values; a unique constraint permits absent values.");
                 locSubstitutions.put(locXmlField.sourceName(), locNamedXml.definition().dataType());
             }
             if (!locSubstitutions.isEmpty()) locXmlCommonProjections.put(locXmlRequest, locSubstitutions);
@@ -539,8 +541,8 @@ public final class AIcSchemaContractBindingsGenerator {
                 }
             }
             if (identityCount != 1)
-                throw new IllegalArgumentException("Canonical identity collision for one generated output: "
-                    + representations.stream().map(r -> r.definition().identity() + " (" + r.definition().sourceResource() + ")").toList());
+                throw new AIxCodegenValidationException("Canonical identity collision for one generated output: "
+                    + representations.stream().map(r -> r.definition().identity() + " (" + r.definition().sourceResource() + ")").toList(), "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             var merged = locIsCommonRole && representations.size() > 1
                     ? AIcCommonContractProjection.merge(representations.stream()
                         .map(item -> projectNamedXmlForCommon(item.definition(),
@@ -555,7 +557,7 @@ public final class AIcSchemaContractBindingsGenerator {
             for (AIcdUnit parent : linked.get(0)) {
                 AIcdCodeGenerationRequest request = unitRequests.get(targetText + "#" + first.contractRole()
                         + "#" + parent.schema() + "#" + parent.pointer());
-                if (request == null) throw new IllegalArgumentException("explicit parent has no generated contract: " + parent.schema());
+                if (request == null) throw new AIxCodegenValidationException("explicit parent has no generated contract: " + parent.schema(), "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
                 expectedParents.add(request.packageName() + "." + new AIcSchemaContractInterfaceGenerator().generate(request).typeName());
             }
             boolean locSharedParents = true;
@@ -564,20 +566,20 @@ public final class AIcSchemaContractBindingsGenerator {
                 for (AIcdUnit parent : representationParents) {
                     AIcdCodeGenerationRequest request = unitRequests.get(targetText + "#" + first.contractRole()
                             + "#" + parent.schema() + "#" + parent.pointer());
-                    if (request == null) throw new IllegalArgumentException("explicit parent has no generated contract: " + parent.schema());
+                    if (request == null) throw new AIxCodegenValidationException("explicit parent has no generated contract: " + parent.schema(), "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
                     actualParents.add(request.packageName() + "." + new AIcSchemaContractInterfaceGenerator().generate(request).typeName());
                 }
                 if (!expectedParents.equals(actualParents)) locSharedParents = false;
             }
             if (!locSharedParents && !locIsCommonRole)
-                throw new IllegalArgumentException("Conflicting explicit parents across schema representations");
+                throw new AIxCodegenValidationException("Conflicting explicit parents across schema representations", "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             List<AIcdCodeGenerationRequest> inheritedRequests = new ArrayList<>();
             for (AIcdUnit inheritedUnit : locSharedParents ? linked.get(0) : List.<AIcdUnit>of()) {
                 AIcdCodeGenerationRequest inherited = unitRequests.get(targetText + "#" + first.contractRole()
                         + "#" + inheritedUnit.schema() + "#" + inheritedUnit.pointer());
                 if (inherited == null) {
-                    throw new IllegalArgumentException("explicit parent has no generated contract in role "
-                            + first.contractRole() + ": " + inheritedUnit.schema() + "#" + inheritedUnit.pointer());
+                    throw new AIxCodegenValidationException("explicit parent has no generated contract in role "
+                            + first.contractRole() + ": " + inheritedUnit.schema() + "#" + inheritedUnit.pointer(), "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
                 }
                 inheritedRequests.add(inherited);
             }
@@ -587,12 +589,12 @@ public final class AIcSchemaContractBindingsGenerator {
             for (AIcdCodeGenerationRequest inherited : inheritedRequests) {
                 if (merged.dataType().kind() != AInDataTypeKind.OBJECT
                         || inherited.definition().dataType().kind() != AInDataTypeKind.OBJECT) {
-                    throw new IllegalArgumentException("explicit inheritance must connect object contracts");
+                    throw new AIxCodegenValidationException("explicit inheritance must connect object contracts", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
                 }
                 for (AIcdPropertyDefinition field : inherited.definition().dataType().properties()) {
                     AIcdPropertyDefinition existing = inheritedFields.putIfAbsent(field.sourceName(), field);
                     if (existing != null && !fieldShape(existing).equals(fieldShape(field))) {
-                        throw new IllegalArgumentException("Conflicting fields among explicit parents: " + field.sourceName());
+                        throw new AIxCodegenValidationException("Conflicting fields among explicit parents: " + field.sourceName(), "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
                     }
                 }
                 var inheritedSource = new AIcSchemaContractInterfaceGenerator().generate(inherited);
@@ -615,7 +617,7 @@ public final class AIcSchemaContractBindingsGenerator {
                     AIcdPropertyDefinition previous = inheritedFields.get(field.sourceName());
                     if (previous == null || !fieldShape(previous).equals(fieldShape(field))) {
                         if (previous != null && !fieldNarrows(previous, field)) {
-                            throw new IllegalArgumentException("Conflicting inherited field: " + field.sourceName());
+                            throw new AIxCodegenValidationException("Conflicting inherited field: " + field.sourceName(), "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
                         }
                         ownFields.add(field);
                     }
@@ -644,7 +646,7 @@ public final class AIcSchemaContractBindingsGenerator {
                 var locXmlOrigin = unitIndex.get(first.definition().sourceResource() + "#");
                 if (locXmlOrigin == null) locXmlOrigin = unitIndex.get(first.definition().sourceResource());
                 if (locXmlOrigin == null)
-                    throw new IllegalArgumentException("Unknown XSD source " + first.definition().sourceResource());
+                    throw new AIxCodegenValidationException("Unknown XSD source " + first.definition().sourceResource(), "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
                 var locXmlLoad = new AIcdDefinitionLoadRequest(inside(repository, locXmlOrigin.schema()),
                         AInDefinitionSourceKind.XMLDEFS, first.namingProfile());
                 String locXmlParentQName = locXmlOrigin.pointer().startsWith("@type/")
@@ -656,11 +658,11 @@ public final class AIcSchemaContractBindingsGenerator {
                             + (locXmlParentQName.startsWith("{}") ? first.packageName() + "#" : "")
                             + locXmlParentQName);
                     if (locXmlParent == null || locXmlParent == first)
-                        throw new IllegalArgumentException("XML extension base has no independently emitted contract: "
-                                + locXmlParentQName + " for " + first.xmlTypeQName());
+                        throw new AIxCodegenValidationException("XML extension base has no independently emitted contract: "
+                                + locXmlParentQName + " for " + first.xmlTypeQName(), "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
                     if (merged.dataType().kind() != AInDataTypeKind.OBJECT
                             || locXmlParent.definition().dataType().kind() != AInDataTypeKind.OBJECT)
-                        throw new IllegalArgumentException("XML extension requires object contracts");
+                        throw new AIxCodegenValidationException("XML extension requires object contracts", "Compare the derived XSD type with its base. A restriction must not add fields, widen cardinality, or relax inherited type constraints.");
                     Map<String, AIcdPropertyDefinition> locInheritedFields = new LinkedHashMap<>();
                     for (var locField : locXmlParent.definition().dataType().properties())
                         locInheritedFields.put(locField.sourceName(), locField);
@@ -669,8 +671,8 @@ public final class AIcSchemaContractBindingsGenerator {
                         var locInherited = locInheritedFields.get(locField.sourceName());
                         if (locInherited == null) locOwnFields.add(locField);
                         else if (!fieldShape(locInherited).equals(fieldShape(locField)))
-                            throw new IllegalArgumentException("Incompatible inherited XML extension field: "
-                                    + locField.sourceName());
+                            throw new AIxCodegenValidationException("Incompatible inherited XML extension field: "
+                                    + locField.sourceName(), "Compare the derived XSD type with its base. A restriction must not add fields, widen cardinality, or relax inherited type constraints.");
                     }
                     merged = new AIcdCanonicalDefinition(merged.identity(), merged.version(), merged.logicalName(), merged.sourceKind(), merged.sourceResource(), merged.description(), eu.algites.tool.codegen.defs.AIcdDataType.object(locOwnFields), merged.enumValues(), merged.title());
                     var locParentPreview = new AIcSchemaContractInterfaceGenerator().generate(locXmlParent);
@@ -863,8 +865,8 @@ public final class AIcSchemaContractBindingsGenerator {
                             : locTypes;
                     String locPrevious = locIndex.putIfAbsent(locRootQName, locQualified);
                     if (locPrevious != null && !locPrevious.equals(locQualified))
-                        throw new IllegalArgumentException("Duplicate XML content type " + locRootQName
-                                + " in " + locUnit.schema());
+                        throw new AIxCodegenValidationException("Duplicate XML content type " + locRootQName
+                                + " in " + locUnit.schema(), "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
                 }
                 if (!locUnit.pointer().isEmpty()) continue;
                 for (var locElement : locXmlFrontend.globalElementDeclarations(locLoad)) {
@@ -879,8 +881,8 @@ public final class AIcSchemaContractBindingsGenerator {
                             ? locDocumentElements.computeIfAbsent(locUnit.schema(), key -> new LinkedHashMap<>())
                             : locElements;
                     if (locIndex.putIfAbsent(locElement.qName(), locQualified) != null)
-                        throw new IllegalArgumentException("Duplicate XML global element " + locElement.qName()
-                                + " in " + locUnit.schema());
+                        throw new AIxCodegenValidationException("Duplicate XML global element " + locElement.qName()
+                                + " in " + locUnit.schema(), "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
                     locWork.add(new AIcdElementWork(locUnit.schema(), locRequest, locElement));
                 }
             }
@@ -923,14 +925,14 @@ public final class AIcSchemaContractBindingsGenerator {
          * its filename happens to match a configured naming convention. */
         for (Path stale : previouslyOwned) {
             if (!pending.containsKey(stale) && Files.exists(stale)) {
-                if (check) throw new IllegalStateException("Stale generated binding: " + stale);
+                if (check) throw new AIxCodegenValidationException("Stale generated binding: " + stale, "Regenerate from the source schema, or remove obsolete generated output owned by Defs Codegen; do not manually modify generated files.");
                 Files.delete(stale);
             }
         }
         for (var entry : pending.entrySet()) {
             Path path = entry.getKey();
             if (check) {
-                if (!Files.isRegularFile(path) || !Files.readString(path).equals(entry.getValue())) throw new IllegalStateException("Missing or outdated generated binding: " + path);
+                if (!Files.isRegularFile(path) || !Files.readString(path).equals(entry.getValue())) throw new AIxCodegenValidationException("Missing or outdated generated binding: " + path, "Run Defs Codegen without --check to regenerate the expected output, then rerun --check; do not hand-edit generated files.");
             } else {
                 Files.createDirectories(path.getParent());
                 if (!Files.isRegularFile(path) || !Files.readString(path).equals(entry.getValue())) Files.writeString(path, entry.getValue(), StandardCharsets.UTF_8);
@@ -967,7 +969,7 @@ public final class AIcSchemaContractBindingsGenerator {
                                             Map<String, Boolean> declaredIdentityBySchema) {
         AIcdUnit origin = unitIndex.get(definition.sourceResource());
         if (origin == null) origin = unitIndex.get(definition.sourceResource() + "#");
-        if (origin == null) throw new IllegalArgumentException("Unknown canonical source " + definition.sourceResource());
+        if (origin == null) throw new AIxCodegenValidationException("Unknown canonical source " + definition.sourceResource(), "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         if (!Boolean.TRUE.equals(declaredIdentityBySchema.get(origin.schema()))
                 && (definition.sourceKind() != AInDefinitionSourceKind.XMLDEFS
                 || definition.identity().equals(definition.logicalName())))
@@ -1035,10 +1037,10 @@ public final class AIcSchemaContractBindingsGenerator {
     private static List<AIcdUnit> parentUnits(AIcdUnit aUnit, Map<String, AIcdUnit> aIndex, Path aRepository) {
         JsonNode locExtends = aUnit.node.path("x-algites-defscodegen-extends");
         if (locExtends.isMissingNode()) return List.of();
-        if (!locExtends.isArray()) throw new IllegalArgumentException("x-algites-defscodegen-extends must be an array");
+        if (!locExtends.isArray()) throw new AIxCodegenValidationException("x-algites-defscodegen-extends must be an array", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
         List<String> locReferences = new ArrayList<>();
         for (JsonNode locParent : locExtends) {
-            if (!locParent.isTextual()) throw new IllegalArgumentException("Parent must be a URI reference");
+            if (!locParent.isTextual()) throw new AIxCodegenValidationException("Parent must be a URI reference", "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
             locReferences.add(locParent.asText());
         }
         if (locReferences.isEmpty()) return List.of();
@@ -1047,25 +1049,25 @@ public final class AIcSchemaContractBindingsGenerator {
         URI locUri = URI.create(locReference);
         String locPointer = locUri.getRawFragment() == null ? "" : java.net.URLDecoder.decode(locUri.getRawFragment(), java.nio.charset.StandardCharsets.UTF_8);
         if (!locPointer.isEmpty() && !locPointer.startsWith("/"))
-            throw new IllegalArgumentException("Unsupported explicit parent anchor: " + locReference);
+            throw new AIxCodegenValidationException("Unsupported explicit parent anchor: " + locReference, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
         if (locUri.isAbsolute() && !locUri.getScheme().equals("file")) {
             var locCandidates = aIndex.values().stream().filter(u ->
                 u.document.path("$id").asText().equals(locReference.split("#", 2)[0])
                 && u.pointer.equals(locPointer)).toList();
-            if (locCandidates.size() != 1) throw new IllegalArgumentException("Unresolved explicit parent: " + locReference);
+            if (locCandidates.size() != 1) throw new AIxCodegenValidationException("Unresolved explicit parent: " + locReference, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
             locParents.add(locCandidates.get(0));
             continue;
         }
         Path locSource = aRepository.resolve(aUnit.schema);
         Path locParent = (locUri.isAbsolute() ? Path.of(locUri.getPath()) : locUri.getPath().isEmpty() ? locSource
                 : locSource.getParent().resolve(locUri.getPath())).toAbsolutePath().normalize();
-        if (!locParent.startsWith(aRepository)) throw new IllegalArgumentException("explicit parent escapes repository: " + locReference);
+        if (!locParent.startsWith(aRepository)) throw new AIxCodegenValidationException("explicit parent escapes repository: " + locReference, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
         AIcdUnit locUnit = aIndex.get(portable(aRepository.relativize(locParent)) + "#" + locPointer);
-        if (locUnit == null) throw new IllegalArgumentException("explicit parent is not an emitted contract: " + locReference);
+        if (locUnit == null) throw new AIxCodegenValidationException("explicit parent is not an emitted contract: " + locReference, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
         locParents.add(locUnit);
         }
         if (locParents.stream().distinct().count() != locParents.size()) {
-            throw new IllegalArgumentException("Duplicate explicit parent in " + aUnit.schema());
+            throw new AIxCodegenValidationException("Duplicate explicit parent in " + aUnit.schema(), "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
         }
         return List.copyOf(locParents);
     }
@@ -1101,7 +1103,7 @@ public final class AIcSchemaContractBindingsGenerator {
                 candidate.target() == request.target() && (candidate.definition().sourceResource().split("#", 2)[0].equals(local)
                     || candidate.definition().sourceResource().split("#", 2)[0].equals(locPublishedPath)
                     || candidate.definition().identity().equals(resource))).map(AIcdCodeGenerationRequest::packageName).distinct().toList();
-            if (candidates.size() != 1) throw new IllegalArgumentException("Cannot resolve generated reference package: " + ref.identity() + " in " + owner);
+            if (candidates.size() != 1) throw new AIxCodegenValidationException("Cannot resolve generated reference package: " + ref.identity() + " in " + owner, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
             String packageName = candidates.get(0);
             if (packageName.equals(request.packageName())) continue;
             boolean isEnum = ref.targetsEnum();
@@ -1124,7 +1126,7 @@ public final class AIcSchemaContractBindingsGenerator {
         if (!node.isObject()) return;
         JsonNode override = overrides.get(schema + "#" + pointer);
         if (override != null && override.path("common_one_of_fields").asBoolean())
-            throw new IllegalArgumentException("common_one_of_fields is obsolete: declare shared properties directly");
+            throw new AIxCodegenValidationException("common_one_of_fields is obsolete: declare shared properties directly", "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
         if (pointer.isEmpty() || pointer.endsWith("/additionalProperties") || node.path("type").asText().equals("object") || node.has("properties") || node.has("enum") || node.has("x-algites-defscodegen-choice")) {
             result.add(new AIcdUnit(schema, pointer, override == null ? name : override.required("name").asText(), node, document));
         }
@@ -1187,23 +1189,23 @@ public final class AIcSchemaContractBindingsGenerator {
             Set<String> scopedDocuments) {
         AIcdCodeGenerationRequest owner = owners.get(
                 xmlNamespaceOwnerKey(language, namespace, request, scopedDocuments));
-        if (owner == null) throw new IllegalArgumentException("Missing XML namespace contract " + namespace);
+        if (owner == null) throw new AIxCodegenValidationException("Missing XML namespace contract " + namespace, "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
         return AIcXmlNamespaceContracts.generate(owner, namespace).qualifiedName();
     }
 
-    private static void add(Map<Path, String> pending, Path path, String source) { if (pending.putIfAbsent(path.normalize(), source) != null) throw new IllegalArgumentException("Generated type collision: " + path); }
-    private static Path inside(Path repository, String relative) { Path path = repository.resolve(relative).normalize(); if (!path.startsWith(repository) || Path.of(relative).isAbsolute()) throw new IllegalArgumentException("Path escapes repository: " + relative); return path; }
+    private static void add(Map<Path, String> pending, Path path, String source) { if (pending.putIfAbsent(path.normalize(), source) != null) throw new AIxCodegenValidationException("Generated type collision: " + path, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous."); }
+    private static Path inside(Path repository, String relative) { Path path = repository.resolve(relative).normalize(); if (!path.startsWith(repository) || Path.of(relative).isAbsolute()) throw new AIxCodegenValidationException("Path escapes repository: " + relative, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present."); return path; }
     private static String portable(Path path) { return path.toString().replace('\\', '/'); }
     private static boolean hasGeneratedRoot(Path path) { for (Path part : path) if (part.toString().endsWith(".gen")) return true; return false; }
 
     /** Standalone JVM entry point for local tools; Gradle calls the same generator API directly. */
     public static void main(String[] args) throws IOException {
-        if (args.length < 2 || args.length > 4) throw new IllegalArgumentException("Usage: <repository> <manifest> [--check] [--json]");
+        if (args.length < 2 || args.length > 4) throw new AIxCodegenValidationException("Usage: <repository> <manifest> [--check] [--json]", "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         boolean check = false, json = false;
         for (int i = 2; i < args.length; i++) {
             if (args[i].equals("--check")) check = true;
             else if (args[i].equals("--json")) json = true;
-            else throw new IllegalArgumentException("Unknown option: " + args[i]);
+            else throw new AIxCodegenValidationException("Unknown option: " + args[i], "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
         }
         var generator = new AIcSchemaContractBindingsGenerator();
         var result = generator.generateRepository(Path.of(args[0]), Path.of(args[1]), check);
@@ -1265,8 +1267,8 @@ public final class AIcSchemaContractBindingsGenerator {
             AIcNameConventionCatalog locSource = requireSourceNaming(aSourceCatalog, aSourceProfile, aSourceKind);
             if (locMethodSource.isBlank() || locSource.schemaMetadataField(aSourceProfile,
                     "schema_source", aKind).isBlank())
-                throw new IllegalArgumentException("data_source_schema_" + aKind
-                        + " has no schema_source_schema_" + aKind);
+                throw new AIxCodegenValidationException("data_source_schema_" + aKind
+                        + " has no schema_source_schema_" + aKind, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         }
         return locTarget;
     }
@@ -1304,7 +1306,7 @@ public final class AIcSchemaContractBindingsGenerator {
     private static AIcNameConventionCatalog requireSourceNaming(
             AIcNameConventionCatalog catalog, String profile, String sourceKind) {
         if (catalog == null || profile == null || profile.isBlank()) {
-            throw new IllegalArgumentException("Missing explicit " + sourceKind + " schema-source naming profile");
+            throw new AIxCodegenValidationException("Missing explicit " + sourceKind + " schema-source naming profile", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         }
         return catalog;
     }

@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
 import eu.algites.tool.codegen.defs.AInDefsNameRole;
@@ -11,7 +13,7 @@ final class AIcGenerationNames {
     /** Require a semantic naming-role binding supplied by the active generator profile. */
     private static String selected(AIiNameConventionCatalog aCatalog, AInDefsNameRole aRole) {
         if (!(aCatalog instanceof AIcSelectedNamingCatalog locSelected))
-            throw new IllegalArgumentException("No output naming profile configured for role " + aRole);
+            throw new AIxCodegenValidationException("No output naming profile configured for role " + aRole, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         return locSelected.selected(aRole);
     }
 

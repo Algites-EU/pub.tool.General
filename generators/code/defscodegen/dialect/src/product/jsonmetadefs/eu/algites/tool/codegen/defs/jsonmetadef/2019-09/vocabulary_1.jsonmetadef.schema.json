@@ -19,23 +19,63 @@
       "description": "Nominal direct parents of the generated object interface; does not perform JSON Schema instance validation."
     },
     "x-algites-defscodegen-choice": {
-      "type": "object",
-      "required": [
-        "alternatives"
-      ],
-      "properties": {
-        "alternatives": {
-          "type": "array",
-          "minItems": 2,
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "format": "uri-reference"
-          }
-        }
+      "const": true,
+      "description": "Explicit Defs Codegen exclusive choice over sibling properties; minProperties=1, maxProperties=1 and additionalProperties=false ensure standard JSON validation where supported. May only appear in structural schema positions."
+    }
+  },
+  "if": {
+    "required": [
+      "x-algites-defscodegen-choice"
+    ],
+    "type": "object"
+  },
+  "then": {
+    "required": [
+      "type",
+      "properties",
+      "minProperties",
+      "maxProperties",
+      "additionalProperties"
+    ],
+    "properties": {
+      "type": {
+        "enum": [
+          "object"
+        ]
       },
-      "additionalProperties": false,
-      "description": "Closed set of named variant schema references for code generation only; unrelated to oneOf/anyOf validation."
+      "properties": {
+        "type": "object",
+        "minProperties": 2
+      },
+      "minProperties": {
+        "enum": [
+          1
+        ]
+      },
+      "maxProperties": {
+        "enum": [
+          1
+        ]
+      },
+      "additionalProperties": {
+        "enum": [
+          false
+        ]
+      }
+    },
+    "not": {
+      "anyOf": [
+        {
+          "required": [
+            "patternProperties"
+          ]
+        },
+        {
+          "required": [
+            "required"
+          ]
+        }
+      ]
     }
   }
 }

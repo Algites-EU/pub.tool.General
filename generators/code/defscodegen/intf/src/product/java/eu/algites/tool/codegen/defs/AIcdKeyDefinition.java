@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -13,10 +15,22 @@ import java.util.Objects;
  * @param name nonempty diagnostic identity of this key definition
  * @param fields one or more nonempty paths of key-bearing fields
  * @param unique whether duplicate complete keys must be rejected
+ * @param required whether all selected objects must have complete key values
  * @param virtual whether the single key comes from the containing object property
  * @author linhart1
  */
-public record AIcdKeyDefinition(String name, List<String> fields, boolean unique, boolean virtual) {
+public record AIcdKeyDefinition(String name, List<String> fields, boolean unique, boolean virtual, boolean required) {
+    /**
+     * Creates a required key definition compatible with previous schema contracts.
+     *
+     * @param name diagnostic key identity
+     * @param fields ordered key field paths
+     * @param unique whether complete duplicate key tuples are forbidden
+     * @param virtual whether the key is derived from a containing map entry
+     */
+    public AIcdKeyDefinition(String name, List<String> fields, boolean unique, boolean virtual) {
+        this(name, fields, unique, virtual, true);
+    }
     /**
      * Validate the key identity, components and virtual-key cardinality.
      *
@@ -30,6 +44,6 @@ public record AIcdKeyDefinition(String name, List<String> fields, boolean unique
         fields = List.copyOf(fields);
         if (name.isBlank() || fields.isEmpty() || fields.stream().anyMatch(String::isBlank)
                 || (virtual && fields.size() != 1))
-            throw new IllegalArgumentException("Invalid canonical key definition: " + name);
+            throw new AIxCodegenValidationException("Invalid canonical key definition: " + name, "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
     }
 }

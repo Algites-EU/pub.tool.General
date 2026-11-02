@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import java.util.List;
 
 /**
@@ -32,14 +34,14 @@ public record AIcdValueConstraints(String dataType, String minimum, String maxim
         enumValues = enumValues == null ? List.of() : List.copyOf(enumValues);
         for (Integer locValue : new Integer[] { minItems, maxItems, minLength, maxLength, minProperties, maxProperties }) {
             if (locValue != null && locValue < 0)
-                throw new IllegalArgumentException("Constraint bounds cannot be negative");
+                throw new AIxCodegenValidationException("Constraint bounds cannot be negative", "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
         }
         if (minItems != null && maxItems != null && minItems > maxItems)
-            throw new IllegalArgumentException("minItems exceeds maxItems");
+            throw new AIxCodegenValidationException("minItems exceeds maxItems", "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
         if (minProperties != null && maxProperties != null && minProperties > maxProperties)
-            throw new IllegalArgumentException("minProperties exceeds maxProperties");
+            throw new AIxCodegenValidationException("minProperties exceeds maxProperties", "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
         if (minLength != null && maxLength != null && minLength > maxLength)
-            throw new IllegalArgumentException("minLength exceeds maxLength");
+            throw new AIxCodegenValidationException("minLength exceeds maxLength", "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
     }
 
     /**

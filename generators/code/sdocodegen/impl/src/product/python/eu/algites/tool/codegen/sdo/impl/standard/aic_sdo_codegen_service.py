@@ -5,6 +5,8 @@ both the input and the sole source of truth. Class inheritance is preserved.
 """
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 import re
 import os
 import importlib
@@ -50,16 +52,16 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         """
         root = Path(source_root).resolve(strict=True)
         if not root.is_dir():
-            raise ValueError(f'Not a DO contract source root: {root}')
+            raise AIxCodegenValidationException(f'Not a DO contract source root: {root}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         if not contracts:
             return {}
         prepared = {}
         for path, name in contracts.items():
             source = (root / path).resolve(strict=True)
             if not source.is_relative_to(root) or source.suffix != '.py' or not source.is_file():
-                raise ValueError(f'Invalid DO contract source: {path}')
+                raise AIxCodegenValidationException(f'Invalid DO contract source: {path}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
             if not name.isidentifier():
-                raise ValueError(f'Invalid DO contract class name: {name}')
+                raise AIxCodegenValidationException(f'Invalid DO contract class name: {name}', 'Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.')
             prepared[source] = ('.'.join(source.relative_to(root).with_suffix('').parts), name)
         inserted = str(root) not in sys.path
         if inserted:
@@ -75,7 +77,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 module = importlib.import_module(module_name)
                 loaded = Path(module.__file__).resolve() if getattr(module, '__file__', None) else None
                 if loaded != source:
-                    raise ValueError(f'Imported DO contract is not the requested source: {source} (loaded {loaded})')
+                    raise AIxCodegenValidationException(f'Imported DO contract is not the requested source: {source} (loaded {loaded})', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
                 contract = getattr(module, class_name)
                 if enabled_roles is not None:
                     if not isclass(contract) or not issubclass(contract, AIiDataObject):
@@ -102,14 +104,14 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
     def generate(self, read_contract: type, marker: str = 'd', naming=None, mutable_subpackage: str = '', concrete_subpackage: str = '') -> AIcdSdoGenerationResult:
         """Generate native SDO types while preserving inherited field and label annotations."""
         if naming is None or len(naming) not in (3, 4):
-            raise ValueError('Missing explicit SDO input/mutable/implementation naming profiles')
+            raise AIxCodegenValidationException('Missing explicit SDO input/mutable/implementation naming profiles', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         if not isclass(read_contract) or not issubclass(read_contract, AIiDataObject) or read_contract.__module__.startswith("eu.algites.lib.data.dataobject"):
             # Source-family marker types are infrastructure, not generated schema contracts.
-            raise ValueError('Read contract must extend AIiDataObject')
+            raise AIxCodegenValidationException('Read contract must extend AIiDataObject', 'Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.')
         if not re.fullmatch(r'[a-z][a-z0-9]*', marker):
-            raise ValueError(f'Invalid mutable implementation marker: {marker!r}')
+            raise AIxCodegenValidationException(f'Invalid mutable implementation marker: {marker!r}', 'Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.')
         if '.' not in read_contract.__module__:
-            raise ValueError('Read contract must live in an importable package')
+            raise AIxCodegenValidationException('Read contract must live in an importable package', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         def role_for_identity(contract):
             if issubclass(contract, AIiXmlDataObject):
                 metadata = contract.__dict__.get('__xml_data_object__')
@@ -129,11 +131,11 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             source_metadata = owner.__dict__.get('__data_object__')
             profile = getattr(source_metadata, 'naming_convention', '') or role_profile
             if not profile:
-                raise ValueError('Missing source getter naming convention for ' + owner.__name__)
+                raise AIxCodegenValidationException('Missing source getter naming convention for ' + owner.__name__, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
             parsed = name_catalog.parse(profile, 'getter_method_name', getter_name)
             identifier = parsed.get('identifier')
             if not identifier:
-                raise ValueError('Getter naming convention lacks an identifier: ' + getter_name)
+                raise AIxCodegenValidationException('Getter naming convention lacks an identifier: ' + getter_name, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
             return name_catalog.convert_identifier(identifier,
                 name_catalog.identifier_convention(profile, 'getter_method_name'), 'upper_camel_case_1')
 
@@ -166,9 +168,9 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             if isinstance(profiles, dict):
                 result = profiles.get(role)
                 if not result:
-                    raise ValueError(f'No configured SDO naming convention for {role}/{index}')
+                    raise AIxCodegenValidationException(f'No configured SDO naming convention for {role}/{index}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
                 return result
-            raise ValueError(f'SDO naming profile for role {role}/{index} must be explicitly selected')
+            raise AIxCodegenValidationException(f'SDO naming profile for role {role}/{index} must be explicitly selected', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
 
         def catalog() -> AIiNameConventionCatalog | None:
             """Return the naming catalog through its public contract."""
@@ -180,7 +182,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         def accessor_profile(contract, index):
             """Require configured naming catalogs and roles for every generated accessor."""
             if naming is None:
-                raise ValueError('Missing required SDO generator naming profile')
+                raise AIxCodegenValidationException('Missing required SDO generator naming profile', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
             return (catalog() or naming[index]), selected(contract, index)
 
         def semantic_identifier(name):
@@ -242,13 +244,13 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                                                   {'identifier': 'value'}, 'lower_snake_case_1')
         if naming is not None and not (catalog() or naming[2]).matches(
                 concrete_role, 'method_parameter_name', parameter_name):
-            raise ValueError('SDO parameter name does not match the implementation naming profile')
+            raise AIxCodegenValidationException('SDO parameter name does not match the implementation naming profile', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         package = read_contract.__module__.rsplit('.', 1)[0]
         def subpackage(base, value):
             if not value:
                 return base
             if not all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', part) for part in value.split('.')):
-                raise ValueError(f'Invalid generated subpackage: {value!r}')
+                raise AIxCodegenValidationException(f'Invalid generated subpackage: {value!r}', 'Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.')
             return base + '.' + value
 
         mutable_package = subpackage(package, mutable_subpackage)
@@ -301,12 +303,12 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             for name in inherited_names:
                 current = all_fields[name]
                 if current.setter_inheritance_policy is AInFieldSetterInheritancePolicy.INHERIT_AS_FIXED_PARAMETER:
-                    raise ValueError('An inherited generic setter cannot become fixed: ' + name)
+                    raise AIxCodegenValidationException('An inherited generic setter cannot become fixed: ' + name, 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
                 if name not in type_variables:
                     getter = current.getter_name or accessor_name(read_contract, current, 'getter_method_name', 0)
                     nested = _nested_contract(read_contract, getter, name)
                     if nested is None:
-                        raise ValueError('An inherited generic setter cannot lose its value type: ' + name)
+                        raise AIxCodegenValidationException('An inherited generic setter cannot lose its value type: ' + name, 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
                     type_variables[name] = 'T' + name
                     generic_fields[name] = nested
         generic_arguments = ', '.join(type_variables.values())
@@ -349,7 +351,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                             child_getter = current.getter_name or accessor_name(read_contract, current, 'getter_method_name', 0)
                             child_nested = _nested_contract(read_contract, child_getter, current.name)
                             if child_nested is None or child_nested[0] is not ancestor_nested[0]:
-                                raise ValueError('Cannot refine a fixed inherited setter parameter: ' + field.name)
+                                raise AIxCodegenValidationException('Cannot refine a fixed inherited setter parameter: ' + field.name, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
         if type_variables:
             mutable_bases += ', Generic[' + generic_arguments + ']'
             mutable_lines[2:2] = generic_imports
@@ -366,8 +368,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         if not schema_id:
             identifier = details.get('identifier')
             if not identifier:
-                raise ValueError('Input naming convention does not identify the contract: '
-                                 + selected_source_profile)
+                raise AIxCodegenValidationException('Input naming convention does not identify the contract: '
+                                 + selected_source_profile, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
             lexical = input_catalog.identifier_convention(selected_source_profile,
                                                           'type_name')
             logical = input_catalog.convert_identifier(identifier, lexical, 'lower_kebab_case_1')
@@ -375,7 +377,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         if schema_version < 0:
             version = details.get('version')
             if not version or not str(version).isdigit() or int(version) <= 0:
-                raise ValueError('SchemaVersion requires explicit metadata or a versioned input naming profile')
+                raise AIxCodegenValidationException('SchemaVersion requires explicit metadata or a versioned input naming profile', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
             schema_version = int(version)
         inherited = inherited_definition or AIcdDataObject()
         # Only source-declared schema metadata is copied into the mutable SDO
@@ -466,13 +468,13 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 # Unlike accessor method roles, this is not a composition ID.
                 candidate = composition
                 if not candidate.isidentifier():
-                    raise ValueError('Invalid synthetic key getter identifier: ' + repr(candidate))
+                    raise AIxCodegenValidationException('Invalid synthetic key getter identifier: ' + repr(candidate), 'Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.')
                 if callable(getattr(read_contract, candidate, None)):
                     if not (issubclass(read_contract, AIiJsonDataObject)
                             or issubclass(read_contract, AIiYamlDataObject)):
-                        raise ValueError('Virtual object-property key getter is only valid for JSON/YAML')
+                        raise AIxCodegenValidationException('Virtual object-property key getter is only valid for JSON/YAML', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
                     if candidate in all_fields:
-                        raise ValueError('Virtual parent property key cannot be a serialized field')
+                        raise AIxCodegenValidationException('Virtual parent property key cannot be a serialized field', 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
                     synthetic_key_method = candidate
         if mapped_contract or synthetic_key_method is not None:
             concrete_lines.extend(['',
@@ -567,14 +569,14 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                               if item is not None]
             if (len(set(active_methods)) != len(active_methods)
                     or not all(item.isidentifier() for item in active_methods)):
-                raise ValueError('Conflicting or invalid SDO method names for ' + name)
+                raise AIxCodegenValidationException('Conflicting or invalid SDO method names for ' + name, 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
             # A setter is named independently from its read getter and from the raw SDO API.
             setter = accessor_name(read_contract, descriptor, 'setter_method_name', 1)
             if naming is not None and not (catalog() or naming[2]).matches(
                     concrete_role, 'setter_method_name', setter):
-                raise ValueError('SDO setter name does not match concrete naming profile: ' + setter)
+                raise AIxCodegenValidationException('SDO setter name does not match concrete naming profile: ' + setter, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
             if not getter.isidentifier() or not suffix.isidentifier():
-                raise ValueError('Invalid field getter: ' + getter)
+                raise AIxCodegenValidationException('Invalid field getter: ' + getter, 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
             nested_details = _nested_contract(read_contract, getter, name)
             keyed_collection = get_origin(_unwrap_optional(_field_annotation(read_contract, getter, name))[0]) is AIiMultiMappedList
             nested_type = ((('AIiMultiMappedList[' if keyed_collection else 'list[') + names_for(nested_details[0])[0] + ']' 

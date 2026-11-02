@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -116,6 +118,6 @@ public record AIcdCanonicalDefinition(
         dataSourceSchemaVersionField = dataSourceSchemaVersionField == null ? "" : dataSourceSchemaVersionField;
         enumValues = List.copyOf(enumValues == null ? List.of() : enumValues);
         if (!enumValues.isEmpty() && dataType.kind() != AInDataTypeKind.ENUM)
-            throw new IllegalArgumentException("Enumeration wire values require an ENUM root type");
+            throw new AIxCodegenValidationException("Enumeration wire values require an ENUM root type", "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
     }
 }

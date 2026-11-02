@@ -1,3 +1,4 @@
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from pathlib import Path
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
@@ -38,7 +39,7 @@ def python_data_source(request, names, type_name, docstring):
         name = re.sub(r'[^a-zA-Z0-9_]', '_', names.property_name(prop.source_name, request.naming_profile))
         if not name or name[0].isdigit(): name = '_'+name
         if keyword.iskeyword(name): name += '_'
-        if name in used: raise ValueError(f'Duplicate Python property name {name}')
+        if name in used: raise AIxCodegenValidationException(f'Duplicate Python property name {name}', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
         used.add(name)
         ref = None
         if prop.data_type.referenced_definition():

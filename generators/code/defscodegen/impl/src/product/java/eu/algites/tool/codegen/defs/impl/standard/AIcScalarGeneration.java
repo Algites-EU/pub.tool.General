@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
@@ -45,8 +47,8 @@ final class AIcScalarGeneration {
             case NUMBER -> AInDataTypeKind.NUMBER;
             case BOOLEAN -> AInDataTypeKind.BOOLEAN;
             case ANY -> AInDataTypeKind.ANY;
-            default -> throw new IllegalArgumentException("Nested " + aType.kind()
-                    + " requires a generated named contract and cannot be flattened to Object/Any");
+            default -> throw new AIxCodegenValidationException("Nested " + aType.kind()
+                    + " requires a generated named contract and cannot be flattened to Object/Any", "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         };
         return scalar(locLeaf, aType.constraints(), aJava);
     }
@@ -104,7 +106,7 @@ final class AIcScalarGeneration {
             String locName = aNames.propertyName(locProperty.sourceName(), aRequest.namingProfile()).replaceAll("[^a-zA-Z0-9_]", "_");
             if (locName.isEmpty() || Character.isDigit(locName.charAt(0))) locName = "_" + locName;
             if (Set.of("False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield").contains(locName)) locName += "_";
-            if (!locUsed.add(locName)) throw new IllegalArgumentException("Duplicate Python property name " + locName);
+            if (!locUsed.add(locName)) throw new AIxCodegenValidationException("Duplicate Python property name " + locName, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             boolean locArray = locProperty.dataType().kind() == AInDataTypeKind.ARRAY;
             AInDataTypeKind locKind = locArray ? locProperty.dataType().elementType().kind() : locProperty.dataType().kind();
             AIcdValueConstraints locConstraints = locArray ? locProperty.dataType().elementType().constraints() : locProperty.dataType().constraints();

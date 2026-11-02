@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from eu.algites.tool.codegen.defs.impl.standard._source_data_type import from_source_hints
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from eu.algites.tool.codegen.defs.impl.standard._schema_loading import load_schema
@@ -43,6 +45,7 @@ class AIcJsonSchemaReader:
         description = root.get("description") if isinstance(root.get("description"), str) else None
         title = root.get("title") if isinstance(root.get("title"), str) else None
         root = dict(root)
+        self._validate_choice_placements(root)
         enum_values = self._enum_values(root)
         if enum_values:
             return AIcdCanonicalDefinition(identity, version, logical_name, source_kind, str(request.path), description, AIcdDataType(AInDataTypeKind.ENUM), enum_values, title, schema_url)
@@ -76,11 +79,11 @@ class AIcJsonSchemaReader:
                         try:
                             referenced = referenced[int(key)] if isinstance(referenced, list) else referenced[key]
                         except (KeyError, IndexError, TypeError, ValueError) as ex:
-                            raise ValueError(f"Undefined schema reference '{ref}' in {request.path}") from ex
+                            raise AIxCodegenValidationException(f"Undefined schema reference '{ref}' in {request.path}", 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.') from ex
                 else:
                     referenced = self._anchor(document, fragment)
                 if not isinstance(referenced, Mapping):
-                    raise ValueError(f"Undefined schema reference '{ref}' in {request.path}")
+                    raise AIxCodegenValidationException(f"Undefined schema reference '{ref}' in {request.path}", 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
                 visited = set() if visited is None else visited
                 # Named $defs objects/choices are nominal, even when a child
                 # property refers to the containing definition recursively.
@@ -103,7 +106,7 @@ class AIcJsonSchemaReader:
                         schema.get('title', referenced.get('title')), None)
                 reference_key = (target_path.resolve(), fragment)
                 if reference_key in visited:
-                    raise ValueError(f"Circular schema alias '{ref}' in {request.path}")
+                    raise AIxCodegenValidationException(f"Circular schema alias '{ref}' in {request.path}", 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
                 visited.add(reference_key)
                 try:
                     normalized = self._property(name, referenced, required,
@@ -140,6 +143,80 @@ class AIcJsonSchemaReader:
             declared = non_null[0] if len(non_null) == 1 else None
         return _value_kind(declared)
 
+    @staticmethod
+    def _validate_choice_shape(schema):
+        """Require a named-property choice with standard, portable JSON validation.
+
+        Args:
+            schema: Schema node declaring the Algites exclusive-choice marker.
+
+        Raises:
+            AIxCodegenValidationException: If the marker or standard constraints
+                disagree with the exactly-one-property choice representation.
+        """
+        variants = schema.get('properties')
+        valid = (schema.get('x-algites-defscodegen-choice') is True
+                 and schema.get('type') == 'object'
+                 and isinstance(variants, Mapping) and len(variants) >= 2
+                 and all(isinstance(name, str) and isinstance(value, Mapping)
+                         for name, value in variants.items())
+                 and type(schema.get('minProperties')) is int
+                 and schema['minProperties'] == 1
+                 and type(schema.get('maxProperties')) is int
+                 and schema['maxProperties'] == 1
+                 and schema.get('additionalProperties') is False
+                 and not schema.get('patternProperties')
+                 and not schema.get('required'))
+        if not valid:
+            raise AIxCodegenValidationException(
+                'Invalid x-algites-defscodegen-choice: expected true, object with at least two '
+                'properties, minProperties=1, maxProperties=1, additionalProperties=false',
+                'Declare variants in sibling properties and use standard JSON constraints '
+                'for exactly one property. Do not use the removed alternatives array.')
+
+    @classmethod
+    def _validate_choice_placements(cls, root):
+        """Reject new structural types declared inside validation-only branches.
+
+        Args:
+            root: The complete JSONDEFS or YAMLDEFS source schema.
+
+        Raises:
+            AIxCodegenValidationException: If a choice occurs within a
+                validation-only subschema or has an invalid local shape.
+        """
+        validation_keywords = {'oneOf', 'anyOf', 'allOf', 'not', 'if', 'then',
+                               'else', 'contains', 'dependentSchemas',
+                               'propertyNames', 'dependencies'}
+        def visit(node, blocked=False, path='#'):
+            if isinstance(node, list):
+                for index, value in enumerate(node):
+                    visit(value, blocked, path + '/' + str(index))
+            elif isinstance(node, Mapping):
+                if 'x-algites-defscodegen-choice' in node:
+                    if blocked:
+                        raise AIxCodegenValidationException(
+                            'Choice declaration is not allowed inside a validation-only subschema at ' + path,
+                            'Place the named choice under $defs, properties, items, prefixItems '
+                            'or additionalProperties, then reference it from constraints.')
+                    cls._validate_choice_shape(node)
+                for key, value in node.items():
+                    # Schema maps contain named child schemas: do not treat their
+                    # arbitrary property names as schema keywords.
+                    if key in ('$defs', 'definitions', 'properties', 'patternProperties'):
+                        if isinstance(value, Mapping):
+                            for child_name, child_schema in value.items():
+                                visit(child_schema, blocked, path + '/' + key + '/' + child_name)
+                    elif key in ('dependentSchemas', 'dependencies'):
+                        if isinstance(value, Mapping):
+                            for child_name, child_schema in value.items():
+                                visit(child_schema, True, path + '/' + key + '/' + child_name)
+                    elif key in ('additionalProperties', 'items', 'prefixItems', 'additionalItems'):
+                        visit(value, blocked, path + '/' + key)
+                    elif key in validation_keywords or key in ('unevaluatedItems', 'unevaluatedProperties'):
+                        visit(value, True, path + '/' + key)
+        visit(root)
+
     def _recursive_type(self, schema, request, visited=None):
         """Recursively project arrays, inline objects and exclusive/inclusive choices.
 
@@ -165,14 +242,15 @@ class AIcJsonSchemaReader:
                     == {self._wire_value(value) for value in values}):
             kind = _value_kind(schema['type'])
             return AIcdDataType(kind, constraints=from_json(schema, kind))
-        choice = schema.get('x-algites-defscodegen-choice')
-        if choice is not None:
-            alternatives = choice.get('alternatives') if isinstance(choice, Mapping) else None
-            if (not isinstance(alternatives, list) or len(alternatives) < 2
-                    or any(not isinstance(ref, str) for ref in alternatives)):
-                raise ValueError('x-algites-defscodegen-choice requires at least two URI alternatives')
+        if 'x-algites-defscodegen-choice' in schema:
+            self._validate_choice_shape(schema)
+            # Every branch is a one-property object: the property name is the
+            # alternative identity, not merely an anonymous payload datatype.
+            # This representation also matches XML xs:choice alternatives.
             return AIcdDataType.choice(AInDataTypeKind.ONE_OF,
-                (self._recursive_type({'$ref': ref}, request, visited) for ref in alternatives))
+                (AIcdDataType(AInDataTypeKind.OBJECT,
+                    properties=(self._property(name, variant, True, request, visited),))
+                 for name, variant in schema['properties'].items()))
         if '$ref' in schema:
             # References to emitted named objects/enums remain nominal. Expanding
             # them inline would lose their identity and produce nonexistent branch contracts.
@@ -190,7 +268,7 @@ class AIcJsonSchemaReader:
                     for token in tokens:
                         resolved = resolved[int(token)] if isinstance(resolved, list) else resolved[token]
                 except (KeyError, IndexError, TypeError, ValueError) as error:
-                    raise ValueError(f"Undefined schema reference '{ref}' in {request.path}") from error
+                    raise AIxCodegenValidationException(f"Undefined schema reference '{ref}' in {request.path}", 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.') from error
             else:
                 tokens = []
                 resolved = self._anchor(target, unescaped)
@@ -207,7 +285,7 @@ class AIcJsonSchemaReader:
                 if not profile:
                     selected = request.naming_profile.recognize_filename(target_path.name)
                     if selected is None:
-                        raise ValueError(f'No source naming profile matches {target_path}')
+                        raise AIxCodegenValidationException(f'No source naming profile matches {target_path}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
                     profile = selected.convention_name
                 kebab = canonical_type_identifier(request.naming_profile, profile, tokens[1])
                 kind = self._local_definition_kind(resolved)
@@ -225,7 +303,7 @@ class AIcJsonSchemaReader:
                 return AIcdDataType(AInDataTypeKind.REFERENCE, reference=AIcdDefinitionReference(
                     ref, stem.version, kebab, target_type))
             if not entered:
-                raise ValueError(f"Circular inline schema alias '{ref}' in {request.path}")
+                raise AIxCodegenValidationException(f"Circular inline schema alias '{ref}' in {request.path}", 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
             visited.add(key)
             try:
                 return self._recursive_type(resolved, AIcdDefinitionLoadRequest(target_path,
@@ -239,9 +317,9 @@ class AIcJsonSchemaReader:
             modern = schema.get('prefixItems')
             legacy = schema.get('items') if isinstance(schema.get('items'), list) else None
             if modern is not None and not isinstance(modern, list):
-                raise ValueError('prefixItems must be a sequence of positional schemas')
+                raise AIxCodegenValidationException('prefixItems must be a sequence of positional schemas', 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
             if modern is not None and legacy is not None:
-                raise ValueError('Conflicting modern and legacy tuple declarations')
+                raise AIxCodegenValidationException('Conflicting modern and legacy tuple declarations', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
             slots = modern if modern is not None else legacy
             positional_types = tuple(self._recursive_type(item, request, visited)
                                    for item in (slots or ()))
@@ -262,12 +340,12 @@ class AIcJsonSchemaReader:
             dynamic = schema.get('additionalProperties')
             patterned = schema.get('patternProperties', {})
             if patterned and not isinstance(patterned, Mapping):
-                raise ValueError('patternProperties must contain schema-valued patterns')
+                raise AIxCodegenValidationException('patternProperties must contain schema-valued patterns', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
             if patterned:
                 # Patterns can overlap and can yield different value contracts.
                 # Do not silently turn these heterogeneous properties into ANY.
-                raise ValueError('patternProperties requires explicit pattern-index matching and ' +
-                                 'compatible value schemas; current KEYED_VALUES supports additionalProperties')
+                raise AIxCodegenValidationException('patternProperties requires explicit pattern-index matching and ' +
+                                 'compatible value schemas; current KEYED_VALUES supports additionalProperties', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
             keyed_type = (self._recursive_type(dynamic, request, visited)
                           if isinstance(dynamic, Mapping) else None)
             keys = (AIcdKeyDefinition('json-property-name', ('_getKey',), unique=True, virtual=True),)
@@ -311,7 +389,7 @@ class AIcJsonSchemaReader:
                 if len(matches) == 1:
                     return matches[0]
                 if len(matches) > 1:
-                    raise ValueError(f"Ambiguous local schema reference '{resource}'.")
+                    raise AIxCodegenValidationException(f"Ambiguous local schema reference '{resource}'.", 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
                 break
         for ancestor in request.path.resolve().parents:
             definitions = ancestor.name in ('yamldefs', 'jsondefs')
@@ -325,9 +403,9 @@ class AIcJsonSchemaReader:
                 if isinstance(document, Mapping) and resource in (document.get('$id'),document.get('x-yamldefs-id'),document.get('x-jsondefs-id')):
                     matches.append(path)
             if len(matches) == 1: return matches[0]
-            if len(matches) > 1: raise ValueError(f"Ambiguous local schema identity '{resource}'.")
+            if len(matches) > 1: raise AIxCodegenValidationException(f"Ambiguous local schema identity '{resource}'.", 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
             if repository: break
-        raise ValueError(f"Schema reference '{resource}' has no local canonical definition for {request.path}")
+        raise AIxCodegenValidationException(f"Schema reference '{resource}' has no local canonical definition for {request.path}", 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
 
     @staticmethod
     def _canonical_reference_files(root):

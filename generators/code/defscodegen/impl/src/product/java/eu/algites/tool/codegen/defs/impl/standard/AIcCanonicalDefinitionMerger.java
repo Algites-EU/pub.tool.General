@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
 import eu.algites.tool.codegen.defs.AIcdDataType;
@@ -36,7 +38,7 @@ public final class AIcCanonicalDefinitionMerger {
      * @return one compatible canonical definition
      */
     public static AIcdCanonicalDefinition AIcMerge(List<AIcdCanonicalDefinition> aDefinitions) {
-        if (aDefinitions.isEmpty()) throw new IllegalArgumentException("No canonical definitions to merge.");
+        if (aDefinitions.isEmpty()) throw new AIxCodegenValidationException("No canonical definitions to merge.", "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         AIcValidate(aDefinitions, false, Path.of("").toAbsolutePath());
         return AIcMergeValidated(aDefinitions);
     }
@@ -115,7 +117,7 @@ public final class AIcCanonicalDefinitionMerger {
      */
     public static void AIcValidate(List<AIcdCanonicalDefinition> aDefinitions,
             boolean aCheckDocumentation, Path aSourceRoot, AIiNameConventionCatalog aNamingProfile) {
-        if (aDefinitions.isEmpty()) throw new IllegalArgumentException("No canonical definitions to merge.");
+        if (aDefinitions.isEmpty()) throw new AIxCodegenValidationException("No canonical definitions to merge.", "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         if (aDefinitions.size() == 1) return;
         List<String> locPairResults = new ArrayList<>();
         boolean locIncompatible = false;
@@ -147,7 +149,9 @@ public final class AIcCanonicalDefinitionMerger {
                     .append(AIcLocation(locDefinition, aSourceRoot, null, null));
         }
         locReport.append("\nPairwise comparison:\n").append(String.join("\n", locPairResults));
-        throw new IllegalArgumentException(locReport.toString());
+        throw new AIxCodegenValidationException(locReport.toString(), "Compare the pairwise XMLDEFS, JSONDEFS and YAMLDEFS differences above, "
+                + "including field types, cardinality and key definitions. Correct the "
+                + "indicated source schema declarations so all representations agree.");
     }
 
     private record AIcdDifference(String subject, String field, String member, Object left, Object right) { }

@@ -140,7 +140,7 @@ def test_implicit_json_yaml_and_qualified_xml_common_id_are_equivalent():
     """XML namespace used as a qualified root name is an exact implicit ID alias."""
     match = AIcSchemaContractBindingsGenerator._common_explicit_matches_implicit
     implicit = ('implicit', 'eu.algites.lib.naming.convention', 'common-naming-conventions', 1, '')
-    qualified = ('explicit', 'eu.algites.lib.naming.convention.common-naming-conventions', 1)
+    qualified = ('explicit', 'https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd', 1)
     assert match(qualified, implicit)
     assert match(('explicit', 'urn:algites:model:common-naming-conventions:1', 1), implicit)
     assert not match(('explicit', 'eu.other.convention.common-naming-conventions', 1), implicit)
@@ -155,7 +155,7 @@ def test_exact_algites_xml_namespace_alias_matches_dotted_common_schema_id():
     """The same Defs schema expressed as XML/JSON/YAML merges only for exact URNs."""
     generator = AIcSchemaContractBindingsGenerator
     xml = _definition(AInDefinitionSourceKind.XMLDEFS,
-        'urn:eu:algites:tool:codegen:defs:input-profile:1', ())
+        'https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd', ())
     xml = replace(xml, logical_name='input-profile')
     assert generator._common_identity(xml, 'eu.algites.tool.codegen.defs',
         ('explicit', xml.identity, 1)) == (

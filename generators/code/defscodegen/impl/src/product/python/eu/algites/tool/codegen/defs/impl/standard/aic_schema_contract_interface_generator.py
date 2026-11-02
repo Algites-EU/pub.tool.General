@@ -1,6 +1,8 @@
 """Native first-stage generator from canonical Defs into read-only contracts."""
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 import keyword
 import re
 from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
@@ -42,7 +44,7 @@ def _nested_array_type(data_type, java=False):
              AInDataTypeKind.BOOLEAN: AInDataTypeKind.BOOLEAN,
              AInDataTypeKind.ANY: AInDataTypeKind.ANY}
     if data_type.kind not in kinds:
-        raise ValueError(f'Nested {data_type.kind.name} requires a generated named contract')
+        raise AIxCodegenValidationException(f'Nested {data_type.kind.name} requires a generated named contract', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
     return scalar_type(kinds[data_type.kind], data_type.constraints, java)
 
 
@@ -99,11 +101,11 @@ def _synthetic_entry_value_type(model, request, names, *, java=False, imports=No
             return typename
         result = scalar_type(shape.kind, shape.constraints, java=java)
         if result in ('Object', 'Any'):
-            raise ValueError('Untyped synthetic map value cannot be widened to Object/Any: ' + model.source_resource)
+            raise AIxCodegenValidationException('Untyped synthetic map value cannot be widened to Object/Any: ' + model.source_resource, 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
         if result == 'Decimal' and imports is not None:
             imports.add('from decimal import Decimal')
         if result in ('AIcSchemaTemporalValue', 'AIcSchemaDuration'):
-            raise ValueError('Temporal synthetic map values require explicit named contracts: ' + model.source_resource)
+            raise AIxCodegenValidationException('Temporal synthetic map values require explicit named contracts: ' + model.source_resource, 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
         return result
     return node(model.data_type, model.logical_name)
 
@@ -118,12 +120,12 @@ class AIcSchemaContractInterfaceGenerator:
         """Generate canonical read contracts and preserve the explicit parent edge."""
         if request.definition.data_type.kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
             if parent is not None:
-                raise ValueError('Closed choice cannot inherit object contracts')
+                raise AIxCodegenValidationException('Closed choice cannot inherit object contracts', 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
             from .aic_closed_choice_generator import AIcClosedChoiceGenerator
             return AIcClosedChoiceGenerator().generate(request)[0]
         if request.definition.data_type.kind is AInDataTypeKind.ENUM:
             if parent is not None:
-                raise ValueError('Enums cannot inherit object contracts')
+                raise AIxCodegenValidationException('Enums cannot inherit object contracts', 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
             return AIcDefaultDefsCodegenService().generate(request)
         if request.target is not AInCodeGenerationTarget.PYTHON:
             return self._generate_java(request, parent)
@@ -133,7 +135,7 @@ class AIcSchemaContractInterfaceGenerator:
         """Return every independently compiled source, including closed-choice wrappers."""
         if request.definition.data_type.kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
             if parent is not None:
-                raise ValueError('Closed choice cannot inherit object contracts')
+                raise AIxCodegenValidationException('Closed choice cannot inherit object contracts', 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
             from .aic_closed_choice_generator import AIcClosedChoiceGenerator
             return AIcClosedChoiceGenerator().generate(request)
         return (self.generate(request, parent),)
@@ -181,7 +183,7 @@ class AIcSchemaContractInterfaceGenerator:
                 if prop.description else '()')
             if prop.data_type.kind is AInDataTypeKind.ARRAY and prop.data_type.key_definitions:
                 xml_key_rows.append('        ' + repr(prop.source_name) + ': '
-                    + repr(tuple((entry.name, tuple(entry.fields))
+                    + repr(tuple((entry.name, tuple(entry.fields), entry.required)
                                  for entry in prop.data_type.key_definitions)) + ',')
             if prop.xml_field is not None:
                 wire = prop.xml_field
@@ -312,7 +314,7 @@ class AIcSchemaContractInterfaceGenerator:
         interface = self.names.type_name(model, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
         stem = self.names.file_stem(model, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
         if stem != interface:
-            raise ValueError(f'Java public interface and source filename must agree: {interface} vs {stem}')
+            raise AIxCodegenValidationException(f'Java public interface and source filename must agree: {interface} vs {stem}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         path = request.package_name.replace('.', '/') + '/' + stem + '.java'
         extends = ((parent[1] + '.' + parent[0]) if parent else
             ('eu.algites.lib.data.dataobject.AIiDataObject' if request.contract_role == 'common' else
@@ -377,7 +379,7 @@ class AIcSchemaContractInterfaceGenerator:
                 for key in prop.data_type.key_definitions:
                     fields = ', '.join(_java_quote(field) for field in key.fields)
                     rows.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition('
-                                + 'name = ' + _java_quote(key.name) + ', fields = {' + fields + '})')
+                                + 'name = ' + _java_quote(key.name) + ', fields = {' + fields + '}, required = ' + str(bool(key.required)).lower() + ')')
             if prop.xml_field is not None:
                 wire = prop.xml_field
                 rows.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField('

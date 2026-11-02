@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-           targetNamespace="eu.algites.tool.codegen.common.naming.generated-dataobject-structure-kind" version="1">
+           targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-structure-kind_1.xsd" version="1">
 	<xs:annotation>
 		<xs:documentation>Seven method naming roles shared between Defs and SDO generators.</xs:documentation>
 	</xs:annotation>

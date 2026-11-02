@@ -1,10 +1,10 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-root:1" xmlns:s0="urn:parity:xmldefs:parity-child:1" xmlns:s1="urn:parity:xmldefs:parity-status:1" xmlns:algdoc="urn:eu:algites:documentation:1" targetNamespace="urn:parity:xmldefs:parity-root:1" version="1" elementFormDefault="qualified">
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-root:1" xmlns:s0="urn:parity:xmldefs:parity-child:1" xmlns:s1="urn:parity:xmldefs:parity-status:1" xmlns:algdoc="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd" targetNamespace="urn:parity:xmldefs:parity-root:1" version="1" elementFormDefault="qualified">
 <xs:annotation><xs:appinfo><algdoc:title>Parity root</algdoc:title></xs:appinfo>
     <xs:documentation>Equivalent cross-format contract covering scalar values and nested structures.</xs:documentation></xs:annotation>
 <xs:import namespace="urn:parity:xmldefs:parity-child:1" schemaLocation="parity-child_1.xsd"/>
 <xs:import namespace="urn:parity:xmldefs:parity-status:1" schemaLocation="parity-status_1.xsd"/>
-<xs:import namespace="urn:eu:algites:documentation:1" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd"/>
+<xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd"/>
   <xs:element name="Value" type="tns:Contract"><xs:annotation><xs:appinfo><algdoc:title>Value</algdoc:title></xs:appinfo>
       <xs:documentation>Specifies the value associated with this definition.</xs:documentation></xs:annotation>
     </xs:element>

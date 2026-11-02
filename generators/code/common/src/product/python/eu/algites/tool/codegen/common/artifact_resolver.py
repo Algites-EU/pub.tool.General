@@ -6,6 +6,7 @@ The bootstrap is responsible for preparing source dependencies in advance.
 """
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -28,13 +29,13 @@ def parse_artifacts(value: str, technology: str) -> tuple[ArtifactSpec, ...]:
     in inline lists because a marker also uses the semicolon character.
     """
     if technology not in {'java', 'python'}:
-        raise ValueError(f'Unsupported technology: {technology}')
+        raise AIxCodegenValidationException(f'Unsupported technology: {technology}', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
     from packaging.requirements import Requirement
     result = []
     for raw in value.split(';'):
         entry = raw.strip()
         if not entry:
-            raise ValueError(f'Empty artifact selector in {value!r}')
+            raise AIxCodegenValidationException(f'Empty artifact selector in {value!r}', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
         prefix, sep, rest = entry.partition(':')
         kind = prefix if sep and prefix in {'modustro', 'maven', 'pypi'} else ''
         if kind:
@@ -42,23 +43,23 @@ def parse_artifacts(value: str, technology: str) -> tuple[ArtifactSpec, ...]:
         if kind == 'modustro' or (not kind and '@' in entry):
             name, marker, version = entry.rpartition('@')
             if not marker or not name or not version:
-                raise ValueError(f'Invalid Modustro artifact: {raw}')
+                raise AIxCodegenValidationException(f'Invalid Modustro artifact: {raw}', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
             result.append(ArtifactSpec('modustro', name, version))
         elif kind == 'maven' or (not kind and technology == 'java'):
             if technology != 'java':
-                raise ValueError('Maven coordinates are only valid for Java inputs')
+                raise AIxCodegenValidationException('Maven coordinates are only valid for Java inputs', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
             pieces = entry.split(':')
             if len(pieces) != 3 or any(not part for part in pieces):
-                raise ValueError(f'Expected groupId:artifactId:version: {raw}')
+                raise AIxCodegenValidationException(f'Expected groupId:artifactId:version: {raw}', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
             result.append(ArtifactSpec('maven', pieces[1], pieces[2], pieces[0]))
         else:
             if technology != 'python':
-                raise ValueError('Python requirements are only valid for Python inputs')
+                raise AIxCodegenValidationException('Python requirements are only valid for Python inputs', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
             requirement = Requirement(entry)
             if requirement.marker is not None or requirement.url is not None or requirement.extras:
-                raise ValueError(f'Environment markers, URLs and extras are unsupported: {raw}')
+                raise AIxCodegenValidationException(f'Environment markers, URLs and extras are unsupported: {raw}', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
             if not requirement.specifier:
-                raise ValueError(f'Python distribution requires a version selector: {raw}')
+                raise AIxCodegenValidationException(f'Python distribution requires a version selector: {raw}', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
             result.append(ArtifactSpec('pypi', requirement.name, str(requirement.specifier)))
     return tuple(result)
 
@@ -97,12 +98,12 @@ def resolve_artifacts(specs: tuple[ArtifactSpec, ...], technology: str,
             prepared = set(filter(None, os.environ.get(
                 'MODUSTRO_BOOTSTRAP_PREPARED_ARTIFACTS', '').split(',')))
             if spec.name not in prepared:
-                raise ValueError(f'Source input {spec.name} is not declared in the '
+                raise AIxCodegenValidationException(f'Source input {spec.name} is not declared in the '
                                  'prepared Modustro dependency graph; add it to '
-                                 'the artifact build-time dependencies')
+                                 'the artifact build-time dependencies', 'Declare this source artifact as a build-time dependency in the current Modustro artifact and prepare the dependency graph before running Codegen in source mode.')
         if technology == 'java':
             if spec.kind == 'pypi':
-                raise ValueError(f'Python requirement cannot select a Java artifact: {spec.name}')
+                raise AIxCodegenValidationException(f'Python requirement cannot select a Java artifact: {spec.name}', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
             if spec.kind == 'maven':
                 candidate = (home / 'java/maven' / spec.group.replace('.', '/') /
                              spec.name / spec.version / f'{spec.name}-{spec.version}.jar')
@@ -111,11 +112,11 @@ def resolve_artifacts(specs: tuple[ArtifactSpec, ...], technology: str,
                 matches = list((home / 'java/maven').glob(
                     f'**/{spec.name}/{spec.version}/{spec.name}-{spec.version}.jar'))
             if len(matches) != 1:
-                raise FileNotFoundError(f'Expected one local Java artifact for {spec}, found {matches}')
+                raise AIxCodegenValidationException(f'Expected one local Java artifact for {spec}, found {matches}', 'Prepare the selected Maven/Modustro JAR in the local artifact repository and check its group, artifact ID and version.')
             paths.append(matches[0].resolve())
         else:
             if spec.kind == 'maven':
-                raise ValueError(f'Maven coordinates cannot select a Python distribution: {spec.name}')
+                raise AIxCodegenValidationException(f'Maven coordinates cannot select a Python distribution: {spec.name}', 'Check the selected artifact coordinates, version and selected technology. For Modustro use artifactId@version; for Maven use groupId:artifactId:version; for Python use a PEP 508 distribution requirement. Separate artifacts with semicolons.')
             candidates = _python_candidates(home, spec.name, spec.kind == 'modustro')
             if spec.kind == 'modustro':
                 if spec.version.endswith('-SNAPSHOT'):
@@ -127,16 +128,16 @@ def resolve_artifacts(specs: tuple[ArtifactSpec, ...], technology: str,
                 requirement = Requirement(spec.name + spec.version)
                 candidates = [(v,p) for v,p in candidates if v in requirement.specifier]
             if not candidates:
-                raise FileNotFoundError(f'No local Python wheel satisfies {spec}')
+                raise AIxCodegenValidationException(f'No local Python wheel satisfies {spec}', 'Prepare a wheel matching this Python distribution and version requirement, or adjust the selected input artifact requirement.')
             if spec.kind == 'modustro':
                 # A logical Modustro identity maps to a distribution with its
                 # organizational prefix (see bootstrap/prepare.py:python_name).
                 # Multiple different distributions with this suffix are ambiguous.
                 names = {p.name.rsplit('-', 4)[0] for _, p in candidates}
                 if len(names) != 1:
-                    raise ValueError(f'Ambiguous Modustro Python distribution {spec.name}: {sorted(names)}')
+                    raise AIxCodegenValidationException(f'Ambiguous Modustro Python distribution {spec.name}: {sorted(names)}', 'Use a more specific distribution identity so that exactly one matching Modustro artifact can be resolved.')
             chosen = max(candidates, key=lambda pair: pair[0])[1]
             paths.append(chosen.resolve())
     if len(set(paths)) != len(paths):
-        raise ValueError('Duplicate resolved artifact in input list')
+        raise AIxCodegenValidationException('Duplicate resolved artifact in input list', 'Remove repeated artifact coordinates from the semicolon-separated input list; each resolved artifact must occur only once.')
     return tuple(paths)

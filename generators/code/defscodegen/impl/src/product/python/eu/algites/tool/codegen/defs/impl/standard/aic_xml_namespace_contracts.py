@@ -1,5 +1,7 @@
 """Generate XML-only namespace contracts and project xs:any onto typed XML objects."""
 from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 import re
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from .aic_generation_names import AIcGenerationNames
@@ -138,5 +140,5 @@ def decorate(generated: str, request, marker: str, fields: dict[str, str], pytho
                     if 'java.util.List<' in original else qualified) + ' ' + match.group(2)
             generated, changed = re.subn(pattern, replace_getter, generated, count=1, flags=re.M)
             if not changed:
-                raise ValueError('XML wildcard getter not found: ' + property_name)
+                raise AIxCodegenValidationException('XML wildcard getter not found: ' + property_name, 'Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.')
     return generated

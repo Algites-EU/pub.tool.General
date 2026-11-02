@@ -1,5 +1,8 @@
 package eu.algites.tool.codegen.defs.impl.cli;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
+import eu.algites.tool.codegen.common.AIcCodegenDiagnostics;
 
 import eu.algites.tool.codegen.common.AIcCodegenArtifactResolver;
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
@@ -42,6 +45,8 @@ public final class AIcDefsCodegenCli {
         String locPrevious = System.getProperty("algites.defscodegen.setterInheritancePolicy");
         try {
             batch(expandSettings(aArguments));
+        } catch (Exception locFailure) {
+            AIcCodegenDiagnostics.exitOnExpectedError(locFailure, "Defs Codegen (Java)");
         } finally {
             if (locPrevious == null) System.clearProperty("algites.defscodegen.setterInheritancePolicy");
             else System.setProperty("algites.defscodegen.setterInheritancePolicy", locPrevious);
@@ -75,13 +80,13 @@ public final class AIcDefsCodegenCli {
             }
             int locEquals = locArgument.indexOf('=');
             if (locEquals < 0 || !locArgument.startsWith("--"))
-                throw new IllegalArgumentException("Invalid batch argument: " + locArgument);
+                throw new AIxCodegenValidationException("Invalid batch argument: " + locArgument, "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
             String locKey = locArgument.substring(2, locEquals);
             String locValue = locArgument.substring(locEquals + 1);
             if (locKey.equals("setter-inheritance-policy")) {
                 var locPolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.valueOf(locValue);
                 if (locPolicy == eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.DEFAULT)
-                    throw new IllegalArgumentException("Explicit default setter policy must be concrete");
+                    throw new AIxCodegenValidationException("Explicit default setter policy must be concrete", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
                 System.setProperty("algites.defscodegen.setterInheritancePolicy", locPolicy.name());
                 continue;
             }
@@ -89,7 +94,7 @@ public final class AIcDefsCodegenCli {
                 locRepository = Path.of(locValue).toAbsolutePath().normalize(); continue;
             }
             if (locKey.startsWith("naming-conventions-file:") && locKey.indexOf(':') < locKey.length()-1) {
-                if (locValue.isBlank()) throw new IllegalArgumentException("Empty naming catalog path");
+                if (locValue.isBlank()) throw new AIxCodegenValidationException("Empty naming catalog path", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                 locFiles.add(locValue); continue;
             }
             String[] locQualified = locKey.split(":", -1);
@@ -99,7 +104,7 @@ public final class AIcDefsCodegenCli {
                     require(locQualified, 2);
                     String locKind = locQualified[1];
                     if (!Set.of("xmldefs", "yamldefs", "jsondefs").contains(locKind))
-                        throw new IllegalArgumentException("Unknown schema kind: " + locKind);
+                        throw new AIxCodegenValidationException("Unknown schema kind: " + locKind, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
                     if (locBase.equals("schema-input-dir")) locInputs.put(locKind, locValue);
                     else locInputProfiles.put(locKind, locValue);
                 }
@@ -109,7 +114,7 @@ public final class AIcDefsCodegenCli {
                     require(locQualified, 2);
                     String locTech = locQualified[1];
                     if (!Set.of("java", "python").contains(locTech))
-                        throw new IllegalArgumentException("Unknown target technology: " + locTech);
+                        throw new AIxCodegenValidationException("Unknown target technology: " + locTech, "Inspect the qualified CLI option and layered settings file; correct the indicated value or remove the conflicting option.");
                     switch (locBase) {
                         case "generated-dataobject-method-naming-convention" -> locMethods.put(locTech, locValue);
                         case "technology-dointf-output-dir" -> locOutputDirs.put(locTech, locValue);
@@ -123,26 +128,26 @@ public final class AIcDefsCodegenCli {
                             || !Set.of("common", "xmldefs_type", "xmldefs_element", "xmldefs_namespace", "yamldefs", "jsondefs")
                                     .contains(locQualified[2])
                             || !locQualified[3].equals("defsintf"))
-                        throw new IllegalArgumentException("Expected :technology:role:defsintf in " + locArgument);
+                        throw new AIxCodegenValidationException("Expected :technology:role:defsintf in " + locArgument, "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
                     ObjectNode locTechnology = locRoles.has(locQualified[1])
                             ? (ObjectNode) locRoles.get(locQualified[1])
                             : locRoles.putObject(locQualified[1]);
                     locTechnology.put(locQualified[2], locValue);
                 }
-                default -> throw new IllegalArgumentException("Unknown batch option: " + locKey);
+                default -> throw new AIxCodegenValidationException("Unknown batch option: " + locKey, "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
             }
         }
         for (String locFile : locFiles) locCatalogFiles.add(locFile);
-        if (locFiles.isEmpty()) throw new IllegalArgumentException("Provide --naming-conventions-file");
-        if (locCheck && locClean) throw new IllegalArgumentException("--check conflicts with --clean-only");
+        if (locFiles.isEmpty()) throw new AIxCodegenValidationException("Provide --naming-conventions-file", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
+        if (locCheck && locClean) throw new AIxCodegenValidationException("--check conflicts with --clean-only", "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
         if (!locClean && ((locInputs.isEmpty() && locArtifactSelectors.isEmpty()) || locOutputDirs.size() == 0))
-            throw new IllegalArgumentException("Select at least one schema source and output technology");
+            throw new AIxCodegenValidationException("Select at least one schema source and output technology", "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         for (String locKind : locInputs.keySet())
             if (!locClean && !locInputProfiles.has(locKind))
-                throw new IllegalArgumentException("Missing input naming convention for " + locKind);
+                throw new AIxCodegenValidationException("Missing input naming convention for " + locKind, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         for (var locTech : iterable(locRoles.fieldNames()))
             if (!locOutputDirs.has(locTech))
-                throw new IllegalArgumentException("Naming role has no configured output root: " + locTech);
+                throw new AIxCodegenValidationException("Naming role has no configured output root: " + locTech, "Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.");
         ArrayNode locSources = locManifest.putArray("schema_inputs");
         locInputs.forEach((locKind, locDir) -> {
             ObjectNode locEntry = locSources.addObject();
@@ -177,7 +182,7 @@ public final class AIcDefsCodegenCli {
                             Path locRoot = locStage.resolve(locKind).resolve(String.valueOf(locIndex));
                             Path locTarget = locRoot.resolve(locName).normalize();
                             if (!locTarget.startsWith(locRoot))
-                                throw new IllegalArgumentException("Archive member escapes input root: " + locName);
+                                throw new AIxCodegenValidationException("Archive member escapes input root: " + locName, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
                             Files.createDirectories(locTarget.getParent());
                             try (InputStream locInput = locZip.getInputStream(locEntry)) {
                                 Files.copy(locInput, locTarget);
@@ -187,7 +192,7 @@ public final class AIcDefsCodegenCli {
                     }
                     for (var locRoot : locArchiveRoots.entrySet()) {
                         if (!locInputProfiles.has(locRoot.getKey()))
-                            throw new IllegalArgumentException("Missing input schema convention for " + locRoot.getKey());
+                            throw new AIxCodegenValidationException("Missing input schema convention for " + locRoot.getKey(), "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                         ObjectNode locSource = locSources.addObject();
                         locSource.put("kind", locRoot.getKey());
                         locSource.put("directory", locRoot.getValue().toString());
@@ -207,7 +212,7 @@ public final class AIcDefsCodegenCli {
 
     private static void require(String[] aName, int aExpected) {
         if (aName.length != aExpected)
-            throw new IllegalArgumentException("Wrong qualified option: " + String.join(":", aName));
+            throw new AIxCodegenValidationException("Wrong qualified option: " + String.join(":", aName), "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
     }
 
     private static <E> Iterable<E> iterable(java.util.Iterator<E> aItems) {

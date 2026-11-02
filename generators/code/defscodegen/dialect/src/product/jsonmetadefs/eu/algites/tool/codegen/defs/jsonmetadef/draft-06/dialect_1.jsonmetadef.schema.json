@@ -225,5 +225,56 @@
     }
   },
   "default": {},
-  "description": "Extension of the published JSON Schema meta-schema with optional Algites code-generation annotations. No $vocabulary exists in this draft; unknown keywords do not change validation."
+  "description": "Extension of the published JSON Schema meta-schema with optional Algites code-generation annotations. No $vocabulary exists in this draft; unknown keywords do not change validation.",
+  "dependencies": {
+    "x-algites-defscodegen-choice": {
+      "required": [
+        "type",
+        "properties",
+        "minProperties",
+        "maxProperties",
+        "additionalProperties"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "object"
+          ]
+        },
+        "properties": {
+          "type": "object",
+          "minProperties": 2
+        },
+        "minProperties": {
+          "enum": [
+            1
+          ]
+        },
+        "maxProperties": {
+          "enum": [
+            1
+          ]
+        },
+        "additionalProperties": {
+          "enum": [
+            false
+          ]
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "patternProperties"
+            ]
+          },
+          {
+            "required": [
+              "required"
+            ]
+          }
+        ]
+      }
+    }
+  }
 }

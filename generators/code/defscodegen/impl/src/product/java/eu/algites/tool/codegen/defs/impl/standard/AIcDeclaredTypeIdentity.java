@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 import java.util.Map;
 import java.util.Objects;
@@ -37,14 +39,14 @@ final class AIcDeclaredTypeIdentity {
         Map<String, String> parsed = catalog.parse(profile, "type_name", name);
         String lexical = catalog.identifierConvention(profile, "type_name");
         if (lexical == null || lexical.isBlank())
-            throw new IllegalArgumentException("Source type naming profile has no identifier convention: " + profile);
+            throw new AIxCodegenValidationException("Source type naming profile has no identifier convention: " + profile, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String identifier = parsed.get("identifier");
         if (identifier == null || identifier.isBlank())
-            throw new IllegalArgumentException("Source type naming profile does not capture identifier: " + profile);
+            throw new AIxCodegenValidationException("Source type naming profile does not capture identifier: " + profile, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String canonical = catalog.convertIdentifierByDeclaredStyle(identifier, lexical, "lower_kebab_case_1");
         String restored = catalog.convertIdentifierByDeclaredStyle(canonical, "lower_kebab_case_1", lexical);
         if (!restored.equals(identifier))
-            throw new IllegalArgumentException("Non-round-trippable declared type name: " + name + " -> " + restored);
+            throw new AIxCodegenValidationException("Non-round-trippable declared type name: " + name + " -> " + restored, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         return canonical;
     }
 }

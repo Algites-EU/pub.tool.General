@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,7 +57,7 @@ final class AIcNamingCatalogCollector {
                 }
                 String locName = locSource.substring(locSource.indexOf(':') + 1);
                 if (!FILE_NAME.matcher(locName).matches())
-                    throw new IllegalArgumentException("Invalid classpath naming catalog: " + locName);
+                    throw new AIxCodegenValidationException("Invalid classpath naming catalog: " + locName, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                 Enumeration<URL> locResources = locLoader.getResources(SOURCECODE_PREFIX + locName);
                 /* Shared grammar stays in the general naming namespace. */
                 if (!locResources.hasMoreElements())
@@ -102,9 +104,9 @@ final class AIcNamingCatalogCollector {
                  * Preserve its conflict diagnosis but show original classpath
                  * JARs and directories so mixed published/source versions can
                  * be identified without inspecting a deleted temporary folder. */
-                throw new IllegalArgumentException(locError.getMessage()
+                throw new AIxCodegenValidationException(locError.getMessage()
                         + "\nNaming catalog resource origins (merge order):\n  "
-                        + String.join("\n  ", locProvenance), locError);
+                        + String.join("\n  ", locProvenance), "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.", null, null, locError);
             }
         } finally {
             try (var locPaths = Files.walk(locTemporary)) {

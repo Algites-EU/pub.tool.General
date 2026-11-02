@@ -1,7 +1,10 @@
 """Generate one sealed Java choice and stable value-record variants per alternative."""
 from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 import hashlib
 import json
+import re
 from collections import Counter
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
@@ -19,6 +22,43 @@ def json_quote(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def choice_branch_name(model, alternative, index, kind):
+    """Derive a stable, convention-compatible branch identity.
+
+    Named JSON/YAML choice alternatives are structural properties, so their
+    identity must not depend on the order of the properties. XML alternatives
+    likewise carry an explicit XML field name. Unnamed historical choices
+    retain an indexed fallback, independently of the owning schema's name.
+
+    Args:
+        model: Owning canonical definition with a declared logical name.
+        alternative: One canonical variant, possibly with named properties.
+        index: Zero-based index used only if no alternative name is available.
+        kind: Semantic choice kind, oneOf or anyOf.
+
+    Returns:
+        A lower-kebab identifier suitable for the selected naming conventions.
+
+    Raises:
+        AIxCodegenValidationException: If no valid identifier can be formed.
+    """
+    def kebab(text):
+        value = re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', str(text))
+        value = re.sub(r'[^A-Za-z0-9]+', '-', value).strip('-').lower()
+        return value
+
+    base = kebab(model.logical_name)
+    named = (alternative.properties[0].source_name
+             if alternative.kind is AInDataTypeKind.OBJECT and len(alternative.properties) == 1
+             else None)
+    suffix = kebab(named) if named else ('one-of-' if kind == 'oneOf' else 'any-of-') + str(index)
+    result = base + '-' + suffix
+    if not base or not suffix or not base[0].isalpha():
+        raise AIxCodegenValidationException('Invalid named Choice alternative',
+                                            'Give every Choice alternative a valid structural property name.')
+    return result
+
+
 class AIcClosedChoiceGenerator:
     """Generate a contract and separately importable records in its owning package."""
 
@@ -29,7 +69,7 @@ class AIcClosedChoiceGenerator:
         model = request.definition
         choice = model.data_type
         if choice.kind not in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
-            raise ValueError('Definition is not a closed choice')
+            raise AIxCodegenValidationException('Definition is not a closed choice', 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')
         kind = 'oneOf' if choice.kind is AInDataTypeKind.ONE_OF else 'anyOf'
         target = request.target
         cls = self.names.type_name(model, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
@@ -66,29 +106,39 @@ class AIcClosedChoiceGenerator:
                     AInDataTypeKind.BOOLEAN: ('Boolean', 'bool'),
                 }.get(alternative.element_type.kind)
                 if item_type is None:
-                    raise ValueError('Closed choice array requires a supported scalar item kind')
+                    raise AIxCodegenValidationException('Closed choice array requires a supported scalar item kind', 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')
                 label, file_stem = f'Alternative{index + 1}', None
                 type_name = ('java.util.List<' + item_type[0] + '>' if target is AInCodeGenerationTarget.JAVA
                     else 'list[' + item_type[1] + ']')
                 identity = model.identity + '#/' + kind + '/' + str(index)
             elif alternative.kind is AInDataTypeKind.OBJECT:
                 # Batch discovery emits each inline branch as a separate contract.
-                label = f'Alternative{index + 1}'
-                name = model.logical_name + '-' + ('one-of' if kind == 'oneOf' else 'any-of') + '-' + str(index)
+                label = (alternative.properties[0].source_name if len(alternative.properties) == 1
+                         else f'Alternative{index + 1}')
+                name = choice_branch_name(model, alternative, index, kind)
                 type_name = self.names.render(name, model.version, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE)
                 file_stem = self.names.render(name, model.version, request.naming_profile, AInDefsNameRole.INTERFACE_TYPE_FILE_STEM)
                 identity = model.identity + '#/' + kind + '/' + str(index)
             else:
-                raise ValueError(f'Closed choice variant {index} requires a named or inline object type; got {alternative.kind.value}')
+                raise AIxCodegenValidationException(f'Closed choice variant {index} requires a named or inline object type; got {alternative.kind.value}', 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')
             resolved.append((label, type_name, file_stem, identity))
         if len({identity for _, _, _, identity in resolved}) != len(resolved):
-            raise ValueError('Closed choice contains repeated alternatives')
+            raise AIxCodegenValidationException('Closed choice contains repeated alternatives', 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')
         counts = Counter(label.lower() for label, *_ in resolved)
         for label, typ, file, identity in resolved:
             short = 'h' + hashlib.sha256(identity.encode()).hexdigest()[:8] if counts[label.lower()] > 1 else ''
             # Suffix ordering stays outside the canonical logical identifier.
-            fragment = label + ('-' + short if short else '')
-            logical = model.logical_name + '-' + fragment
+            fragment = re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', label)
+            fragment = re.sub(r'[^A-Za-z0-9]+', '-', fragment).strip('-').lower()
+            if not fragment:
+                raise AIxCodegenValidationException('Empty named Choice alternative',
+                    'Declare a nonempty structural name for every choice variant.')
+            if short:
+                fragment += '-' + short
+            # The selected-variant record and the payload object are distinct
+            # public types. A separated role suffix prevents case-insensitive
+            # collisions in Python modules and Java class names.
+            logical = model.logical_name + '-selected-' + fragment
             wrapper = self.names.render(logical, model.version, request.naming_profile, AInDefsNameRole.DATA_TYPE)
             wrapper_file = self.names.render(logical, model.version, request.naming_profile, AInDefsNameRole.DATA_TYPE_FILE_STEM)
             variants.append((wrapper, wrapper_file, typ, file))
@@ -126,19 +176,24 @@ class AIcClosedChoiceGenerator:
             (AIcdGeneratedTypeIdentity.from_request(request, cls, path_prefix + stem + ext,
                 AInDefsNameRole.INTERFACE_TYPE),))
         generated = [primary]
-        if (model.source_kind is AInDefinitionSourceKind.XMLDEFS
-                and any(option.kind is not AInDataTypeKind.REFERENCE
-                        for option in choice.alternatives)):
-            # Anonymous XML particles need emitted nominal branch contracts.
-            # Explicit named branches already have their own XSD type units;
-            # emitting them again would create duplicate source declarations.
+        if any(option.kind is AInDataTypeKind.OBJECT for option in choice.alternatives):
+            # Inline named alternatives need payload contracts in every source
+            # representation (including JSON/YAML); a wrapper's imported
+            # branch class must exist before SDO can import it. Referenced
+            # alternatives already have their own nominal definitions.
             from .aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
             for index, alternative in enumerate(choice.alternatives):
+                if alternative.kind is AInDataTypeKind.REFERENCE:
+                    continue
                 if alternative.kind is not AInDataTypeKind.OBJECT:
-                    raise ValueError('XML choice requires object branches retaining XML QName')
-                logical = model.logical_name + '-' + ('one-of-' if kind == 'oneOf' else 'any-of-') + str(index)
+                    continue  # Scalar/array alternatives use built-in Java/Python value types.
+                logical = choice_branch_name(model, alternative, index, kind)
                 branch = AIcdCanonicalDefinition(model.identity + '#/' + kind + '/' + str(index), model.version, logical, model.source_kind, model.source_resource, model.description, alternative, (), None)
-                subrequest = AIcdCodeGenerationRequest(branch, target, request.package_name, request.naming_profile)
+                subrequest = AIcdCodeGenerationRequest(
+                    branch, target, request.package_name, request.naming_profile,
+                    naming_convention=request.naming_convention,
+                    contract_role=request.contract_role,
+                    common_naming_profile=request.common_naming_profile)
                 generated.append(AIcSchemaContractInterfaceGenerator().generate(subrequest))
         for wrapper, wrapper_file, typ, typ_file in variants:
             if target is AInCodeGenerationTarget.JAVA:

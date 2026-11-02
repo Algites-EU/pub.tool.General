@@ -1,5 +1,7 @@
 """Deterministically layer packaged, classpath and invocation settings for one Codegen."""
 from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 import importlib.resources
 from pathlib import Path
 import sys
@@ -9,7 +11,7 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
     """Merge effective settings by the complete qualified option name before parsing values."""
     file_options = [value.partition('=')[2] for value in arguments if value.startswith('--settings-file=')]
     if len(file_options) > 1:
-        raise ValueError('Only one --settings-file is permitted')
+        raise AIxCodegenValidationException('Only one --settings-file is permitted', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
     remainder = [value for value in arguments if not value.startswith('--settings-file=')]
     name = f'{generator}-{technology}-default.settings'
     base = Path(f'generators/code/{generator}/intf/src/product/config/eu/algites/tool/codegen/{package}')
@@ -78,10 +80,10 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
         if token in {'--check', '--clean-only', '--allow-unversioned-schemas'}:
             token += '=true'
         if not token.startswith('--') or '=' not in token:
-            raise ValueError(f'Invalid settings argument: {token}')
+            raise AIxCodegenValidationException(f'Invalid settings argument: {token}', 'Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.')
         key, value = token.split('=', 1)
         if key == '--settings-file':
-            raise ValueError('Nested settings-file is not supported')
+            raise AIxCodegenValidationException('Nested settings-file is not supported', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         if value == '':
             merged.pop(key, None)
         else:
@@ -93,7 +95,7 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
             if not stripped or stripped.startswith('#'):
                 continue
             if any(ch.isspace() for ch in stripped):
-                raise ValueError(f'Malformed settings at {source}:{no}: {line}')
+                raise AIxCodegenValidationException(f'Malformed settings at {source}:{no}: {line}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
             push(stripped)
     for arg in remainder:
         push(arg)
@@ -102,7 +104,7 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
     for key, value in merged.items():
         if key in {'--check', '--clean-only', '--allow-unversioned-schemas'}:
             if value.lower() not in {'true', 'false'}:
-                raise ValueError(f'Expected boolean for {key}: {value}')
+                raise AIxCodegenValidationException(f'Expected boolean for {key}: {value}', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
             if value.lower() == 'true':
                 expanded.append(key)
         else:

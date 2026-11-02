@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 
 
@@ -67,6 +69,7 @@ final class AIcJsonSchemaReader {
         String title = text(root, "title");
         /* Only direct structural keywords define fields; allOf is validation-only. */
         root = root.deepCopy();
+        validateChoicePlacements(root);
         List<AIcdEnumValueDefinition> enumValues = enumValues(root);
         if (!enumValues.isEmpty()) {
             return new AIcdCanonicalDefinition(identity, version, logicalName, sourceKind, request.path().toString(), description, AIcdDataType.atom(AInDataTypeKind.ENUM, AIcdValueConstraints.empty()), enumValues, title, schemaUrl);
@@ -113,12 +116,12 @@ final class AIcJsonSchemaReader {
                 document = (fileName.endsWith(".yaml") || fileName.endsWith(".yml"))
                         ? yamlMapper.readTree(target.toFile()) : jsonMapper.readTree(target.toFile());
             } catch (IOException ex) {
-                throw new IllegalArgumentException("Cannot resolve schema reference '" + ref + "' in " + request.path(), ex);
+                throw new AIxCodegenValidationException("Cannot resolve schema reference '" + ref + "' in " + request.path(), "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.", null, null, ex);
             }
             String fragment = URI.create(ref).getFragment();
             JsonNode referenced = fragment.startsWith("/") ? document.at(fragment) : anchor(document, fragment);
             if (referenced == null || referenced.isMissingNode()) {
-                throw new IllegalArgumentException("Undefined schema reference '" + ref + "' in " + request.path());
+                throw new AIxCodegenValidationException("Undefined schema reference '" + ref + "' in " + request.path(), "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
             }
             /* Nominal $defs contracts must not be expanded into their own properties.
              * A recursive child (for example FinalizationActions[]) is represented
@@ -142,7 +145,7 @@ final class AIcJsonSchemaReader {
                         text(node, "title") == null ? text(referenced, "title") : text(node, "title"), null);
             String referenceKey = target.toAbsolutePath().normalize() + "#" + fragment;
             if (!visited.add(referenceKey))
-                throw new IllegalArgumentException("Circular schema alias '" + ref + "' in " + request.path());
+                throw new AIxCodegenValidationException("Circular schema alias '" + ref + "' in " + request.path(), "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
             try {
                 AIcdPropertyDefinition normalized = property(name, referenced, required,
                         new AIcdDefinitionLoadRequest(target, request.sourceKind(), request.namingProfile()), visited);
@@ -165,7 +168,7 @@ final class AIcJsonSchemaReader {
             try {
                 locReferencedSchema = jsonMapper.readTree(referencedPath.toFile());
             } catch (IOException ex) {
-                throw new IllegalArgumentException("Cannot resolve schema reference '" + ref + "' in " + request.path(), ex);
+                throw new AIxCodegenValidationException("Cannot resolve schema reference '" + ref + "' in " + request.path(), "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.", null, null, ex);
             }
             nullable = nullable && AIcJsonSchemaNullability.acceptsNull(locReferencedSchema);
             return new AIcdPropertyDefinition(name, AIcSourceDataType.fromSourceHints(AInDataTypeKind.REFERENCE, null, new AIcdDefinitionReference(ref, parsed.version(), parsed.logicalName(), targetKind == null ? null : AIcdDataType.atom(targetKind, null)), AIcdValueConstraints.empty(), AIcdValueConstraints.empty()), ((required) ? eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED : eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED), nullable, text(node, "description"), text(node, "title"), null);
@@ -181,6 +184,94 @@ final class AIcJsonSchemaReader {
         if (aSchema.has("x-algites-defscodegen-choice")) return AInDataTypeKind.ONE_OF;
         if ("object".equals(text(aSchema, "type")) || aSchema.has("properties")) return AInDataTypeKind.OBJECT;
         return kind(text(aSchema, "type"));
+    }
+
+    /**
+     * Validate a choice's standard interoperable JSON representation.
+     *
+     * @param aSchema schema node carrying the exclusive-choice marker
+     * @throws AIxCodegenValidationException if cardinality, shape, or marker is invalid
+     */
+    private static void validateChoiceShape(JsonNode aSchema) {
+        JsonNode variants = aSchema.path("properties");
+        boolean valid = aSchema.path("x-algites-defscodegen-choice").isBoolean()
+                && aSchema.path("x-algites-defscodegen-choice").booleanValue()
+                && "object".equals(text(aSchema, "type"))
+                && variants.isObject() && variants.size() >= 2
+                && aSchema.path("minProperties").isIntegralNumber()
+                && aSchema.path("minProperties").intValue() == 1
+                && aSchema.path("maxProperties").isIntegralNumber()
+                && aSchema.path("maxProperties").intValue() == 1
+                && aSchema.path("additionalProperties").isBoolean()
+                && !aSchema.path("additionalProperties").booleanValue()
+                && aSchema.path("patternProperties").isMissingNode()
+                && aSchema.path("required").isMissingNode();
+        if (valid) {
+            for (JsonNode variant : variants) if (!variant.isObject()) { valid = false; break; }
+        }
+        if (!valid) throw new AIxCodegenValidationException(
+                "Invalid x-algites-defscodegen-choice: expected true, object with at least two properties, minProperties=1, maxProperties=1, additionalProperties=false",
+                "Declare named variants in sibling properties; do not use the removed alternatives array.");
+    }
+
+    /**
+     * Reject declarations in validation-only schema branches without deriving
+     * the structure of any generated type from these branches.
+     *
+     * @param root complete JSONDEFS or YAMLDEFS source schema
+     * @throws AIxCodegenValidationException on invalid placement or shape
+     */
+    private static void validateChoicePlacements(JsonNode root) {
+        validateChoicePlacement(root, false, "#");
+    }
+
+    /**
+     * Traverse schema-bearing keywords while distinguishing structural from
+     * validation-only positions.
+     *
+     * @param node current value or schema node
+     * @param blocked whether the position is validation-only
+     * @param path JSON Pointer for actionable diagnostics
+     * @throws AIxCodegenValidationException on a forbidden declaration
+     */
+    private static void validateChoicePlacement(JsonNode node, boolean blocked, String path) {
+        if (node == null || node.isNull()) return;
+        if (node.isArray()) {
+            for (int i = 0; i < node.size(); i++)
+                validateChoicePlacement(node.get(i), blocked, path + "/" + i);
+            return;
+        }
+        if (!node.isObject()) return;
+        if (node.has("x-algites-defscodegen-choice")) {
+            if (blocked) throw new AIxCodegenValidationException(
+                    "Choice declaration is not allowed inside a validation-only subschema at " + path,
+                    "Place the named choice in a structural schema position and reference it from constraints.");
+            validateChoiceShape(node);
+        }
+        var fields = node.fields();
+        while (fields.hasNext()) {
+            var field = fields.next();
+            String key = field.getKey();
+            if (Set.of("$defs", "definitions", "properties", "patternProperties").contains(key)
+                    && field.getValue().isObject()) {
+                var members = field.getValue().fields();
+                while (members.hasNext()) {
+                    var member = members.next();
+                    validateChoicePlacement(member.getValue(), blocked, path + "/" + key + "/" + member.getKey());
+                }
+            } else if (Set.of("dependentSchemas", "dependencies").contains(key)
+                    && field.getValue().isObject()) {
+                var members = field.getValue().fields();
+                while (members.hasNext()) {
+                    var member = members.next();
+                    validateChoicePlacement(member.getValue(), true, path + "/" + key + "/" + member.getKey());
+                }
+            } else if (Set.of("additionalProperties", "items", "prefixItems", "additionalItems").contains(key))
+                validateChoicePlacement(field.getValue(), blocked, path + "/" + key);
+            else if (Set.of("oneOf", "anyOf", "allOf", "not", "if", "then", "else",
+                    "contains", "propertyNames", "unevaluatedItems", "unevaluatedProperties").contains(key))
+                validateChoicePlacement(field.getValue(), true, path + "/" + key);
+        }
     }
 
     /** Build the recursive structural model without truncating nested array or choice types. */
@@ -226,17 +317,16 @@ final class AIcJsonSchemaReader {
                         AIcScalarConstraints.json(aSchema, locScalarKind));
             }
         }
-        JsonNode locChoice = aSchema.get("x-algites-defscodegen-choice");
-        if (locChoice != null) {
-            JsonNode locAlternatives = locChoice.path("alternatives");
-            if (!locAlternatives.isArray() || locAlternatives.size() < 2)
-                throw new IllegalArgumentException("x-algites-defscodegen-choice must declare at least two alternatives");
+        if (aSchema.has("x-algites-defscodegen-choice")) {
+            validateChoiceShape(aSchema);
             List<AIcdDataType> locTypes = new ArrayList<>();
-            for (JsonNode locAlternative : locAlternatives) {
-                if (!locAlternative.isTextual()) throw new IllegalArgumentException("Choice alternatives must be URI references");
-                ObjectNode locReference = jsonMapper.createObjectNode();
-                locReference.put("$ref", locAlternative.asText());
-                locTypes.add(recursiveType(locReference, aRequest, aVisited));
+            // Preserve the nominal alternative name as the one-property object
+            // wrapper (parallel to XML xs:choice), not an anonymous payload.
+            var entries = aSchema.path("properties").fields();
+            while (entries.hasNext()) {
+                var entry = entries.next();
+                locTypes.add(AIcdDataType.object(List.of(
+                        property(entry.getKey(), entry.getValue(), true, aRequest))));
             }
             return AIcdDataType.choice(AInDataTypeKind.ONE_OF, locTypes);
         }
@@ -256,7 +346,7 @@ final class AIcJsonSchemaReader {
                 JsonNode locResolved = locFragment.startsWith("/") ? locDocument.at(locFragment)
                         : anchor(locDocument, locFragment);
                 if (locResolved == null || locResolved.isMissingNode())
-                    throw new IllegalArgumentException("Undefined schema reference '" + locRef + "'");
+                    throw new AIxCodegenValidationException("Undefined schema reference '" + locRef + "'", "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
                 String[] locTokens = locFragment.startsWith("/") ? locFragment.substring(1).split("/") : new String[0];
                 if (locTokens.length == 2 && (locTokens[0].equals("$defs") || locTokens[0].equals("definitions"))
                         && (locResolved.has("properties") || "object".equals(text(locResolved, "type"))
@@ -280,12 +370,12 @@ final class AIcJsonSchemaReader {
                             locIdentifier, locTargetType));
                 }
                 if (!locEntered)
-                    throw new IllegalArgumentException("Circular inline schema alias '" + locRef
-                            + "' in " + aRequest.path());
+                    throw new AIxCodegenValidationException("Circular inline schema alias '" + locRef
+                            + "' in " + aRequest.path(), "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
                 return recursiveType(locResolved, new AIcdDefinitionLoadRequest(locTarget,
                         aRequest.sourceKind(), aRequest.namingProfile()), aVisited);
             } catch (IOException locError) {
-                throw new IllegalArgumentException("Cannot read nested schema reference '" + locRef + "'", locError);
+                throw new AIxCodegenValidationException("Cannot read nested schema reference '" + locRef + "'", "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.", null, null, locError);
             } finally {
                 if (locEntered) aVisited.remove(locReferenceKey);
             }
@@ -300,9 +390,9 @@ final class AIcJsonSchemaReader {
             JsonNode locLegacy = aSchema.get("items") != null && aSchema.get("items").isArray()
                     ? aSchema.get("items") : null;
             if (locModern != null && !locModern.isArray())
-                throw new IllegalArgumentException("prefixItems must be an array of schemas");
+                throw new AIxCodegenValidationException("prefixItems must be an array of schemas", "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
             if (locModern != null && locLegacy != null)
-                throw new IllegalArgumentException("Conflicting positional tuple declarations");
+                throw new AIxCodegenValidationException("Conflicting positional tuple declarations", "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             List<AIcdDataType> locPositions = new ArrayList<>();
             JsonNode locSlots = locModern != null ? locModern : locLegacy;
             if (locSlots != null) for (JsonNode locSlot : locSlots)
@@ -318,7 +408,7 @@ final class AIcJsonSchemaReader {
         if ("object".equals(locType) || aSchema.has("properties")
                 || aSchema.has("additionalProperties") || aSchema.has("patternProperties")) {
             if (aSchema.path("patternProperties").size() > 0)
-                throw new IllegalArgumentException("Heterogeneous patternProperties requires explicit typed pattern index mapping");
+                throw new AIxCodegenValidationException("Heterogeneous patternProperties requires explicit typed pattern index mapping", "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
             Set<String> locRequired = new HashSet<>();
             if (aSchema.path("required").isArray())
                 aSchema.path("required").forEach(aItem -> locRequired.add(aItem.asText()));
@@ -398,8 +488,8 @@ final class AIcJsonSchemaReader {
                     List<Path> matches = files.filter(Files::isRegularFile)
                             .filter(path -> path.toString().replace('\\', '/').endsWith(suffix)).toList();
                     if (matches.size() == 1) return matches.get(0);
-                    if (matches.size() > 1) throw new IllegalArgumentException("Ambiguous local schema reference '" + resource + "'.");
-                } catch (IOException ex) { throw new IllegalArgumentException("Cannot discover local schema reference '" + resource + "'.", ex); }
+                    if (matches.size() > 1) throw new AIxCodegenValidationException("Ambiguous local schema reference '" + resource + "'.", "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
+                } catch (IOException ex) { throw new AIxCodegenValidationException("Cannot discover local schema reference '" + resource + "'.", "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.", null, null, ex); }
                 break;
             }
         }
@@ -417,12 +507,12 @@ final class AIcJsonSchemaReader {
                     if (resource.equals(text(document, "$id")) || resource.equals(text(document, "x-yamldefs-id"))
                             || resource.equals(text(document, "x-jsondefs-id"))) matches.add(file);
                 }
-            } catch (IOException ex) { throw new IllegalArgumentException("Cannot discover schema identity '" + resource + "'.", ex); }
+            } catch (IOException ex) { throw new AIxCodegenValidationException("Cannot discover schema identity '" + resource + "'.", "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.", null, null, ex); }
             if (matches.size() == 1) return matches.get(0);
-            if (matches.size() > 1) throw new IllegalArgumentException("Ambiguous local schema identity '" + resource + "'.");
+            if (matches.size() > 1) throw new AIxCodegenValidationException("Ambiguous local schema identity '" + resource + "'.", "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             if (repository) break;
         }
-        throw new IllegalArgumentException("Schema reference '" + resource + "' has no local canonical definition for " + request.path());
+        throw new AIxCodegenValidationException("Schema reference '" + resource + "' has no local canonical definition for " + request.path(), "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
     }
 
     /** Finds a named JSON Schema anchor without treating it as a versioned file name. */

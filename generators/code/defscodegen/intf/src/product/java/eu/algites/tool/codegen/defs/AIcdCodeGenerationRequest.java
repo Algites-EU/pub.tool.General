@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 
 
@@ -67,6 +69,6 @@ public record AIcdCodeGenerationRequest(
         if (xmlTypeQName != null && (definition.sourceKind() != AInDefinitionSourceKind.XMLDEFS
                 || !xmlTypeQName.startsWith("{") || xmlTypeQName.indexOf('}') <= 0
                 || xmlTypeQName.endsWith("}")))
-            throw new IllegalArgumentException("XML type QName must be an expanded XSD named type: " + xmlTypeQName);
+            throw new AIxCodegenValidationException("XML type QName must be an expanded XSD named type: " + xmlTypeQName, "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
     }
 }

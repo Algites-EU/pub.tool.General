@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 import re
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
@@ -12,7 +14,7 @@ class AIcGenerationNames:
     def _selected(profile, kind):
         """Resolve a mandatory role supplied explicitly by the active naming profile."""
         if not hasattr(profile, 'selected'):
-            raise ValueError(f'No output naming profile configured for role {kind}')
+            raise AIxCodegenValidationException(f'No output naming profile configured for role {kind}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         return profile.selected(kind)
 
     def render(self, logical_name, version, profile, kind):

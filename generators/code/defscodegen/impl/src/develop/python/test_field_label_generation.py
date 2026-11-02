@@ -40,7 +40,7 @@ def test_xsd_title_and_enum_value_metadata(tmp_path: Path):
     path = tmp_path / 'permissions_1.xsd'
     path.write_text('''<?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
- xmlns:algdoc="urn:eu:algites:documentation:1" targetNamespace="urn:example:permissions">
+ xmlns:algdoc="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd" targetNamespace="urn:example:permissions">
   <xs:simpleType name="Permissions">
     <xs:annotation><xs:appinfo><algdoc:title>Access permissions</algdoc:title></xs:appinfo>
       <xs:documentation>Available access rights.</xs:documentation></xs:annotation>

@@ -6,6 +6,8 @@ callers that explicitly require one location.
 """
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 import importlib.resources
 from pathlib import Path
 import re
@@ -47,7 +49,7 @@ def resolve_naming_catalog(source: str) -> str:
         return source
     name = source.partition(':')[2]
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.yml', name):
-        raise ValueError(f'Invalid classpath naming catalog filename: {name!r}')
+        raise AIxCodegenValidationException(f'Invalid classpath naming catalog filename: {name!r}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
 
     packaged = False
     for package, subpath in _providers():
@@ -143,7 +145,7 @@ def expand_naming_catalogs(sources):
                 continue
             name = source.partition(':')[2]
             if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.yml', name):
-                raise ValueError(f'Invalid classpath naming catalog filename: {name!r}')
+                raise AIxCodegenValidationException(f'Invalid classpath naming catalog filename: {name!r}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
             matched = False
             for package, subpath in _providers():
                 try:

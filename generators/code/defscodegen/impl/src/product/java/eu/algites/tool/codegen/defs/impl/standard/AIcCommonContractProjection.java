@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.lib.data.dataobject.AInFieldPresenceKind;
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
 import eu.algites.tool.codegen.defs.AIcdDataType;
@@ -19,14 +21,17 @@ import java.util.stream.Collectors;
  * roles retain their complete source models and independent schema identities.
  * The projection deliberately removes source-specific XML bindings and scalar
  * restrictions, which remain owned by the specialized contracts.
+ *
+ * @author linhart1
  */
 public final class AIcCommonContractProjection {
     private AIcCommonContractProjection() { }
 
     /**
-     * Normalizes only the recognized format marker in an Algites URN.
-     * Arbitrary URNs and already normalized publication URL identities are
-     * unchanged, so unrelated schemas with the same generated filename still fail.
+     * Normalizes only provably equivalent schema identities: exact versioned
+     * root publication URLs and established format-specific Algites URN aliases.
+     * Unrelated namespaces and nested definitions remain distinct even if
+     * their generated names happen to match.
      *
      * @param aDefinition source representation whose kind identifies its alias
      * @param aPackage generated Java/Python package, used by implicit identities
@@ -38,6 +43,15 @@ public final class AIcCommonContractProjection {
         if (!(aOriginal instanceof List<?> locParts) || locParts.size() < 3
                 || !Objects.equals(locParts.get(0), "explicit")) return aOriginal;
         String locIdentity = String.valueOf(locParts.get(1));
+        if (!aDefinition.sourceResource().contains("#")
+                && aDefinition.version() != null) {
+            String locExpected = "https://defs.dev.algites.eu/api/schema/"
+                    + aPackage.replace('.', '/') + "/" + aDefinition.logicalName()
+                    + "_" + aDefinition.version() + ".schema";
+            if (locIdentity.equals(locExpected))
+                return java.util.Arrays.asList("explicit", aPackage + "."
+                        + aDefinition.logicalName(), aDefinition.version());
+        }
         if (!locIdentity.startsWith("urn:algites:")) return aOriginal;
         String locFormat = switch (aDefinition.sourceKind()) {
             case YAMLDEFS -> ":yamldef:";
@@ -60,13 +74,13 @@ public final class AIcCommonContractProjection {
      * @throws IllegalArgumentException when shared names have incompatible shapes
      */
     public static AIcdCanonicalDefinition merge(List<AIcdCanonicalDefinition> aDefinitions) {
-        if (aDefinitions.isEmpty()) throw new IllegalArgumentException("No common representations");
+        if (aDefinitions.isEmpty()) throw new AIxCodegenValidationException("No common representations", "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
         AIcdCanonicalDefinition locFirst = aDefinitions.get(0);
         if (aDefinitions.size() == 1) return locFirst;
         for (int locIndex = 1; locIndex < aDefinitions.size(); locIndex++) {
             AIcdCanonicalDefinition locOther = aDefinitions.get(locIndex);
             if (locFirst.version() != null && !Objects.equals(locFirst.version(), locOther.version()))
-                throw new IllegalArgumentException("Common contract version mismatch: " + locFirst.logicalName());
+                throw new AIxCodegenValidationException("Common contract version mismatch: " + locFirst.logicalName(), "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         }
         boolean locMixedRoot = aDefinitions.stream().anyMatch(aDefinition ->
                 aDefinition.dataType().kind() != locFirst.dataType().kind());
@@ -75,7 +89,7 @@ public final class AIcCommonContractProjection {
             if (aDefinitions.stream().anyMatch(aDefinition -> aDefinition.dataType().kind() != AInDataTypeKind.OBJECT
                     && aDefinition.dataType().kind() != AInDataTypeKind.ONE_OF
                     && aDefinition.dataType().kind() != AInDataTypeKind.ANY_OF))
-                throw new IllegalArgumentException("Incompatible common root types: " + locFirst.logicalName());
+                throw new AIxCodegenValidationException("Incompatible common root types: " + locFirst.logicalName(), "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
             /* Object and closed-choice publications have no shared member API;
              * publish only the semantic common identity marker. */
             locCommon = AIcdDataType.object(List.of());
@@ -86,8 +100,8 @@ public final class AIcCommonContractProjection {
             boolean locEquivalent = aDefinitions.stream().allMatch(aDefinition ->
                     aDefinition.dataType().equals(locFirst.dataType())
                     && aDefinition.enumValues().equals(locFirst.enumValues()));
-            if (!locEquivalent) throw new IllegalArgumentException(
-                    "Non-object common contracts must be identical: " + locFirst.logicalName());
+            if (!locEquivalent) throw new AIxCodegenValidationException(
+                    "Non-object common contracts must be identical: " + locFirst.logicalName(), "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
             locCommon = locFirst.dataType();
         }
         String locProvenance = aDefinitions.stream().map(aDefinition ->
@@ -134,7 +148,7 @@ public final class AIcCommonContractProjection {
                             || aType.reference().targetDataType().kind() == AInDataTypeKind.ANY_OF)));
             if (locAny || locEnum || locStructured)
                 return AIcdDataType.atom(AInDataTypeKind.ANY, AIcdValueConstraints.empty());
-            throw new IllegalArgumentException("Incompatible common field type: " + aContext);
+            throw new AIxCodegenValidationException("Incompatible common field type: " + aContext, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         }
         AIcdValueConstraints locConstraints = aTypes.stream().allMatch(aType ->
                 Objects.equals(aType.constraints(), locFirst.constraints()))
@@ -160,7 +174,7 @@ public final class AIcCommonContractProjection {
                             aField.presence() == AInFieldPresenceKind.REQUIRED)
                             ? AInFieldPresenceKind.REQUIRED : AInFieldPresenceKind.ALLOWED;
                     if (locFound.stream().anyMatch(aField -> aField.presence() == AInFieldPresenceKind.FORBIDDEN))
-                        throw new IllegalArgumentException("Incompatible forbidden common field: " + aContext + "." + locName);
+                        throw new AIxCodegenValidationException("Incompatible forbidden common field: " + aContext + "." + locName, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
                     boolean locNullable = locFound.stream().anyMatch(AIcdPropertyDefinition::nullable);
                     locShared.add(new AIcdPropertyDefinition(locName, locChild, locPresence,
                             locNullable, locFirstField.description(), locFirstField.title(), null));
@@ -174,7 +188,7 @@ public final class AIcCommonContractProjection {
             case ONE_OF, ANY_OF -> {
                 int locCount = locFirst.alternatives().size();
                 if (aTypes.stream().anyMatch(aType -> aType.alternatives().size() != locCount))
-                    throw new IllegalArgumentException("Incompatible common choice: " + aContext);
+                    throw new AIxCodegenValidationException("Incompatible common choice: " + aContext, "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
                 List<AIcdDataType> locChoices = new ArrayList<>();
                 for (int locIndex = 0; locIndex < locCount; locIndex++) {
                     int locChoice = locIndex;
@@ -188,7 +202,7 @@ public final class AIcCommonContractProjection {
                 if (aTypes.stream().anyMatch(aType -> !Objects.equals(
                         aType.reference().logicalName(), locFirst.reference().logicalName())
                         || !Objects.equals(aType.reference().version(), locFirst.reference().version())))
-                    throw new IllegalArgumentException("Incompatible common reference: " + aContext);
+                    throw new AIxCodegenValidationException("Incompatible common reference: " + aContext, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
                 yield new AIcdDataType(AInDataTypeKind.REFERENCE, null, List.of(), List.of(),
                         locFirst.reference(), locConstraints);
             }

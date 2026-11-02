@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 from dataclasses import dataclass
 from eu.algites.tool.codegen.defs.aicd_generated_type_identity import AIcdGeneratedTypeIdentity
 
@@ -24,4 +26,4 @@ class AIcdGeneratedSource:
         for entry in self.generated_types:
             if entry.type_name == self.type_name:
                 return entry
-        raise ValueError(f'No generated type identity for {self.type_name}')
+        raise AIxCodegenValidationException(f'No generated type identity for {self.type_name}', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')

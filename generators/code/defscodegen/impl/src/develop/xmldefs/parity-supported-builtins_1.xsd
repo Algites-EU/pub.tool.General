@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-supported-builtins:1" xmlns:algdoc="urn:eu:algites:documentation:1" targetNamespace="urn:parity:xmldefs:parity-supported-builtins:1" version="1" elementFormDefault="qualified">
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:parity:xmldefs:parity-supported-builtins:1" xmlns:algdoc="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd" targetNamespace="urn:parity:xmldefs:parity-supported-builtins:1" version="1" elementFormDefault="qualified">
 <xs:annotation><xs:appinfo><algdoc:title>Parity builtins</algdoc:title></xs:appinfo>
     <xs:documentation>All XSD 1.0 built-in scalar families and list datatypes projected to the canonical model.</xs:documentation></xs:annotation>
-<xs:import namespace="urn:eu:algites:documentation:1" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd"/>
+<xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd"/>
   <xs:notation name="Demo" public="urn:parity:notation"/>
 <xs:simpleType name="NotationValue"><xs:annotation><xs:appinfo><algdoc:title>Notation value</algdoc:title></xs:appinfo>
       <xs:documentation>Defines the notation value data type and its valid structure.</xs:documentation></xs:annotation>

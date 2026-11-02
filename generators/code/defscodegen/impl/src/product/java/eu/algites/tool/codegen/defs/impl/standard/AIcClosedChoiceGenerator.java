@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdGeneratedSource;
 import eu.algites.tool.codegen.defs.AIcdGeneratedTypeIdentity;
@@ -27,7 +29,7 @@ public final class AIcClosedChoiceGenerator {
     public List<AIcdGeneratedSource> generate(AIcdCodeGenerationRequest aRequest) {
         AIcdDataType locChoice = aRequest.definition().dataType();
         if (locChoice.kind() != AInDataTypeKind.ONE_OF && locChoice.kind() != AInDataTypeKind.ANY_OF)
-            throw new IllegalArgumentException("Not a closed choice");
+            throw new AIxCodegenValidationException("Not a closed choice", "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
         boolean locJava = aRequest.target() == AInCodeGenerationTarget.JAVA;
         String locMode = locChoice.kind() == AInDataTypeKind.ONE_OF ? "oneOf" : "anyOf";
         String locName = names.typeName(aRequest.definition(), aRequest.namingProfile(), AInDefsNameRole.INTERFACE_TYPE);
@@ -67,8 +69,8 @@ public final class AIcClosedChoiceGenerator {
                     case INTEGER -> locJava ? "Long" : "int";
                     case NUMBER -> locJava ? "java.math.BigDecimal" : "Decimal";
                     case BOOLEAN -> locJava ? "Boolean" : "bool";
-                    default -> throw new IllegalArgumentException(
-                            "Closed choice array requires a supported scalar element type: " + locItem.kind());
+                    default -> throw new AIxCodegenValidationException(
+                            "Closed choice array requires a supported scalar element type: " + locItem.kind(), "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
                 };
                 locLabel = "Alternative" + (locIndex + 1);
                 locType = (locJava ? "java.util.List<" : "list[") + locItemType + (locJava ? ">" : "]");
@@ -83,12 +85,12 @@ public final class AIcClosedChoiceGenerator {
                 locFile = names.referenceTypeName(locBranchName, aRequest.definition().version(),
                         aRequest.namingProfile(), AInDefsNameRole.INTERFACE_TYPE_FILE_STEM);
                 locIdentity = aRequest.definition().identity() + "#/" + locMode + "/" + locIndex;
-            } else throw new IllegalArgumentException("Unsupported closed choice alternative " + locAlternative.kind());
+            } else throw new AIxCodegenValidationException("Unsupported closed choice alternative " + locAlternative.kind(), "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
             locVariants.add(new AIcdVariant(locLabel, locType, locFile, locIdentity));
             locIndex++;
         }
         if (locVariants.stream().map(AIcdVariant::identity).distinct().count() != locVariants.size())
-            throw new IllegalArgumentException("Repeated closed-choice alternative");
+            throw new AIxCodegenValidationException("Repeated closed-choice alternative", "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
         Map<String, Integer> locCounts = new HashMap<>();
         locVariants.forEach(aVariant -> locCounts.merge(aVariant.label().toLowerCase(java.util.Locale.ROOT), 1, Integer::sum));
         List<AIcdNamedVariant> locNamed = new ArrayList<>();
@@ -145,7 +147,7 @@ public final class AIcClosedChoiceGenerator {
             for (int locBranch = 0; locBranch < locChoice.alternatives().size(); locBranch++) {
                 AIcdDataType locAlternative = locChoice.alternatives().get(locBranch);
                 if (locAlternative.kind() != AInDataTypeKind.OBJECT)
-                    throw new IllegalArgumentException("XML choice requires object branch with XML QName");
+                    throw new AIxCodegenValidationException("XML choice requires object branch with XML QName", "Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.");
                 String locLogical = aRequest.definition().logicalName()
                         + (locMode.equals("oneOf") ? "-one-of-" : "-any-of-") + locBranch;
                 AIcdCanonicalDefinition locDefinition = new AIcdCanonicalDefinition(aRequest.definition().identity() + "#/" + locMode + "/" + locBranch, aRequest.definition().version(), locLogical, aRequest.definition().sourceKind(), aRequest.definition().sourceResource(), aRequest.definition().description(), locAlternative, List.of(), null);

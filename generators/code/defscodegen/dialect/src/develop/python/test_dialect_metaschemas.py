@@ -49,17 +49,26 @@ def test_custom_dialect_validates_nested_keyword_shapes(draft):
     registry = _registry(draft)
     meta = _load(draft, 'dialect')
     val = cls(meta, registry=registry)
-    good = {'$schema':meta['$id'], '$id':'https://example.org/child',
-            'type':'object', 'properties':{'Nested':{'type':'object',
-                'x-algites-defscodegen-extends':['https://example.org/base'],
-                'x-algites-defscodegen-choice': {'alternatives':['#/$defs/A','#/$defs/B']}}}}
+    choice = {'type': 'object', 'x-algites-defscodegen-choice': True,
+              'properties': {'StringValue': {'type': 'string'},
+                             'IntegerValue': {'type': 'integer'}},
+              'minProperties': 1, 'maxProperties': 1, 'additionalProperties': False}
+    good = {'$schema': meta['$id'], '$id': 'https://example.org/child',
+            'type': 'object', 'properties': {'Nested': choice}}
     val.validate(good)
     bad = json.loads(json.dumps(good))
-    bad['properties']['Nested']['x-algites-defscodegen-extends'] = 'base'
+    bad['properties']['Nested']['x-algites-defscodegen-choice'] = {'alternatives':['#A','#B']}
     assert not val.is_valid(bad)
     bad = json.loads(json.dumps(good))
-    bad['properties']['Nested']['x-algites-defscodegen-choice']['alternatives'] = ['#/$defs/A']
+    bad['properties']['Nested']['maxProperties'] = 2
     assert not val.is_valid(bad)
+    bad = json.loads(json.dumps(good))
+    bad['properties']['Nested']['properties'].pop('IntegerValue')
+    assert not val.is_valid(bad)
+    bad = json.loads(json.dumps(good))
+    bad['properties']['Nested']['patternProperties'] = {'^x': {'type':'string'}}
+    assert not val.is_valid(bad)
+
 
 
 def test_one_shared_semantic_vocabulary_and_versioned_keyword_syntaxes():

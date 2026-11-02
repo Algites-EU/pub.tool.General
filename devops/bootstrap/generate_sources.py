@@ -382,8 +382,20 @@ def main() -> None:
     root = args.root.resolve(strict=True)
     if not root.is_relative_to(repository):
         parser.error(f'Root must remain inside repository: {root}')
-    generate(repository, root, args.output.resolve())
-    generate_sdo_python(repository, root, args.output.resolve())
+    try:
+        generate(repository, root, args.output.resolve())
+        generate_sdo_python(repository, root, args.output.resolve())
+    except Exception as failure:
+        # The bootstrap calls Codegen as a library, bypassing the CLI entrypoint.
+        # Import only at the failure boundary: source-based bootstrap may set up
+        # the Codegen module paths inside _load_codegen.
+        try:
+            from eu.algites.tool.codegen.common.diagnostics import report_exception
+        except ImportError:
+            raise  # Preserve the original traceback if diagnostics are unavailable.
+        if report_exception(failure, generator='Bootstrap Codegen', source=root):
+            raise SystemExit(2) from None
+        raise
 
 
 if __name__ == '__main__':

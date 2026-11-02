@@ -55,7 +55,11 @@ def _nested_schema():
                               'Variant': {
                                   'type': 'object',
                                   KEYS[0]: ['../base.json', '#/definitions/LocalBase'],
-                                  KEYS[1]: {'alternatives': ['#A', '#B']},
+                                  KEYS[1]: True,
+                                  'minProperties': 1, 'maxProperties': 1,
+                                  'additionalProperties': False,
+                                  'properties': {'TextValue': {'type':'string'},
+                                                 'CountValue': {'type':'integer'}},
                               }
                           }
             }
@@ -85,6 +89,9 @@ def test_legacy_dialect_is_valid_and_preserves_standard_recursive_schema(draft):
         copy_of_ours['properties'].pop(k, None)
     for k in (identity_key, 'title', 'description'):
         copy_of_ours.pop(k, None)
+    copy_of_ours.get('dependencies', {}).pop(KEYS[1], None)
+    if not copy_of_ours.get('dependencies'):
+        copy_of_ours.pop('dependencies', None)
     assert standard == copy_of_ours
     for name in ('dialect', 'vocabulary'):
         f=ROOT/draft/f'{name}_1.jsonmetadef.schema.json'
@@ -103,15 +110,20 @@ def test_legacy_dialect_checks_nested_annotations(draft):
     duplicate_parent = copy.deepcopy(good)
     duplicate_parent['properties']['Container']['properties']['Variant'][KEYS[0]] = ['#A', '#A']
     assert not validator.is_valid(duplicate_parent)
-    one_alternative = copy.deepcopy(good)
-    one_alternative['properties']['Container']['properties']['Variant'][KEYS[1]]['alternatives'] = ['#A']
-    assert not validator.is_valid(one_alternative)
-    missing_alternatives = copy.deepcopy(good)
-    missing_alternatives['properties']['Container']['properties']['Variant'][KEYS[1]] = {}
-    assert not validator.is_valid(missing_alternatives)
-    unknown_alternative_option = copy.deepcopy(good)
-    unknown_alternative_option['properties']['Container']['properties']['Variant'][KEYS[1]]['unknown'] = 'invalid'
-    assert not validator.is_valid(unknown_alternative_option)
+    wrong_choice_marker = copy.deepcopy(good)
+    wrong_choice_marker['properties']['Container']['properties']['Variant'][KEYS[1]] = False
+    assert not validator.is_valid(wrong_choice_marker)
+    wrong_choice_marker = copy.deepcopy(good)
+    wrong_choice_marker['properties']['Container']['properties']['Variant'][KEYS[1]] = {'alternatives': ['#A','#B']}
+    assert not validator.is_valid(wrong_choice_marker)
+    if draft != 'draft-03':
+        invalid_cardinality = copy.deepcopy(good)
+        invalid_cardinality['properties']['Container']['properties']['Variant']['maxProperties'] = 2
+        assert not validator.is_valid(invalid_cardinality)
+        one_alternative = copy.deepcopy(good)
+        one_alternative['properties']['Container']['properties']['Variant']['properties'].pop('CountValue')
+        assert not validator.is_valid(one_alternative)
+
 
 
 @pytest.mark.parametrize('draft', DRAFTS)

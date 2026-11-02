@@ -8,6 +8,10 @@ Artifact:
 Dependencies:
   - DependencyKind: modustro
     Items:
+      - GroupId: eu.algites.tool.codegen
+        ArtifactId: pub.tool.General_generators.code.common
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.data
         ArtifactId: pub.lib.General_data.dataobject.intf
         Usages: [product_api]

@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.sdo.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 import eu.algites.tool.codegen.sdo.AIcdGeneratedSdoSource;
 import eu.algites.tool.codegen.sdo.AIcdSdoGenerationResult;
@@ -133,7 +135,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 if (locResults.putIfAbsent(locCanonical, generate(locClass, aImplementationMarker,
                         aInputNames, aMutableNames, aConcreteNames,
                         aMutableSubpackage, aConcreteSubpackage)) != null)
-                    throw new IllegalArgumentException("Duplicate read contract source: " + locCanonical);
+                    throw new AIxCodegenValidationException("Duplicate read contract source: " + locCanonical, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             }
             return Map.copyOf(locResults);
         }
@@ -164,15 +166,15 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIiNameConventionCatalog aConcreteNames,
             String aMutableSubpackage, String aConcreteSubpackage) {
         if (aInputNames == null || aMutableNames == null || aConcreteNames == null)
-            throw new IllegalArgumentException("Missing explicit SDO input/mutable/implementation naming profiles");
+            throw new AIxCodegenValidationException("Missing explicit SDO input/mutable/implementation naming profiles", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         Objects.requireNonNull(aReadContract, "read contract");
         String locMarker = Objects.requireNonNull(aImplementationMarker, "marker");
         if (!locMarker.matches("[a-z][a-z0-9]*")) {
-            throw new IllegalArgumentException("Invalid implementation marker: " + locMarker);
+            throw new AIxCodegenValidationException("Invalid implementation marker: " + locMarker, "Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.");
         }
         if (!aReadContract.isInterface() || !AIiDataObject.class.isAssignableFrom(aReadContract)
                 || !isReadContract(aReadContract)) {
-            throw new IllegalArgumentException("Expected an interface extending AIiDataObject: " + aReadContract);
+            throw new AIxCodegenValidationException("Expected an interface extending AIiDataObject: " + aReadContract, "Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.");
         }
         var locParents = Arrays.stream(aReadContract.getInterfaces())
                 .filter(AIcSdoCodegenService::isReadContract).toList();
@@ -198,13 +200,13 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 ? locSourceAnnotation.namingConvention()
                 : aInputNames.selectedRole(locContractRole);
         if (locSourceConvention == null || locSourceConvention.isBlank())
-            throw new IllegalArgumentException("Missing explicit input naming convention for " + locContractRole);
+            throw new AIxCodegenValidationException("Missing explicit input naming convention for " + locContractRole, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         Map<String, String> locParsedNames = aInputNames.parse(locSourceConvention,
                 "type_name", aReadContract.getSimpleName());
         if (locSchemaId.isBlank()) {
             String locIdentifier = locParsedNames.get("identifier");
             if (locIdentifier == null || locIdentifier.isBlank())
-                throw new IllegalArgumentException("Input naming profile has no identifier: " + locSourceConvention);
+                throw new AIxCodegenValidationException("Input naming profile has no identifier: " + locSourceConvention, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
             locSchemaId = locPackage + "." + AIcNameConventionCatalog.convertIdentifier(
                     locIdentifier, aInputNames.identifierConvention(locSourceConvention, "type_name"),
                     "lower_kebab_case_1");
@@ -212,7 +214,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         if (locSchemaVersion < 0) {
             String locVersion = locParsedNames.get("version");
             if (locVersion == null || !locVersion.matches("[1-9][0-9]*"))
-                throw new IllegalArgumentException("Handwritten DataObject requires a schemaVersion or selected versioned naming convention: " + aReadContract);
+                throw new AIxCodegenValidationException("Handwritten DataObject requires a schemaVersion or selected versioned naming convention: " + aReadContract, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
             locSchemaVersion = Integer.parseInt(locVersion);
         }
         String locAnnotationLiteral = "@eu.algites.lib.data.dataobject.AIaDataObject("
@@ -260,14 +262,14 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 AInFieldSetterInheritancePolicy locParentPolicy = setterPolicy(locInheritedField);
                 if (locParentPolicy != locPolicy) {
                     if (locDefinition.field().setterInheritancePolicy() != AInFieldSetterInheritancePolicy.DEFAULT)
-                        throw new IllegalArgumentException("Setter inheritance policy of " + locFieldName
-                                + " conflicts with published parent contract " + locInheritedField.method().getDeclaringClass());
+                        throw new AIxCodegenValidationException("Setter inheritance policy of " + locFieldName
+                                + " conflicts with published parent contract " + locInheritedField.method().getDeclaringClass(), "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
                     locPolicy = locParentPolicy;
                 }
                 if (locParentPolicy == AInFieldSetterInheritancePolicy.INHERIT_AS_FIXED_PARAMETER
                         && !locInheritedField.method().getGenericReturnType().getTypeName().equals(
                                 locDefinition.method().getGenericReturnType().getTypeName()))
-                    throw new IllegalArgumentException("Cannot narrow a fixed inherited setter parameter: " + locFieldName);
+                    throw new AIxCodegenValidationException("Cannot narrow a fixed inherited setter parameter: " + locFieldName, "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
             }
             locFieldPolicies.put(locFieldName, locPolicy.name());
             if (locPolicy == AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
@@ -289,8 +291,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 if (setterPolicy(locAncestorField.getValue()) != AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
                         || !supportsGenericSetterValue(locAncestorField.getValue().method())) continue;
                 String locVariable = locTypeVariables.get(locAncestorField.getKey());
-                if (locVariable == null) throw new IllegalArgumentException("Missing inherited setter type argument for "
-                        + locAncestorField.getKey() + " in " + aReadContract);
+                if (locVariable == null) throw new AIxCodegenValidationException("Missing inherited setter type argument for "
+                        + locAncestorField.getKey() + " in " + aReadContract, "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
                 locParentArguments.add(locVariable);
             }
             String locParentType = qualifiedName(locAncestor, typeName(locAncestor, locMarker, true,
@@ -364,8 +366,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         if (locSyntheticKeyGetter != null) {
             if (!AIiJsonDataObject.class.isAssignableFrom(aReadContract)
                     && !AIiYamlDataObject.class.isAssignableFrom(aReadContract))
-                throw new IllegalArgumentException("Virtual JSON/YAML map-entry keys cannot be XML fields: "
-                        + aReadContract.getName());
+                throw new AIxCodegenValidationException("Virtual JSON/YAML map-entry keys cannot be XML fields: "
+                        + aReadContract.getName(), "Check xs:key/xs:unique selectors and all xs:field paths against the selected repeated element. A key requires complete values; a unique constraint permits absent values.");
             locImplementation.append("    /** Actual parent JSON/YAML object property name; never an embedded field. */\n")
                     .append("    private String parentPropertyKey;\n")
                     .append("    /** Construct an entry with its parent object's property name.\n")
@@ -438,20 +440,20 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 if (locGenerated == null) continue;
                 if (!javax.lang.model.SourceVersion.isIdentifier(locGenerated)
                         || javax.lang.model.SourceVersion.isKeyword(locGenerated))
-                    throw new IllegalArgumentException("Invalid generated SDO method identifier: " + locGenerated);
+                    throw new AIxCodegenValidationException("Invalid generated SDO method identifier: " + locGenerated, "Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.");
                 locGeneratedNames.add(locGenerated);
             }
             if (new java.util.HashSet<>(locGeneratedNames).size() != locGeneratedNames.size()
                     || locGeneratedNames.contains(locGetter.getName()))
-                throw new IllegalArgumentException("Conflicting generated field methods for " + locName);
+                throw new AIxCodegenValidationException("Conflicting generated field methods for " + locName, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             if (aConcreteNames != null && !aConcreteNames.matches(
                     locConcreteConvention, "setter_method_name", locSetterName))
-                throw new IllegalArgumentException("SDO setter name does not match concrete naming profile: " + locSetterName);
+                throw new AIxCodegenValidationException("SDO setter name does not match concrete naming profile: " + locSetterName, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
             String locParameter = locAccessorCatalog.format(locSetterProfile, "method_parameter_name",
                     Map.of("identifier", locName), locIdentifierConvention);
             if (aConcreteNames != null && !aConcreteNames.matches(
                     locConcreteConvention, "method_parameter_name", locParameter))
-                throw new IllegalArgumentException("SDO parameter name does not match concrete naming profile: " + locParameter);
+                throw new AIxCodegenValidationException("SDO parameter name does not match concrete naming profile: " + locParameter, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
             String locLiteral = "\"" + escape(locName) + "\"";
             String locBoxed = boxed(locGetter.getReturnType(), locType);
             locInterface.append("    /** Typed writable access to field ")
@@ -471,7 +473,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                         .collect(java.util.stream.Collectors.joining(", "));
                 locInterface.append("    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition(name = \"")
                         .append(escape(locKey.name())).append("\", fields = {")
-                        .append(locPaths).append("})\n");
+                        .append(locPaths).append("}, required = ").append(locKey.required()).append(")\n");
             }
             locInterface.append("    ").append(defaultValueAnnotation(locGetter));
             locInterface.append("    ").append(smartFieldAnnotation(locGetter));
@@ -570,7 +572,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 Class<?> locTarget = referencedContract(locGetter);
                 if (locTarget == null) continue;
                 if (!AIiXmlDataObject.class.isAssignableFrom(locTarget))
-                    throw new IllegalArgumentException("XML field references a non-XML DataObject: " + locGetter);
+                    throw new AIxCodegenValidationException("XML field references a non-XML DataObject: " + locGetter, "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
                 String locName = semanticFieldId(locGetter, aInputNames);
                 locNested.put(locName, qualifiedName(locTarget,
                         typeName(locTarget, locMarker, false, aInputNames, aMutableNames, aConcreteNames),
@@ -704,7 +706,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 if (locRaw == eu.algites.lib.common.list.AIiMultiMappedList.class) {
                     Type locValue = locParameterized.getActualTypeArguments()[0];
                     if (locValue instanceof Class<?> locClass) return locClass;
-                    throw new IllegalArgumentException("Unresolved mapped-list element type: " + aType + " / " + locValue);
+                    throw new AIxCodegenValidationException("Unresolved mapped-list element type: " + aType + " / " + locValue, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
                 }
                 if (locRaw instanceof Class<?> locClass
                         && eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locClass)) {
@@ -717,7 +719,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 if (locResolved != null) return locResolved;
             }
         }
-        throw new IllegalArgumentException("Missing typed AIiMultiMappedList ancestor: " + aType);
+        throw new AIxCodegenValidationException("Missing typed AIiMultiMappedList ancestor: " + aType, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
     }
 
     /**
@@ -738,7 +740,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         }
         if (locMethod.getParameterCount() != 0 || locMethod.getReturnType() != String.class
                 || locMethod.getAnnotation(AIaDataObjectField.class) != null)
-            throw new IllegalArgumentException("Invalid synthetic map key accessor: " + locMethod);
+            throw new AIxCodegenValidationException("Invalid synthetic map key accessor: " + locMethod, "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
         return locMethod;
     }
 
@@ -875,7 +877,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
     private static String appendedPackage(String aPackage, String aSubpackage) {
         if (aSubpackage == null || aSubpackage.isBlank()) return aPackage;
         if (!aSubpackage.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*"))
-            throw new IllegalArgumentException("Invalid output subpackage: " + aSubpackage);
+            throw new AIxCodegenValidationException("Invalid output subpackage: " + aSubpackage, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
         return aPackage + "." + aSubpackage;
     }
 
@@ -918,7 +920,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             if (locPrevious != null &&
                     (!locPrevious.method().getGenericReturnType().equals(aField.method().getGenericReturnType())
                     || !locPrevious.field().equals(aField.field()))) {
-                throw new IllegalArgumentException("Conflicting inherited field: " + aName);
+                throw new AIxCodegenValidationException("Conflicting inherited field: " + aName, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             }
         });
     }
@@ -930,7 +932,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIcdGetter locParent = aResult.get(aName);
             if (locParent != null) {
                 if (!locParent.method().getReturnType().isAssignableFrom(aField.method().getReturnType()))
-                    throw new IllegalArgumentException("Incompatible restricted field type: " + aName);
+                    throw new AIxCodegenValidationException("Incompatible restricted field type: " + aName, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
                 var locBefore = locParent.field();
                 var locAfter = aField.field();
                 if (locBefore.presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED
@@ -938,7 +940,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                         || locBefore.presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.FORBIDDEN
                         && locAfter.presence() != eu.algites.lib.data.dataobject.AInFieldPresenceKind.FORBIDDEN
                         || !locBefore.allowsNull() && locAfter.allowsNull())
-                    throw new IllegalArgumentException("Invalid relaxation of field restriction: " + aName);
+                    throw new AIxCodegenValidationException("Invalid relaxation of field restriction: " + aName, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
             }
             aResult.put(aName, aField);
         });
@@ -958,13 +960,13 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     || locAnnotation.fieldName().equals(locDocument.dataSourceSchemaVersionField()))) return;
             if (aMethod.getParameterCount() != 0 || Modifier.isStatic(aMethod.getModifiers())
                     || aMethod.getReturnType() == void.class) {
-                throw new IllegalArgumentException("Annotated method is not a value getter: " + aMethod);
+                throw new AIxCodegenValidationException("Annotated method is not a value getter: " + aMethod, "Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.");
             }
             AIcdGetter locPrevious = locResult.putIfAbsent(semanticFieldId(aMethod, aInputNames), new AIcdGetter(aMethod, locAnnotation));
             if (locPrevious != null) {
-                throw new IllegalArgumentException("Two annotated getters resolve to the same semantic field: "
+                throw new AIxCodegenValidationException("Two annotated getters resolve to the same semantic field: "
                         + semanticFieldId(aMethod, aInputNames) + " (" + locPrevious.method().getName()
-                        + ", " + aMethod.getName() + ")");
+                        + ", " + aMethod.getName() + ")", "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
             }
         });
         return locResult;
@@ -986,15 +988,15 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         String locProfile = locMetadata != null && !locMetadata.namingConvention().isBlank()
                 ? locMetadata.namingConvention() : locCatalog.selectedRole(locRole);
         if (locProfile == null || locProfile.isBlank())
-            throw new IllegalArgumentException("Missing input getter naming profile for " + locOwner.getName());
+            throw new AIxCodegenValidationException("Missing input getter naming profile for " + locOwner.getName(), "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String locIdentifier = locCatalog.parse(locProfile, "getter_method_name", aGetter.getName())
                 .get("identifier");
         if (locIdentifier == null || locIdentifier.isBlank())
-            throw new IllegalArgumentException("Getter naming convention has no semantic identifier: " + aGetter);
+            throw new AIxCodegenValidationException("Getter naming convention has no semantic identifier: " + aGetter, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String locCanonical = AIcNameConventionCatalog.convertIdentifier(locIdentifier,
                 locCatalog.identifierConvention(locProfile, "getter_method_name"), "upper_camel_case_1");
         if (!locCanonical.matches("[A-Z][A-Za-z0-9]*"))
-            throw new IllegalArgumentException("Invalid canonical field identifier for " + aGetter + ": " + locCanonical);
+            throw new AIxCodegenValidationException("Invalid canonical field identifier for " + aGetter + ": " + locCanonical, "Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.");
         return locCanonical;
     }
 
@@ -1014,7 +1016,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             effectiveDataNames(locParent, aInputNames).forEach((aSemantic, aData) -> {
                 String locExisting = locNames.putIfAbsent(aSemantic, aData);
                 if (locExisting != null && !locExisting.equals(aData))
-                    throw new IllegalArgumentException("Conflicting inherited fieldName for " + aSemantic);
+                    throw new AIxCodegenValidationException("Conflicting inherited fieldName for " + aSemantic, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             });
         }
         for (var locEntry : fields(aType.getDeclaredMethods(), aInputNames).entrySet()) {
@@ -1022,8 +1024,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             String locExplicit = locEntry.getValue().field().fieldName();
             String locPrevious = locNames.get(locSemantic);
             if (locPrevious != null && !locExplicit.isBlank() && !locPrevious.equals(locExplicit))
-                throw new IllegalArgumentException("Inherited fieldName cannot be changed for " + locSemantic
-                        + " from " + locPrevious + " to " + locExplicit);
+                throw new AIxCodegenValidationException("Inherited fieldName cannot be changed for " + locSemantic
+                        + " from " + locPrevious + " to " + locExplicit, "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
             locNames.put(locSemantic, locExplicit.isBlank()
                     ? locPrevious == null ? locSemantic : locPrevious : locExplicit);
         }
@@ -1031,8 +1033,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         locNames.forEach((aSemantic, aData) -> {
             String locPrevious = locOwners.putIfAbsent(aData, aSemantic);
             if (locPrevious != null && !locPrevious.equals(aSemantic))
-                throw new IllegalArgumentException("Duplicate fieldName '" + aData + "' for getters "
-                        + locPrevious + " and " + aSemantic);
+                throw new AIxCodegenValidationException("Duplicate fieldName '" + aData + "' for getters "
+                        + locPrevious + " and " + aSemantic, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
         });
         return locNames;
     }
@@ -1041,7 +1043,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIiNameConventionCatalog aInput, AIiNameConventionCatalog aMutableCatalog,
             AIiNameConventionCatalog aConcreteCatalog) {
         if (aInput == null || aMutableCatalog == null || aConcreteCatalog == null)
-            throw new IllegalArgumentException("Missing required input/mutable/concrete SDO naming profiles");
+            throw new AIxCodegenValidationException("Missing required input/mutable/concrete SDO naming profiles", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String locSemanticRole = dataObjectRole(aContract);
         AIaDataObject locMetadata = aContract.getDeclaredAnnotation(AIaDataObject.class);
         String locSourceRole = locMetadata != null && !locMetadata.namingConvention().isBlank()
@@ -1057,7 +1059,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             AIiNameConventionCatalog aMutableCatalog, AIiNameConventionCatalog aConcreteCatalog,
             String aContractRole) {
         AIiNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
-        if (locTarget == null) throw new IllegalArgumentException("Missing SDO output naming profile");
+        if (locTarget == null) throw new AIxCodegenValidationException("Missing SDO output naming profile", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String locRole = locTarget.selectedRole(aContractRole);
         var locVars = locTarget.parse(locRole, "type_name", aType);
         String locConvention = locTarget.identifierConvention(locRole, "type_name");
@@ -1138,7 +1140,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             }
             return "java.lang.Object";
         }
-        throw new IllegalArgumentException("Field has no generically typed setter: " + aGetter);
+        throw new AIxCodegenValidationException("Field has no generically typed setter: " + aGetter, "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
     }
 
     /** Express a mutable getter and setter through the same interface-level variable. */

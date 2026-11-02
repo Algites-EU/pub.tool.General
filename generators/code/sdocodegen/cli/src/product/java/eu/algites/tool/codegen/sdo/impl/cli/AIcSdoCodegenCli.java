@@ -1,5 +1,8 @@
 package eu.algites.tool.codegen.sdo.impl.cli;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
+import eu.algites.tool.codegen.common.AIcCodegenDiagnostics;
 import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import eu.algites.tool.codegen.common.AIcCodegenArtifactResolver;
 import eu.algites.tool.codegen.sdo.AIcdGeneratedSdoSource;
@@ -40,10 +43,11 @@ public final class AIcSdoCodegenCli {
      * @throws Exception when configuration, compilation, classpath access, or writing fails
      */
     public static void main(String[] aArguments) throws Exception {
-        String[] locArgs = expandSettings(aArguments);
         String locPrevious = System.getProperty("algites.sdocodegen.setterInheritancePolicy");
         try {
-            batch(locArgs);
+            batch(expandSettings(aArguments));
+        } catch (Exception locFailure) {
+            AIcCodegenDiagnostics.exitOnExpectedError(locFailure, "SDO Codegen (Java)");
         } finally {
             if (locPrevious == null) System.clearProperty("algites.sdocodegen.setterInheritancePolicy");
             else System.setProperty("algites.sdocodegen.setterInheritancePolicy", locPrevious);
@@ -56,8 +60,8 @@ public final class AIcSdoCodegenCli {
 
     private static void requireQualifiers(String[] aQualified, String aTechnology) {
         if (aQualified.length != 2 || !aQualified[1].equals(aTechnology))
-            throw new IllegalArgumentException("Expected option qualified by :" + aTechnology
-                    + " but received " + String.join(":", aQualified));
+            throw new AIxCodegenValidationException("Expected option qualified by :" + aTechnology
+                    + " but received " + String.join(":", aQualified), "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
     }
 
     private static void batch(String[] aArgs) throws Exception {
@@ -81,7 +85,7 @@ public final class AIcSdoCodegenCli {
             if (locOption.equals("--clean-only")) { locClean = true; continue; }
             int locEquals = locOption.indexOf('=');
             if (locEquals < 3 || !locOption.startsWith("--"))
-                throw new IllegalArgumentException("Invalid SDO CLI option: " + locOption);
+                throw new AIxCodegenValidationException("Invalid SDO CLI option: " + locOption, "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
             String locName = locOption.substring(2, locEquals);
             String locValue = locOption.substring(locEquals + 1);
             String[] locQualified = locName.split(":");
@@ -91,13 +95,13 @@ public final class AIcSdoCodegenCli {
                 case "setter-inheritance-policy" -> {
                     var locPolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.valueOf(locValue);
                     if (locPolicy == eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.DEFAULT)
-                        throw new IllegalArgumentException("Explicit default setter policy must be concrete");
+                        throw new AIxCodegenValidationException("Explicit default setter policy must be concrete", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
                     System.setProperty("algites.sdocodegen.setterInheritancePolicy", locPolicy.name());
                 }
                 case "repository-root" -> locRepository = Path.of(locValue).toAbsolutePath().normalize();
                 case "naming-conventions-file" -> {
                     if (locQualified.length != 2 || locQualified[1].isBlank())
-                        throw new IllegalArgumentException("Catalog option needs a unique qualifier: " + locOption);
+                        throw new AIxCodegenValidationException("Catalog option needs a unique qualifier: " + locOption, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                     locCatalogSources.add(locValue);
                 }
                 case "generated-dataobject-method-naming-convention" -> {
@@ -131,27 +135,27 @@ public final class AIcSdoCodegenCli {
                 case "input-technology-naming-convention" -> {
                     if (locQualified.length != 4 || !locQualified[1].equals("java")
                             || !ROLES.contains(locQualified[2]) || !locQualified[3].equals("defsintf"))
-                        throw new IllegalArgumentException("Expected :java:role:defsintf in " + locOption);
+                        throw new AIxCodegenValidationException("Expected :java:role:defsintf in " + locOption, "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
                     locInputRoles.put(locQualified[2], locValue);
                 }
                 case "output-technology-naming-convention" -> {
                     if (locQualified.length != 4 || !locQualified[1].equals("java")
                             || !ROLES.contains(locQualified[2]))
-                        throw new IllegalArgumentException("Expected :java:role:output in " + locOption);
+                        throw new AIxCodegenValidationException("Expected :java:role:output in " + locOption, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
                     if (locQualified[3].equals("sdointf"))
                         locMutableRoles.put(locQualified[2], locValue);
                     else if (locQualified[3].equals("sdoclass"))
                         locConcreteRoles.put(locQualified[2], locValue);
-                    else throw new IllegalArgumentException("Unknown SDO naming output: " + locOption);
+                    else throw new AIxCodegenValidationException("Unknown SDO naming output: " + locOption, "Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.");
                 }
-                default -> throw new IllegalArgumentException("Unknown SDO CLI argument: " + locOption);
+                default -> throw new AIxCodegenValidationException("Unknown SDO CLI argument: " + locOption, "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
             }
         }
-        if (locCheck && locClean) throw new IllegalArgumentException("--check conflicts with --clean-only");
+        if (locCheck && locClean) throw new AIxCodegenValidationException("--check conflicts with --clean-only", "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
         Path locMutableRoot = root(locRepository, locDirectories.get("technology-sdointf-output-dir"));
         Path locConcreteRoot = root(locRepository, locDirectories.get("technology-sdoimpl-output-dir"));
         if (locMutableRoot == null || locConcreteRoot == null)
-            throw new IllegalArgumentException("Configure both Java SDO output roots");
+            throw new AIxCodegenValidationException("Configure both Java SDO output roots", "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
         List<String> locSources = new ArrayList<>();
         for (String locItem : locCatalogSources) {
             String locResolved = AIcNamingCatalogSource.normalize(locItem);
@@ -231,15 +235,15 @@ public final class AIcSdoCodegenCli {
             String locMutableRole = outputRole(locResult.mutableInterface(), locMutableRoles);
             String locConcreteRole = outputRole(locResult.implementation(), locConcreteRoles);
             if (locMutableRole == null || locConcreteRole == null)
-                throw new IllegalArgumentException("SDO output naming profile mismatch: " + locResult.mutableInterface().typeName());
+                throw new AIxCodegenValidationException("SDO output naming profile mismatch: " + locResult.mutableInterface().typeName(), "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         }
         Set<Path> locPaths = new LinkedHashSet<>();
         for (AIcdSdoGenerationResult locResult : locResults.values()) {
             Path locMutablePath = locMutableRoot.resolve(locResult.mutableInterface().relativePath()).normalize();
             Path locConcretePath = locConcreteRoot.resolve(locResult.implementation().relativePath()).normalize();
             if (!locPaths.add(locMutablePath) || !locPaths.add(locConcretePath))
-                throw new IllegalArgumentException("SDO naming roles generate duplicate output path: "
-                        + locMutablePath + " / " + locConcretePath);
+                throw new AIxCodegenValidationException("SDO naming roles generate duplicate output path: "
+                        + locMutablePath + " / " + locConcretePath, "Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.");
         }
         if (!locCheck)
             cleanOutputs(locMutableRoot, locConcreteRoot, locNames, locMutableRoles, locConcreteRoles);
@@ -324,10 +328,10 @@ public final class AIcSdoCodegenCli {
 
     private static void write(Path aRoot, AIcdGeneratedSdoSource aSource, boolean aCheck) throws IOException {
         Path locFile = aRoot.resolve(aSource.relativePath()).normalize();
-        if (!locFile.startsWith(aRoot)) throw new IllegalArgumentException("Generated output escapes root");
+        if (!locFile.startsWith(aRoot)) throw new AIxCodegenValidationException("Generated output escapes root", "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
         if (aCheck) {
             if (!Files.isRegularFile(locFile) || !Files.readString(locFile).equals(aSource.source()))
-                throw new IllegalStateException("Outdated generated SDO source: " + locFile);
+                throw new AIxCodegenValidationException("Outdated generated SDO source: " + locFile, "Run SDO Codegen in generation mode to update its managed output, then repeat --check.");
         } else {
             Files.createDirectories(locFile.getParent());
             if (!Files.isRegularFile(locFile) || !Files.readString(locFile).equals(aSource.source()))

@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy;
 
 /**
@@ -21,10 +23,10 @@ public final class AIcSetterInheritancePolicyConfiguration {
         try {
             AInFieldSetterInheritancePolicy locPolicy = AInFieldSetterInheritancePolicy.valueOf(locValue);
             if (locPolicy == AInFieldSetterInheritancePolicy.DEFAULT)
-                throw new IllegalArgumentException("Unresolved setter inheritance policy: DEFAULT");
+                throw new AIxCodegenValidationException("Unresolved setter inheritance policy: DEFAULT", "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
             return locPolicy;
         } catch (IllegalArgumentException aFailure) {
-            throw new IllegalArgumentException("Invalid setterInheritancePolicy: " + locValue, aFailure);
+            throw new AIxCodegenValidationException("Invalid setterInheritancePolicy: " + locValue, "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.", null, null, aFailure);
         }
     }
 }

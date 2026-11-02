@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from eu.algites.tool.codegen.defs.impl.standard._schema_loading import load_schema
 
 import json
@@ -19,7 +21,7 @@ class AIcJsonDefsFrontend:
         profile = request.source_naming_profile
         catalog = request.naming_profile
         if not profile or catalog is None or profile not in catalog.names:
-            raise ValueError(f'Missing configured {self.source_kind} source naming convention: {request.path}')
+            raise AIxCodegenValidationException(f'Missing configured {self.source_kind} source naming convention: {request.path}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         fields = catalog.schema_metadata_fields(profile) if profile else {}
         return self._reader.read(root, request, self.source_kind,
             fields.get('schema_source_schema_identifier', ''),

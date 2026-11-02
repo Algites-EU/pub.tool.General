@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 from copy import deepcopy
 from dataclasses import dataclass, replace
 import json
@@ -72,23 +74,23 @@ class AIcSchemaContractBindingsGenerator:
                                for language in output_roots}
             source_catalogs = {kind: shared_names for kind in manifest.get('schema_input_naming_conventions', {})}
         if not configured and not manifest.get('technology_naming_profiles'):
-            raise ValueError('No explicit output naming catalog configured')
+            raise AIxCodegenValidationException('No explicit output naming catalog configured', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         if explicit and not configured:
             for technology in output_roots:
                 if technology not in catalogs:
-                    raise ValueError('Missing target naming catalog: ' + technology)
+                    raise AIxCodegenValidationException('Missing target naming catalog: ' + technology, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         # Only paths listed in generator ownership state can be deleted. Filename
         # convention matching is not proof of ownership when profiles are shared.
         state = repository / 'build/run/schema-contract-bindings/generated-files.json'
         previously_recorded = json.loads(state.read_text(encoding='utf-8')) if state.is_file() else []
         if not isinstance(previously_recorded, list) or any(not isinstance(x, str) for x in previously_recorded):
-            raise ValueError(f'Invalid generation ownership file: {state}')
+            raise AIxCodegenValidationException(f'Invalid generation ownership file: {state}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         previously_owned = set()
         unrelated_owned = set()
         for old in previously_recorded:
             stale = self._inside(repository, old)
             if not any(part.endswith('.gen') for part in stale.parts):
-                raise ValueError(f'Invalid ownership state: {old}')
+                raise AIxCodegenValidationException(f'Invalid ownership state: {old}', 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
             if any(stale.is_relative_to(root) for root in output_roots.values()):
                 previously_owned.add(stale)
             else:
@@ -116,7 +118,7 @@ class AIcSchemaContractBindingsGenerator:
             suffix = {'jsondefs': '.jsondef.schema.json', 'yamldefs': '.yamldef.schema.json', 'xmldefs': '.xsd'}[kind]
             root = Path(source_input['directory']).resolve() if Path(source_input['directory']).is_absolute() else self._inside(repository, source_input['directory'])
             if not root.is_relative_to(repository):
-                raise ValueError('Schema root escapes repository: ' + str(root))
+                raise AIxCodegenValidationException('Schema root escapes repository: ' + str(root), 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
             if not root.is_dir():
                 print(f'Defs Codegen: skipping configured {kind} input directory (not found): {root}', file=__import__('sys').stderr)
                 continue
@@ -126,7 +128,7 @@ class AIcSchemaContractBindingsGenerator:
                     continue
                 schema = source.relative_to(repository).as_posix()
                 if schema in root_by_source:
-                    raise ValueError('Overlapping schema input roots: ' + schema)
+                    raise AIxCodegenValidationException('Overlapping schema input roots: ' + schema, 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
                 root_by_source[schema] = root
                 kind_by_source[schema] = kind
                 if configured and kind not in source_catalogs:
@@ -136,23 +138,23 @@ class AIcSchemaContractBindingsGenerator:
                     recognized = source_catalogs[kind].recognize_filename(source.name,
                         {loc_profile} if loc_profile else None)
                     if recognized is None:
-                        raise ValueError('Schema filename violates input naming profile: ' + schema)
+                        raise AIxCodegenValidationException('Schema filename violates input naming profile: ' + schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
                     profile_by_source[schema] = recognized.convention_name
                     if not manifest.get('allow_unversioned_schemas', False) and 'version' not in recognized.variables:
-                        raise ValueError('Unversioned schema is not allowed: ' + schema)
+                        raise AIxCodegenValidationException('Unversioned schema is not allowed: ' + schema, 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
                 document = {} if kind == 'xmldefs' else load_schema(source)
                 if kind != 'xmldefs':
                     source_catalog = source_catalogs.get(kind)
                     source_profile = profile_by_source.get(schema)
                     if source_catalog is None or not source_profile:
-                        raise ValueError('Missing source naming catalog/profile for ' + schema)
+                        raise AIxCodegenValidationException('Missing source naming catalog/profile for ' + schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
                     id_field = source_catalog.schema_metadata_fields(source_profile).get(
                         'schema_source_schema_identifier', '')
                     declared_identity_by_source[schema] = bool(id_field and document.get(id_field))
                 match = source_catalogs[kind].recognize_filename(source.name,
                     {profile_by_source[schema]})
                 if match is None or not match.variables.get('identifier'):
-                    raise ValueError('Schema file name cannot be parsed by source profile: ' + schema)
+                    raise AIxCodegenValidationException('Schema file name cannot be parsed by source profile: ' + schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
                 base = match.variables['identifier']
                 if kind == 'xmldefs':
                     units.append(self.AIcdUnit(schema, '', base, {}, {}))
@@ -168,7 +170,7 @@ class AIcSchemaContractBindingsGenerator:
         discovered = {unit.schema + '#' + unit.pointer for unit in units}
         for key in overrides:
             if key not in discovered:
-                raise ValueError(f'Binding override no longer identifies a schema object: {key}')
+                raise AIxCodegenValidationException(f'Binding override no longer identifies a schema object: {key}', 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
 
         # No-namespace XML declarations are scoped to their defining schema, not
         # to one fictitious global {} QName registry shared by unrelated XSDs.
@@ -181,7 +183,7 @@ class AIcSchemaContractBindingsGenerator:
                 continue
             source = self._inside(repository, unit.schema)
             if not target_profiles:
-                raise ValueError('No output naming profile configured')
+                raise AIxCodegenValidationException('No output naming profile configured', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
             load = AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS,
                 next(iter(target_profiles.values())), profile_by_source[unit.schema])
             if unit.pointer.startswith('@type/') and xml_scope_frontend.is_synthetic_choice_type_name(
@@ -208,7 +210,7 @@ class AIcSchemaContractBindingsGenerator:
             kind = kind_by_source[unit.schema]
             package = source.parent.relative_to(root_by_source[unit.schema]).as_posix().replace('/', '.')
             if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*', package):
-                raise ValueError(f'Schema must have a legal package path: {unit.schema}')
+                raise AIxCodegenValidationException(f'Schema must have a legal package path: {unit.schema}', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
             projection = deepcopy(unit.node)
             fields = {}
             if kind != 'xmldefs':
@@ -217,7 +219,7 @@ class AIcSchemaContractBindingsGenerator:
                 source_catalog = source_catalogs.get(kind)
                 source_profile = profile_by_source.get(unit.schema)
                 if source_catalog is None or not source_profile:
-                    raise ValueError('Missing source naming catalog/profile for ' + unit.schema)
+                    raise AIxCodegenValidationException('Missing source naming catalog/profile for ' + unit.schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
                 fields = source_catalog.schema_metadata_fields(source_profile) if source_catalog and source_profile else {}
                 id_key = fields.get('schema_source_schema_identifier', '')
                 version_key = fields.get('schema_source_schema_version', '')
@@ -234,7 +236,7 @@ class AIcSchemaContractBindingsGenerator:
                 target = AInCodeGenerationTarget(language)
                 profile = target_profiles.get(language)
                 if profile is None:
-                    raise ValueError(f'No output naming profile configured for {language}')
+                    raise AIxCodegenValidationException(f'No output naming profile configured for {language}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
                 load = AIcdDefinitionLoadRequest(source,
                     {'yamldefs': AInDefinitionSourceKind.YAMLDEFS, 'jsondefs': AInDefinitionSourceKind.JSONDEFS,
                      'xmldefs': AInDefinitionSourceKind.XMLDEFS}[kind], profile,
@@ -257,7 +259,7 @@ class AIcSchemaContractBindingsGenerator:
                     if output_fields.get(output_key) and (
                             not fields.get(f'schema_source_schema_{suffix}')
                             or not output_fields.get(f'schema_source_schema_{suffix}')):
-                        raise ValueError(f'{unit.schema}: {output_key} has no schema source')
+                        raise AIxCodegenValidationException(f'{unit.schema}: {output_key} has no schema source', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
                 definition = replace(definition, source_resource=unit.schema + ('#' + unit.pointer if unit.pointer else ''),
                     data_source_schema_url_field=output_fields.get('data_source_schema_url', ''),
                     data_source_schema_identifier_field=output_fields.get('data_source_schema_identifier', ''),
@@ -338,7 +340,7 @@ class AIcSchemaContractBindingsGenerator:
                 candidate.xml_type_qname)
             previous = xml_type_requests.setdefault(key, candidate)
             if previous.package_name != candidate.package_name:
-                raise ValueError(f'Ambiguous XML named type {candidate.xml_type_qname}')
+                raise AIxCodegenValidationException(f'Ambiguous XML named type {candidate.xml_type_qname}', 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')
         # Resolve one XML namespace marker per target/namespace across all schema packages.
         # Only XML requests participate; JSON and YAML have no namespace interfaces.
         def namespace_key(language, namespace, req):
@@ -362,7 +364,7 @@ class AIcSchemaContractBindingsGenerator:
         def namespace_ref(language, namespace, req):
             owner = xml_namespace_owners.get(namespace_key(language, namespace, req))
             if owner is None:
-                raise ValueError('Missing generated XML namespace contract: ' + namespace)
+                raise AIxCodegenValidationException('Missing generated XML namespace contract: ' + namespace, 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')
             name, stem, module = xml_namespaces.namespace_contract(owner, namespace)
             return module + '.' + name if language == 'python' else owner.package_name + '.' + name
 
@@ -443,13 +445,13 @@ class AIcSchemaContractBindingsGenerator:
                     common_names = {generator.generate(item).type_name
                         for _, item in candidate_inlines}
                     if len(common_names) != 1:
-                        raise ValueError('Ambiguous common XML item bridge: '
-                            + xml_request.definition.source_resource + ':' + xml_field.source_name)
+                        raise AIxCodegenValidationException('Ambiguous common XML item bridge: '
+                            + xml_request.definition.source_resource + ':' + xml_field.source_name, 'Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.')
                     key = (xml_request.target.value, xml_origin.schema, named_pointer)
                     selected = candidate_inlines[0][1]
                     previous = xml_inline_bridges.setdefault(key, selected)
                     if generator.generate(previous).type_name != generator.generate(selected).type_name:
-                        raise ValueError('Conflicting common XML item bridge: ' + str(key))
+                        raise AIxCodegenValidationException('Conflicting common XML item bridge: ' + str(key), 'Check xs:key/xs:unique selectors and all xs:field paths against the selected repeated element. A key requires complete values; a unique constraint permits absent values.')
                     replacements[xml_field.source_name] = named_xml.definition.data_type
             if replacements:
                 xml_common_projections[id(xml_request)] = replacements
@@ -500,8 +502,8 @@ class AIcSchemaContractBindingsGenerator:
                         for r in xml_nested)):
                         identities = document_ids
             if len(identities) != 1:
-                raise ValueError('Canonical identity collision for one generated output: ' +
-                    str([(r.definition.identity, r.definition.source_resource) for r in representations]))
+                raise AIxCodegenValidationException('Canonical identity collision for one generated output: ' +
+                    str([(r.definition.identity, r.definition.source_resource) for r in representations]), 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
             if common_role and len(representations) > 1:
                 from eu.algites.tool.codegen.defs.impl.standard.aic_common_contract_projection import merge_common
                 common_definitions = []
@@ -546,13 +548,13 @@ class AIcSchemaContractBindingsGenerator:
                             matching = next((field for field in doc_rep.definition.data_type.properties
                                 if field.source_name == xml_field.source_name), None)
                             if matching is not None and matching.data_type.kind is AInDataTypeKind.OBJECT:
-                                raise ValueError('Incompatible shared XML/JSON/YAML getter: '
+                                raise AIxCodegenValidationException('Incompatible shared XML/JSON/YAML getter: '
                                     + xml_rep.definition.logical_name + '.' + xml_field.source_name
                                     + ': XML inline complex type currently emits Map<String,Object> '
                                     + 'but the JSON/YAML contract emits a named interface; '
                                     + 'define compatible schema representations or explicit mapping. '
                                     + 'Sources: ' + xml_rep.definition.source_resource + ' ; '
-                                    + doc_rep.definition.source_resource)
+                                    + doc_rep.definition.source_resource, 'Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.')
             else:
                 merged = AIcCanonicalDefinitionMerger.merge_strict((r.definition for r in representations),
                     repository, naming_profile=first.naming_profile)
@@ -562,32 +564,32 @@ class AIcSchemaContractBindingsGenerator:
                 for unit in relation:
                     request = unit_requests.get((first.target.value, first.contract_role, unit.schema, unit.pointer))
                     if request is None:
-                        raise ValueError('explicit parent has no generated contract in role '
-                                         + first.contract_role + ': ' + unit.schema + '#' + unit.pointer)
+                        raise AIxCodegenValidationException('explicit parent has no generated contract in role '
+                                         + first.contract_role + ': ' + unit.schema + '#' + unit.pointer, 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
                     result.append((request.package_name, generator.generate(request).type_name))
                 return tuple(result)
             expected_parents = represented_parents(parent_relations[0])
             shared_parents = all(represented_parents(relation) == expected_parents
                                  for relation in parent_relations)
             if not shared_parents and not common_role:
-                raise ValueError('Conflicting explicit parents across schema representations')
+                raise AIxCodegenValidationException('Conflicting explicit parents across schema representations', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
             parent_requests = []
             for unit in (parent_relations[0] if shared_parents else ()) :
                 inherited = unit_requests.get((first.target.value, first.contract_role, unit.schema, unit.pointer))
                 if inherited is None:
-                    raise ValueError('explicit parent has no generated contract in role ' + first.contract_role
-                                     + ': ' + unit.schema + '#' + unit.pointer)
+                    raise AIxCodegenValidationException('explicit parent has no generated contract in role ' + first.contract_role
+                                     + ': ' + unit.schema + '#' + unit.pointer, 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
                 parent_requests.append(inherited)
             parent = None
             additional_parents = []
             inherited_fields = {}
             for inherited in parent_requests:
                 if inherited.definition.data_type.kind is not AInDataTypeKind.OBJECT or merged.data_type.kind is not AInDataTypeKind.OBJECT:
-                    raise ValueError('explicit inheritance must connect object contracts')
+                    raise AIxCodegenValidationException('explicit inheritance must connect object contracts', 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
                 for field in inherited.definition.data_type.properties:
                     existing = inherited_fields.setdefault(field.source_name, field)
                     if self._field_shape(existing) != self._field_shape(field):
-                        raise ValueError('Conflicting fields among explicit parents: ' + field.source_name)
+                        raise AIxCodegenValidationException('Conflicting fields among explicit parents: ' + field.source_name, 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
                 preview = generator.generate(inherited)
                 parent_module = inherited.package_name
                 if first.target is AInCodeGenerationTarget.PYTHON:
@@ -602,7 +604,7 @@ class AIcSchemaContractBindingsGenerator:
                     inherited_field = inherited_fields.get(field.source_name)
                     if inherited_field is None or self._field_shape(field) != self._field_shape(inherited_field):
                         if inherited_field is not None and not self._field_narrows(inherited_field, field):
-                            raise ValueError('Conflicting inherited field: ' + field.source_name)
+                            raise AIxCodegenValidationException('Conflicting inherited field: ' + field.source_name, 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
                         own_fields.append(field)
                 merged = replace(merged, data_type=merged.data_type.with_properties(tuple(own_fields)))
             if first.xml_type_qname is not None and first.contract_role != 'common':
@@ -618,7 +620,7 @@ class AIcSchemaContractBindingsGenerator:
             if first.xml_type_qname is not None:
                 xml_origin = units_by_resource.get(first.definition.source_resource)
                 if xml_origin is None:
-                    raise ValueError(f'Unknown XSD source {first.definition.source_resource}')
+                    raise AIxCodegenValidationException(f'Unknown XSD source {first.definition.source_resource}', 'Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.')
                 load = AIcdDefinitionLoadRequest(self._inside(repository, xml_origin.schema),
                     AInDefinitionSourceKind.XMLDEFS, first.naming_profile,
                     profile_by_source[xml_origin.schema])
@@ -629,10 +631,10 @@ class AIcSchemaContractBindingsGenerator:
                     inherited = xml_type_requests.get((first.target, first.contract_role,
                         first.package_name if parent_qname.startswith('{}') else '', parent_qname))
                     if inherited is None or inherited == first:
-                        raise ValueError('XML extension base has no independently emitted contract: '
-                            + parent_qname + ' for ' + first.xml_type_qname)
+                        raise AIxCodegenValidationException('XML extension base has no independently emitted contract: '
+                            + parent_qname + ' for ' + first.xml_type_qname, 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')
                     if merged.data_type.kind is not AInDataTypeKind.OBJECT or inherited.definition.data_type.kind is not AInDataTypeKind.OBJECT:
-                        raise ValueError('XML extension requires object contracts')
+                        raise AIxCodegenValidationException('XML extension requires object contracts', 'Compare the derived XSD type with its base. A restriction must not add fields, widen cardinality, or relax inherited type constraints.')
                     inherited_fields = {field.source_name: field for field in inherited.definition.data_type.properties}
                     own_fields = []
                     for field in merged.data_type.properties:
@@ -640,7 +642,7 @@ class AIcSchemaContractBindingsGenerator:
                         if base_field is None:
                             own_fields.append(field)
                         elif self._field_shape(base_field) != self._field_shape(field):
-                            raise ValueError(f'Incompatible inherited XML extension field: {field.source_name}')
+                            raise AIxCodegenValidationException(f'Incompatible inherited XML extension field: {field.source_name}', 'Compare the derived XSD type with its base. A restriction must not add fields, widen cardinality, or relax inherited type constraints.')
                     from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
                     merged = replace(merged, data_type=merged.data_type.with_properties(tuple(own_fields)))
                     preview = generator.generate(inherited)
@@ -653,8 +655,16 @@ class AIcSchemaContractBindingsGenerator:
                 alternative = None
                 if (merged.source_kind is not AInDefinitionSourceKind.XMLDEFS
                         and merged.data_type is not None and merged.data_type.kind in
-                        (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF) and index > 0):
-                    alternative = merged.data_type.alternatives[index - 1]
+                        (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF)):
+                    # One top-level choice source is followed by inline payload
+                    # definitions, then one selected-value wrapper per branch.
+                    # Mapping by index-1 was valid only when payloads were
+                    # accidentally not emitted; it breaks multi-branch choices.
+                    payload_count = sum(option.kind is AInDataTypeKind.OBJECT
+                        for option in merged.data_type.alternatives)
+                    wrapper_index = index - 1 - payload_count
+                    if 0 <= wrapper_index < len(merged.data_type.alternatives):
+                        alternative = merged.data_type.alternatives[wrapper_index]
                 choice_reference = alternative.reference if alternative is not None and alternative.kind is AInDataTypeKind.REFERENCE else None
                 rendered = pair.source
                 if additional_parents:
@@ -691,10 +701,10 @@ class AIcSchemaContractBindingsGenerator:
                                 declaration = f'public sealed interface {pair.type_name}'
                                 start = rendered.find(declaration)
                                 if start < 0:
-                                    raise ValueError('Expected closed choice interface: ' + pair.type_name)
+                                    raise AIxCodegenValidationException('Expected closed choice interface: ' + pair.type_name, 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')
                                 permits = rendered.find(' permits ', start + len(declaration))
                                 if permits < 0:
-                                    raise ValueError('Expected closed choice permit list: ' + pair.type_name)
+                                    raise AIxCodegenValidationException('Expected closed choice permit list: ' + pair.type_name, 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
                                 suffix = rendered[start + len(declaration):permits]
                                 common_parent = common.package_name + '.' + preview.type_name
                                 if suffix.startswith(' extends '):
@@ -702,7 +712,7 @@ class AIcSchemaContractBindingsGenerator:
                                 elif not suffix:
                                     suffix = ' extends ' + common_parent
                                 else:
-                                    raise ValueError('Unexpected sealed choice declaration: ' + suffix)
+                                    raise AIxCodegenValidationException('Unexpected sealed choice declaration: ' + suffix, 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')
                                 rendered = rendered[:start + len(declaration)] + suffix + rendered[permits:]
                         else:
                             stem = preview.relative_path.rsplit('/', 1)[-1].removesuffix('.py')
@@ -768,7 +778,7 @@ class AIcSchemaContractBindingsGenerator:
                         if language == 'python' else '') + preview.type_name
                     types = local_types.setdefault(schema, {}) if root_qname.startswith('{}') else type_index
                     if root_qname in types and types[root_qname] != qualified:
-                        raise ValueError('Duplicate XML content type: ' + root_qname + ' in ' + schema)
+                        raise AIxCodegenValidationException('Duplicate XML content type: ' + root_qname + ' in ' + schema, 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')
                     types[root_qname] = qualified
                 if pointer:
                     continue
@@ -781,7 +791,7 @@ class AIcSchemaContractBindingsGenerator:
                     qualified = req.package_name + '.' + (stem + '.' if language == 'python' else '') + element_name
                     elements = local_elements.setdefault(schema, {}) if not element.namespace else element_index
                     if element.qname in elements:
-                        raise ValueError('Duplicate XML global element: ' + element.qname + ' in ' + schema)
+                        raise AIxCodegenValidationException('Duplicate XML global element: ' + element.qname + ' in ' + schema, 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')
                     elements[element.qname] = qualified
                     declarations.append((schema, req, element))
             for schema, req, element in declarations:
@@ -814,12 +824,12 @@ class AIcSchemaContractBindingsGenerator:
         for stale in sorted(previously_owned - set(pending)):
             if stale.is_file():
                 if check:
-                    raise ValueError(f'Stale generated binding: {stale}')
+                    raise AIxCodegenValidationException(f'Stale generated binding: {stale}', 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
                 stale.unlink()
         for path, source in sorted(pending.items()):
             if check:
                 if not path.is_file() or path.read_text(encoding='utf-8') != source:
-                    raise ValueError(f'Missing or outdated generated binding: {path}')
+                    raise AIxCodegenValidationException(f'Missing or outdated generated binding: {path}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
             else:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 if not path.is_file() or path.read_text(encoding='utf-8') != source:
@@ -869,15 +879,28 @@ class AIcSchemaContractBindingsGenerator:
     def _common_identity(definition, package_name, identity):
         """Normalize proven serialization aliases of the same common contract.
 
-        The Algites XML schema namespace is a URN whose suffix consists of the
-        package, root schema name and version. JSONDEFS/YAMLDEFS declare the
-        corresponding dotted canonical ID without the version suffix. Accept
-        the URN only when *all* three components match this contract exactly;
-        unrelated URNs must continue to fail the canonical-identity guard.
+        Recognize an exact publication URL for a versioned root schema only
+        when its path matches the package, logical schema name and version.
+        Existing strictly guarded legacy URN aliases remain supported.
+        Unrelated namespace URIs do not become equivalent merely because
+        their generated declarations share a simple name.
         """
         if identity[0] != 'explicit':
             return identity
         value = str(identity[1])
+        if ('#' not in definition.source_resource
+                and value.startswith('https://defs.dev.algites.eu/api/schema/')
+                and definition.version is not None):
+            # A publication URL is the exact global XSD namespace, whereas the
+            # format-neutral JSON/YAML contract has an explicit logical ID.
+            # Only match the URL when its directory maps to the generated
+            # package and its versioned filename maps to the logical schema.
+            expected = ('https://defs.dev.algites.eu/api/schema/'
+                + package_name.replace('.', '/') + '/'
+                + definition.logical_name + '_' + str(definition.version) + '.schema')
+            if value == expected:
+                return ('explicit', package_name + '.' + definition.logical_name,
+                        definition.version)
         if (definition.source_kind.name == 'XMLDEFS' and
                 package_name.startswith('eu.algites.') and
                 definition.version is not None):
@@ -920,18 +943,18 @@ class AIcSchemaContractBindingsGenerator:
         """Resolve only explicit Defs Codegen parents; constraints never define inheritance."""
         references = unit.node.get('x-algites-defscodegen-extends', [])
         if not isinstance(references, list) or any(not isinstance(item, str) for item in references):
-            raise ValueError('x-algites-defscodegen-extends must be an array of URI references')
+            raise AIxCodegenValidationException('x-algites-defscodegen-extends must be an array of URI references', 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
         parents = []
         for reference in references:
             parts = urlsplit(reference)
             if parts.fragment and not unquote(parts.fragment).startswith('/'):
-                raise ValueError('Unsupported explicit parent anchor: ' + reference)
+                raise AIxCodegenValidationException('Unsupported explicit parent anchor: ' + reference, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
             if parts.scheme and parts.scheme != 'file':
                 matches = [candidate for candidate in index.values()
                     if candidate.document.get('$id') == reference.split('#', 1)[0]
                     and candidate.pointer == unquote(parts.fragment)]
                 if len(matches) != 1:
-                    raise ValueError('Unresolved or ambiguous explicit parent: ' + reference)
+                    raise AIxCodegenValidationException('Unresolved or ambiguous explicit parent: ' + reference, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
                 parents.append(matches[0])
                 continue
             if parts.scheme == 'file':
@@ -940,14 +963,14 @@ class AIcSchemaContractBindingsGenerator:
                 target = (repository / unit.schema).parent / unquote(parts.path) if parts.path else repository / unit.schema
             target = Path(os.path.abspath(target))
             if not target.is_relative_to(repository):
-                raise ValueError('explicit parent escapes repository: ' + reference)
+                raise AIxCodegenValidationException('explicit parent escapes repository: ' + reference, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
             pointer = unquote(parts.fragment)
             parent = index.get((target.relative_to(repository).as_posix(), pointer))
             if parent is None:
-                raise ValueError('explicit parent is not an emitted contract: ' + reference)
+                raise AIxCodegenValidationException('explicit parent is not an emitted contract: ' + reference, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
             parents.append(parent)
         if len({(unit.schema, unit.pointer) for unit in parents}) != len(parents):
-            raise ValueError('Duplicate explicit parent in ' + unit.schema)
+            raise AIxCodegenValidationException('Duplicate explicit parent in ' + unit.schema, 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
         return tuple(parents)
 
     @staticmethod
@@ -975,7 +998,7 @@ class AIcSchemaContractBindingsGenerator:
                          r.definition.source_resource.split('#', 1)[0].endswith('/' + published)))
                     or r.definition.identity == resource)}
             if len(candidates) != 1:
-                raise ValueError(f'Cannot resolve generated reference package: {ref.identity} in {owner}')
+                raise AIxCodegenValidationException(f'Cannot resolve generated reference package: {ref.identity} in {owner}', 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
             package = next(iter(candidates))
             if package == request.package_name:
                 continue
@@ -1002,7 +1025,7 @@ class AIcSchemaContractBindingsGenerator:
             return
         override = overrides.get(schema + '#' + pointer)
         if override is not None and override.get('common_one_of_fields', False):
-            raise ValueError('common_one_of_fields is obsolete: declare shared properties directly')
+            raise AIxCodegenValidationException('common_one_of_fields is obsolete: declare shared properties directly', 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')
         if not pointer or pointer.endswith('/additionalProperties') or node.get('type') == 'object' or 'properties' in node or 'enum' in node or 'x-algites-defscodegen-choice' in node:
             result.append(self.AIcdUnit(schema, pointer, override['name'] if override is not None else name, node, document))
         for keyword in ('properties', '$defs', 'definitions', 'patternProperties'):
@@ -1010,7 +1033,16 @@ class AIcSchemaContractBindingsGenerator:
                 token = key.replace('~', '~0').replace('/', '~1')
                 if keyword in ('$defs', 'definitions'):
                     from .aic_declared_type_identity import canonical_type_identifier
-                    child_name = canonical_type_identifier(source_catalog, source_profile, key)
+                    try:
+                        child_name = canonical_type_identifier(source_catalog, source_profile, key)
+                    except ValueError as failure:
+                        raise AIxCodegenValidationException(
+                            str(failure),
+                            'Rename this $defs/definitions type according to the selected '
+                            'type_name profile and update all $ref references. '
+                            'Do not rename ordinary document property names.',
+                            source=str(schema),
+                            location='#' + pointer + '/' + keyword + '/' + token) from failure
                 else:
                     child_name = name + ('-pattern-' if keyword == 'patternProperties' else '-') + self._kebab(key)
                 self._collect(value, pointer + '/' + keyword + '/' + token,
@@ -1034,14 +1066,14 @@ class AIcSchemaContractBindingsGenerator:
     def _inside(repository, relative):
         path = Path(os.path.abspath(repository / relative))
         if Path(relative).is_absolute() or not path.is_relative_to(repository):
-            raise ValueError(f'Path escapes repository: {relative}')
+            raise AIxCodegenValidationException(f'Path escapes repository: {relative}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         return path
 
     @staticmethod
     def _add(pending, path, source):
         path = Path(os.path.normpath(path))
         if path in pending:
-            raise ValueError(f'Generated type collision: {path}')
+            raise AIxCodegenValidationException(f'Generated type collision: {path}', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
         pending[path] = source
 
     @staticmethod

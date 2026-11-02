@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
@@ -48,7 +50,7 @@ public final class AIcDefaultDefsCodegenService implements AIiDefsCodegenService
     @Override
     public AIcdCanonicalDefinition load(AIcdDefinitionLoadRequest request) throws IOException {
         AIiDefinitionFrontend frontend = frontends.get(request.sourceKind());
-        if (frontend == null) throw new IllegalArgumentException("No frontend for " + request.sourceKind());
+        if (frontend == null) throw new AIxCodegenValidationException("No frontend for " + request.sourceKind(), "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
         return frontend.load(request);
     }
 
@@ -61,7 +63,7 @@ public final class AIcDefaultDefsCodegenService implements AIiDefsCodegenService
     @Override
     public AIcdGeneratedSource generate(AIcdCodeGenerationRequest request) {
         AIiCodeGenerationBackend backend = backends.get(request.target());
-        if (backend == null) throw new IllegalArgumentException("No backend for " + request.target());
+        if (backend == null) throw new AIxCodegenValidationException("No backend for " + request.target(), "Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.");
         return backend.generate(request);
     }
 }

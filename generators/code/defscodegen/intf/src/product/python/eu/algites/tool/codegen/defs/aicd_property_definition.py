@@ -1,5 +1,7 @@
 """Immutable canonical properties with one recursive structural type."""
 from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from dataclasses import dataclass
 from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
 from eu.algites.tool.codegen.defs.aicd_xml_field_representation import AIcdXmlFieldRepresentation
@@ -18,4 +20,4 @@ class AIcdPropertyDefinition:
 
     def __post_init__(self):
         if not self.source_name or self.data_type is None:
-            raise ValueError('Canonical member name and recursive type are required')
+            raise AIxCodegenValidationException('Canonical member name and recursive type are required', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')

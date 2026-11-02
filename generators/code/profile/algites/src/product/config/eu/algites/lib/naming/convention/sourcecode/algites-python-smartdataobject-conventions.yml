@@ -4,22 +4,28 @@ $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/conventi
 NameCompositions:
   algites-python-sdo-raw-getter_1:
     Segments:
-    - Kind: constant_string
-      Value: _getRaw_
-    - Kind: identifier
-      Convention: upper_camel_case_1
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: _getRaw_
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
   algites-python-sdo-presence_1:
     Segments:
-    - Kind: constant_string
-      Value: _isPresent_
-    - Kind: identifier
-      Convention: upper_camel_case_1
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: _isPresent_
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
   algites-python-sdo-unsetter_1:
     Segments:
-    - Kind: constant_string
-      Value: _unset_
-    - Kind: identifier
-      Convention: upper_camel_case_1
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: _unset_
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
 SmartDataObjectNameConventions:
   NameConventions:
     algites-python-sdocodegen-standard_1:

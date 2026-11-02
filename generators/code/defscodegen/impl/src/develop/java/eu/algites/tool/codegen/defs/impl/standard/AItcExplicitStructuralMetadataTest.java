@@ -58,9 +58,10 @@ public final class AItcExplicitStructuralMetadataTest {
                 {"type":"object","properties":{"payload":{"$ref":"#/$defs/Payload"}},
                  "$defs":{"Text":{"type":"object","properties":{"text":{"type":"string"}}},
                           "Count":{"type":"object","properties":{"count":{"type":"integer"}}},
-                          "Payload":{"x-algites-defscodegen-choice":{
-                                       "alternatives":["#/$defs/Text","#/$defs/Count"]},
-                                     "oneOf":[{"$ref":"#/$defs/Text"},{"$ref":"#/$defs/Count"}]}}}
+                          "Payload":{"type":"object","x-algites-defscodegen-choice":true,
+                                     "properties":{"Text":{"$ref":"#/$defs/Text"},
+                                                   "Count":{"$ref":"#/$defs/Count"}},
+                                     "minProperties":1,"maxProperties":1,"additionalProperties":false}}}
                 """);
             locMapper.writeValue(locFixture.toFile(), locSchema);
             var locRequest = new AIcdDefinitionLoadRequest(locFixture, AInDefinitionSourceKind.JSONDEFS,

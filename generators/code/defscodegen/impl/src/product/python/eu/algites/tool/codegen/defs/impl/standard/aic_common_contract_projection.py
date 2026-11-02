@@ -1,4 +1,6 @@
 """Project only the compatible semantic overlap of format-specific definitions."""
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from dataclasses import replace
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
@@ -19,24 +21,24 @@ def _compatible_key_definitions(types, context):
     if all(value == first for value in definitions):
         return first
     if any(len(value) != 1 for value in definitions):
-        raise ValueError('Incompatible common key definitions: ' + context)
+        raise AIxCodegenValidationException('Incompatible common key definitions: ' + context, 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
     keys = [value[0] for value in definitions]
     virtual = [key for key in keys if key.virtual]
     physical = [key for key in keys if not key.virtual]
     if not virtual or not physical or not all(key.unique for key in keys):
-        raise ValueError('Incompatible common key definitions: ' + context)
+        raise AIxCodegenValidationException('Incompatible common key definitions: ' + context, 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
     if any(key.fields != virtual[0].fields or key.name != virtual[0].name for key in virtual):
-        raise ValueError('Incompatible virtual common key definitions: ' + context)
+        raise AIxCodegenValidationException('Incompatible virtual common key definitions: ' + context, 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
     for typ, key in zip(types, keys):
         if key.virtual:
             continue
         if len(key.fields) != 1 or '.' in key.fields[0]:
-            raise ValueError('Incompatible physical common key definition: ' + context)
+            raise AIxCodegenValidationException('Incompatible physical common key definition: ' + context, 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
         field = next((candidate for candidate in typ.keyed_value_type.properties
                       if candidate.source_name == key.fields[0]), None)
         if (field is None or field.data_type.kind is not AInDataTypeKind.STRING
                 or field.presence is not AInFieldPresenceKind.REQUIRED or field.nullable):
-            raise ValueError('Physical common key must be a required string: ' + context)
+            raise AIxCodegenValidationException('Physical common key must be a required string: ' + context, 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
     return (virtual[0],)
 
 
@@ -63,8 +65,8 @@ def _common_type(types, context):
             return AIcdDataType(AInDataTypeKind.STRING)
         kinds = [(t.kind.name, repr(t.reference) if t.reference else None)
                  for t in types]
-        raise ValueError('Incompatible common field type: ' + context
-                         + ' / ' + str(kinds))
+        raise AIxCodegenValidationException('Incompatible common field type: ' + context
+                         + ' / ' + str(kinds), 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
     constraints = (first.constraints if all(t.constraints == first.constraints for t in types)
                    else AIcdValueConstraints())
     if first.kind is AInDataTypeKind.OBJECT:
@@ -76,15 +78,20 @@ def _common_type(types, context):
                 continue
             shape = _common_type([f.data_type for f in matches], context + '.' + field.source_name)
             if any(f.presence is AInFieldPresenceKind.FORBIDDEN for f in matches):
-                raise ValueError('Incompatible forbidden common field: ' + context + '.' + field.source_name)
+                raise AIxCodegenValidationException('Incompatible forbidden common field: ' + context + '.' + field.source_name, 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
             presence = (AInFieldPresenceKind.REQUIRED if all(f.presence is AInFieldPresenceKind.REQUIRED
                         for f in matches) else AInFieldPresenceKind.ALLOWED)
             fields.append(replace(field, data_type=shape, presence=presence,
                 nullable=any(f.nullable for f in matches), xml_field=None))
         has_keys = [t.keyed_value_type is not None for t in types]
         if any(has_keys) and not all(has_keys):
-            raise ValueError('Incompatible KEYED_VALUES declarations: ' + context)
-        if all(has_keys):
+            # A sequence with an explicit XML xs:key and a JSON/YAML map
+            # are not interchangeable absent a declared representation binding.
+            # Their concrete contracts retain their full, typed representations;
+            # the common contract has no invented map projection.
+            common_keys = ()
+            keyed = None
+        elif all(has_keys):
             common_keys = _compatible_key_definitions(types, context)
             keyed = _common_type([t.keyed_value_type for t in types], context + '{key}')
         else:
@@ -94,20 +101,20 @@ def _common_type(types, context):
             key_definitions=common_keys, constraints=constraints)
     if first.kind is AInDataTypeKind.ARRAY:
         if any(len(t.position_types) != len(first.position_types) for t in types):
-            raise ValueError('Incompatible POSITION_TYPED_VALUE slots: ' + context)
+            raise AIxCodegenValidationException('Incompatible POSITION_TYPED_VALUE slots: ' + context, 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
         positions = tuple(_common_type([t.position_types[i] for t in types],
                           context + '[' + str(i) + ']') for i in range(len(first.position_types)))
         return replace(first, element_type=_common_type([t.element_type for t in types], context + '[]'),
             position_types=positions, constraints=constraints)
     if first.kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF):
         if any(len(t.alternatives) != len(first.alternatives) for t in types):
-            raise ValueError('Incompatible common choice: ' + context)
+            raise AIxCodegenValidationException('Incompatible common choice: ' + context, 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')
         return replace(first, alternatives=tuple(_common_type([t.alternatives[i] for t in types],
             context + '[' + str(i) + ']') for i in range(len(first.alternatives))), constraints=constraints)
     if first.kind is AInDataTypeKind.REFERENCE:
         if any(t.reference.logical_name != first.reference.logical_name
                or t.reference.version != first.reference.version for t in types):
-            raise ValueError('Incompatible common reference: ' + context)
+            raise AIxCodegenValidationException('Incompatible common reference: ' + context, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
         return replace(first, constraints=constraints)
     return replace(first, constraints=constraints)
 
@@ -115,16 +122,16 @@ def _common_type(types, context):
 def merge_common(definitions):
     """Merge cross-format common roles without discarding specialized members."""
     if not definitions:
-        raise ValueError('No common representations')
+        raise AIxCodegenValidationException('No common representations', 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
     first = definitions[0]
     if len(definitions) == 1:
         return first
     if any(d.version != first.version for d in definitions):
-        raise ValueError('Incompatible common contract version: ' + first.logical_name)
+        raise AIxCodegenValidationException('Incompatible common contract version: ' + first.logical_name, 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
     kinds = {d.data_type.kind for d in definitions}
     if len(kinds) > 1:
         if not kinds.issubset({AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF}):
-            raise ValueError('Incompatible common contract root kinds: ' + first.logical_name)
+            raise AIxCodegenValidationException('Incompatible common contract root kinds: ' + first.logical_name, 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
         data_type = AIcdDataType(AInDataTypeKind.OBJECT)
     elif first.data_type.kind is AInDataTypeKind.OBJECT:
@@ -138,7 +145,7 @@ def merge_common(definitions):
         else:
             if any(d.data_type != first.data_type or d.enum_values != first.enum_values
                    for d in definitions):
-                raise ValueError('Non-object common contracts must be identical: ' + first.logical_name)
+                raise AIxCodegenValidationException('Non-object common contracts must be identical: ' + first.logical_name, 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
             data_type = first.data_type
     identity = first.identity
     for d in definitions:

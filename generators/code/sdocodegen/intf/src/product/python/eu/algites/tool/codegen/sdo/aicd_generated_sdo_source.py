@@ -1,4 +1,6 @@
 """One generated SmartDataObject source with its importable type identity."""
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from dataclasses import dataclass
 
 
@@ -19,5 +21,5 @@ class AIcdGeneratedSdoSource:
     def primary_type(self):
         """Return the source identity, rejecting absent fully qualified type information."""
         if not self.fully_qualified_type_name:
-            raise ValueError('Generated SDO type identity is missing')
+            raise AIxCodegenValidationException('Generated SDO type identity is missing', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
         return self

@@ -1,18 +1,18 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:common="eu.algites.lib.naming.convention.common-naming-conventions"
-           xmlns:kind="eu.algites.tool.codegen.common.naming.generated-dataobject-structure-kind"
-           xmlns:metadata="eu.algites.tool.codegen.common.naming.generated-dataobject-schema-metadata-kind"
-           targetNamespace="eu.algites.tool.codegen.common.naming.data-object-naming-conventions" version="1">
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:common="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"
+           xmlns:kind="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-structure-kind_1.xsd"
+           xmlns:metadata="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-schema-metadata-kind_1.xsd"
+           targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.xsd" version="1">
 	<xs:annotation>
 		<xs:documentation>Generated DataObject profiles define a typed method-role map and a separate typed schema-metadata-role map. Each
 			map has unique enum keys; standard getter and setter are required by JSON/YAML schemas and the loader.
 		</xs:documentation>
 	</xs:annotation>
-	<xs:import namespace="eu.algites.lib.naming.convention.common-naming-conventions"
+	<xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"
 	           schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"/>
-	<xs:import namespace="eu.algites.tool.codegen.common.naming.generated-dataobject-structure-kind"
+	<xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-structure-kind_1.xsd"
 	           schemaLocation="generated-dataobject-structure-kind_1.xsd"/>
-	<xs:import namespace="eu.algites.tool.codegen.common.naming.generated-dataobject-schema-metadata-kind"
+	<xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-schema-metadata-kind_1.xsd"
 	           schemaLocation="generated-dataobject-schema-metadata-kind_1.xsd"/>
 	<xs:complexType name="DataObjectNamingConventions">
 		<xs:complexContent>

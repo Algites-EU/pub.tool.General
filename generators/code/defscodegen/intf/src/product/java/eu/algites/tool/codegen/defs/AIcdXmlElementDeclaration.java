@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import java.util.Objects;
 
 /**
@@ -21,7 +23,7 @@ public record AIcdXmlElementDeclaration(String localName, String namespace,
         Objects.requireNonNull(localName, "localName");
         Objects.requireNonNull(namespace, "namespace");
         Objects.requireNonNull(typeQName, "typeQName");
-        if (localName.isBlank()) throw new IllegalArgumentException("XML element name is empty");
+        if (localName.isBlank()) throw new AIxCodegenValidationException("XML element name is empty", "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
     }
     /** Expanded QName used for namespace-safe substitution lookup. */
     public String qName() { return "{" + namespace + "}" + localName; }

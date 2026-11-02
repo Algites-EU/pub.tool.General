@@ -1,6 +1,8 @@
 """Native Python SDO CLI with explicit semantic naming roles and external settings."""
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 import argparse
 import ast
 import importlib.resources
@@ -24,10 +26,10 @@ def _settings(arguments: list[str]) -> list[str]:
 def _write(root: Path, item, check: bool):
     output = (root / item.relative_path).resolve()
     if not output.is_relative_to(root):
-        raise ValueError(f'Generated SDO output escapes root: {item.relative_path}')
+        raise AIxCodegenValidationException(f'Generated SDO output escapes root: {item.relative_path}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
     if check:
         if not output.is_file() or output.read_text(encoding='utf-8') != item.source:
-            raise ValueError(f'Missing or outdated generated SDO output: {output}')
+            raise AIxCodegenValidationException(f'Missing or outdated generated SDO output: {output}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
     else:
         output.parent.mkdir(parents=True, exist_ok=True)
         if not output.is_file() or output.read_text(encoding='utf-8') != item.source:
@@ -78,7 +80,7 @@ def main(args=None):
             else: clean = True
             continue
         if not option.startswith('--') or '=' not in option:
-            raise ValueError(f'Invalid SDO option: {option}')
+            raise AIxCodegenValidationException(f'Invalid SDO option: {option}', 'Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.')
         key, value = option[2:].split('=', 1)
         name, *qualifiers = key.split(':')
         if (qualifiers and qualifiers[0] == 'java'
@@ -114,9 +116,9 @@ def main(args=None):
         elif name == 'dointf-input-classes' and qualifiers == ['python']:
             input_classes = [item.strip() for item in value.split(';') if item.strip()]
         else:
-            raise ValueError(f'Unknown or unqualified Python SDO option: {option}')
+            raise AIxCodegenValidationException(f'Unknown or unqualified Python SDO option: {option}', 'Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.')
     if check and clean:
-        raise ValueError('--check and --clean-only cannot both be used')
+        raise AIxCodegenValidationException('--check and --clean-only cannot both be used', 'Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.')
     # Avoid loading profiles for an optional source root that is absent.
     # Source bootstrap intentionally invokes the CLI only when eligible
     # contracts exist, while direct invocations may use an empty root.
@@ -127,11 +129,11 @@ def main(args=None):
               file=sys.stderr)
         return 0
     if not naming_sources:
-        raise ValueError('At least one --naming-conventions-file:<id> is required')
+        raise AIxCodegenValidationException('At least one --naming-conventions-file:<id> is required', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
     if setter_policy is not None and setter_policy not in {'INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'}:
-        raise ValueError('Invalid setter inheritance policy: ' + setter_policy)
+        raise AIxCodegenValidationException('Invalid setter inheritance policy: ' + setter_policy, 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
     if not {'technology-sdointf-output-dir', 'technology-sdoimpl-output-dir'} <= directories.keys():
-        raise ValueError('Both Python SDO output directories are required')
+        raise AIxCodegenValidationException('Both Python SDO output directories are required', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
     mutable_root = (root / directories['technology-sdointf-output-dir']).resolve()
     concrete_root = (root / directories['technology-sdoimpl-output-dir']).resolve()
     sources = [s if s.startswith(('classpath:', 'resource:')) else str((root / s).resolve())
@@ -145,7 +147,7 @@ def main(args=None):
         for role, profile in roles.items():
             try: catalog.profile(profile)
             except KeyError as exc:
-                raise ValueError(f'Missing naming profile {profile!r} for {role}') from exc
+                raise AIxCodegenValidationException(f'Missing naming profile {profile!r} for {role}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.') from exc
     if clean:
         _clean_sdo_outputs(catalog, mutable_root, concrete_root, profiles)
         return 0
@@ -158,12 +160,12 @@ def main(args=None):
     if not source_roots and not input_artifacts and not input_classes and not input_paths:
         if source_dir:
             return 0  # Missing optional source root (same behavior as before).
-        raise ValueError('No Python DataObject inputs selected')
+        raise AIxCodegenValidationException('No Python DataObject inputs selected', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
     selected_qualified = set()
     for item in input_classes:
         module, separator, class_name = item.partition(':')
         if not separator or not module or not class_name.isidentifier():
-            raise ValueError(f'Expected module.path:ClassName in --dointf-input-classes:python: {item}')
+            raise AIxCodegenValidationException(f'Expected module.path:ClassName in --dointf-input-classes:python: {item}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         selected_qualified.add((module, class_name))
     with ExitStack() as stack:
         archives = list(resolve_artifacts(parse_artifacts(input_artifacts, 'python'), 'python')) if input_artifacts else []
@@ -172,7 +174,7 @@ def main(args=None):
             if archive.is_dir():
                 source_roots.append(archive)
             elif not archive.is_file():
-                raise FileNotFoundError(f'Missing Python DataObject input: {archive}')
+                raise AIxCodegenValidationException(f'Missing Python DataObject input: {archive}', 'Check --dointf-input-paths:python, or prepare the selected wheel before running SDO Codegen.')
         for index, archive in enumerate(a for a in archives if a.is_file()):
             target = Path(stack.enter_context(TemporaryDirectory(prefix=f'sdo-wheel-{index}-')))
             with ZipFile(archive) as zf:
@@ -180,13 +182,13 @@ def main(args=None):
                     if entry.is_dir() or not entry.filename.endswith('.py'): continue
                     relative = Path(entry.filename)
                     if relative.is_absolute() or '..' in relative.parts:
-                        raise ValueError(f'Invalid path in wheel: {entry.filename}')
+                        raise AIxCodegenValidationException(f'Invalid path in wheel: {entry.filename}', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
                     output = target / relative
                     output.parent.mkdir(parents=True, exist_ok=True)
                     output.write_bytes(zf.read(entry))
             source_roots.append(target)
         if selected_qualified and not source_roots:
-            raise ValueError('Explicit classes require a selected source root or input artifact')
+            raise AIxCodegenValidationException('Explicit classes require a selected source root or input artifact', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         added = []
         for value in classpaths:
             absolute = str((root / value).resolve())
@@ -215,7 +217,7 @@ def main(args=None):
                             matches.append((role, class_name))
                     names = {name for _, name in matches}
                     if len(names) > 1:
-                        raise ValueError(f'Ambiguous input DataObject class in {source}: {matches}')
+                        raise AIxCodegenValidationException(f'Ambiguous input DataObject class in {source}: {matches}', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
                     if names and any(role in profiles[1] and role in profiles[2] for role, _ in matches):
                         selected[source.relative_to(source_root)] = next(iter(names))
                         continue
@@ -233,7 +235,7 @@ def main(args=None):
                                 for node in declaration.body):
                             annotated_classes.append(declaration.name)
                     if len(annotated_classes) > 1:
-                        raise ValueError(f'Multiple manually authored DataObject types in {source}: {annotated_classes}')
+                        raise AIxCodegenValidationException(f'Multiple manually authored DataObject types in {source}: {annotated_classes}', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
                     if annotated_classes:
                         selected[source.relative_to(source_root)] = annotated_classes[0]
                 # Explicit module:Class selectors can name hand-written
@@ -259,7 +261,7 @@ def main(args=None):
                     results.update({(source_root, key): item for key, item in generated.items()})
             missing = selected_qualified - found
             if missing:
-                raise ValueError(f'Explicit Python DataObject contracts not found: {sorted(missing)}')
+                raise AIxCodegenValidationException(f'Explicit Python DataObject contracts not found: {sorted(missing)}', 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
         finally:
             if setter_policy is not None:
                 if previous_policy is None: os.environ.pop(policy_key, None)
@@ -268,7 +270,7 @@ def main(args=None):
                 sys.path.remove(path)
         if not results:
             if input_artifacts or input_paths:
-                raise ValueError('No eligible DataObject contracts in selected input artifacts')
+                raise AIxCodegenValidationException('No eligible DataObject contracts in selected input artifacts', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
             return 0
         outputs: set[Path] = set()
         for item in results.values():
@@ -276,7 +278,7 @@ def main(args=None):
                                         (concrete_root, item.implementation)):
                 path = (out_root / generated.relative_path).resolve()
                 if path in outputs:
-                    raise ValueError(f'Conflicting generated SDO path: {path}')
+                    raise AIxCodegenValidationException(f'Conflicting generated SDO path: {path}', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
                 outputs.add(path)
         if not check:
             _clean_sdo_outputs(catalog, mutable_root, concrete_root, profiles)
@@ -287,4 +289,12 @@ def main(args=None):
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    # Library callers keep original exception types. Only the process boundary
+    # translates expected input errors to readable diagnostics and exit code 2.
+    from eu.algites.tool.codegen.common.diagnostics import report_exception
+    try:
+        raise SystemExit(main())
+    except Exception as failure:
+        if report_exception(failure, generator='SDO Codegen (Python)'):
+            raise SystemExit(2) from None
+        raise

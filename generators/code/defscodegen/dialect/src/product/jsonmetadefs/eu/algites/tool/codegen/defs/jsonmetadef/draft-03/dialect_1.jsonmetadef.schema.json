@@ -197,7 +197,25 @@
   },
   "dependencies": {
     "exclusiveMinimum": "minimum",
-    "exclusiveMaximum": "maximum"
+    "exclusiveMaximum": "maximum",
+    "x-algites-defscodegen-choice": {
+      "properties": {
+        "type": {
+          "enum": [
+            "object"
+          ]
+        },
+        "properties": {
+          "type": "object",
+          "minProperties": 2
+        },
+        "additionalProperties": {
+          "enum": [
+            false
+          ]
+        }
+      }
+    }
   },
   "default": {},
   "title": "Algites Defs Codegen dialect v1 for JSON Schema draft-03",

@@ -97,7 +97,7 @@ public final class AItcCommonContractProjectionTest {
         var locImplicit = List.of("implicit", "eu.algites.lib.naming.convention",
                 "common-naming-conventions", 1, "");
         var locQualified = List.of("explicit",
-                "eu.algites.lib.naming.convention.common-naming-conventions", 1);
+                "https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd", 1);
         Assert.assertTrue(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
                 locQualified, locImplicit));
         Assert.assertFalse(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(

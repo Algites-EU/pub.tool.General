@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 import eu.algites.tool.codegen.defs.AInDefsNameRole;
 import java.util.Map;
@@ -29,7 +31,7 @@ final class AIcSelectedNamingCatalog implements AIiNameConventionCatalog {
         roles = Map.copyOf(Objects.requireNonNull(aRoles, "roles"));
         for (String locName : roles.values()) {
             if (!catalog.names().contains(locName))
-                throw new IllegalArgumentException("Naming convention not found: " + locName);
+                throw new AIxCodegenValidationException("Naming convention not found: " + locName, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         }
     }
 
@@ -40,7 +42,7 @@ final class AIcSelectedNamingCatalog implements AIiNameConventionCatalog {
      */
     String selected(AInDefsNameRole aRole) {
         String locName = roles.get(aRole);
-        if (locName == null) throw new IllegalArgumentException("Missing configured naming role: " + aRole);
+        if (locName == null) throw new AIxCodegenValidationException("Missing configured naming role: " + aRole, "Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.");
         return locName;
     }
 

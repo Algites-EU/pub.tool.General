@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.sdo.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,7 +42,7 @@ final class AIcSdoContractSourceLoader implements AutoCloseable {
         Objects.requireNonNull(aDependencyPaths, "dependency classpath");
         try {
             Path locRoot = aSourceRoot.toRealPath();
-            if (!Files.isDirectory(locRoot)) throw new IllegalArgumentException("Not a source root: " + locRoot);
+            if (!Files.isDirectory(locRoot)) throw new AIxCodegenValidationException("Not a source root: " + locRoot, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
             List<Path> locSources;
             try (var locStream = Files.walk(locRoot)) {
                 locSources = locStream.filter(Files::isRegularFile)
@@ -49,7 +51,7 @@ final class AIcSdoContractSourceLoader implements AutoCloseable {
                         .filter(aFile -> aFile.getFileName().toString().endsWith(".java"))
                         .sorted().toList();
             }
-            if (locSources.isEmpty()) throw new IllegalArgumentException("No Java contract sources: " + locRoot);
+            if (locSources.isEmpty()) throw new AIxCodegenValidationException("No Java contract sources: " + locRoot, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
             var locCompiler = ToolProvider.getSystemJavaCompiler();
             if (locCompiler == null) throw new IllegalStateException(
                     "Java source-based SDO codegen requires a JDK (javax.tools.JavaCompiler), not a JRE");
@@ -79,7 +81,7 @@ final class AIcSdoContractSourceLoader implements AutoCloseable {
                 if (!locSuccess) {
                     StringBuilder locMessage = new StringBuilder("Cannot compile DO sources for SDO reflection:\n");
                     locDiagnostics.getDiagnostics().forEach(aDiagnostic -> locMessage.append(aDiagnostic).append('\n'));
-                    throw new IllegalArgumentException(locMessage.toString());
+                    throw new AIxCodegenValidationException(locMessage.toString(), "Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.");
                 }
             }
             URLClassLoader locDependencies = new URLClassLoader(locUrls.toArray(URL[]::new),
@@ -99,7 +101,7 @@ final class AIcSdoContractSourceLoader implements AutoCloseable {
             };
             return new AIcSdoContractSourceLoader(locRoot, locDependencies, locLoader);
         } catch (IOException locError) {
-            throw new IllegalArgumentException("Cannot read Java source tree or dependencies: " + aSourceRoot, locError);
+            throw new AIxCodegenValidationException("Cannot read Java source tree or dependencies: " + aSourceRoot, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.", null, null, locError);
         }
     }
 
@@ -109,10 +111,10 @@ final class AIcSdoContractSourceLoader implements AutoCloseable {
             Path locFile = (aSource.isAbsolute() ? aSource : root.resolve(aSource)).toRealPath();
             if (!locFile.startsWith(root) || !locFile.getFileName().toString().endsWith(".java")
                     || !Files.isRegularFile(locFile))
-                throw new IllegalArgumentException("Invalid DO contract source: " + aSource);
+                throw new AIxCodegenValidationException("Invalid DO contract source: " + aSource, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
             return locFile;
         } catch (IOException locError) {
-            throw new IllegalArgumentException("Cannot read DO contract source: " + aSource, locError);
+            throw new AIxCodegenValidationException("Cannot read DO contract source: " + aSource, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.", null, null, locError);
         }
     }
 
@@ -124,7 +126,7 @@ final class AIcSdoContractSourceLoader implements AutoCloseable {
         try {
             return Class.forName(locName, false, loader);
         } catch (ClassNotFoundException locError) {
-            throw new IllegalArgumentException("Compiled DO source has no matching contract class: " + locFile, locError);
+            throw new AIxCodegenValidationException("Compiled DO source has no matching contract class: " + locFile, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.", null, null, locError);
         }
     }
 

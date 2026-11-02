@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 from dataclasses import dataclass
 from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
 from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
@@ -35,4 +37,4 @@ class AIcdCodeGenerationRequest:
         if self.xml_type_qname is not None and (self.definition.source_kind is not AInDefinitionSourceKind.XMLDEFS
                 or not self.xml_type_qname.startswith('{') or '}' not in self.xml_type_qname[1:]
                 or self.xml_type_qname.endswith('}')):
-            raise ValueError('Expected expanded QName of a named XML Schema type')
+            raise AIxCodegenValidationException('Expected expanded QName of a named XML Schema type', 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')

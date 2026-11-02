@@ -1,3 +1,4 @@
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from dataclasses import dataclass
 
 
@@ -23,10 +24,10 @@ class AIcdValueConstraints:
         for name in ('min_items', 'max_items', 'min_length', 'max_length', 'min_properties', 'max_properties'):
             value = getattr(self, name)
             if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
-                raise ValueError(f'{name} must be a non-negative integer')
+                raise AIxCodegenValidationException(f'{name} must be a non-negative integer', 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
         if self.min_items is not None and self.max_items is not None and self.min_items > self.max_items:
-            raise ValueError('min_items exceeds max_items')
+            raise AIxCodegenValidationException('min_items exceeds max_items', 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
         if self.min_properties is not None and self.max_properties is not None and self.min_properties > self.max_properties:
-            raise ValueError('min_properties exceeds max_properties')
+            raise AIxCodegenValidationException('min_properties exceeds max_properties', 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
         if self.min_length is not None and self.max_length is not None and self.min_length > self.max_length:
-            raise ValueError('Inconsistent length restriction: min_length exceeds max_length')
+            raise AIxCodegenValidationException('Inconsistent length restriction: min_length exceeds max_length', 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')

@@ -1,3 +1,4 @@
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from dataclasses import replace
 from urllib.parse import urlsplit
 from pathlib import Path
@@ -11,7 +12,9 @@ class AIcCanonicalDefinitionMerger:
         """Reject differing contracts and combine documentation for one logical type."""
         definitions = tuple(definitions)
         if not definitions:
-            raise ValueError("No canonical definitions to merge.")
+            raise AIxCodegenValidationException("No canonical definitions to merge.", 'Compare the pairwise XMLDEFS, JSONDEFS and YAMLDEFS differences listed above, ' +
+                    'including field types, requiredness, collection shape and key definitions. ' +
+                    'Correct the indicated source declarations so all representations agree.')
         AIcCanonicalDefinitionMerger.validate(definitions, documentation=False)
         return AIcCanonicalDefinitionMerger._merge_validated(definitions)
 
@@ -73,7 +76,9 @@ class AIcCanonicalDefinitionMerger:
         """Report every incompatible pair with source filenames and best-effort source lines."""
         definitions = tuple(definitions)
         if not definitions:
-            raise ValueError('No canonical definitions to merge.')
+            raise AIxCodegenValidationException('No canonical definitions to merge.', 'Compare the pairwise XMLDEFS, JSONDEFS and YAMLDEFS differences listed above, ' +
+                    'including field types, requiredness, collection shape and key definitions. ' +
+                    'Correct the indicated source declarations so all representations agree.')
         if len(definitions) == 1:
             return
         source_root = Path(source_root or '.').resolve()
@@ -370,5 +375,7 @@ class AIcCanonicalDefinitionMerger:
                             f'[{j+1}] {right!r} ({position(b,field,member)})')
         if failure:
             files='\n'.join(f'  [{i+1}] {d.source_kind.name}: {position(d)}' for i,d in enumerate(definitions))
-            raise ValueError(f'Incompatible canonical definitions ({len(definitions)} representations):\nSources:\n'
-                +files+'\nPairwise comparison:\n'+'\n'.join(checks))
+            raise AIxCodegenValidationException(f'Incompatible canonical definitions ({len(definitions)} representations):\nSources:\n'
+                +files+'\nPairwise comparison:\n'+'\n'.join(checks), 'Compare the pairwise XMLDEFS, JSONDEFS and YAMLDEFS differences listed above, ' +
+                    'including field types, requiredness, collection shape and key definitions. ' +
+                    'Correct the indicated source declarations so all representations agree.')

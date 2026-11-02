@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 import argparse
 from pathlib import Path
 
@@ -55,7 +57,7 @@ class AIcDefsCodegenCli:
                 else: allow_unversioned = True
                 continue
             if not option.startswith('--') or '=' not in option:
-                raise ValueError(f'Invalid qualified Defs option: {option}')
+                raise AIxCodegenValidationException(f'Invalid qualified Defs option: {option}', 'Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.')
             key, value = option[2:].split('=', 1)
             name, *qualifiers = key.split(':')
             if name in {'repository-root', 'setter-inheritance-policy'} and not qualifiers:
@@ -75,21 +77,21 @@ class AIcDefsCodegenCli:
             elif name == 'output-interface-technology-naming-convention' and len(qualifiers) == 3 and qualifiers[0] in targets and qualifiers[1] in known_roles and qualifiers[2] == 'defsintf':
                 roles.setdefault(qualifiers[0], {})[qualifiers[1]] = value
             else:
-                raise ValueError(f'Unrecognized or unqualified Defs option: {option}')
+                raise AIxCodegenValidationException(f'Unrecognized or unqualified Defs option: {option}', 'Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.')
         if check and clean:
-            raise ValueError('--check conflicts with --clean-only')
+            raise AIxCodegenValidationException('--check conflicts with --clean-only', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
         if not catalogs:
-            raise ValueError('At least one --naming-conventions-file:<id> is required')
+            raise AIxCodegenValidationException('At least one --naming-conventions-file:<id> is required', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         if not clean and (not (inputs or artifact_lists) or not output_dirs):
-            raise ValueError('Select schema roots/artifacts and output technologies')
+            raise AIxCodegenValidationException('Select schema roots/artifacts and output technologies', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
         if any(kind not in input_profiles for kind in inputs):
-            raise ValueError('Each input schema directory requires a naming convention')
+            raise AIxCodegenValidationException('Each input schema directory requires a naming convention', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
         if any(tech not in output_dirs for tech in roles):
-            raise ValueError('Output naming role requires an output directory')
+            raise AIxCodegenValidationException('Output naming role requires an output directory', 'Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.')
         original = os.environ.get('ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY')
         if setter_policy is not None:
             if setter_policy not in {'INHERIT_AS_GENERIC_PARAMETER', 'INHERIT_AS_FIXED_PARAMETER'}:
-                raise ValueError('Invalid setter-inheritance-policy: ' + setter_policy)
+                raise AIxCodegenValidationException('Invalid setter-inheritance-policy: ' + setter_policy, 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
             os.environ['ALGITES_DEFS_CODEGEN_SETTER_INHERITANCE_POLICY'] = setter_policy
         try:
             with ExitStack() as stack:
@@ -113,18 +115,18 @@ class AIcDefsCodegenCli:
                                     # includes origin to avoid collisions across archives.
                                     relative = Path(member.filename)
                                     if '..' in relative.parts or relative.is_absolute():
-                                        raise ValueError(f'Unsafe schema archive member: {member.filename}')
+                                        raise AIxCodegenValidationException(f'Unsafe schema archive member: {member.filename}', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
                                     dest = temp / kind / tech / str(index) / relative
                                     dest.parent.mkdir(parents=True, exist_ok=True)
                                     dest.write_bytes(zf.read(member))
                                     # Each archive gets a separate schema root.
                                     schema_roots[f'{kind}:{tech}:{index}'] = str(temp / kind / tech / str(index))
                     if not schema_roots:
-                        raise ValueError('No schemas found in selected input archives')
+                        raise AIxCodegenValidationException('No schemas found in selected input archives', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
                 roots = [{'kind': key.split(':')[0], 'directory': value} for key, value in schema_roots.items()]
                 for item in roots:
                     if item['kind'] not in input_profiles:
-                        raise ValueError('Missing naming convention for artifact schema kind ' + item['kind'])
+                        raise AIxCodegenValidationException('Missing naming convention for artifact schema kind ' + item['kind'], 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
                 manifest = dict(artifact='.', schema_inputs=roots,
                     schema_input_naming_conventions=input_profiles,
                     technology_outputs=output_dirs,
@@ -145,4 +147,12 @@ class AIcDefsCodegenCli:
 
 
 if __name__ == '__main__':
-    raise SystemExit(AIcDefsCodegenCli.main())
+    # Library callers keep original exception types. Only the process boundary
+    # translates expected input errors to readable diagnostics and exit code 2.
+    from eu.algites.tool.codegen.common.diagnostics import report_exception
+    try:
+        raise SystemExit(AIcDefsCodegenCli.main())
+    except Exception as failure:
+        if report_exception(failure, generator='Defs Codegen (Python)'):
+            raise SystemExit(2) from None
+        raise

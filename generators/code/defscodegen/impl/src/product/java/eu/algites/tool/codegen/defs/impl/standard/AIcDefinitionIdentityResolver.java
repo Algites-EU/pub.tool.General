@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
 import eu.algites.tool.codegen.defs.AIcdParsedVersionedName;
@@ -30,29 +32,29 @@ final class AIcDefinitionIdentityResolver {
         Map<String, String> vars = null;
         if (!profile.isBlank()) {
             vars = matchFilename(catalog, profile, filename);
-            if (vars == null) throw new IllegalArgumentException(
-                    "Filename does not match explicitly selected source naming profile: " + filename + " / " + profile);
+            if (vars == null) throw new AIxCodegenValidationException(
+                    "Filename does not match explicitly selected source naming profile: " + filename + " / " + profile, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         } else {
             for (String candidate : catalog.names()) {
                 Map<String, String> matched = matchFilename(catalog, candidate, filename);
                 if (matched == null) continue;
-                if (vars != null) throw new IllegalArgumentException(
-                        "Ambiguous filename naming conventions for " + filename);
+                if (vars != null) throw new AIxCodegenValidationException(
+                        "Ambiguous filename naming conventions for " + filename, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                 vars = matched;
                 profile = candidate;
             }
         }
-        if (vars == null) throw new IllegalArgumentException(
-                "No source filename naming convention matches " + filename);
+        if (vars == null) throw new AIxCodegenValidationException(
+                "No source filename naming convention matches " + filename, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String identifier = vars.get("identifier");
-        if (identifier == null || identifier.isBlank()) throw new IllegalArgumentException(
-                "Source filename profile has no identifier: " + profile);
+        if (identifier == null || identifier.isBlank()) throw new AIxCodegenValidationException(
+                "Source filename profile has no identifier: " + profile, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         Integer fileVersion = vars.containsKey("version") ? Integer.valueOf(vars.get("version")) : null;
         if (fileVersion != null && fileVersion < 1 || explicitVersion != null && explicitVersion < 1)
-            throw new IllegalArgumentException("Schema version must be positive: " + filename);
+            throw new AIxCodegenValidationException("Schema version must be positive: " + filename, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         if (fileVersion != null && explicitVersion != null && !fileVersion.equals(explicitVersion))
-            throw new IllegalArgumentException("Schema metadata version " + explicitVersion
-                    + " differs from filename version " + fileVersion + ": " + filename);
+            throw new AIxCodegenValidationException("Schema metadata version " + explicitVersion
+                    + " differs from filename version " + fileVersion + ": " + filename, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         return new AIcdParsedVersionedName(identifier,
                 explicitVersion == null ? fileVersion : explicitVersion);
     }
@@ -72,11 +74,11 @@ final class AIcDefinitionIdentityResolver {
             if (matchFilename(request.namingProfile(), candidate,
                     request.path().getFileName().toString()) == null) continue;
             if (selected != null)
-                throw new IllegalArgumentException("Ambiguous source naming profile: " + request.path());
+                throw new AIxCodegenValidationException("Ambiguous source naming profile: " + request.path(), "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
             selected = candidate;
         }
-        if (selected == null) throw new IllegalArgumentException(
-                "Missing source naming convention for " + request.path());
+        if (selected == null) throw new AIxCodegenValidationException(
+                "Missing source naming convention for " + request.path(), "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         return selected;
     }
 

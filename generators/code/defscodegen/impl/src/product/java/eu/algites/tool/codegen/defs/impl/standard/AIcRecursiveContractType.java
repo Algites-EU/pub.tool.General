@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdDataType;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
@@ -31,8 +33,8 @@ final class AIcRecursiveContractType {
             Set<String> aPythonImports) {
         if (aType.kind() == AInDataTypeKind.ARRAY) {
             if (!aType.positionTypes().isEmpty()) {
-                if (aJava) throw new IllegalArgumentException(
-                        "Java positional tuple requires generated positional type: " + aPath);
+                if (aJava) throw new AIxCodegenValidationException(
+                        "Java positional tuple requires generated positional type: " + aPath, "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
                 List<String> locParts = new java.util.ArrayList<>();
                 for (int locIndex = 0; locIndex < aType.positionTypes().size(); locIndex++)
                     locParts.add(renderNode(aType.positionTypes().get(locIndex),
@@ -63,7 +65,7 @@ final class AIcRecursiveContractType {
         if (locInline && aRequest.definition().sourceKind() == AInDefinitionSourceKind.XMLDEFS) {
             if (aType.kind() == AInDataTypeKind.OBJECT && aType.properties().isEmpty())
                 return AIcScalarGeneration.scalar(AInDataTypeKind.OBJECT, aType.constraints(), aJava);
-            throw new IllegalArgumentException("Inline XML complex/choice member needs an explicitly generated XSD content contract: " + aPath);
+            throw new AIxCodegenValidationException("Inline XML complex/choice member needs an explicitly generated XSD content contract: " + aPath, "Check the XSD compositor and group declarations. Use a named XML type for a repeated choice and avoid overlapping or unsupported nested groups.");
         }
         if (locReference || locInline) {
             boolean locEnum = locReference
@@ -89,7 +91,7 @@ final class AIcRecursiveContractType {
             case NUMBER -> AInDataTypeKind.NUMBER;
             case BOOLEAN -> AInDataTypeKind.BOOLEAN;
             case ANY -> AInDataTypeKind.ANY;
-            default -> throw new IllegalArgumentException("Unsupported recursive contract node: " + aType.kind());
+            default -> throw new AIxCodegenValidationException("Unsupported recursive contract node: " + aType.kind(), "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         };
         return AIcScalarGeneration.scalar(locKind, aType.constraints(), aJava);
     }

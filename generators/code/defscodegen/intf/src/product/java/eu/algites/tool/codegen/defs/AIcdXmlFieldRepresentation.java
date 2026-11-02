@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind;
 import java.util.Objects;
 
@@ -34,10 +36,10 @@ public record AIcdXmlFieldRepresentation(
         Objects.requireNonNull(wildcardProcessContents, "wildcardProcessContents");
         if (!wildcardNamespace.isBlank() && (valueKind != AInXmlValueKind.ELEMENT
                 || !java.util.Set.of("skip", "lax", "strict").contains(wildcardProcessContents)))
-            throw new IllegalArgumentException("Invalid xs:any wildcard metadata");
-        if (namespaceLocalName.isBlank()) throw new IllegalArgumentException("XML field local name is blank");
+            throw new AIxCodegenValidationException("Invalid xs:any wildcard metadata", "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
+        if (namespaceLocalName.isBlank()) throw new AIxCodegenValidationException("XML field local name is blank", "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
         if (minOccurs < -1 || maxOccurs < -1 || (minOccurs >= 0 && maxOccurs >= 0 && minOccurs > maxOccurs))
-            throw new IllegalArgumentException("Invalid XML wire occurrence interval");
+            throw new AIxCodegenValidationException("Invalid XML wire occurrence interval", "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
     }
 
     /**

@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import java.util.Objects;
 
 /**
@@ -43,7 +45,7 @@ public record AIcdGeneratedTypeIdentity(
         String locModule = locNamespace;
         if (aRequest.target() == AInCodeGenerationTarget.PYTHON) {
             String locFile = aRelativePath.substring(aRelativePath.lastIndexOf('/') + 1);
-            if (!locFile.endsWith(".py")) throw new IllegalArgumentException("Expected Python path");
+            if (!locFile.endsWith(".py")) throw new AIxCodegenValidationException("Expected Python path", "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
             locModule += "." + locFile.substring(0, locFile.length() - 3);
         }
         return new AIcdGeneratedTypeIdentity(

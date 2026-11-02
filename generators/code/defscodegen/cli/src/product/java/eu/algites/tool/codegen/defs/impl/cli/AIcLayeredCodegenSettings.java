@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.cli;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +44,7 @@ public final class AIcLayeredCodegenSettings {
         for (String locArg : aArgs) {
             if (locArg.startsWith("--settings-file=")) {
                 if (locSpecifiedFile != null)
-                    throw new IllegalArgumentException("Only one --settings-file is permitted");
+                    throw new AIxCodegenValidationException("Only one --settings-file is permitted", "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
                 locSpecifiedFile = locArg.substring("--settings-file=".length());
             } else locInvocation.add(locArg);
         }
@@ -71,7 +73,7 @@ public final class AIcLayeredCodegenSettings {
             String locBaseKey = locColon < 0 ? locKey : locKey.substring(0, locColon);
             if (FLAGS.contains(locBaseKey)) {
                 if (!locValue.equalsIgnoreCase("true") && !locValue.equalsIgnoreCase("false"))
-                    throw new IllegalArgumentException("Expected boolean for " + locKey + ": " + locValue);
+                    throw new AIxCodegenValidationException("Expected boolean for " + locKey + ": " + locValue, "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
                 if (locValue.equalsIgnoreCase("true")) locExpanded.add(locBaseKey);
             } else {
                 locExpanded.add(locKey + "=" + locValue);
@@ -135,7 +137,7 @@ public final class AIcLayeredCodegenSettings {
             String locTrimmed = locLine.strip();
             if (locTrimmed.isEmpty() || locTrimmed.startsWith("#")) continue;
             if (locTrimmed.chars().anyMatch(Character::isWhitespace))
-                throw new IllegalArgumentException("Malformed settings: " + aSource + ":" + locNumber);
+                throw new AIxCodegenValidationException("Malformed settings: " + aSource + ":" + locNumber, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
             addOption(aMerged, locTrimmed);
         }
     }
@@ -145,11 +147,11 @@ public final class AIcLayeredCodegenSettings {
         if (FLAGS.contains(aOption)) aOption += "=true";
         int locEquals = aOption.indexOf('=');
         if (!aOption.startsWith("--") || locEquals < 3)
-            throw new IllegalArgumentException("Invalid Codegen setting: " + aOption);
+            throw new AIxCodegenValidationException("Invalid Codegen setting: " + aOption, "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
         String locKey = aOption.substring(0, locEquals);
         String locValue = aOption.substring(locEquals + 1);
         if (locKey.equals("--settings-file"))
-            throw new IllegalArgumentException("Nested settings-file is not allowed");
+            throw new AIxCodegenValidationException("Nested settings-file is not allowed", "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
         if (locValue.isEmpty()) aMerged.remove(locKey);
         else aMerged.put(locKey, locValue);
     }

@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
@@ -47,8 +49,8 @@ public final class AIcYamlDefsFrontend implements AIiDefinitionFrontend {
         AIiNameConventionCatalog locCatalog = request.namingProfile();
         if (locProfile == null || locProfile.isBlank() || locCatalog == null
                 || !locCatalog.names().contains(locProfile))
-            throw new IllegalArgumentException("Missing configured " + sourceKind()
-                    + " source naming convention for " + request.path());
+            throw new AIxCodegenValidationException("Missing configured " + sourceKind()
+                    + " source naming convention for " + request.path(), "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String locId = locProfile.isEmpty() ? "" : locCatalog.schemaMetadataField(locProfile, "schema_source", "identifier");
         String locVersion = locProfile.isEmpty() ? "" : locCatalog.schemaMetadataField(locProfile, "schema_source", "version");
         String locUrl = locProfile.isEmpty() ? "" : locCatalog.schemaMetadataField(locProfile, "schema_source", "url");

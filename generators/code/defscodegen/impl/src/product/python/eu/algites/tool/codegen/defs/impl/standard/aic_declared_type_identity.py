@@ -4,6 +4,8 @@ A schema URI or XML QName remains the source identity. This helper converts only
 its declared local type name by the selected, validated naming profile.
 """
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 
 def canonical_type_identifier(catalog, profile: str, name: str) -> str:
     """Validate one declared type and obtain its round-trippable logical name.
@@ -21,11 +23,11 @@ def canonical_type_identifier(catalog, profile: str, name: str) -> str:
     parsed = catalog.parse(profile, 'type_name', name)
     lexical = catalog.identifier_convention(profile, 'type_name')
     if not lexical:
-        raise ValueError(f'Source type naming profile has no identifier convention: {profile}')
+        raise AIxCodegenValidationException(f'Source type naming profile has no identifier convention: {profile}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
     result = catalog.convert_identifier_by_declared_style(parsed['identifier'], lexical,
         'lower_kebab_case_1')
     restored = catalog.convert_identifier_by_declared_style(result,
         'lower_kebab_case_1', lexical)
     if restored != parsed['identifier']:
-        raise ValueError(f'Non-round-trippable declared type name {name!r}: {restored!r}')
+        raise AIxCodegenValidationException(f'Non-round-trippable declared type name {name!r}: {restored!r}', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
     return result

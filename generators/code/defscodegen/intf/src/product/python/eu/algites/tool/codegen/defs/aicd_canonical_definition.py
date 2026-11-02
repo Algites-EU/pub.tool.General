@@ -1,5 +1,7 @@
 """Canonical schema definitions backed exclusively by recursive structural types."""
 from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from dataclasses import dataclass
 from eu.algites.tool.codegen.defs.aicd_enum_value_definition import AIcdEnumValueDefinition
 from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
@@ -30,7 +32,7 @@ class AIcdCanonicalDefinition:
 
     def __post_init__(self):
         if not self.identity or not self.logical_name or not self.source_resource or self.data_type is None:
-            raise ValueError('Canonical identity, source and recursive type are required')
+            raise AIxCodegenValidationException('Canonical identity, source and recursive type are required', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
         object.__setattr__(self, 'enum_values', tuple(self.enum_values))
         if self.enum_values and self.data_type.kind is not AInDataTypeKind.ENUM:
-            raise ValueError('Enumeration wire values require an ENUM root type')
+            raise AIxCodegenValidationException('Enumeration wire values require an ENUM root type', 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')

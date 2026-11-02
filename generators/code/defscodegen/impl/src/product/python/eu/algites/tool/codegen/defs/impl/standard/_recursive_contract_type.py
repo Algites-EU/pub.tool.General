@@ -4,6 +4,8 @@ The logical-name path mirrors repository batch discovery, so no synthetic
 business packages or duplicate compilation units are introduced.
 """
 from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 import re
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
@@ -23,7 +25,7 @@ def contract_type(prop, request, names, *, java=False, imports=None):
         if kind is AInDataTypeKind.ARRAY:
             if shape.position_types:
                 if java:
-                    raise ValueError('Java positional tuple requires a generated positional interface: ' + logical)
+                    raise AIxCodegenValidationException('Java positional tuple requires a generated positional interface: ' + logical, 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
                 prefix = [node(value, logical + '-prefix-items-' + str(i))
                           for i, value in enumerate(shape.position_types)]
                 if shape.constraints.max_items == len(prefix):
@@ -63,7 +65,7 @@ def contract_type(prop, request, names, *, java=False, imports=None):
         if inline and not keyed_entry and request.definition.source_kind is AInDefinitionSourceKind.XMLDEFS:
             if kind is AInDataTypeKind.OBJECT and not shape.properties:
                 return scalar_type(AInDataTypeKind.OBJECT, shape.constraints, java)
-            raise ValueError('Inline XML complex/choice member needs an explicitly generated XSD content contract: ' + logical)
+            raise AIxCodegenValidationException('Inline XML complex/choice member needs an explicitly generated XSD content contract: ' + logical, 'Check the XSD compositor and group declarations. Use a named XML type for a repeated choice and avoid overlapping or unsupported nested groups.')
         if reference or inline:
             ref = shape.reference if reference else None
             # An inline oneOf consisting exclusively of distinct scalar constants
@@ -93,6 +95,6 @@ def contract_type(prop, request, names, *, java=False, imports=None):
                   AInDataTypeKind.BOOLEAN: AInDataTypeKind.BOOLEAN,
                   AInDataTypeKind.ANY: AInDataTypeKind.ANY}
         if kind not in scalar:
-            raise ValueError(f'Unsupported recursive contract node: {kind.name}')
+            raise AIxCodegenValidationException(f'Unsupported recursive contract node: {kind.name}', 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
         return scalar_type(scalar[kind], shape.constraints, java)
     return node(prop.data_type, path)

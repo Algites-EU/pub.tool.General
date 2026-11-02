@@ -2,6 +2,8 @@
 
 No flat descriptor is retained in or exposed by the canonical API.
 """
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
 from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
 
@@ -14,7 +16,7 @@ def from_source_hints(kind, item_kind=None, reference=None, constraints=None, it
         return AIcdDataType(AInDataTypeKind.ARRAY, element_type=member, constraints=constraints or AIcdValueConstraints())
     if kind is AInDataTypeKind.REFERENCE:
         if reference is None:
-            raise ValueError('Reference kind requires a canonical target')
+            raise AIxCodegenValidationException('Reference kind requires a canonical target', 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
         return AIcdDataType(AInDataTypeKind.REFERENCE, reference=reference)
     if kind is AInDataTypeKind.OBJECT:
         return AIcdDataType(AInDataTypeKind.OBJECT)

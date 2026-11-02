@@ -36,12 +36,12 @@ public final class AIcCodegenArtifactResolver {
      */
     public static List<Path> resolveJava(String aSelectors) throws IOException {
         if (aSelectors == null || aSelectors.isBlank())
-            throw new IllegalArgumentException("Java artifact selectors must not be empty");
+            throw new AIxCodegenValidationException("Java artifact selectors must not be empty", "Check Maven groupId:artifactId:version or Modustro artifactId@version, ensure the selected JAR is present in the local repository and separate multiple entries with semicolons.");
         Path locHome = Path.of(System.getProperty("user.home"), ".modustro", "artifact-repos", "java", "maven");
         List<Path> locResults = new ArrayList<>();
         for (String locRaw : aSelectors.split(";", -1)) {
             String locValue = locRaw.strip();
-            if (locValue.isEmpty()) throw new IllegalArgumentException("Empty Java artifact selector");
+            if (locValue.isEmpty()) throw new AIxCodegenValidationException("Empty Java artifact selector", "Check Maven groupId:artifactId:version or Modustro artifactId@version, ensure the selected JAR is present in the local repository and separate multiple entries with semicolons.");
             if (locValue.startsWith("maven:")) locValue = locValue.substring(6);
             else if (locValue.startsWith("modustro:")) locValue = locValue.substring(9);
             String locName;
@@ -52,7 +52,7 @@ public final class AIcCodegenArtifactResolver {
                 locName = locValue.substring(0, locSeparator);
                 locVersion = locValue.substring(locSeparator + 1);
                 if (locName.isBlank() || locVersion.isBlank())
-                    throw new IllegalArgumentException("Invalid Modustro selector: " + locRaw);
+                    throw new AIxCodegenValidationException("Invalid Modustro selector: " + locRaw, "Check Maven groupId:artifactId:version or Modustro artifactId@version, ensure the selected JAR is present in the local repository and separate multiple entries with semicolons.");
                 List<Path> locMatches;
                 if (!Files.isDirectory(locHome)) locMatches = List.of();
                 else try (Stream<Path> locWalk = Files.walk(locHome)) {
@@ -64,31 +64,31 @@ public final class AIcCodegenArtifactResolver {
                             .toList();
                 }
                 if (locMatches.size() != 1)
-                    throw new IllegalArgumentException("Expected one local Modustro JAR for "
-                            + locRaw + ", found " + locMatches);
+                    throw new AIxCodegenValidationException("Expected one local Modustro JAR for "
+                            + locRaw + ", found " + locMatches, "Check Maven groupId:artifactId:version or Modustro artifactId@version, ensure the selected JAR is present in the local repository and separate multiple entries with semicolons.");
                 locResult = locMatches.get(0);
             } else {
                 String[] locParts = locValue.split(":", -1);
                 if (locParts.length != 3 || locParts[0].isBlank()
                         || locParts[1].isBlank() || locParts[2].isBlank())
-                    throw new IllegalArgumentException("Expected Maven group:artifact:version: " + locRaw);
+                    throw new AIxCodegenValidationException("Expected Maven group:artifact:version: " + locRaw, "Check Maven groupId:artifactId:version or Modustro artifactId@version, ensure the selected JAR is present in the local repository and separate multiple entries with semicolons.");
                 locName = locParts[1];
                 locVersion = locParts[2];
                 locResult = locHome.resolve(locParts[0].replace('.', '/'))
                         .resolve(locName).resolve(locVersion)
                         .resolve(locName + "-" + locVersion + ".jar");
                 if (!Files.isRegularFile(locResult))
-                    throw new IllegalArgumentException("Missing local Maven input JAR: " + locResult);
+                    throw new AIxCodegenValidationException("Missing local Maven input JAR: " + locResult, "Check Maven groupId:artifactId:version or Modustro artifactId@version, ensure the selected JAR is present in the local repository and separate multiple entries with semicolons.");
             }
             if ("source".equals(System.getenv("MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE"))
                     && locName.startsWith("pub.")) {
                 String locReady = System.getenv("MODUSTRO_BOOTSTRAP_PREPARED_ARTIFACTS");
                 if (locReady == null || !List.of(locReady.split(",", -1)).contains(locName))
-                    throw new IllegalArgumentException("Undeclared source input artifact " + locName
-                            + "; add it to the Modustro build-time dependency graph");
+                    throw new AIxCodegenValidationException("Undeclared source input artifact " + locName
+                            + "; add it to the Modustro build-time dependency graph", "Declare the input as a build-time dependency in the Modustro artifact graph before running source-mode Codegen.");
             }
             if (locResults.contains(locResult))
-                throw new IllegalArgumentException("Duplicate Java artifact selector: " + locRaw);
+                throw new AIxCodegenValidationException("Duplicate Java artifact selector: " + locRaw, "Remove repeated entries from the semicolon-separated Java artifact list.");
             locResults.add(locResult.toAbsolutePath().normalize());
         }
         return List.copyOf(locResults);

@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdPropertyDefinition;
 import eu.algites.tool.codegen.defs.AInCodeGenerationTarget;
@@ -130,7 +132,7 @@ final class AIcXmlNamespaceContracts {
             } else {
                 Pattern method = Pattern.compile("(?m)^(    )[^\n]*?(" + Pattern.quote(names.getterName(entry.getKey(), request.namingProfile())) + "\\(\\);)$");
                 Matcher matcher = method.matcher(result);
-                if (!matcher.find()) throw new IllegalArgumentException("Missing XML wildcard getter " + propertyName);
+                if (!matcher.find()) throw new AIxCodegenValidationException("Missing XML wildcard getter " + propertyName, "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
                 String original = matcher.group(0);
                 String type = original.contains("java.util.List<")
                         ? "java.util.List<? extends " + target + ">" : target;

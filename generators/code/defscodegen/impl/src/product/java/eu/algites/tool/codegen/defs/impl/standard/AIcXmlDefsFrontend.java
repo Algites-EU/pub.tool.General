@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 
 import eu.algites.tool.codegen.defs.AIcdCanonicalDefinition;
 import eu.algites.tool.codegen.defs.AIcdDefinitionLoadRequest;
@@ -279,7 +281,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             }
             locNode = locElement.getParentNode();
         }
-        if (locParts.isEmpty()) throw new IllegalArgumentException("Unnamed inline XML content");
+        if (locParts.isEmpty()) throw new AIxCodegenValidationException("Unnamed inline XML content", "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
         return String.join("", locParts);
     }
 
@@ -1140,10 +1142,10 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
      */
     private AIcdDataType keyedElementType(Element declaration,
             AIcdDefinitionLoadRequest request, Element schema) throws IOException {
-        if (!children(declaration, "unique").isEmpty())
-            throw new IOException("xs:unique identity constraint requires "
-                    + "explicit supported mapping in " + request.path());
-        List<Element> keys = children(declaration, "key");
+        // Both XML identity constraints are indexed; xs:unique permits
+        // incomplete tuples, while xs:key requires every selected tuple.
+        List<Element> keys = new ArrayList<>(children(declaration, "key"));
+        keys.addAll(children(declaration, "unique"));
         if (keys.isEmpty()) return null;
         Element complex = child(declaration, "complexType");
         Element sequence = child(complex, "sequence");
@@ -1183,7 +1185,8 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                 fields.add(path);
             }
             if (fields.isEmpty()) throw new IOException("xs:key has no fields in " + request.path());
-            definitions.add(new AIcdKeyDefinition(name, fields, true, false));
+            definitions.add(new AIcdKeyDefinition(name, fields, true, false,
+                    "key".equals(key.getLocalName())));
         }
         return AIcdDataType.keyedValues(AIcdDataType.object(values), definitions);
     }
@@ -1526,7 +1529,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
         var locChildren = locAppinfo.getChildNodes();
         for (int locIndex = 0; locIndex < locChildren.getLength(); locIndex++) {
             if (locChildren.item(locIndex) instanceof Element locTitle
-                    && "urn:eu:algites:documentation:1".equals(locTitle.getNamespaceURI())
+                    && "https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd".equals(locTitle.getNamespaceURI())
                     && "title".equals(locTitle.getLocalName())) {
                 String locValue = locTitle.getTextContent().strip();
                 return locValue.isEmpty() ? null : locValue;

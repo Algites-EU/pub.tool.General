@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
 from dataclasses import dataclass
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
@@ -34,6 +36,6 @@ class AIcdGeneratedTypeIdentity:
             module_name = namespace
             qualified = namespace + '.' + type_name
         else:
-            raise ValueError(f'Unsupported generation target: {request.target}')
+            raise AIxCodegenValidationException(f'Unsupported generation target: {request.target}', 'Review the indicated source declaration and the generator contract. Correct the incompatible input rather than editing the generated outputs.')
         return cls(type_name, namespace, module_name, qualified, role, request.target,
                    request.definition.identity, request.definition.version)

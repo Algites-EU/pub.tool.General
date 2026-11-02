@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -37,19 +39,19 @@ public record AIcdDataType(AInDataTypeKind kind, AIcdDataType elementType,
         keyDefinitions = List.copyOf(keyDefinitions == null ? List.of() : keyDefinitions);
         positionTypes = List.copyOf(positionTypes == null ? List.of() : positionTypes);
         if (keyedValueType != null && kind != AInDataTypeKind.OBJECT)
-            throw new IllegalArgumentException("KEYED_VALUES requires OBJECT parent");
+            throw new AIxCodegenValidationException("KEYED_VALUES requires OBJECT parent", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
         if (keyedValueType == null && !keyDefinitions.isEmpty() && kind != AInDataTypeKind.ARRAY
                 || keyedValueType != null && keyDefinitions.isEmpty())
-            throw new IllegalArgumentException("Key definitions require an ARRAY or a keyed OBJECT value type");
+            throw new AIxCodegenValidationException("Key definitions require an ARRAY or a keyed OBJECT value type", "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
         if (!positionTypes.isEmpty() && kind != AInDataTypeKind.ARRAY)
-            throw new IllegalArgumentException("POSITION_TYPED_VALUE requires ARRAY parent");
+            throw new AIxCodegenValidationException("POSITION_TYPED_VALUE requires ARRAY parent", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
         constraints = constraints == null ? AIcdValueConstraints.empty() : constraints;
         if (kind == AInDataTypeKind.ARRAY && elementType == null)
-            throw new IllegalArgumentException("ARRAY requires elementType");
+            throw new AIxCodegenValidationException("ARRAY requires elementType", "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
         if ((kind == AInDataTypeKind.ONE_OF || kind == AInDataTypeKind.ANY_OF) && alternatives.isEmpty())
-            throw new IllegalArgumentException("Choice requires at least one alternative");
+            throw new AIxCodegenValidationException("Choice requires at least one alternative", "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
         if (kind == AInDataTypeKind.REFERENCE && reference == null)
-            throw new IllegalArgumentException("REFERENCE requires a target");
+            throw new AIxCodegenValidationException("REFERENCE requires a target", "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
     }
     /**
      * Backwards-compatible constructor for structural type nodes without keyed
@@ -95,7 +97,7 @@ public record AIcdDataType(AInDataTypeKind kind, AIcdDataType elementType,
     public static AIcdDataType keyedArray(AIcdDataType aElement, Integer aMinItems,
             Integer aMaxItems, List<AIcdKeyDefinition> aKeys) {
         if (aKeys == null || aKeys.isEmpty())
-            throw new IllegalArgumentException("A keyed XML array needs key definitions");
+            throw new AIxCodegenValidationException("A keyed XML array needs key definitions", "Check xs:key/xs:unique selectors and all xs:field paths against the selected repeated element. A key requires complete values; a unique constraint permits absent values.");
         return new AIcdDataType(AInDataTypeKind.ARRAY, Objects.requireNonNull(aElement),
                 List.of(), List.of(), null,
                 AIcdValueConstraints.empty().withArrayBounds(aMinItems, aMaxItems),
@@ -132,7 +134,7 @@ public record AIcdDataType(AInDataTypeKind kind, AIcdDataType elementType,
     /** Construct a closed choice without conflating oneOf and anyOf. */
     public static AIcdDataType choice(AInDataTypeKind aKind, List<AIcdDataType> aAlternatives) {
         if (aKind != AInDataTypeKind.ONE_OF && aKind != AInDataTypeKind.ANY_OF)
-            throw new IllegalArgumentException("Not a closed choice kind: " + aKind);
+            throw new AIxCodegenValidationException("Not a closed choice kind: " + aKind, "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
         return new AIcdDataType(aKind, null, List.of(), aAlternatives, null, AIcdValueConstraints.empty());
     }
     /** Rebuild an object node with a new collection of properties, keeping all other type metadata. */

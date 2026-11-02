@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+
 import eu.algites.tool.codegen.defs.AIcdCodeGenerationRequest;
 import eu.algites.tool.codegen.defs.AIcdGeneratedSource;
 import eu.algites.tool.codegen.defs.AIcdGeneratedTypeIdentity;
@@ -23,7 +25,7 @@ public final class AIcSchemaContractInterfaceGenerator {
         AIcdGeneratedSource locBase = generate(aRequest);
         if (aParentType == null) return locBase;
         if (aRequest.definition().dataType().kind() != AInDataTypeKind.OBJECT) {
-            throw new IllegalArgumentException("Only object contracts can inherit");
+            throw new AIxCodegenValidationException("Only object contracts can inherit", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
         }
         String locSource = locBase.source();
         if (aRequest.target() == AInCodeGenerationTarget.PYTHON) {
@@ -49,7 +51,7 @@ public final class AIcSchemaContractInterfaceGenerator {
             String aParentType, String aParentModule) {
         if (aRequest.definition().dataType().kind() == AInDataTypeKind.ONE_OF
                 || aRequest.definition().dataType().kind() == AInDataTypeKind.ANY_OF) {
-            if (aParentType != null) throw new IllegalArgumentException("Closed choice cannot inherit");
+            if (aParentType != null) throw new AIxCodegenValidationException("Closed choice cannot inherit", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
             return new AIcClosedChoiceGenerator().generate(aRequest);
         }
         return List.of(generate(aRequest, aParentType, aParentModule));
@@ -126,7 +128,7 @@ public final class AIcSchemaContractInterfaceGenerator {
                     String locFields = locKey.fields().stream()
                             .map(AIcScalarGeneration::jquote).reduce((a, b) -> a + ", " + b).orElseThrow();
                     rows.add("    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition(name = "
-                            + AIcScalarGeneration.jquote(locKey.name()) + ", fields = {" + locFields + "})");
+                            + AIcScalarGeneration.jquote(locKey.name()) + ", fields = {" + locFields + "}, required = " + locKey.required() + ")");
                 }
             }
             rows.add("    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = "
@@ -157,7 +159,7 @@ public final class AIcSchemaContractInterfaceGenerator {
         if (syntheticEntry) {
             String keyName = aRequest.namingProfile().generatedMethodLiteral("multi_mapped_list_key_synthetic_getter");
             if (keyName == null || keyName.isBlank())
-                throw new IllegalArgumentException("Missing multi_mapped_list_key_synthetic_getter in selected profile");
+                throw new AIxCodegenValidationException("Missing multi_mapped_list_key_synthetic_getter in selected profile", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
             rows.add("    /** Return the containing JSON/YAML object's property name. "
                     + "This synthetic accessor is not serialized as a field. @return stable, non-null property key */");
             rows.add("    String " + keyName + "();");
@@ -165,11 +167,11 @@ public final class AIcSchemaContractInterfaceGenerator {
             if (kind != AInDataTypeKind.OBJECT && kind != AInDataTypeKind.ENUM) {
                 String valueName = aRequest.namingProfile().generatedMethodLiteral("multi_mapped_list_value_synthetic_getter");
                 if (valueName == null || valueName.isBlank())
-                    throw new IllegalArgumentException("Missing multi_mapped_list_value_synthetic_getter in selected profile");
+                    throw new AIxCodegenValidationException("Missing multi_mapped_list_value_synthetic_getter in selected profile", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                 String valueType = syntheticValueType(aRequest.definition().dataType(),
                         aRequest.definition().logicalName(), aRequest);
                 if ("Object".equals(valueType))
-                    throw new IllegalArgumentException("Dynamic JSON/YAML value must not silently widen to Object");
+                    throw new AIxCodegenValidationException("Dynamic JSON/YAML value must not silently widen to Object", "Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.");
                 rows.add("    /** Return this entry's strongly typed property value, not its synthetic key. "
                         + "The getter is not serialized inside the value. @return typed JSON/YAML value */");
                 rows.add("    " + valueType + " " + valueName + "();");
@@ -180,8 +182,8 @@ public final class AIcSchemaContractInterfaceGenerator {
         String locFileStem = names.fileStem(aRequest.definition(), aRequest.namingProfile(),
                 AInDefsNameRole.INTERFACE_TYPE_FILE_STEM);
         if (!locFileStem.equals(interfaceName)) {
-            throw new IllegalArgumentException("Java public interface and source filename must agree: "
-                    + interfaceName + " vs " + locFileStem);
+            throw new AIxCodegenValidationException("Java public interface and source filename must agree: "
+                    + interfaceName + " vs " + locFileStem, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
         }
         String locRelativePath = path + locFileStem + ".java";
         return new AIcdGeneratedSource(interfaceName, locRelativePath, contract,
@@ -256,8 +258,8 @@ public final class AIcSchemaContractInterfaceGenerator {
                     AInDefsNameRole.ENUM_TYPE);
         String result = AIcScalarGeneration.scalar(valueType.kind(), valueType.constraints(), true);
         if ("Object".equals(result))
-            throw new IllegalArgumentException("Synthetic map entry cannot widen to Object: "
-                    + request.definition().sourceResource());
+            throw new AIxCodegenValidationException("Synthetic map entry cannot widen to Object: "
+                    + request.definition().sourceResource(), "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
         return result;
     }
 

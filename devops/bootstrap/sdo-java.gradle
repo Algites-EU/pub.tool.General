@@ -24,13 +24,11 @@ rootProject.repositories {
                         'artifact-repos/java/maven'))
     }
     if (mode == 'remote') maven {
+        name = 'modustro-remote-sdo'
         url = uri(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL'))
-        content {
-            // SDO CLI is a bootstrap-only tool; its GroupId is declared by
-            // the same detached dependency below, not by a repository regex.
-            includeGroup('eu.algites.tool.codegen')
-            rootProject.ext.bootstrapRemoteModustroGroups.each { includeGroup(it) }
-        }
+        // The CLI and naming profile may have transitive Modustro dependencies
+        // in groups that do not occur among the current project's direct deps.
+        // Do not restrict remote resolution to a partial list of groups.
     }
     mavenCentral()
 }

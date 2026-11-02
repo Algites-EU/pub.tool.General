@@ -17,24 +17,10 @@
       "description": "Ordered nominal direct parents of the generated interface; not a validation assertion."
     },
     "x-algites-defscodegen-choice": {
-      "type": "object",
-      "required": [
-        "alternatives"
+      "enum": [
+        true
       ],
-      "properties": {
-        "alternatives": {
-          "type": "array",
-          "minItems": 2,
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "description": "URI reference to a named Algites DataObject contract; resolved by Defs Codegen.",
-            "format": "uri-reference"
-          }
-        }
-      },
-      "additionalProperties": false,
-      "description": "Closed set of named variants for code generation, independent of oneOf."
+      "description": "Explicit Defs Codegen exclusive choice over sibling properties; minProperties=1, maxProperties=1 and additionalProperties=false ensure standard JSON validation where supported. May only appear in structural schema positions."
     }
   }
 }

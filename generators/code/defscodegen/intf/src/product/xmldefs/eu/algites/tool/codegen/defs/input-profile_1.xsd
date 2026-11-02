@@ -1,12 +1,12 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:eu:algites:tool:codegen:defs:input-profile:1" xmlns:algdoc="urn:eu:algites:documentation:1" targetNamespace="urn:eu:algites:tool:codegen:defs:input-profile:1" version="1" elementFormDefault="qualified">
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd" xmlns:algdoc="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd" targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd" version="1" elementFormDefault="qualified">
   <xs:annotation>
     <xs:appinfo>
       <algdoc:title>Input profile</algdoc:title>
     </xs:appinfo>
     <xs:documentation>Defines how Defs Codegen interprets a source-definition family.</xs:documentation>
   </xs:annotation>
-  <xs:import namespace="urn:eu:algites:documentation:1" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd"/>
+  <xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/common/documentation/algites-documentation_1.xsd"/>
   <xs:simpleType name="SourceKindType">
     <xs:annotation>
       <xs:appinfo>

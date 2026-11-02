@@ -1,5 +1,7 @@
 """Generate nominal XML element contracts without introducing artificial packages."""
 from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 import re
 from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
 from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
@@ -34,16 +36,16 @@ class AIcXmlElementContractGenerator:
         path = request.package_name.replace('.', '/') + '/' + stem + ext
         head = elements.get(element.substitution_head_qname) if element.substitution_head_qname else None
         if element.substitution_head_qname and head is None:
-            raise ValueError('Unresolved XML substitution head ' + element.substitution_head_qname)
+            raise AIxCodegenValidationException('Unresolved XML substitution head ' + element.substitution_head_qname, 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')
         base = types.get(element.type_qname)
         scalar_type = element.type_qname in value_types
         builtin = None
         if element.type_qname.startswith('{' + _XSD + '}'):
             builtin = _SCALARS.get(element.type_qname.split('}', 1)[1])
             if builtin is None:
-                raise ValueError('Unsupported XML scalar element type: ' + element.type_qname)
+                raise AIxCodegenValidationException('Unsupported XML scalar element type: ' + element.type_qname, 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')
         elif base is None:
-            raise ValueError('XML element content type is not a generated contract: ' + element.type_qname)
+            raise AIxCodegenValidationException('XML element content type is not a generated contract: ' + element.type_qname, 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')
         elif scalar_type:
             builtin = (base, base.rsplit('.', 1)[-1])
         if language is AInCodeGenerationTarget.JAVA:

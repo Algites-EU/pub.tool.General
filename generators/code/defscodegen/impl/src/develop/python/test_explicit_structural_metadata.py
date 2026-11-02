@@ -61,9 +61,9 @@ def test_choice_comes_only_from_metadata_and_uses_nominal_variants(tmp_path: Pat
               '$defs': {
                   'Text': {'type': 'object', 'properties': {'text': {'type': 'string'}}},
                   'Count': {'type': 'object', 'properties': {'count': {'type': 'integer'}}},
-                  'Payload': {'x-algites-defscodegen-choice': {
-                      'alternatives': ['#/$defs/Text', '#/$defs/Count']},
-                      'oneOf': [{'$ref': '#/$defs/Text'}, {'$ref': '#/$defs/Count'}]}},
+                  'Payload': {'type':'object', 'x-algites-defscodegen-choice': True,
+                      'properties': {'Text':{'$ref':'#/$defs/Text'},'Count':{'$ref':'#/$defs/Count'}},
+                      'minProperties':1, 'maxProperties':1, 'additionalProperties':False}},
               'properties': {'payload': {'$ref': '#/$defs/Payload'}}}
     source.write_text(json.dumps(schema))
     reader = AIcJsonSchemaReader()
@@ -102,3 +102,32 @@ def test_positional_arrays_cannot_silently_lose_types(tmp_path: Path) -> None:
         source.write_text(json.dumps(value))
         with pytest.raises(ValueError, match='POSITIONAL_VALUE'):
             reader.read(value, _request(source), AInDefinitionSourceKind.JSONDEFS, '', '', '')
+
+
+def test_choice_cannot_be_declared_inside_validation_branch(tmp_path: Path) -> None:
+    """Validation-only branches must not introduce new DataObject contracts."""
+    import pytest
+    source = tmp_path / 'invalid_1.jsondef.schema.json'
+    choice = {'type': 'object', 'x-algites-defscodegen-choice': True,
+              'properties': {'Alpha': {'type': 'string'}, 'Beta': {'type':'integer'}},
+              'minProperties': 1, 'maxProperties': 1, 'additionalProperties': False}
+    schema = {'type': 'object', 'properties': {'Own': {'type':'string'}},
+              'if': {'properties': {'Injected': choice}}}
+    source.write_text(json.dumps(schema))
+    with pytest.raises(ValueError, match='validation-only subschema'):
+        AIcJsonSchemaReader().read(schema, _request(source), AInDefinitionSourceKind.JSONDEFS, '', '', '')
+
+
+def test_choice_is_allowed_in_prefix_items_and_additional_properties(tmp_path: Path) -> None:
+    """Both tuple slots and map values are structural definition locations."""
+    source = tmp_path / 'array_1.jsondef.schema.json'
+    choice = {'type': 'object', 'x-algites-defscodegen-choice': True,
+              'properties': {'Alpha': {'type': 'string'}, 'Beta': {'type':'integer'}},
+              'minProperties': 1, 'maxProperties': 1, 'additionalProperties': False}
+    schema = {'type': 'array', 'prefixItems': [choice], 'items':{'type':'object',
+              'additionalProperties':choice}}
+    source.write_text(json.dumps(schema))
+    reader=AIcJsonSchemaReader()
+    model=reader.read(schema, _request(source), AInDefinitionSourceKind.JSONDEFS, '', '', '').data_type
+    assert model.position_types[0].kind is AInDataTypeKind.ONE_OF
+    assert model.element_type.keyed_value_type.kind is AInDataTypeKind.ONE_OF
