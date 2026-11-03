@@ -7,12 +7,12 @@ import sys
 import pytest
 
 from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-from eu.algites.tool.codegen.sdo.impl.cli._catalog_sources import resolve_naming_catalog
+from eu.algites.tool.codegen.sdo.old.impl.cli._catalog_sources import resolve_naming_catalog
 
 
 def test_importlib_resource_is_used_without_direct_sys_path_override(monkeypatch, tmp_path):
     """A packaged naming catalog remains supported without a filesystem override."""
-    from eu.algites.tool.codegen.sdo.impl.cli import _catalog_sources
+    from eu.algites.tool.codegen.sdo.old.impl.cli import _catalog_sources
 
     packaged = tmp_path / 'packaged'
     packaged.mkdir()
@@ -32,7 +32,7 @@ def test_importlib_resource_is_used_without_direct_sys_path_override(monkeypatch
 
 def test_direct_sys_path_overrides_importlib_and_reads_sibling(monkeypatch, tmp_path):
     """A directly listed sys.path root overrides a valid packaged catalog."""
-    from eu.algites.tool.codegen.sdo.impl.cli import _catalog_sources
+    from eu.algites.tool.codegen.sdo.old.impl.cli import _catalog_sources
 
     packaged = tmp_path / 'packaged'
     packaged.mkdir()
@@ -76,7 +76,7 @@ def test_missing_or_unsafe_classpath_catalog(monkeypatch, tmp_path):
 
 def test_all_matching_catalogs_are_combined(monkeypatch, tmp_path):
     """A classpath catalog name loads every provider and sys.path copy."""
-    from eu.algites.tool.codegen.sdo.impl.cli import _catalog_sources
+    from eu.algites.tool.codegen.sdo.old.impl.cli import _catalog_sources
     from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
     packaged = tmp_path / 'packaged'
     first = tmp_path / 'first'
@@ -104,7 +104,7 @@ def test_all_matching_catalogs_are_combined(monkeypatch, tmp_path):
 
 def test_conflicting_classpath_catalog_definitions_fail(monkeypatch, tmp_path):
     """Combining sources must not silently replace incompatible naming IDs."""
-    from eu.algites.tool.codegen.sdo.impl.cli import _catalog_sources
+    from eu.algites.tool.codegen.sdo.old.impl.cli import _catalog_sources
     first = tmp_path / 'first'
     second = tmp_path / 'second'
     first.mkdir()
@@ -119,7 +119,7 @@ def test_conflicting_classpath_catalog_definitions_fail(monkeypatch, tmp_path):
 
 def test_moved_sourcecode_profile_and_shared_standard_in_separate_roots(monkeypatch, tmp_path):
     """Bootstrap resolves relocated sourcecode profiles without duplicating standards."""
-    from eu.algites.tool.codegen.sdo.impl.cli import _catalog_sources
+    from eu.algites.tool.codegen.sdo.old.impl.cli import _catalog_sources
     base = tmp_path / 'config-profile'
     shared = tmp_path / 'config-intf'
     profile_root = base / 'eu/algites/lib/naming/convention/sourcecode'
@@ -142,7 +142,7 @@ def test_moved_sourcecode_profile_and_shared_standard_in_separate_roots(monkeypa
 
 def test_shared_intf_standard_is_resolved_from_base_namespace(monkeypatch, tmp_path):
     """Shared naming grammar stays at convention/, not convention/sourcecode/."""
-    from eu.algites.tool.codegen.sdo.impl.cli import _catalog_sources
+    from eu.algites.tool.codegen.sdo.old.impl.cli import _catalog_sources
     root = tmp_path / 'library-root'
     shared = root / 'eu/algites/lib/naming/convention'
     shared.mkdir(parents=True)

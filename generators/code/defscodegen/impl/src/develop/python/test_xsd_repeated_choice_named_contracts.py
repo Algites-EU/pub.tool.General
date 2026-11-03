@@ -4,11 +4,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from explicit_naming_fixture import explicit_legacy_generic_manifest
 

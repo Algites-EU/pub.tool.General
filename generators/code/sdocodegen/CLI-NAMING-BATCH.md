@@ -7,7 +7,7 @@ contracts. They do not need the original YAML/JSON/XML schema files.
 ## Named input/output roles
 
 ```sh
-python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli \
+python -m eu.algites.tool.codegen.sdo.old.impl.cli.aic_sdo_codegen_cli \
   --repository-root=. \
   --technology-dointf-input-dir:python=src/product/python.gen \
   --technology-sdointf-output-dir:python=src/product/python.gen \

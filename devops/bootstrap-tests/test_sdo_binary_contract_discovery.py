@@ -4,8 +4,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 JAVA_GENERATED = ROOT / 'generators/code/defscodegen/intf/src/product/java.gen/eu/algites/tool/codegen/defs'
-CLI = ROOT / 'generators/code/sdocodegen/cli/src/product/java/eu/algites/tool/codegen/sdo/impl/cli/AIcSdoCodegenCli.java'
-SERVICE = ROOT / 'generators/code/sdocodegen/impl/src/product/java/eu/algites/tool/codegen/sdo/impl/standard/AIcSdoCodegenService.java'
+CLI = ROOT / 'generators/code/sdocodegen/cli/src/product/java/eu/algites/tool/codegen/sdo/old/impl/cli/AIcSdoCodegenCli.java'
+SERVICE = ROOT / 'generators/code/sdocodegen/impl/src/product/java/eu/algites/tool/codegen/sdo/old/impl/standard/AIcSdoCodegenService.java'
 
 
 def test_namespace_marker_is_not_a_dataobject_definition():

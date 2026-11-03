@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 from explicit_legacy_naming import catalog, configured_load
 
 

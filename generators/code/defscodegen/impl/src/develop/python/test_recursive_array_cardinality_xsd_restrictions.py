@@ -5,11 +5,11 @@ import pytest
 
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
-from eu.algites.tool.codegen.defs.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.aicd_value_constraints import AIcdValueConstraints
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 
 
@@ -172,10 +172,10 @@ def test_cyclic_attribute_group_is_rejected(tmp_path):
 
 
 def test_cross_format_scalar_array_leaf_mismatch_is_not_ignored():
-    from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
-    from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
-    from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
-    from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
+    from eu.algites.tool.codegen.defs.old.aicd_canonical_definition import AIcdCanonicalDefinition
+    from eu.algites.tool.codegen.defs.old.aicd_property_definition import AIcdPropertyDefinition
+    from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 
     def model(source_kind, scalar_kind):
         prop = AIcdPropertyDefinition('values', AIcdDataType(AInDataTypeKind.ARRAY,
@@ -192,9 +192,9 @@ def test_cross_format_scalar_array_leaf_mismatch_is_not_ignored():
 
 
 def test_json_array_bound_conflict_is_reported_by_canonical_merger():
-    from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
-    from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
-    from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
+    from eu.algites.tool.codegen.defs.old.aicd_canonical_definition import AIcdCanonicalDefinition
+    from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 
     def model(kind, minimum):
         return AIcdCanonicalDefinition('urn:example', 1, 'example', kind, f'{kind.value}_1.json',

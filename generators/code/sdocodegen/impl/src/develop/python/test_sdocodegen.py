@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 import pytest
 
-from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from eu.algites.tool.codegen.sdo.old.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 
 
@@ -193,11 +193,11 @@ def test_nested_data_object_getter_is_covariant(contracts):
     assert instance.getChild() is value and instance._getRaw_Child() is value
 
 import json
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 
 def test_schema_nested_reference_passes_mutable_contract_to_sdo(tmp_path, monkeypatch):
     import importlib
-    from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+    from eu.algites.tool.codegen.sdo.old.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
     package = 'sdopackage_' + tmp_path.name.replace('-', '_')
     schema = tmp_path / 'intf/src/product/jsondefs' / package
     schema.mkdir(parents=True)
@@ -208,7 +208,7 @@ def test_schema_nested_reference_passes_mutable_contract_to_sdo(tmp_path, monkey
         'required':['Child']}))
     manifest = tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python'],'bindings':[]}))
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
     from importlib.util import spec_from_file_location, module_from_spec
     fixture_path = Path(__file__).resolve().parents[5] / 'defscodegen/impl/src/develop/python/explicit_naming_fixture.py'
     fixture_spec = spec_from_file_location('explicit_naming_fixture_sdo', fixture_path)

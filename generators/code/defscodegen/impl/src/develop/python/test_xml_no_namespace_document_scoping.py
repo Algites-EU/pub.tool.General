@@ -4,7 +4,7 @@ from __future__ import annotations
 from importlib import import_module
 from pathlib import Path
 
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import (
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import (
     AIcSchemaContractBindingsGenerator,
 )
 

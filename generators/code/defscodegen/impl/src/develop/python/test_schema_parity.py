@@ -12,13 +12,13 @@ import typing
 import pytest
 
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
 
 STEMS = ('parity-root', 'parity-child', 'parity-leaf', 'parity-status', 'parity-builtins')
 FORMATS = ((AInDefinitionSourceKind.YAMLDEFS, 'yamldefs', 'yamldef.schema.json'),
@@ -91,7 +91,7 @@ def test_schema_field_constant_uses_entire_selected_constant_convention():
     """A custom constant style must affect both words groups, but keep the empty group."""
     import copy
     from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-    from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_generation_names import AIcGenerationNames
 
     names = AIcGenerationNames()
     for language, target in (('java', AInCodeGenerationTarget.JAVA),
@@ -185,7 +185,7 @@ def test_schema_decimal_facets_remain_exact(tmp_path, kind, suffix):
 
 
 def test_float_width_and_calendar_values():
-    from eu.algites.tool.codegen.defs.impl.standard._schema_runtime import _ai_convert, AIcSchemaTemporalValue, AIcSchemaDuration
+    from eu.algites.tool.codegen.defs.old.impl.standard._schema_runtime import _ai_convert, AIcSchemaTemporalValue, AIcSchemaDuration
     assert _ai_convert('16777217', 'float', 'NUMBER') == 16777216.0
     assert _ai_convert('16777217', 'double', 'NUMBER') == 16777217.0
     for dtype, value in [('date','12345-02-28+14:00'),('time','24:00:00Z'),('dateTime','2024-02-29T12:34:56.1234567890123456789'),
@@ -217,7 +217,7 @@ def test_scalar_root_preserves_type_and_facets(tmp_path):
 
 def test_malformed_naming_profile_does_not_trigger_source_field_fallback():
     """A broken selected profile is not a reason to retry with another name convention."""
-    from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_generation_names import AIcGenerationNames
 
     class RejectingCatalog:
         def selected(self, role):
@@ -235,7 +235,7 @@ def test_malformed_naming_profile_does_not_trigger_source_field_fallback():
 
 def test_special_schema_field_normalizes_before_profile_formatting():
     """The literal $schema field is legal data, not a missing-profile fallback."""
-    from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_generation_names import AIcGenerationNames
 
     class CapturingCatalog:
         def selected(self, role):

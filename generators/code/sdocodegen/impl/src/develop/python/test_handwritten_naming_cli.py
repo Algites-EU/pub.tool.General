@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli import main
+from eu.algites.tool.codegen.sdo.old.impl.cli.aic_sdo_codegen_cli import main
 
 
 def test_handwritten_contract_uses_annotated_convention_not_filename(tmp_path: Path):

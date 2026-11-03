@@ -2,7 +2,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 import pytest
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 
 
 def test_explicit_anytype_rejected(tmp_path):

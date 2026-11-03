@@ -2,12 +2,12 @@ from explicit_legacy_naming import catalog, source_convention, output_convention
 from pathlib import Path
 
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
 from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
 from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
 
 
 def test_json_enum_and_yamldefs_object_generation():

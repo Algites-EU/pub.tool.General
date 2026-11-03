@@ -3,13 +3,13 @@ from explicit_legacy_naming import catalog, source_convention, output_convention
 from pathlib import Path
 
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
 
 
 def test_python_java_schema_contract_identities():

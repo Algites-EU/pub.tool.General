@@ -4,13 +4,13 @@ from dataclasses import fields
 import pytest
 
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
-from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
-from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
-from eu.algites.tool.codegen.defs.aicd_definition_reference import AIcdDefinitionReference
-from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
+from eu.algites.tool.codegen.defs.old.aicd_canonical_definition import AIcdCanonicalDefinition
+from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
+from eu.algites.tool.codegen.defs.old.aicd_definition_reference import AIcdDefinitionReference
+from eu.algites.tool.codegen.defs.old.aicd_property_definition import AIcdPropertyDefinition
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 
 
 def test_canonical_records_have_no_flat_projection():

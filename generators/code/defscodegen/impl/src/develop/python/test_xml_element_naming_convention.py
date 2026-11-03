@@ -4,14 +4,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
-from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_element_contract_generator import AIcXmlElementContractGenerator
+from eu.algites.tool.codegen.defs.old.aicd_code_generation_request import AIcdCodeGenerationRequest
+from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_element_contract_generator import AIcXmlElementContractGenerator
 
 
 def test_xml_element_records_its_own_naming_convention(tmp_path: Path):

@@ -5,10 +5,10 @@ import pytest
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
 from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 
 
 def _request(tmp_path, item):
@@ -79,7 +79,7 @@ def test_nested_inline_object_uses_named_contract(tmp_path):
 def test_batch_emits_recursive_objects_choices_and_importable_sdo(tmp_path, monkeypatch):
     """Batch discovery and field typing must agree on every inline node name."""
     import importlib
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
     from explicit_naming_fixture import explicit_legacy_generic_manifest
     from explicit_sdo_fixture import configured_service
 
@@ -124,7 +124,7 @@ def test_batch_emits_recursive_objects_choices_and_importable_sdo(tmp_path, monk
 def test_array_references_to_defs_use_identical_nominal_types(tmp_path, monkeypatch):
     """The direct and two-dimensional $defs reference must target one named contract."""
     import importlib
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
     from explicit_naming_fixture import explicit_legacy_generic_manifest
     folder = tmp_path / 'intf/src/product/jsondefs/example/reference_arrays'
     folder.mkdir(parents=True)
@@ -149,7 +149,7 @@ def test_array_references_to_defs_use_identical_nominal_types(tmp_path, monkeypa
 
 def test_inline_literal_choice_references_generated_enum(tmp_path):
     """An enum-only oneOf emits a named enum, never a missing AIig choice type."""
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
     from explicit_naming_fixture import explicit_algites_manifest
     root = tmp_path / 'intf/src/product/jsondefs/example/choices'
     root.mkdir(parents=True)

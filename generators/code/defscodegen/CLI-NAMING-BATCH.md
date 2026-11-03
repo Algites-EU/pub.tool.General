@@ -10,7 +10,7 @@ stable ordered map. An empty assignment removes the inherited entry.
 ## Input and output mapping
 
 ```sh
-python -m eu.algites.tool.codegen.defs.impl.cli.aic_defs_codegen_cli \
+python -m eu.algites.tool.codegen.defs.old.impl.cli.aic_defs_codegen_cli \
   --repository-root=. \
   --schema-input-dir:jsondefs=src/product/jsondefs \
   --input-schema-naming-convention:jsondefs=my-schema-naming \

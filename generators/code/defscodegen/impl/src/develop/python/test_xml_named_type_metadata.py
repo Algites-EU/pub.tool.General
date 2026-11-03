@@ -1,6 +1,6 @@
 """Verify named XSD TYPE identity survives both renderers and second-stage SDO generation."""
 from __future__ import annotations
-from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
+from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
 
 import importlib
 from pathlib import Path
@@ -8,12 +8,12 @@ from pathlib import Path
 import pytest
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 from explicit_sdo_fixture import configured_service
 
 
@@ -58,8 +58,8 @@ def test_named_xml_type_qname_and_derived_mutable_contract(tmp_path: Path, monke
 
 def test_non_xml_definition_cannot_claim_xml_type_qname():
     """Callers must not assign XML QName metadata to an unrelated source technology."""
-    from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
-    from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
+    from eu.algites.tool.codegen.defs.old.aicd_canonical_definition import AIcdCanonicalDefinition
+    from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
     definition = AIcdCanonicalDefinition('urn:other', 1, 'Root', AInDefinitionSourceKind.JSONDEFS, 'test.json', 'Test', AIcdDataType(AInDataTypeKind.OBJECT, properties=()), (), None)
     with pytest.raises(ValueError):
         AIcdCodeGenerationRequest(definition, AInCodeGenerationTarget.PYTHON, 'example',

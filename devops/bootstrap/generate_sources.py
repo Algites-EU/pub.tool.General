@@ -9,6 +9,8 @@ If no applicable schemas/output roots exist, generation is a successful no-op.
 from __future__ import annotations
 
 import argparse
+from email.parser import BytesParser
+import zipfile
 import ast
 import os
 from pathlib import Path
@@ -37,6 +39,8 @@ ALGITES_NAMING_FILES = [f'resource:{name}' for name in (
 # Temporary bootstrap-only build-source prerequisites. All repositories share
 # this list until Modustro supports a declared build_source dependency usage.
 BOOTSTRAP_BUILD_SOURCE_PYTHON_DISTRIBUTIONS = (
+    'eu_algites_pub_tool_general_generators_code_common',
+    'eu_algites_pub_tool_general_generators_code_defscodegen_intf',
     'eu_algites_pub_tool_general_generators_code_defscodegen_impl',
     'eu_algites_pub_tool_general_generators_code_defscodegen_cli',
     'eu_algites_pub_lib_general_naming_convention_impl',
@@ -52,9 +56,9 @@ _BOOTSTRAP_SDO_PYTHON_DISTRIBUTIONS = (
 )
 # These are *Python module identities*, not checkout/repository paths. A source
 # checkout can place the module in any artifact exposing src/product/python.
-_CODEGEN_MODULE = Path('eu/algites/tool/codegen/defs/impl/standard/'
+_CODEGEN_MODULE = Path('eu/algites/tool/codegen/defs/old/impl/standard/'
                        'aic_schema_contract_bindings_generator.py')
-_SDO_MODULE = Path('eu/algites/tool/codegen/sdo/impl/cli/aic_sdo_codegen_cli.py')
+_SDO_MODULE = Path('eu/algites/tool/codegen/sdo/old/impl/cli/aic_sdo_codegen_cli.py')
 _NAMING_MODULE = Path('eu/algites/lib/naming/convention/impl/standard/'
                       'aic_name_convention_catalog.py')
 _NAMING_PROFILE_RESOURCE = 'algites-java-name-conventions.yml'
@@ -203,10 +207,50 @@ def _install_local_build_source(output: Path, module: Path) -> None:
         raise RuntimeError('Missing bootstrap-only Algites build-source dependencies: '
                            + ', '.join(sorted(missing))
                            + '. Bootstrap the libraries first, or supply source checkouts.')
-    target = output / 'codegen-python'
+    # pip --no-deps is intentional: never query a remote index during local
+    # bootstrap. Resolve Modustro runtime dependencies from wheel metadata
+    # first, including dependencies introduced after the fixed seed list.
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
+    from packaging.version import Version
+
+    pending = list(found.values())
+    constraints = []
+    while pending:
+        wheel = pending.pop()
+        with zipfile.ZipFile(wheel) as archive:
+            metadata = [name for name in archive.namelist()
+                        if name.endswith('.dist-info/METADATA')]
+            if len(metadata) != 1:
+                raise RuntimeError(f'Expected one wheel METADATA file: {wheel}')
+            message = BytesParser().parsebytes(archive.read(metadata[0]))
+        for value in message.get_all('Requires-Dist', []):
+            requirement = Requirement(value)
+            if requirement.marker and not requirement.marker.evaluate():
+                continue
+            name = canonicalize_name(requirement.name).replace('-', '_')
+            if not name.startswith('eu_algites_'):
+                continue  # External runtime libraries belong to the bootstrap host.
+            constraints.append((wheel, name, requirement))
+            if name in found:
+                continue
+            candidates = [candidate for candidate in package_dir.glob(name + '-*.whl')
+                          if candidate.name.split('-')[1].startswith('1.1.dev')]
+            if not candidates:
+                raise RuntimeError(f'{wheel.name}: missing local bootstrap dependency '
+                                   f'{requirement}; prepare its artifact first')
+            selected = max(candidates, key=lambda item: Version(item.name.split('-')[1]))
+            found[name] = selected
+            pending.append(selected)
+    for owner, name, requirement in constraints:
+        version = Version(found[name].name.split('-')[1])
+        if requirement.url or version not in requirement.specifier:
+            raise RuntimeError(f'{owner.name}: local bootstrap dependency '
+                               f'{requirement} is incompatible with {found[name].name}')
+    target = output / 'codegen-python' 
     target.mkdir(parents=True, exist_ok=True)
     subprocess.run([sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check',
-                    '--no-input', '--no-deps', '--target', str(target),
+                    '--no-input', '--no-deps', '--upgrade', '--target', str(target),
                     *(str(found[name]) for name in sorted(found))], check=True)
     sys.path.insert(0, str(target))
 
@@ -225,15 +269,18 @@ def _load_codegen(repository: Path, output: Path, module: Path = _CODEGEN_MODULE
                 _add_source_paths(checkout)
     else:
         _install_local_build_source(output, module)
-        _add_source_paths(repository)
+        # Prefer current generator sources even when naming must use local wheels.
+        for checkout in checkouts:
+            if checkout == repository or _has_python_module(checkout, module):
+                _add_source_paths(checkout)
     if module == _SDO_MODULE:
         try:
-            from eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli import main as sdo_main
+            from eu.algites.tool.codegen.sdo.old.impl.cli.aic_sdo_codegen_cli import main as sdo_main
         except ImportError as error:
             raise RuntimeError('Cannot import the bootstrap SDO Codegen implementation') from error
         return sdo_main
     try:
-        from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import (
+        from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import (
             AIcSchemaContractBindingsGenerator,
         )
     except ImportError as error:
@@ -392,7 +439,7 @@ def main() -> None:
         try:
             from eu.algites.tool.codegen.common.diagnostics import report_exception
         except ImportError:
-            raise  # Preserve the original traceback if diagnostics are unavailable.
+            raise failure  # Report the generation failure, not a diagnostics import.
         if report_exception(failure, generator='Bootstrap Codegen', source=root):
             raise SystemExit(2) from None
         raise

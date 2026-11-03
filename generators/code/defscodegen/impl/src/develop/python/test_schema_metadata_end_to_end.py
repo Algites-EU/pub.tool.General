@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 
 
 def test_algites_schema_url_not_confused_with_logical_id(tmp_path: Path):
@@ -66,7 +66,7 @@ def test_custom_source_profile_enables_explicit_data_document_id_and_version(tmp
     original = AIcNameConventionCatalog.load_resource('algites-jsondef-name-conventions.yml')
     # The public profile API must reflect the edited catalog, not embedded Algites constants.
     assert original.schema_metadata_fields('algites-jsondef-schema-versioned_1')['data_source_schema_identifier'] == ''
-    from eu.algites.tool.codegen.defs.impl.standard._catalog_sources import expand_naming_catalogs
+    from eu.algites.tool.codegen.defs.old.impl.standard._catalog_sources import expand_naming_catalogs
     with expand_naming_catalogs(['resource:algites-jsondef-name-conventions.yml']) as files:
         raw = yaml.safe_load(Path(files[0]).read_text())
     for definition in raw['SourceStructureNameConventions']['NameConventions'].values():
@@ -99,7 +99,7 @@ def test_custom_source_profile_enables_explicit_data_document_id_and_version(tmp
 def test_missing_schema_source_metadata_omits_annotation_members(tmp_path: Path):
     """Filename-derived canonical names never masquerade as explicit schema-source metadata."""
     import yaml
-    from eu.algites.tool.codegen.defs.impl.standard._catalog_sources import expand_naming_catalogs
+    from eu.algites.tool.codegen.defs.old.impl.standard._catalog_sources import expand_naming_catalogs
 
     schema = tmp_path / 'src/product/jsondefs/example/contracts/example_1.jsondef.schema.json'
     schema.parent.mkdir(parents=True)
@@ -149,7 +149,7 @@ def test_selected_method_profile_controls_output_metadata(tmp_path: Path):
                                   'x-algites-schema-id': 'example.logical',
                                   'x-algites-schema-version': 1,
                                   'type': 'object', 'properties': {'Name': {'type': 'string'}}}))
-    from eu.algites.tool.codegen.defs.impl.standard._catalog_sources import expand_naming_catalogs
+    from eu.algites.tool.codegen.defs.old.impl.standard._catalog_sources import expand_naming_catalogs
     catalogs = tmp_path / 'catalogs'
     catalogs.mkdir()
     with expand_naming_catalogs(['resource:algites-python-codegen-method-conventions.yml']) as files:

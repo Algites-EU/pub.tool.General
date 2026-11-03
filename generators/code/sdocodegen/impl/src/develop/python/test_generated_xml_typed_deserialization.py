@@ -77,7 +77,7 @@ class AIigOrder_1(AIiXmlDataObject):
 def test_xsd_repeating_scalar_flows_through_defs_and_sdo_generators(tmp_path, monkeypatch):
     """The SDO generator must read cardinality from genuine Defs-generated types."""
     import json
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
     package = 'xsdsdogen_' + tmp_path.name.replace('-', '_')
     source = tmp_path / 'intf/src/product/xmldefs' / package
     source.mkdir(parents=True)

@@ -6,13 +6,13 @@ import sys
 import pytest
 
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
 from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
 from generator_implementation_parity import create_fixture
 
 
@@ -55,7 +55,7 @@ def test_first_stage_repository_cli_and_check(tmp_path):
     before = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
     assert generator.generate_repository(tmp_path, manifest, True) == result
     command = [sys.executable, '-m',
-        'eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator',
+        'eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator',
         str(tmp_path), str(manifest), '--check', '--json']
     proc = subprocess.run(command, capture_output=True, text=True, check=True)
     assert json.loads(proc.stdout) == result

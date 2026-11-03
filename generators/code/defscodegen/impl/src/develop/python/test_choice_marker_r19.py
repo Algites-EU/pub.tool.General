@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
 
 
 def _choice() -> dict:

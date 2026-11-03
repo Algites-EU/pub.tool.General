@@ -20,8 +20,8 @@ import unittest
 
 from explicit_naming_fixture import explicit_algites_manifest
 from explicit_legacy_naming import configured_load, rendering_catalog
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
 
 def create_fixture(root):
     """Exercise scalar types, nested objects, enums, unions and cross-package references."""
@@ -155,7 +155,7 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
                 AIcSchemaContractBindingsGenerator().generate_repository(root, manifest, check)
             return None
         proc = subprocess.run(['java', '-cp', self.java_classpath,
-            'eu.algites.tool.codegen.defs.impl.standard.AIcSchemaContractBindingsGenerator',
+            'eu.algites.tool.codegen.defs.old.impl.standard.AIcSchemaContractBindingsGenerator',
             str(root), str(manifest), '--json', *(['--check'] if check else [])],
             text=True, capture_output=True)
         if not success:
@@ -206,11 +206,11 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
 
     def test_all_frontends_and_targets(self):
         from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-        from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-        from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-        from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
-        from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-        from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
+        from eu.algites.tool.codegen.defs.old.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+        from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
+        from eu.algites.tool.codegen.defs.old.aicd_code_generation_request import AIcdCodeGenerationRequest
+        from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+        from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
         resources = Path(__file__).parents[1]
         for kind, suffix in ((AInDefinitionSourceKind.JSONDEFS, 'jsondef.schema.json'),
                              (AInDefinitionSourceKind.YAMLDEFS, 'yamldef.schema.json'),

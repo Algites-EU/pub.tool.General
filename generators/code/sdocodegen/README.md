@@ -20,7 +20,7 @@ positional class/output arguments. With no arguments it reads the packaged
 Java (processing a binary JAR):
 
 ```sh
-java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli \
+java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.old.impl.cli.AIcSdoCodegenCli \
     --settings-file=config/my-sdocodegen.settings \
     --dointf-input-artifact=build/libs/my-read-contracts.jar \
     --dointf-classpath=build/libs/dependencies
@@ -29,7 +29,7 @@ java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli \
 Python (using the native source loader):
 
 ```sh
-python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli \
+python -m eu.algites.tool.codegen.sdo.old.impl.cli.aic_sdo_codegen_cli \
     --settings-file=config/my-sdocodegen.settings
 ```
 

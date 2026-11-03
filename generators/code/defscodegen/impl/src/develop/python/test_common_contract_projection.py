@@ -3,13 +3,13 @@ from dataclasses import replace
 import pytest
 
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
-from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
-from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
-from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_common_contract_projection import merge_common
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
+from eu.algites.tool.codegen.defs.old.aicd_canonical_definition import AIcdCanonicalDefinition
+from eu.algites.tool.codegen.defs.old.aicd_property_definition import AIcdPropertyDefinition
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_common_contract_projection import merge_common
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 
 
 def _field(name, kind, presence=AInFieldPresenceKind.ALLOWED):
@@ -157,13 +157,13 @@ def test_exact_algites_xml_namespace_alias_matches_dotted_common_schema_id():
     xml = _definition(AInDefinitionSourceKind.XMLDEFS,
         'https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd', ())
     xml = replace(xml, logical_name='input-profile')
-    assert generator._common_identity(xml, 'eu.algites.tool.codegen.defs',
+    assert generator._common_identity(xml, 'eu.algites.tool.codegen.defs.old',
         ('explicit', xml.identity, 1)) == (
-            'explicit', 'eu.algites.tool.codegen.defs.input-profile', 1)
+            'explicit', 'eu.algites.tool.codegen.defs.old.input-profile', 1)
     assert generator._common_identity(xml, 'eu.algites.tool.codegen.other',
         ('explicit', xml.identity, 1)) == ('explicit', xml.identity, 1)
     changed_version = replace(xml, version=2)
-    assert generator._common_identity(changed_version, 'eu.algites.tool.codegen.defs',
+    assert generator._common_identity(changed_version, 'eu.algites.tool.codegen.defs.old',
         ('explicit', xml.identity, 2)) == ('explicit', xml.identity, 2)
 
 
@@ -188,7 +188,7 @@ def test_string_closed_choice_relaxes_only_common_scalar_contract():
 
 def test_string_and_literal_enum_cannot_share_java_getter():
     """A format-specific enum getter is not covariant with String."""
-    from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
+    from eu.algites.tool.codegen.defs.old.aicd_value_constraints import AIcdValueConstraints
     string = AIcdDataType(AInDataTypeKind.STRING)
     choices = AIcdDataType.choice(AInDataTypeKind.ONE_OF, (
         AIcdDataType(AInDataTypeKind.STRING,

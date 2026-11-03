@@ -1,7 +1,7 @@
 """Nonexistent default schema roots are informational, not configuration failures."""
 from __future__ import annotations
 
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 
 
 def test_all_missing_schema_input_directories_are_safe_noop(tmp_path, capsys):

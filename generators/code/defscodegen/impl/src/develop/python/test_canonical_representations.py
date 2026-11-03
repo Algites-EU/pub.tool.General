@@ -1,6 +1,6 @@
 from explicit_legacy_naming import catalog, source_convention, output_convention, rendering_catalog
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
-from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
+from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
 from dataclasses import replace
 from pathlib import Path
 import pytest
@@ -8,13 +8,13 @@ import sys
 import types
 
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
-from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_default_defs_codegen_service import AIcDefaultDefsCodegenService
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
 
 
 def test_common_metadata_representations():

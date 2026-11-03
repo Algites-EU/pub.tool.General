@@ -1,16 +1,16 @@
-from eu.algites.tool.codegen.defs.impl.standard._source_data_type import from_source_hints
+from eu.algites.tool.codegen.defs.old.impl.standard._source_data_type import from_source_hints
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 """Ensure cross-format verification never ignores recursively nested schema differences."""
 from dataclasses import replace
 import pytest
 
-from eu.algites.tool.codegen.defs.aicd_canonical_definition import AIcdCanonicalDefinition
-from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
-from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
-from eu.algites.tool.codegen.defs.aicd_value_constraints import AIcdValueConstraints
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
+from eu.algites.tool.codegen.defs.old.aicd_canonical_definition import AIcdCanonicalDefinition
+from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
+from eu.algites.tool.codegen.defs.old.aicd_property_definition import AIcdPropertyDefinition
+from eu.algites.tool.codegen.defs.old.aicd_value_constraints import AIcdValueConstraints
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
 
 
 def _definition(source, data_type):

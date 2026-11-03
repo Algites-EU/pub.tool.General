@@ -177,7 +177,7 @@ def generate(repository: Path, source_general: Path | None, output: Path,
         return
     output.mkdir(parents=True, exist_ok=True)
     load_dependencies(repository, source_general, output)
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import (
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import (
         AIcSchemaContractBindingsGenerator,
     )
     count = 0

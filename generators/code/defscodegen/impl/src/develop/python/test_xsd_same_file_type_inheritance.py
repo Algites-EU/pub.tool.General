@@ -4,7 +4,7 @@ import importlib
 import json
 from pathlib import Path
 
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 from explicit_naming_fixture import explicit_legacy_generic_manifest
 
 

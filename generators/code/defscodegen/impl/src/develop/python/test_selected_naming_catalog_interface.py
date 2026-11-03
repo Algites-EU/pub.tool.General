@@ -6,8 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 from eu.algites.lib.naming.convention.aii_name_convention_catalog import AIiNameConventionCatalog
-from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
-from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
 
 
 class _Catalog:

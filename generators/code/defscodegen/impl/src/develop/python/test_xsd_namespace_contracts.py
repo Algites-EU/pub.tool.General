@@ -7,7 +7,7 @@ import re
 
 import pytest
 
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 from explicit_naming_fixture import explicit_legacy_generic_manifest
 
 
@@ -66,11 +66,11 @@ def test_xsd_any_contract_signatures_and_xml_marker_inheritance(tmp_path, monkey
 def test_namespace_naming_role_is_independent_from_xml_element_naming(language, tmp_path):
     """Explicit namespace naming ID must control the type/file, not XML element naming."""
     from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-    from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
-    from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-    from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
-    from eu.algites.tool.codegen.defs.impl.standard import aic_xml_namespace_contracts
-    from eu.algites.tool.codegen.defs.impl.standard.aic_xml_namespace_contracts import namespace_contract
+    from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
+    from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+    from eu.algites.tool.codegen.defs.old.impl.standard import aic_xml_namespace_contracts
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_namespace_contracts import namespace_contract
 
     catalog = AIcNameConventionCatalog.load_resource(f'algites-{language}-name-conventions.yml')
     namespace_id = f'algites-{language}-gen-data-xml-namespace-intf_1'
@@ -147,10 +147,10 @@ def test_xml_namespace_fixed_name_parts_come_from_catalog_not_generator(language
     from copy import deepcopy
     from types import SimpleNamespace
     from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-    from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
-    from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-    from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
-    from eu.algites.tool.codegen.defs.impl.standard.aic_xml_namespace_contracts import namespace_contract
+    from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
+    from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_namespace_contracts import namespace_contract
 
     original = AIcNameConventionCatalog.load_resource(f'algites-{language}-name-conventions.yml')
     configuration = deepcopy(original._config)

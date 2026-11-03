@@ -5,19 +5,19 @@ import pytest
 
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.aicd_key_definition import AIcdKeyDefinition
-from eu.algites.tool.codegen.defs.aicd_property_definition import AIcdPropertyDefinition
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_common_contract_projection import _common_type
-from eu.algites.tool.codegen.defs.impl.standard.aic_declared_type_identity import canonical_type_identifier
-from eu.algites.tool.codegen.defs.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_yaml_defs_frontend import AIcYamlDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard._schema_loading import load_schema
-from eu.algites.tool.codegen.defs.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
+from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
+from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from eu.algites.tool.codegen.defs.old.aicd_key_definition import AIcdKeyDefinition
+from eu.algites.tool.codegen.defs.old.aicd_property_definition import AIcdPropertyDefinition
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_common_contract_projection import _common_type
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_declared_type_identity import canonical_type_identifier
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_yaml_defs_frontend import AIcYamlDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard._schema_loading import load_schema
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_json_schema_reader import AIcJsonSchemaReader
 
 
 def _fixture():

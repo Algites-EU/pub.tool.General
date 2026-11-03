@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 
 from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy as Policy
-from eu.algites.tool.codegen.defs.impl.standard._setter_inheritance_policy_configuration import effective_default
-from eu.algites.tool.codegen.defs.impl.cli.aic_defs_codegen_cli import AIcDefsCodegenCli
+from eu.algites.tool.codegen.defs.old.impl.standard._setter_inheritance_policy_configuration import effective_default
+from eu.algites.tool.codegen.defs.old.impl.cli.aic_defs_codegen_cli import AIcDefsCodegenCli
 
 
 def test_direct_service_has_stable_generic_default(monkeypatch):
@@ -99,7 +99,7 @@ def test_packaged_and_direct_sys_path_settings_accumulate(monkeypatch, tmp_path)
     """importlib.resources and sys.path are layers, not mutually exclusive alternatives."""
     import sys
     from pathlib import Path
-    from eu.algites.tool.codegen.defs.impl.cli import _layered_settings
+    from eu.algites.tool.codegen.defs.old.impl.cli import _layered_settings
     monkeypatch.chdir(Path(__file__).resolve().parents[7])
     packaged = tmp_path / 'packaged'
     packaged.mkdir()

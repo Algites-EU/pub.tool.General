@@ -29,8 +29,8 @@ def output_convention(language, category='data'):
 
 def rendering_catalog(source, language: str):
     """Bind all semantic rendering roles in an explicitly selected test profile."""
-    from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole as R
-    from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import (
+    from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole as R
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import (
         AIcSelectedNamingCatalog)
     codes = {
         R.DATA_TYPE: output_convention(language),
@@ -49,7 +49,7 @@ def rendering_catalog(source, language: str):
 
 def configured_load(path, kind, profile, source_naming_profile=''):
     """Create a test load request with an explicitly selected source-file convention."""
-    from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
+    from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
     chosen = source_naming_profile or source_convention(kind)
     # This test fixture deliberately provides the missing source-family catalog.
     # Do not add equivalent fallback behavior to the production frontend.
@@ -65,9 +65,9 @@ def configured_generation(definition, target, package_name, profile,
     This lives only in test sources; production requests remain strict and do not
     infer a naming profile. Existing already-selected profiles are preserved.
     """
-    from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
-    from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-    from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
+    from eu.algites.tool.codegen.defs.old.aicd_code_generation_request import AIcdCodeGenerationRequest
+    from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+    from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
     lang = 'java' if target is AInCodeGenerationTarget.JAVA else 'python'
     base = profile.catalog if hasattr(profile, 'selected') else profile
     selected = profile if hasattr(profile, 'selected') else rendering_catalog(base, lang)

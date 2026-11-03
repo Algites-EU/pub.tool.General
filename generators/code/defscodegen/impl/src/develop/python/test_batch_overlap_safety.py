@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 
 
 def _naming_resource_bytes(name: str) -> bytes:

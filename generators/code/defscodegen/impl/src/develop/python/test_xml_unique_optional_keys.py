@@ -12,7 +12,7 @@ import json
 import pytest
 
 from explicit_naming_fixture import explicit_legacy_generic_manifest
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import (
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import (
     AIcSchemaContractBindingsGenerator,
 )
 

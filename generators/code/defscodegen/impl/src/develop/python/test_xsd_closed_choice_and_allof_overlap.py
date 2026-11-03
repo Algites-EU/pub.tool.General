@@ -8,12 +8,12 @@ import pytest
 
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_yaml_defs_frontend import AIcYamlDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_yaml_defs_frontend import AIcYamlDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 from explicit_naming_fixture import explicit_legacy_generic_manifest
 
 
@@ -91,13 +91,13 @@ def test_allof_redeclaration_must_not_replace_incompatible_shape(tmp_path, schem
 
 
 def test_recursive_reference_requires_explicit_identity():
-    from eu.algites.tool.codegen.defs.aicd_data_type import AIcdDataType
+    from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
     with pytest.raises(ValueError, match='REFERENCE requires'):
         AIcdDataType(AInDataTypeKind.REFERENCE)
 
 
 def test_xml_choice_alternatives_are_compared_recursively(tmp_path):
-    from eu.algites.tool.codegen.defs.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_canonical_definition_merger import AIcCanonicalDefinitionMerger
     left = tmp_path / 'left/payment_1.xsd'
     right = tmp_path / 'right/payment_1.xsd'
     left.parent.mkdir()

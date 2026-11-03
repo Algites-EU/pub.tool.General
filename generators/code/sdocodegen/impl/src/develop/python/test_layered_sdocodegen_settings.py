@@ -1,6 +1,6 @@
 """Regression tests for SDO classpath and invocation settings precedence."""
 from __future__ import annotations
-from eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli import _settings
+from eu.algites.tool.codegen.sdo.old.impl.cli.aic_sdo_codegen_cli import _settings
 
 
 def test_defaults_are_keyed_and_split_into_named_sdo_roles(monkeypatch):
@@ -28,7 +28,7 @@ def test_explicit_sdo_settings_and_boolean_removal(monkeypatch, tmp_path):
 
 def test_missing_input_source_root_is_informational(tmp_path, capsys, monkeypatch):
     from pathlib import Path
-    from eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli import main
+    from eu.algites.tool.codegen.sdo.old.impl.cli.aic_sdo_codegen_cli import main
     monkeypatch.chdir(Path(__file__).resolve().parents[7])
     assert main([f'--repository-root={tmp_path}']) == 0
     assert 'skipping configured input directory (not found)' in capsys.readouterr().err
@@ -69,7 +69,7 @@ def test_packaged_and_direct_sys_path_settings_accumulate(monkeypatch, tmp_path)
     """importlib.resources and sys.path are layers, not mutually exclusive alternatives."""
     import sys
     from pathlib import Path
-    from eu.algites.tool.codegen.sdo.impl.cli import _layered_settings
+    from eu.algites.tool.codegen.sdo.old.impl.cli import _layered_settings
     monkeypatch.chdir(Path(__file__).resolve().parents[7])
     packaged = tmp_path / 'packaged'
     packaged.mkdir()
@@ -97,7 +97,7 @@ def test_packaged_defaults_resolve_from_python_source_classpath_outside_checkout
     from pathlib import Path
     root = Path(__file__).resolve().parents[7]
     config = root / 'generators/code/sdocodegen/intf/src/product/config'
-    assert (config / 'eu/algites/tool/codegen/sdo/sdocodegen-python-default.settings').is_file()
+    assert (config / 'eu/algites/tool/codegen/sdo/old/sdocodegen-python-default.settings').is_file()
     monkeypatch.syspath_prepend(str(config))
     monkeypatch.chdir(tmp_path)
     assert '--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER' in _settings([])

@@ -3,9 +3,9 @@ from pathlib import Path
 import pytest
 
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 
 
 def _request(path):
@@ -50,7 +50,7 @@ def test_unsafe_xml_particles_fail_closed(tmp_path, fragment):
 def test_external_extension_generates_true_java_and_python_parent(tmp_path):
     """An imported XSD base must be a real nominal parent, never copied getters."""
     import json
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
     from explicit_naming_fixture import explicit_legacy_generic_manifest
     source = tmp_path / 'intf/src/product/xmldefs/example/inherited'
     source.mkdir(parents=True)
@@ -83,7 +83,7 @@ def test_xsd_extension_without_emitted_base_is_not_silently_flattened(tmp_path):
     """The imported type must be part of the requested output, not just readable."""
     import json
     import os
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
     from explicit_naming_fixture import explicit_legacy_generic_manifest
     source = tmp_path / 'intf/src/product/xmldefs/example/derived'
     source.mkdir(parents=True)

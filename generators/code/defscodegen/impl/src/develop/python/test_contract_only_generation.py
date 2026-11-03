@@ -4,7 +4,7 @@ from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPrese
 import json
 from pathlib import Path
 import pytest
-from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 
 
 def _explicit(manifest):
@@ -173,9 +173,9 @@ def test_xsd_root_attribute_becomes_canonical_field(tmp_path):
     python = (tmp_path/'intf/src/product/python.gen/example/contracts/aiig_sample_1.py').read_text()
     assert 'getCode()' in java
     assert 'getCode' in python
-    from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
-    from eu.algites.tool.codegen.defs.aicd_definition_load_request import AIcdDefinitionLoadRequest
-    from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+    from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
+    from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
     from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
     path = root/'sample_1.xsd'
     contract = AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
@@ -266,7 +266,7 @@ def test_two_allof_contract_parents_preserve_both_inheritance_paths(tmp_path):
 def test_user_defined_getter_composition_reaches_generated_java_and_python(tmp_path, monkeypatch):
     """Both languages must render a custom getter prefix from the chosen YAML role."""
     import yaml
-    from eu.algites.tool.codegen.defs.impl.standard._catalog_sources import expand_naming_catalogs
+    from eu.algites.tool.codegen.defs.old.impl.standard._catalog_sources import expand_naming_catalogs
 
     catalog_dir = tmp_path / 'catalogs'
     catalog_dir.mkdir()
@@ -299,11 +299,11 @@ def test_user_defined_getter_composition_reaches_generated_java_and_python(tmp_p
 def test_accessor_names_preserve_input_field_word_boundaries_without_fixed_output_syntax():
     """Schema camel/snake/kebab source names retain their meaning through configured profiles."""
     from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-    from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_generation_names import AIcGenerationNames
 
     names = AIcGenerationNames()
-    from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
-    from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+    from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
     profiles = AIcSelectedNamingCatalog(AIcAlgitesNamingProfiles.python_profile(),
         {AInDefsNameRole.INTERFACE_TYPE: 'algites-python-gen-intf-versioned_1'})
     for source in ('customerId', 'CustomerId', 'customer_id', 'customer-id'):

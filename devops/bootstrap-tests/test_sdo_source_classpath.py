@@ -14,7 +14,9 @@ def test_source_output_substitutes_own_published_jar_only():
     assert 'moduleProject.sourceSets.main.output' in source
     assert 'def toolFiles = toolClasspath.files.findAll { !ownPublishedJar(it) }' in source
     assert '.findAll { !ownPublishedJar(it) }' in source
-    assert source.index('moduleProject.sourceSets.main.output,') < source.index('moduleFiles, toolFiles, classes')
+    assert source.index('moduleProject.sourceSets.main.output,') < source.index('moduleFiles, classes)')
+    assert source.index('if (eligible.isEmpty())') < source.index('def toolClasspath = resolveToolClasspath()')
+    assert 'binaryClasspath += files(toolFiles)' in source
     assert 'moduleProject.sourceSets.main.runtimeClasspath, classes)' not in source
 
 

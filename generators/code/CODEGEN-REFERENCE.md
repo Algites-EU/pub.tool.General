@@ -43,8 +43,8 @@ choice constraints remain on the format-specific contract.
 ## 2. Defs Codegen — explicit semantic naming roles
 
 The Java CLI entry point is
-`eu.algites.tool.codegen.defs.impl.cli.AIcDefsCodegenCli`; the Python CLI is
-`python -m eu.algites.tool.codegen.defs.impl.cli.aic_defs_codegen_cli`.
+`eu.algites.tool.codegen.defs.old.impl.cli.AIcDefsCodegenCli`; the Python CLI is
+`python -m eu.algites.tool.codegen.defs.old.impl.cli.aic_defs_codegen_cli`.
 Both accept the same kebab-case option names. See
 [Defs Codegen naming CLI](defscodegen/CLI-NAMING-BATCH.md) for a complete
 invocation and the role/configuration contract.
@@ -132,8 +132,8 @@ programmatic generator service for individual definitions.
 ## 3. SDO Codegen — independent input and output mapping
 
 The Java CLI entry point is
-`eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli`; the Python CLI is
-`python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli`.
+`eu.algites.tool.codegen.sdo.old.impl.cli.AIcSdoCodegenCli`; the Python CLI is
+`python -m eu.algites.tool.codegen.sdo.old.impl.cli.aic_sdo_codegen_cli`.
 See [SDO Codegen naming CLI](sdocodegen/CLI-NAMING-BATCH.md).
 
 | Parameter | Meaning |

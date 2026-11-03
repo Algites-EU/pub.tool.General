@@ -5,10 +5,10 @@ import json
 
 import pytest
 
-from eu.algites.tool.codegen.defs.ain_data_type_kind import AInDataTypeKind
-from eu.algites.tool.codegen.defs.ain_definition_source_kind import AInDefinitionSourceKind
-from eu.algites.tool.codegen.defs.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
-from eu.algites.tool.codegen.defs.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_json_defs_frontend import AIcJsonDefsFrontend
+from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 
@@ -103,11 +103,11 @@ def test_non_type_preserving_pattern_properties_fails_loudly(tmp_path):
 @pytest.mark.parametrize('target', ['java', 'python'])
 def test_mapped_getter_uses_interface_not_concrete_implementation(tmp_path, target):
     """The read contract exposes AIiMultiMappedList regardless of source format."""
-    from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-    from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
-    from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
-    from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+    from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+    from eu.algites.tool.codegen.defs.old.aicd_code_generation_request import AIcdCodeGenerationRequest
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+    from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
     source = tmp_path / 'products_1.jsondef.schema.json'
     source.write_text(json.dumps({'type': 'object', 'properties': {
         'Products': {'type': 'object', 'additionalProperties': {'type': 'object',
@@ -178,11 +178,11 @@ def test_nested_xml_key_rejects_unknown_and_repeating_intermediate(tmp_path):
 def test_synthetic_value_getter_is_configured_and_typed(tmp_path, target):
     """Primitive additionalProperties values require a typed virtual getter."""
     from dataclasses import replace
-    from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-    from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
-    from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
-    from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+    from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+    from eu.algites.tool.codegen.defs.old.aicd_code_generation_request import AIcdCodeGenerationRequest
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+    from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
     source = tmp_path / 'numbers_1.jsondef.schema.json'
     source.write_text(json.dumps({'type': 'integer'}))
     from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
@@ -213,11 +213,11 @@ def test_synthetic_value_getter_retains_object_array_item_contract(tmp_path, tar
     from dataclasses import replace
     from pathlib import Path
     from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
-    from eu.algites.tool.codegen.defs.ain_code_generation_target import AInCodeGenerationTarget
-    from eu.algites.tool.codegen.defs.aicd_code_generation_request import AIcdCodeGenerationRequest
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
-    from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
-    from eu.algites.tool.codegen.defs.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+    from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+    from eu.algites.tool.codegen.defs.old.aicd_code_generation_request import AIcdCodeGenerationRequest
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_interface_generator import AIcSchemaContractInterfaceGenerator
+    from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
 
     source = tmp_path / 'records_1.jsondef.schema.json'
     source.write_text(json.dumps({'type': 'array', 'items': {

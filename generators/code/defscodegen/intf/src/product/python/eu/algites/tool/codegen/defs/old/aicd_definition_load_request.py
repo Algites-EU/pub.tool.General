@@ -1,0 +1,20 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
+from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
+
+@dataclass(frozen=True, slots=True)
+class AIcdDefinitionLoadRequest:
+    """Carries immutable definition load request data.
+
+    Attributes:
+        path: Source definition path.
+        source_kind: Definition source family.
+        naming_profile: Naming/version profile.
+    """
+    path: Path
+    source_kind: AInDefinitionSourceKind
+    naming_profile: AIcNameConventionCatalog
+    source_naming_profile: str = ""

@@ -1,6 +1,6 @@
 # Defs Codegen core implementation
 
-Default distinct `yamldefs`, `jsondefs`, and `xmldefs` frontends plus Java/Python generation backends. Package namespace: `eu.algites.tool.codegen.defs`; `impl` is only an artifact boundary.
+Default distinct `yamldefs`, `jsondefs`, and `xmldefs` frontends plus Java/Python generation backends. Package namespace: `eu.algites.tool.codegen.defs.old`; `impl` is only an artifact boundary.
 
 The default Java and Python backends propagate canonical descriptions into
 Javadoc/docstrings and preserve property descriptions in generated data-object
