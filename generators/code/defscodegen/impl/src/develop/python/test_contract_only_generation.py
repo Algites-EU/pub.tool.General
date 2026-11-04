@@ -311,3 +311,42 @@ def test_accessor_names_preserve_input_field_word_boundaries_without_fixed_outpu
     for source in ('customerId', 'CustomerId', 'customer_id', 'customer-id'):
         assert names.getter_name(source, profiles) == 'getCustomerId'
         assert names.setter_name(source, profiles) == 'setCustomerId'
+
+
+def test_external_explicit_parent_diagnostic_identifies_child_file_and_pointer(tmp_path):
+    """Missing cross-artifact parent must not be reported as repository-root failure."""
+    from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+    from eu.algites.tool.codegen.common.diagnostics import format_diagnostic
+
+    manifest = _fixture(tmp_path)
+    schema = tmp_path / 'intf/src/product/jsondefs/example/contracts/example_1.jsondef.schema.json'
+    parent = 'https://defs.dev.algites.eu/api/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json'
+    schema.write_text(json.dumps({
+        '$id': 'urn:example:child:1', 'type': 'object',
+        'x-algites-defscodegen-extends': [parent],
+        'allOf': [{'$ref': parent}],
+        'properties': {'Count': {'type': 'integer'}},
+    }))
+    with pytest.raises(AIxCodegenValidationException) as failure:
+        AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _explicit(manifest))
+    diagnostic = format_diagnostic(failure.value, generator='Bootstrap Codegen')
+    assert f'Source: {schema}' in diagnostic
+    assert 'Location: /x-algites-defscodegen-extends/0' in diagnostic
+    assert parent in diagnostic
+    assert '(matching input declarations: 0)' in diagnostic
+    assert 'Maven/API dependency alone does not add schemas' in diagnostic
+
+
+def test_invalid_explicit_parent_item_reports_declaration_location(tmp_path):
+    """Malformed parent items identify the same exact source as an unresolved URI."""
+    manifest = _fixture(tmp_path)
+    schema = tmp_path / 'intf/src/product/jsondefs/example/contracts/example_1.jsondef.schema.json'
+    schema.write_text(json.dumps({
+        '$id': 'urn:example:child:1', 'type': 'object',
+        'x-algites-defscodegen-extends': [7],
+    }))
+    from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+    with pytest.raises(AIxCodegenValidationException) as failure:
+        AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _explicit(manifest))
+    assert failure.value.source == str(schema)
+    assert failure.value.location == '/x-algites-defscodegen-extends/0'

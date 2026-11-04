@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+from eu.algites.tool.codegen.common.validation_batch import selected_policy, parse_boolean
 
 import argparse
 from pathlib import Path
@@ -49,6 +50,7 @@ class AIcDefsCodegenCli:
         catalogs: list[str] = []
         artifact_lists: dict[str, str] = {}
         setter_policy = None
+        validation_policy = selected_policy(args)
         check = clean = allow_unversioned = False
         targets = {'java', 'python'}
         formats = {'xmldefs', 'yamldefs', 'jsondefs'}
@@ -63,9 +65,11 @@ class AIcDefsCodegenCli:
                 raise AIxCodegenValidationException(f'Invalid qualified Defs option: {option}', 'Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.')
             key, value = option[2:].split('=', 1)
             name, *qualifiers = key.split(':')
-            if name in {'repository-root', 'setter-inheritance-policy'} and not qualifiers:
+            if name in {'repository-root', 'setter-inheritance-policy',
+                        'codegen-validate-one-input-at-a-time-only'} and not qualifiers:
                 if name == 'repository-root': root = Path(value).resolve()
-                else: setter_policy = value
+                elif name == 'setter-inheritance-policy': setter_policy = value
+                else: validation_policy = parse_boolean(value)
             elif name == 'naming-conventions-file' and len(qualifiers) == 1:
                 catalog_kinds.add(qualifiers[0])
                 catalogs.append(value)
@@ -153,7 +157,8 @@ class AIcDefsCodegenCli:
                     defs_codegen_naming_conventions=defs_profiles,
                     naming_convention_files=list(dict.fromkeys(catalogs)),
                     languages=list(output_dirs), clean_only=clean,
-                    allow_unversioned_schemas=allow_unversioned)
+                    allow_unversioned_schemas=allow_unversioned,
+                    codegen_validate_one_input_at_a_time_only=validation_policy)
                 results = AIcSchemaContractBindingsGenerator().generate_manifest(root, manifest, check)
                 for item in results:
                     print(item['path'])

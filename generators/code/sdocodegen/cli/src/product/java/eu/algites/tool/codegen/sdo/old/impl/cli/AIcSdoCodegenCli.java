@@ -83,6 +83,7 @@ public final class AIcSdoCodegenCli {
         Set<String> locCatalogKinds = new LinkedHashSet<>();
         boolean locCheck = false;
         boolean locClean = false;
+        boolean locOneAtATime = eu.algites.tool.codegen.common.AIcCodegenValidationBatch.defaultPolicy();
         for (String locOption : aArgs) {
             if (locOption.equals("--check")) { locCheck = true; continue; }
             if (locOption.equals("--clean-only")) { locClean = true; continue; }
@@ -107,6 +108,12 @@ public final class AIcSdoCodegenCli {
                         throw new AIxCodegenValidationException("Catalog option needs a unique qualifier: " + locOption, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
                     locCatalogKinds.add(locQualified[1]);
                     locCatalogSources.add(locValue);
+                }
+                case "codegen-validate-one-input-at-a-time-only" -> {
+                    if (locQualified.length != 1)
+                        throw new AIxCodegenValidationException("Validation policy is not technology-qualified: " + locOption,
+                                "Use --codegen-validate-one-input-at-a-time-only=true or =false.");
+                    locOneAtATime = eu.algites.tool.codegen.common.AIcCodegenValidationBatch.parseBoolean(locValue);
                 }
                 case "generated-dataobject-method-naming-convention" -> {
                     requireQualifiers(locQualified, "java");
@@ -168,6 +175,7 @@ public final class AIcSdoCodegenCli {
         Path locConcreteRoot = root(locRepository, locDirectories.get("technology-sdoimpl-output-dir"));
         if (locMutableRoot == null || locConcreteRoot == null)
             throw new AIxCodegenValidationException("Configure both Java SDO output roots", "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
+        var locValidation = new eu.algites.tool.codegen.common.AIcCodegenValidationBatch(locOneAtATime);
         List<String> locSources = new ArrayList<>();
         for (String locItem : locCatalogSources) {
             String locResolved = AIcNamingCatalogSource.normalize(locItem);
@@ -220,13 +228,24 @@ public final class AIcSdoCodegenCli {
                 }
             }
             if (!locContracts.isEmpty()) {
-                Map<Path, AIcdSdoGenerationResult> locGenerated = locService.generateFromSources(
-                        locSourceRoot, locContracts, "d", locDependencies, locInputNames,
-                        locMutableNames, locConcreteNames, locMutableSubpackage, locConcreteSubpackage,
-                        locInputRoles.keySet().stream().filter(locMutableRoles::containsKey)
-                                .filter(locConcreteRoles::containsKey)
-                                .collect(java.util.stream.Collectors.toSet()));
-                locGenerated.forEach((aPath, aOutput) -> locResults.put(aPath.toString(), aOutput));
+                // In aggregate mode each source is isolated so later input
+                // failures are still reported. Never write output before finish().
+                List<List<Path>> locGroups = new ArrayList<>();
+                if (locOneAtATime) locGroups.add(locContracts);
+                else for (Path locContract : locContracts) locGroups.add(List.of(locContract));
+                for (List<Path> locGroup : locGroups) {
+                    try {
+                        Map<Path, AIcdSdoGenerationResult> locGenerated = locService.generateFromSources(
+                                locSourceRoot, locGroup, "d", locDependencies, locInputNames,
+                                locMutableNames, locConcreteNames, locMutableSubpackage, locConcreteSubpackage,
+                                locInputRoles.keySet().stream().filter(locMutableRoles::containsKey)
+                                        .filter(locConcreteRoles::containsKey)
+                                        .collect(java.util.stream.Collectors.toSet()));
+                        locGenerated.forEach((aPath, aOutput) -> locResults.put(aPath.toString(), aOutput));
+                    } catch (AIxCodegenValidationException error) {
+                        locValidation.add(error, locGroup.iterator().next().toString());
+                    }
+                }
             }
         }
         List<Path> locBinaryInputs = new ArrayList<>();
@@ -240,6 +259,7 @@ public final class AIcSdoCodegenCli {
             Set<String> locCandidates = new LinkedHashSet<>(locClasses);
             for (Path locBinary : locBinaryInputs) locCandidates.addAll(scanClassNames(locBinary));
             for (String locClassName : locCandidates) {
+                try {
                 Class<?> locClass = Class.forName(locClassName, false, locLoader);
                 // The service owns DataObject eligibility. In particular,
                 // namespace marker interfaces extend AIiDataObject indirectly
@@ -250,8 +270,12 @@ public final class AIcSdoCodegenCli {
                         || !locConcreteRoles.containsKey(locRole)) continue;
                 locResults.put(locClassName, locService.generate(locClass, "d", locInputNames,
                         locMutableNames, locConcreteNames, locMutableSubpackage, locConcreteSubpackage));
+                } catch (AIxCodegenValidationException error) {
+                    locValidation.add(error, locClassName);
+                }
             }
         }
+        locValidation.finish();
         for (AIcdSdoGenerationResult locResult : locResults.values()) {
             String locMutableRole = outputRole(locResult.mutableInterface(), locMutableRoles);
             String locConcreteRole = outputRole(locResult.implementation(), locConcreteRoles);

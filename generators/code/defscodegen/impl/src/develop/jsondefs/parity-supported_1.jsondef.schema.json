@@ -133,8 +133,9 @@
       "title": "Inline object"
     },
     "anything": {
-      "description": "Unconstrained value.",
-      "title": "Anything"
+      "description": "Typed string value, matching the supported XML parity fixture.",
+      "title": "Anything",
+      "type": "string"
     },
     "dateValue": {
       "type": "string",

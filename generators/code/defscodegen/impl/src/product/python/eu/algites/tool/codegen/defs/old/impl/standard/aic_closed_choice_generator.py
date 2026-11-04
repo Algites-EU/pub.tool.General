@@ -167,7 +167,7 @@ class AIcClosedChoiceGenerator:
                     'definition_kind=AInXmlObjectDefinitionKind.TYPE, '
                     f'namespace={namespace!r}, namespace_local_name={local!r})\n')
             main = ('from __future__ import annotations\n' + xml_import + '\n'
-                'class ' + cls + ('(AIiXmlDataObject)' if model.source_kind is AInDefinitionSourceKind.XMLDEFS else '') + ':\n'
+                'class ' + cls + ('(AIiXmlDataObject)' if (model.source_kind is AInDefinitionSourceKind.XMLDEFS and request.contract_role != 'common') else '') + ':\n'
                 + xml_annotation
                 + '    """Generated closed ' + kind + ' choice; use a declared value wrapper.\n\n    Author: linhart1.\n    """\n'
                 + '    __closed_choice_mode__ = ' + repr(kind) + '\n'

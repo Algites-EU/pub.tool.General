@@ -23,7 +23,7 @@ for path in (TOOL / 'generators/code/common/src/product/python',
 
 from eu.algites.tool.codegen.common.naming_profiles import (
     COMMON_ROLES, DEFS_ROLES, SDO_ROLES, resolve_codegen_naming_profiles)
-from eu.algites.tool.codegen.defs.canonical_model import (
+from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
     AIcgd_jElement_1, AIcgd_jElementList_1, AIcgd_jEnum_1,
     AIcgd_jEnumValue_1, AIcgd_jList_1, AIcgd_jMap_1,
     AIcgd_jScalar_1, AIcgd_jSourceBinding_1,
@@ -59,7 +59,7 @@ def schema_repository(family):
 
 
 def profile_docs(profile, language):
-    path = TOOL / 'generators/code/profile' / profile / 'src/product/config/eu/algites/tool/codegen'
+    path = TOOL / 'generators/code/profile' / profile / 'src/product/config/eu/algites/lib/naming/convention/sourcecode'
     return {scope: yaml.safe_load((path / f'{profile}-{language}-{scope}-codegen-conventions.yml').read_text())
             for scope in ('common', 'defs', 'sdo')}
 

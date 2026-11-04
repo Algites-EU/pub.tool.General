@@ -74,7 +74,7 @@ def test_xsd_enum_and_typed_map_key(domain: str):
 @pytest.mark.parametrize('profile', ['algites', 'standardprefix', 'standardpostfix'])
 @pytest.mark.parametrize('language', ['java', 'python'])
 def test_profiles_only_use_known_method_roles(profile: str, language: str):
-    directory = CODE_ROOT / 'profile' / profile / 'src/product/config/eu/algites/tool/codegen'
+    directory = CODE_ROOT / 'profile' / profile / 'src/product/config/eu/algites/lib/naming/convention/sourcecode'
     for domain, roles in ROLES.items():
         path = directory / f'{profile}-{language}-{domain}-codegen-conventions.yml'
         document = yaml.safe_load(path.read_text('utf-8'))
@@ -105,7 +105,7 @@ class TestLanguageProfileEquivalence:
     ])
     def test_java_and_python_offer_same_naming_capabilities(self, profile, domain, root):
         """Prevent silently missing Python roles that are implemented by Java."""
-        directory = CODE_ROOT / 'profile' / profile / 'src/product/config/eu/algites/tool/codegen'
+        directory = CODE_ROOT / 'profile' / profile / 'src/product/config/eu/algites/lib/naming/convention/sourcecode'
         specs = {}
         for language in ('java', 'python'):
             path = directory / f'{profile}-{language}-{domain}-codegen-conventions.yml'

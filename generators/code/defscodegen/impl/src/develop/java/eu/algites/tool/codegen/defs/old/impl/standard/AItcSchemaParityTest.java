@@ -27,7 +27,7 @@ import org.testng.annotations.Test;
 
 /** Equivalent three-format fixtures and executable generated-source regressions. */
 public final class AItcSchemaParityTest {
-    private static final List<String> STEMS = List.of("parity-root", "parity-child", "parity-leaf", "parity-status", "parity-builtins");
+    private static final List<String> STEMS = List.of("parity-supported", "parity-child", "parity-leaf", "parity-status", "parity-supported-builtins");
     private static final List<String> SUFFIXES = List.of("yamldef.schema.json", "jsondef.schema.json", "xsd");
     private static final List<AInDefinitionSourceKind> KINDS = List.of(AInDefinitionSourceKind.YAMLDEFS, AInDefinitionSourceKind.JSONDEFS, AInDefinitionSourceKind.XMLDEFS);
 
@@ -61,11 +61,11 @@ public final class AItcSchemaParityTest {
             }
             SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI).newSchema(resource(stem + "_1.xsd").toFile());
         }
-        var builtins = load("parity-builtins", 2);
+        var builtins = load("parity-supported-builtins", 2);
         Assert.assertEquals(builtins.dataType().properties().size(), 46);
         var unsigned = builtins.dataType().properties().stream().filter(p -> p.sourceName().equals("unsignedLong")).findFirst().orElseThrow();
         Assert.assertEquals(unsigned.dataType().constraints().maximum(), "18446744073709551615");
-        var root = load("parity-root", 2);
+        var root = load("parity-supported", 2);
         Assert.assertEquals(root.dataType().properties().size(), 28);
         Assert.assertFalse(root.dataType().properties().stream().anyMatch(p -> p.sourceName().equals("inner")));
         var children = root.dataType().properties().stream().filter(p -> p.sourceName().equals("children")).findFirst().orElseThrow();
@@ -78,7 +78,7 @@ public final class AItcSchemaParityTest {
     public void AIcSchemaFieldNameConstantsAcrossAllDefinitionKinds() throws Exception {
         var service = new AIcDefaultDefsCodegenService();
         for (int format = 0; format < KINDS.size(); format++) {
-            var model = load("parity-root", format);
+            var model = load("parity-supported", format);
             var javaSource = service.generate(new AIcdCodeGenerationRequest(
                     model, AInCodeGenerationTarget.JAVA, "parity_generated", AItcConfiguredNamingProfiles.javaProfile())).source();
             Assert.assertTrue(javaSource.contains("public static final String SCHEMA_FIELD_NAME__OPTIONAL_TEXT = \"optionalText\";"));

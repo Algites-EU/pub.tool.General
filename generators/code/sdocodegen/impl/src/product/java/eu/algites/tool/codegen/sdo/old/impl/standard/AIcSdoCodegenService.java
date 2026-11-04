@@ -406,6 +406,49 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     .append("        return parentPropertyKey;\n")
                     .append("    }\n");
         }
+        String locSyntheticValueName = aInputNames.generatedMethodLiteral(
+                "multi_mapped_list_value_synthetic_getter");
+        Method locSyntheticValueGetter = syntheticValueGetter(aReadContract, locSyntheticValueName);
+        if (locSyntheticValueGetter != null) {
+            if (locSyntheticKeyGetter == null)
+                throw new AIxCodegenValidationException(
+                        "A virtual map-entry value getter requires a virtual key getter: " + aReadContract.getName(),
+                        "Declare both nonserialized synthetic getters in the read-only JSON/YAML contract.");
+            String locValueType = locSyntheticValueGetter.getGenericReturnType().getTypeName();
+            locImplementation.append("    /** Virtual map-entry value, never an embedded serialized field. */\n")
+                    .append("    private ").append(locValueType).append(" parentPropertyValue;\n")
+                    .append("    /** Construct an entry retaining both its external property key and its typed value.\n")
+                    .append("     * @param aPropertyKey nonempty property name\n")
+                    .append("     * @param aPropertyValue non-null typed property value\n")
+                    .append("     * @throws NullPointerException if the value is absent\n")
+                    .append("     */\n")
+                    .append("    public ").append(locConcrete).append("(String aPropertyKey, ")
+                    .append(locValueType).append(" aPropertyValue) {\n")
+                    .append("        this(aPropertyKey);\n")
+                    .append("        this.parentPropertyValue = java.util.Objects.requireNonNull(aPropertyValue, \"property value\");\n")
+                    .append("    }\n")
+                    .append("    /** Reconstruct a virtual map entry from a typed field graph.\n")
+                    .append("     * @param aMapping original field values\n")
+                    .append("     * @param aPropertyKey nonempty parent property key\n")
+                    .append("     * @param aPropertyValue non-null typed property value\n")
+                    .append("     */\n")
+                    .append("    public ").append(locConcrete)
+                    .append("(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping, String aPropertyKey, ")
+                    .append(locValueType).append(" aPropertyValue) {\n")
+                    .append("        this(aMapping, aPropertyKey);\n")
+                    .append("        this.parentPropertyValue = java.util.Objects.requireNonNull(aPropertyValue, \"property value\");\n")
+                    .append("    }\n")
+                    .append("    /** Return the synthetic property value without serializing a duplicate field.\n")
+                    .append("     * @return the exact typed value associated with the containing key\n")
+                    .append("     * @throws IllegalStateException if the value has not been supplied\n")
+                    .append("     */\n")
+                    .append("    @Override public ").append(locValueType).append(" ")
+                    .append(locSyntheticValueName).append("() {\n")
+                    .append("        if (parentPropertyValue == null)\n")
+                    .append("            throw new IllegalStateException(\"Map entry has no virtual property value\");\n")
+                    .append("        return parentPropertyValue;\n")
+                    .append("    }\n");
+        }
         for (var locField : locOwn.values()) {
             Method locGetter = locField.method();
             String locName = semanticFieldId(locField.method(), aInputNames);
@@ -741,6 +784,36 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         if (locMethod.getParameterCount() != 0 || locMethod.getReturnType() != String.class
                 || locMethod.getAnnotation(AIaDataObjectField.class) != null)
             throw new AIxCodegenValidationException("Invalid synthetic map key accessor: " + locMethod, "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
+        return locMethod;
+    }
+
+    /**
+     * Locate the typed synthetic getter of a JSON/YAML additional-property entry.
+     * This getter has no data-field annotation, because it represents the value
+     * associated with a parent map key rather than a nested serialized field.
+     *
+     * @param aReadContract declared read-only contract
+     * @param aMethodName resolved Common naming convention for the value getter
+     * @return reflected method or null if the contract does not contain one
+     * @throws AIxCodegenValidationException for malformed virtual getters
+     */
+    private static Method syntheticValueGetter(Class<?> aReadContract, String aMethodName) {
+        if (aMethodName == null || aMethodName.isBlank()) return null;
+        Method locMethod;
+        try {
+            locMethod = aReadContract.getMethod(aMethodName);
+        } catch (NoSuchMethodException locMissing) {
+            return null;
+        }
+        if (locMethod.getParameterCount() != 0 || locMethod.getReturnType() == void.class
+                || locMethod.getReturnType().isPrimitive()
+                || locMethod.getAnnotation(AIaDataObjectField.class) != null)
+            throw new AIxCodegenValidationException("Invalid synthetic map value accessor: " + locMethod,
+                    "Use a nonprimitive typed getter with no data-field annotation.");
+        if (!AIiJsonDataObject.class.isAssignableFrom(aReadContract)
+                && !AIiYamlDataObject.class.isAssignableFrom(aReadContract))
+            throw new AIxCodegenValidationException("Virtual map values require JSON/YAML DataObject contracts: "
+                    + aReadContract.getName(), "Remove virtual map getters from XML contracts.");
         return locMethod;
     }
 

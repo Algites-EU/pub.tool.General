@@ -71,6 +71,7 @@ public final class AIcDefsCodegenCli {
         Path locRepository = Path.of(".").toAbsolutePath().normalize();
         boolean locCheck = false;
         boolean locClean = false;
+        boolean locOneAtATime = eu.algites.tool.codegen.common.AIcCodegenValidationBatch.defaultPolicy();
         var locInputs = new LinkedHashMap<String, String>();
         var locFiles = new LinkedHashSet<String>();
         var locCatalogKinds = new LinkedHashSet<String>();
@@ -91,6 +92,10 @@ public final class AIcDefsCodegenCli {
                 if (locPolicy == eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.DEFAULT)
                     throw new AIxCodegenValidationException("Explicit default setter policy must be concrete", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
                 System.setProperty("algites.defscodegen.setterInheritancePolicy", locPolicy.name());
+                continue;
+            }
+            if (locKey.equals("codegen-validate-one-input-at-a-time-only")) {
+                locOneAtATime = eu.algites.tool.codegen.common.AIcCodegenValidationBatch.parseBoolean(locValue);
                 continue;
             }
             if (locKey.equals("repository-root")) {
@@ -144,6 +149,7 @@ public final class AIcDefsCodegenCli {
                 default -> throw new AIxCodegenValidationException("Unknown batch option: " + locKey, "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
             }
         }
+        locManifest.put("codegen_validate_one_input_at_a_time_only", locOneAtATime);
         for (String locTechnology : Set.of("java", "python")) {
             boolean locSelected = locCommon.has(locTechnology) || locDefs.has(locTechnology);
             if (locSelected && (!locCommon.has(locTechnology) || !locDefs.has(locTechnology)

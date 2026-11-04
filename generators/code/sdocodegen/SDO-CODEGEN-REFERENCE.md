@@ -130,9 +130,11 @@ packages, not a common suffix. The stock Algites settings select `impl.intf`
 and `impl` respectively.
 
 The settings loader uses four layers for each native target language: packaged
-`algites-sdocodegen-LANGUAGE-default.settings`, optional classpath resource
-`algites-sdocodegen-LANGUAGE.settings`, `--settings-file=PATH`, and explicit CLI
-options. No layer disables any preceding one. All settings use qualified
+`algites-sdocodegen-LANGUAGE-default.settings`, one selected profile-family
+classpath resource `sdocodegen-LANGUAGE.settings`, `--settings-file=PATH`, and
+explicit CLI options. Installed naming families (Algites, Standard Prefix,
+Standard Postfix) are alternatives, never simultaneously active. Explicit naming
+profile IDs select one family; an ambiguous selection fails with a diagnostic. All settings use qualified
 `--key:IDENTIFIER=value` entries and merge by the full key before `=`.
 An empty value removes an inherited entry; repeatable lists have named entries.
 Bare `--check` remains supported, as do `--check=true` and `--check=false`.
@@ -370,3 +372,33 @@ neexistují a nejsou předmětem této verze.
 
 Po změnách udržovat tuto `SDO-CODEGEN-REFERENCE.md` a krátký `README.md`;
 nepřidávat další průběžné stavové dokumenty.
+
+### Jednotné spouštění z univerzálního bootstrapu (2026-11-04)
+
+Univerzální `devops/bootstrap/generate_sources.py` sestavuje **kvalifikované CLI argumenty**
+a volá veřejnou vstupní metodu `AIcDefsCodegenCli.main(args)`. Nevolá přímo
+interní `AIcSchemaContractBindingsGenerator.generate_manifest()`. Python SDO se
+volá stejným způsobem přes své `main(args)`; Java SDO se spouští přes své
+Java CLI až po kompilaci read-only rozhraní (Gradle `bootstrapSdoJava`).
+V obou případech zůstávají Defs a SDO zcela nezávislé a nastavují se pro ně
+samostatné `codegen_common` + `codegen_defs` / `codegen_sdo` profily.
+
+Přepínač je společný pro obě CLI a všechny cílové technologie:
+
+```sh
+bash devops/bootstrap/bootstrap.sh --prepare-only \
+  --codegen-validate-one-input-at-a-time-only=false
+```
+
+Výchozí `true` zachovává rychlé ukončení při první vstupní chybě. `false`
+shromáždí rozpoznané chyby u všech vstupů **jednoho volání CLI** a vypíše
+zdrojové soubory a příslušná místa. Při chybách se tato dávka nezapíše do
+generovaných výstupů. Politika je předávána prostředím
+`MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY` i explicitním CLI
+argumentem; jiné hodnoty než `true`/`false` jsou odmítnuty.
+
+**Omezení současného bootstrapu:** vybrané artefakty zpracovává oddělenými
+voláními CLI. Výpis není ještě jednou atomickou validační transakcí za všechna
+`--root` artefakta. Univerzální bootstrap dál používá `.old` generační backendy,
+nikoli dosud neúplný nový kanonický Defs backend. Nezaměňovat změnu vstupní
+vrstvy CLI za migraci samotného generátoru.

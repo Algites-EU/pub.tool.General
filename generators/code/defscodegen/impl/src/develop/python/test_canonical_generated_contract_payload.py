@@ -31,7 +31,7 @@ SCHEMA_FILE = TOOL / ('generators/code/defscodegen/intf/src/product/jsondefs/eu/
 
 
 def _frontend():
-    config = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+    config = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
     common = yaml.safe_load((config / 'algites-java-common-codegen-conventions.yml').read_text())
     defs = yaml.safe_load((config / 'algites-java-defs-codegen-conventions.yml').read_text())
     return AIcDefsCodegenCanonicalSchemaFrontend(resolve_codegen_naming_profiles(

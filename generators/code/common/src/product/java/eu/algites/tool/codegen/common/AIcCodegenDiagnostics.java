@@ -21,6 +21,21 @@ public final class AIcCodegenDiagnostics {
      * @return true only if an explicit validation exception was found
      */
     public static boolean report(Throwable error, String generator, String source, PrintStream output) {
+        Throwable batch = error;
+        while (batch != null && !(batch instanceof AIxCodegenBatchValidationException))
+            batch = batch.getCause();
+        if (batch instanceof AIxCodegenBatchValidationException report) {
+            output.println("\n  VALIDATION ERRORS - " + generator + ": " + report.issues().size() + " issue(s)");
+            int index = 0;
+            for (AIxCodegenValidationException issue : report.issues()) {
+                output.println("\n  [" + (++index) + "/" + report.issues().size() + "] " + issue.getMessage());
+                if (issue.getSource() != null) output.println("  Source: " + issue.getSource());
+                if (issue.getLocation() != null) output.println("  Location: " + issue.getLocation());
+                output.println("  Hint: " + issue.getHint());
+            }
+            output.println();
+            return true;
+        }
         Throwable current = error;
         while (current != null && !(current instanceof AIxCodegenValidationException)) {
             current = current.getCause();

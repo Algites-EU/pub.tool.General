@@ -120,7 +120,8 @@ class AIcXmlDefsFrontend:
             raise AIxCodegenValidationException(f'Unsupported XSD choice branch in {request.path}', 'Check the XSD compositor and group declarations. Use a named XML type for a repeated choice and avoid overlapping or unsupported nested groups.')
         alternatives = []
         for branch in branches:
-            if branch.get('minOccurs') is not None or branch.get('maxOccurs') is not None:
+            # An explicit occurrence of one is equivalent to the XSD default.
+            if branch.get('minOccurs', '1') != '1' or branch.get('maxOccurs', '1') != '1':
                 raise AIxCodegenValidationException(f'Unsupported XSD choice branch occurrence in {request.path}', 'Check the XSD compositor and group declarations. Use a named XML type for a repeated choice and avoid overlapping or unsupported nested groups.')
             if branch.tag == self._xs + 'element':
                 fields = tuple(self._elements_fragment(branch, request, resource, frozenset()))

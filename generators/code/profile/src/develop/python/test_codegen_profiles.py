@@ -41,7 +41,8 @@ def test_arbitrary_user_name_remains_part_of_the_entity(technology):
 def test_both_generator_settings_select_one_valid_naming_catalog(style, stem, technology):
     """Defs and SDO settings in each profile are complete for either technology kind."""
     config = TOOL/'profile'/style/'src/product/config'
-    codegen_config = config/'eu/algites/tool/codegen'
+    codegen_config = config/'eu/algites/lib/naming/convention/sourcecode'
+    settings_config = config/'eu/algites/tool/codegen'
     common = yaml.safe_load((codegen_config/
         f'{style}-{technology}-common-codegen-conventions.yml').read_text())
     common_profile = common['CommonCodegenNameConventions']['NameConventions'][
@@ -50,7 +51,7 @@ def test_both_generator_settings_select_one_valid_naming_catalog(style, stem, te
     assert common_profile['SchemaMetadataNaming']['schema_source_schema_identifier'] == 'x-algites-schema-id'
     assert common_profile['SchemaMetadataNaming']['schema_source_schema_version'] == 'x-algites-schema-version'
     for generator,subdir in (('defscodegen','defs'),('sdocodegen','sdo')):
-        settings = (codegen_config/subdir/f'{generator}-{technology}.settings').read_text()
+        settings = (settings_config/subdir/f'{generator}-{technology}.settings').read_text()
         domain = subdir
         source = yaml.safe_load((codegen_config/
             f'{style}-{technology}-{domain}-codegen-conventions.yml').read_text())
@@ -180,7 +181,7 @@ def test_defs_cli_applies_separated_common_and_defs_profiles(tmp_path):
         '$id': 'urn:demo:customer:1', 'x-algites-schema-id': 'demo.customer',
         'x-algites-schema-version': 1, 'type': 'object',
         'properties': {'Name': {'type': 'string'}}}), encoding='utf-8')
-    common_path = (TOOL/'profile/algites/src/product/config/eu/algites/tool/codegen'
+    common_path = (TOOL/'profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
                    /'algites-python-common-codegen-conventions.yml')
     common = yaml.safe_load(common_path.read_text(encoding='utf-8'))
     common['NameCompositions']['selected-getter_1'] = {'Segments': [
@@ -195,6 +196,7 @@ def test_defs_cli_applies_separated_common_and_defs_profiles(tmp_path):
 
     assert AIcDefsCodegenCli.main([
         f'--repository-root={tmp_path}',
+        '--common-codegen-naming-convention:python=algites-python-codegen-common_1',
         '--naming-conventions-file:codegen_common=custom-common.yml']) == 0
     emitted = '\n'.join(path.read_text(encoding='utf-8') for path in
                         (tmp_path/'src/product/python.gen').rglob('*.py'))
@@ -210,8 +212,48 @@ def test_defs_cli_rejects_incomplete_or_mismatched_split_profiles(tmp_path):
     with pytest.raises(ValueError, match='both Common and Defs profiles'):
         AIcDefsCodegenCli.main([
             f'--repository-root={tmp_path}',
+            '--common-codegen-naming-convention:python=algites-python-codegen-common_1',
             '--defs-codegen-naming-convention:python='])
-    with pytest.raises(ValueError, match='Unknown Common/defs'):
+    with pytest.raises(ValueError, match='Conflicting naming profile selection'):
         AIcDefsCodegenCli.main([
             f'--repository-root={tmp_path}',
+            '--common-codegen-naming-convention:python=algites-python-codegen-common_1',
             '--defs-codegen-naming-convention:python=algites-python-sdocodegen-standard_1'])
+
+
+@pytest.mark.parametrize('package,generator', (
+    ('defs.old', 'defscodegen'),
+    ('sdo.old', 'sdocodegen'),
+    ('sdo', 'sdocodegen'),
+))
+@pytest.mark.parametrize('family,stem', (
+    ('algites', 'algites'),
+    ('standardprefix', 'standard-prefix'),
+    ('standardpostfix', 'standard-postfix'),
+))
+def test_layered_cli_settings_never_mix_installed_profile_families(package, generator, family, stem):
+    """Installed naming profiles are alternatives; explicit identity selects one."""
+    import importlib
+    loader = importlib.import_module(
+        f'eu.algites.tool.codegen.{package}.impl.cli._layered_settings')
+    options = loader.expand([
+        f'--common-codegen-naming-convention:python={family}-python-codegen-common_1',
+    ], generator, 'python', package)
+    assert f'--common-codegen-naming-convention:python={family}-python-codegen-common_1' in options
+    assert f'classpath:{stem}-python-name-conventions.yml' in '\n'.join(options)
+    for other in ('algites', 'standardprefix', 'standardpostfix'):
+        if other != family:
+            assert f'--common-codegen-naming-convention:python={other}-python-codegen-common_1' not in options
+            assert f'classpath:{other}-python-common-codegen-conventions.yml' not in options
+
+
+@pytest.mark.parametrize('package,generator', (
+    ('defs.old', 'defscodegen'), ('sdo.old', 'sdocodegen'), ('sdo', 'sdocodegen'),
+))
+def test_multiple_installed_profiles_need_unambiguous_selection(package, generator):
+    """Neither sys.path order nor resource-discovery order silently chooses a vendor."""
+    import importlib
+    loader = importlib.import_module(
+        f'eu.algites.tool.codegen.{package}.impl.cli._layered_settings')
+    with pytest.raises(ValueError, match='Ambiguous Codegen naming profile overlays'):
+        loader.expand([], generator, 'python', package)

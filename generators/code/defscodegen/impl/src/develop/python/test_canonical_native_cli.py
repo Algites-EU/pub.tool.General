@@ -27,7 +27,7 @@ def _manifest(tmp_path):
             'Node': {'type': 'object', 'properties': {
                 'Value': {'type': 'integer'}, 'next': {'$ref': '#/$defs/Node'}}},
             'Status': {'type': 'string', 'enum': ['ready', 'on-hold']}}}))
-    common = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+    common = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
     external = LIB / 'naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
     schema = TOOL / ('generators/code/defscodegen/intf/src/product/jsondefs/eu/algites/'
                      'tool/codegen/defs/model/canonical-model_1.jsondef.schema.json')

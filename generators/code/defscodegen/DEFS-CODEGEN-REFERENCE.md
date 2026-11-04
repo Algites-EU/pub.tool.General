@@ -95,9 +95,9 @@ native manifest popisují následující kapitoly.
 
 The Java and Python native CLIs accept the same **kebab-case** batch options.
 Both native CLIs always resolve layered settings: a packaged language-specific
-`defscodegen-LANGUAGE-default.settings`, then an optional classpath
-`defscodegen-LANGUAGE.settings`, then `--settings-file=PATH`, then
-explicit CLI arguments. Complete qualified setting keys are overlaid as a
+`defscodegen-LANGUAGE-default.settings`, then one selected classpath profile overlay
+`defscodegen-LANGUAGE.settings` (never a mixture of installed profile families),
+then `--settings-file=PATH`, then explicit CLI arguments. Complete qualified setting keys are overlaid as a
 stable ordered map. An empty assignment removes the inherited entry.
 
 ### Input and output mapping
@@ -185,8 +185,11 @@ regeneration and `--clean-only`. `--check` compares without writing.
 ### Layered settings
 
 The four precedence levels are: packaged `defscodegen-java-default.settings`
-(or Python), optional `defscodegen-java.settings` (or Python) on the
-all classpath matches, `--settings-file`, and direct CLI parameters. Settings are merged
+(or Python), one explicitly selected `defscodegen-java.settings` (or Python)
+profile family from available classpath resources, `--settings-file`, and direct
+CLI parameters. Multiple installed naming profile families are alternatives,
+not cumulative layers. Without an unambiguous selection the CLI rejects the
+configuration instead of mixing Algites with Standard Prefix/Postfix. Settings are merged
 using the **entire key before `=`**, including qualifiers separated by `:`.
 The higher layer wins; `--key=` removes an inherited entry. Repeatable options
 such as `--naming-conventions-file:standard=...` have individually named keys.
@@ -275,16 +278,16 @@ Use a JSON manifest, committed alongside the inputs, with paths to explicitly se
   ],
   "profiles": {
     "java": {
-      "common_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/tool/codegen/algites-java-common-codegen-conventions.yml",
+      "common_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-java-common-codegen-conventions.yml",
       "common_id": "algites-java-codegen-common_1",
-      "defs_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/tool/codegen/algites-java-defs-codegen-conventions.yml",
+      "defs_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-java-defs-codegen-conventions.yml",
       "defs_id": "algites-java-defscodegen-standard_1",
       "sourcecode_catalog": "/absolute/path/to/pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-java-name-conventions.yml"
     },
     "python": {
-      "common_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/tool/codegen/algites-python-common-codegen-conventions.yml",
+      "common_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-common-codegen-conventions.yml",
       "common_id": "algites-python-codegen-common_1",
-      "defs_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/tool/codegen/algites-python-defs-codegen-conventions.yml",
+      "defs_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-defs-codegen-conventions.yml",
       "defs_id": "algites-python-defscodegen-standard_1",
       "sourcecode_catalog": "/absolute/path/to/pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-name-conventions.yml"
     }
@@ -499,6 +502,13 @@ or `tuple[tuple[AIigInvoiceLinesItemsItems_1, ...], ...]`). Closed-choice
 wrappers are generated as independent compilation units alongside the choice
 interface. Direct `$defs` references and nested array references resolve to
 the same nominal target type.
+
+When XMLDEFS participates in a cross-format `oneOf`/`anyOf`, the shared
+Java and Python choice contract has **no XML-specific superclass**. Only
+the XML-specific derivative implements/inherits `AIiXmlDataObject` and
+imports the Python marker explicitly. This distinction must hold even when
+XMLDEFS is the canonical source selected for the shared contract: otherwise
+Python imports fail during independent SDO Codegen discovery.
 
 This support applies to the **repository batch** which writes all discovered
 compilation units. The single-unit `generate()` preview may contain references
@@ -1584,10 +1594,24 @@ parity script or bootstrap action is needed.
   formats, two target languages, five source schemata. These include real
   examples of nested types, scalars, enum values, collections, restrictions and
   cross-schema references.
-- The two parity-specific XSD fixtures `parity-supported` and
-  `parity-supported-builtins` avoid explicit `xs:anyType` / `xs:anySimpleType`,
-  which the frontend intentionally rejects; existing unsupported-type tests and
-  original parity examples remain intact.
+- The parity-specific XSD fixtures `parity-supported` and
+  `parity-supported-builtins` use typed replacements for `xs:anyType` and
+  `xs:anySimpleType`, which the current frontend intentionally rejects.
+  The unconstrained `parity-builtins` and `parity-root` three-format
+  fixtures are retained in `impl/src/develop/examples/` for negative and
+  semantic tests. They are deliberately outside the immediate build-source
+  input directories `impl/src/develop/{jsondefs,yamldefs,xmldefs}`; those
+  directories are scanned recursively by the bootstrap. Moving the fixtures
+  below `examples` leaves their original semantics intact while excluding
+  them from bootstrap generation. The supported positive root scenario is
+  `parity-supported`, not the original unconstrained `parity-root`.
+  Earlier develop-only parity fixtures contained the artificial
+  `x-test-xsd-type` marker. It has been removed from the fixtures because
+  it does not belong to the Algites schema vocabulary. The historical
+  `x-modustro-datatype` hint remains on certain test-only scalar fields
+  because the `.old` frontend currently consumes it; it is not an
+  agreed public vocabulary keyword. Neither hint is required for the
+  unconstrained `anyType` or `anySimpleType` negative fixtures.
 - `AItcDeclaredTypeIdentityTest.java` and the existing Python named-type tests
   also verify canonical source-name mapping and rejection of malformed names.
 
@@ -1627,13 +1651,23 @@ in the comparison; do not make the normalizers semantically permissive.
 
 ## Ekvivalence skalárních typů a tří formátů
 
-`yamldefs`, `jsondefs` and `xmldefs` contain five equivalent, documented contracts.
-The first two use the repository's JSON Schema serialization for YAML and JSON
-wire documents. XML contracts use XSD. `parity-root` refers to `parity-child`,
-which refers to `parity-leaf`; the root also has collections of referenced objects
-and enums, optional and nullable fields, scalar collections and basic facets.
-`parity-builtins` covers all XSD 1.0 built-in datatype families, including the
-three built-in list types and `anySimpleType`/`anyType` (46 fields).
+The develop fixtures have distinct roles: the `parity-supported` root and
+`parity-supported-builtins` exercise currently supported generation; the
+unconstrained `parity-root` and `parity-builtins` are retained separately
+under `impl/src/develop/examples/` to exercise rejected XML constructs.
+The supported root refers to `parity-child`, which refers to `parity-leaf`.
+It also exercises object collections, enums, optional and nullable fields,
+scalar collections and basic facets. The first two schema source kinds use
+JSON Schema serialization for YAMLDEFS and JSONDEFS; XMLDEFS uses XSD.
+The supported root still exposes known parity differences for nullable
+values and anonymous XML object types; do not report full three-format
+structural equivalence until those tests pass.
+The original-semantics `parity-builtins` fixtures in `impl/src/develop/examples/parity-builtins/`
+cover all XSD 1.0 built-in datatype families, including the three built-in
+list types and `anySimpleType`/`anyType` (46 fields). These test the intentionally
+unsupported unconstrained forms. The positive cross-language and cross-format
+bootstrap-compatible fixture is `parity-supported-builtins` (46 fields), with
+typed stand-ins for the two unsupported cases.
 
 Both Java and Python generator implementations test all three frontends and both
 output languages. Comparisons normalize only source identity, resource and source
@@ -1715,3 +1749,33 @@ pojmenování, vstupních artefaktů a dalších generátorů jsou navíc ve spo
 podporované funkce nebo diagnostiky aktualizovat příslušnou kapitolu tohoto
 `DEFS-CODEGEN-REFERENCE.md` a krátký `README.md`. Nevytvářet poznámkové
 `*-STATUS.md`, `*-MIGRATION.md` ani další paralelní manuály.
+
+### Jednotné spouštění z univerzálního bootstrapu (2026-11-04)
+
+Univerzální `devops/bootstrap/generate_sources.py` sestavuje **kvalifikované CLI argumenty**
+a volá veřejnou vstupní metodu `AIcDefsCodegenCli.main(args)`. Nevolá přímo
+interní `AIcSchemaContractBindingsGenerator.generate_manifest()`. Python SDO se
+volá stejným způsobem přes své `main(args)`; Java SDO se spouští přes své
+Java CLI až po kompilaci read-only rozhraní (Gradle `bootstrapSdoJava`).
+V obou případech zůstávají Defs a SDO zcela nezávislé a nastavují se pro ně
+samostatné `codegen_common` + `codegen_defs` / `codegen_sdo` profily.
+
+Přepínač je společný pro obě CLI a všechny cílové technologie:
+
+```sh
+bash devops/bootstrap/bootstrap.sh --prepare-only \
+  --codegen-validate-one-input-at-a-time-only=false
+```
+
+Výchozí `true` zachovává rychlé ukončení při první vstupní chybě. `false`
+shromáždí rozpoznané chyby u všech vstupů **jednoho volání CLI** a vypíše
+zdrojové soubory a příslušná místa. Při chybách se tato dávka nezapíše do
+generovaných výstupů. Politika je předávána prostředím
+`MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY` i explicitním CLI
+argumentem; jiné hodnoty než `true`/`false` jsou odmítnuty.
+
+**Omezení současného bootstrapu:** vybrané artefakty zpracovává oddělenými
+voláními CLI. Výpis není ještě jednou atomickou validační transakcí za všechna
+`--root` artefakta. Univerzální bootstrap dál používá `.old` generační backendy,
+nikoli dosud neúplný nový kanonický Defs backend. Nezaměňovat změnu vstupní
+vrstvy CLI za migraci samotného generátoru.

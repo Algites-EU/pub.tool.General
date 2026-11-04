@@ -19,7 +19,7 @@ from eu.algites.tool.codegen.defs.impl.standard.canonical_schema_frontend import
 
 
 def frontend():
-    config = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+    config = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
     c = yaml.safe_load((config/'algites-java-common-codegen-conventions.yml').read_text())
     d = yaml.safe_load((config/'algites-java-defs-codegen-conventions.yml').read_text())
     return AIcDefsCodegenCanonicalSchemaFrontend(resolve_codegen_naming_profiles(c,
@@ -51,7 +51,7 @@ class TestSchemaFrontendSemantics:
     @staticmethod
     @pytest.mark.parametrize('start', (0, 1))
     def test_tuple_accessor_and_synthetic_type_numbering(start):
-        config = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+        config = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
         common = yaml.safe_load((config/'algites-java-common-codegen-conventions.yml').read_text())
         defs = yaml.safe_load((config/'algites-java-defs-codegen-conventions.yml').read_text())
         common['CommonCodegenNameConventions']['NameConventions']['algites-java-codegen-common_1']['IndexesStartingFrom'] = start

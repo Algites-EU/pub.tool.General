@@ -158,7 +158,7 @@ def test_default_settings_load_both_method_and_source_catalogs(technology, gener
 def test_common_profile_rejects_enabled_wire_field_without_schema_source(suffix):
     """The semantic rule belongs to the new Common resolver, not the generic catalog."""
     from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
-    path = (TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+    path = (TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
             / 'algites-python-common-codegen-conventions.yml')
     common = yaml.safe_load(path.read_text())
     profile = common['CommonCodegenNameConventions']['NameConventions']['algites-python-codegen-common_1']
@@ -189,7 +189,7 @@ def test_default_method_profile_metadata_matches_algites(technology):
 def test_common_profile_metadata_roles_require_their_typed_namespace(technology):
     """Semantic metadata role validation belongs to the Common role resolver."""
     from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
-    path = (TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+    path = (TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
             / f'algites-{technology}-common-codegen-conventions.yml')
     common = yaml.safe_load(path.read_text())
     name = f'algites-{technology}-codegen-common_1'

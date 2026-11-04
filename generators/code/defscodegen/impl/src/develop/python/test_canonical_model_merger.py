@@ -19,7 +19,7 @@ from eu.algites.tool.codegen.defs.impl.standard.canonical_model_linker import AI
 
 
 def frontend():
-    path = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+    path = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
     c = yaml.safe_load((path / 'algites-java-common-codegen-conventions.yml').read_text())
     d = yaml.safe_load((path / 'algites-java-defs-codegen-conventions.yml').read_text())
     return AIcDefsCodegenCanonicalSchemaFrontend(resolve_codegen_naming_profiles(

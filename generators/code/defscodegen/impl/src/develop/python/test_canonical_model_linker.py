@@ -30,7 +30,7 @@ SCHEMA = json.loads((TOOL / 'generators/code/defscodegen/intf/src/product/jsonde
 
 
 def frontend():
-    config = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+    config = TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
     common = yaml.safe_load((config / 'algites-java-common-codegen-conventions.yml').read_text())
     defs = yaml.safe_load((config / 'algites-java-defs-codegen-conventions.yml').read_text())
     naming = resolve_codegen_naming_profiles(common, 'algites-java-codegen-common_1',

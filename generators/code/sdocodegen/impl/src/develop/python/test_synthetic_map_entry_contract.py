@@ -10,18 +10,22 @@ from eu.algites.lib.data.dataobject.jsondefs.aii_json_data_object import AIiJson
 from eu.algites.lib.data.dataobject.yamldefs.aii_yaml_data_object import AIiYamlDataObject
 from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from eu.algites.tool.codegen.sdo.old.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService as AIcLegacySdoCodegenService
 
 
-def _naming():
+def _naming(legacy=False):
     """Resolve Common and SDO profiles from the checked-in catalog files."""
     checkout = Path(__file__).resolve().parents[8]
     catalog = AIcNameConventionCatalog.load_many([
         checkout / 'pub.lib.General/naming/convention/intf/src/product/config/eu/algites/lib/naming/convention/standard-conventions.yml',
         checkout / 'pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-name-conventions.yml',
-        checkout / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/tool/codegen/algites-python-common-codegen-conventions.yml',
-        checkout / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/tool/codegen/algites-python-sdo-codegen-conventions.yml',
-    ]).with_codegen_naming_profiles('algites-python-codegen-common_1',
-                                    'algites-python-sdocodegen-standard_1', 'sdo')
+        *([checkout / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-codegen-method-conventions.yml'] if legacy else [
+            checkout / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-common-codegen-conventions.yml',
+            checkout / 'pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-sdo-codegen-conventions.yml']),
+    ])
+    catalog = (catalog.with_generated_method_profile('algites-python-codegen-standard_1') if legacy else
+               catalog.with_codegen_naming_profiles('algites-python-codegen-common_1',
+                                    'algites-python-sdocodegen-standard_1', 'sdo'))
     read = {kind: 'algites-python-gen-intf-versioned_1' for kind in ('jsondefs', 'yamldefs')}
     mutable = {kind: 'algites-python-gen-data-' + ('json' if kind == 'jsondefs' else 'yaml') + '-intf-versioned_1'
                for kind in ('jsondefs', 'yamldefs')}
@@ -34,8 +38,9 @@ class TestSyntheticMapEntryContract:
     """Functional tests grouped by the business contract, not a snapshot number."""
 
     @staticmethod
+    @pytest.mark.parametrize('legacy', (False, True), ids=('independent-sdo', 'bootstrap-sdo'))
     @pytest.mark.parametrize('parent', (AIiJsonDataObject, AIiYamlDataObject))
-    def test_virtual_key_and_value_are_not_serialized_fields(parent):
+    def test_virtual_key_and_value_are_not_serialized_fields(parent, legacy):
         """Generate both virtual accessors; retain a ctor-supplied value without a duplicate serialized field."""
         class AIigMapEntry_1(parent):
             __data_object__ = AIcdDataObject(schema_id='test.virtual.entry', schema_version=1,
@@ -50,7 +55,8 @@ class TestSyntheticMapEntryContract:
                 """The typed property value in the containing object."""
 
         AIigMapEntry_1.__module__ = 'test.virtual.aiig_map_entry_1'
-        result = AIcSdoCodegenService().generate(AIigMapEntry_1, naming=_naming())
+        result = (AIcLegacySdoCodegenService() if legacy else AIcSdoCodegenService()).generate(
+            AIigMapEntry_1, naming=_naming(legacy))
         code = result.implementation.source
         compile(code, '<synthetic-entry>', 'exec')
         assert 'def _getKey(self)' in code

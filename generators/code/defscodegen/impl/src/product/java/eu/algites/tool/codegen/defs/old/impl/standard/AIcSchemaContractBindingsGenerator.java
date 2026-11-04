@@ -1,6 +1,7 @@
 package eu.algites.tool.codegen.defs.old.impl.standard;
 
 import eu.algites.tool.codegen.common.AIxCodegenValidationException;
+import eu.algites.tool.codegen.common.AIcCodegenValidationBatch;
 
 
 import eu.algites.tool.codegen.defs.old.AIcdCanonicalDefinition;
@@ -179,6 +180,9 @@ public final class AIcSchemaContractBindingsGenerator {
                             .map(AIcSchemaContractBindingsGenerator::portable).toList());
             return List.of();
         }
+        /* Validate every source before writing anything when batch mode is selected. */
+        var locInputValidation = new AIcCodegenValidationBatch(
+                manifest.path("codegen_validate_one_input_at_a_time_only").asBoolean(true));
         Map<String, Path> rootBySchema = new LinkedHashMap<>();
         Map<String, String> profileBySchema = new LinkedHashMap<>();
         Map<String, String> kindBySchema = new LinkedHashMap<>();
@@ -213,6 +217,7 @@ public final class AIcSchemaContractBindingsGenerator {
                 for (Path source : paths.filter(Files::isRegularFile).sorted().toList()) {
                     if (!source.getFileName().toString().endsWith(suffix)) continue;
                     String schema = portable(repository.relativize(source));
+                    try {
                     if (rootBySchema.putIfAbsent(schema, root) != null)
                         throw new AIxCodegenValidationException("Overlapping input roots for " + schema, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
                     kindBySchema.put(schema, kind);
@@ -255,9 +260,28 @@ public final class AIcSchemaContractBindingsGenerator {
                                     mapper.createObjectNode(), document));
                     } else collect(document, "", base, schema, document, overrides, units,
                             locInputCatalog, profileBySchema.get(schema));
+                    } catch (AIxCodegenValidationException locError) {
+                        rootBySchema.remove(schema);
+                        kindBySchema.remove(schema);
+                        profileBySchema.remove(schema);
+                        declaredIdentityBySchema.remove(schema);
+                        units.removeIf(locUnit -> locUnit.schema().equals(schema));
+                        locInputValidation.add(locError, source.toString());
+                    } catch (IOException | IllegalArgumentException locError) {
+                        rootBySchema.remove(schema);
+                        kindBySchema.remove(schema);
+                        profileBySchema.remove(schema);
+                        declaredIdentityBySchema.remove(schema);
+                        units.removeIf(locUnit -> locUnit.schema().equals(schema));
+                        locInputValidation.add(new AIxCodegenValidationException(
+                                "Invalid source schema: " + locError.getMessage(),
+                                "Correct the source schema declaration before regenerating.",
+                                source.toString(), null, locError), source.toString());
+                    }
                 }
             }
         }
+        locInputValidation.finish();
         if (locExistingSourceDirectories == 0) {
             System.err.println("Defs Codegen: no configured schema input directory exists; nothing to generate");
             return List.of();
@@ -306,7 +330,10 @@ public final class AIcSchemaContractBindingsGenerator {
         Map<String, List<List<AIcdUnit>>> relations = new LinkedHashMap<>();
         Map<String, AIcdUnit> unitIndex = new LinkedHashMap<>();
         for (AIcdUnit unit : units) unitIndex.put(unit.schema + "#" + unit.pointer, unit);
+        var locUnitValidation = new AIcCodegenValidationBatch(
+                manifest.path("codegen_validate_one_input_at_a_time_only").asBoolean(true));
         for (AIcdUnit unit : units) {
+            try {
             Path source = inside(repository, unit.schema);
             String sourceKind = kindBySchema.get(unit.schema);
             Path schemaRoot = rootBySchema.get(unit.schema);
@@ -436,7 +463,17 @@ public final class AIcSchemaContractBindingsGenerator {
                         intf.resolve("src/product/" + targetText + ".gen")).resolve(preview.relativePath())))));
                 }
             }
+            } catch (AIxCodegenValidationException locError) {
+                locUnitValidation.add(locError, inside(repository, unit.schema()).toString());
+            } catch (IllegalArgumentException locError) {
+                locUnitValidation.add(new AIxCodegenValidationException(
+                        "Invalid schema declaration: " + locError.getMessage(),
+                        "Inspect the indicated source declaration and its type definitions.",
+                        inside(repository, unit.schema()).toString(), unit.pointer(), locError),
+                        inside(repository, unit.schema()).toString());
+            }
         }
+        locUnitValidation.finish();
         /* Resolve named XML extension bases against the complete emitted-type index.
          * A base that is not emitted cannot be represented by Java/Python inheritance:
          * silently flattening it would destroy the XSD type hierarchy. */
@@ -1056,37 +1093,61 @@ public final class AIcSchemaContractBindingsGenerator {
     private static List<AIcdUnit> parentUnits(AIcdUnit aUnit, Map<String, AIcdUnit> aIndex, Path aRepository) {
         JsonNode locExtends = aUnit.node.path("x-algites-defscodegen-extends");
         if (locExtends.isMissingNode()) return List.of();
-        if (!locExtends.isArray()) throw new AIxCodegenValidationException("x-algites-defscodegen-extends must be an array", "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
-        List<String> locReferences = new ArrayList<>();
-        for (JsonNode locParent : locExtends) {
-            if (!locParent.isTextual()) throw new AIxCodegenValidationException("Parent must be a URI reference", "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
-            locReferences.add(locParent.asText());
-        }
-        if (locReferences.isEmpty()) return List.of();
+        String locSource = aRepository.resolve(aUnit.schema).toString();
+        String locBase = (aUnit.pointer.isEmpty() ? "" : "#" + aUnit.pointer)
+                + "/x-algites-defscodegen-extends";
+        String locHint = "Provide the referenced parent schema as an explicit generation input "
+                + "with an emitted contract in the required role. A Maven/API dependency alone "
+                + "does not add schemas to the Defs input index. Verify the parent $id, "
+                + "JSON Pointer, version, and schema ownership.";
+        if (!locExtends.isArray()) throw new AIxCodegenValidationException(
+                "x-algites-defscodegen-extends must be an array", locHint, locSource, locBase);
         List<AIcdUnit> locParents = new ArrayList<>();
-        for (String locReference : locReferences) {
-        URI locUri = URI.create(locReference);
-        String locPointer = locUri.getRawFragment() == null ? "" : java.net.URLDecoder.decode(locUri.getRawFragment(), java.nio.charset.StandardCharsets.UTF_8);
-        if (!locPointer.isEmpty() && !locPointer.startsWith("/"))
-            throw new AIxCodegenValidationException("Unsupported explicit parent anchor: " + locReference, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
-        if (locUri.isAbsolute() && !locUri.getScheme().equals("file")) {
-            var locCandidates = aIndex.values().stream().filter(u ->
-                u.document.path("$id").asText().equals(locReference.split("#", 2)[0])
-                && u.pointer.equals(locPointer)).toList();
-            if (locCandidates.size() != 1) throw new AIxCodegenValidationException("Unresolved explicit parent: " + locReference, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
-            locParents.add(locCandidates.get(0));
-            continue;
-        }
-        Path locSource = aRepository.resolve(aUnit.schema);
-        Path locParent = (locUri.isAbsolute() ? Path.of(locUri.getPath()) : locUri.getPath().isEmpty() ? locSource
-                : locSource.getParent().resolve(locUri.getPath())).toAbsolutePath().normalize();
-        if (!locParent.startsWith(aRepository)) throw new AIxCodegenValidationException("explicit parent escapes repository: " + locReference, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
-        AIcdUnit locUnit = aIndex.get(portable(aRepository.relativize(locParent)) + "#" + locPointer);
-        if (locUnit == null) throw new AIxCodegenValidationException("explicit parent is not an emitted contract: " + locReference, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
-        locParents.add(locUnit);
+        for (int locIndex = 0; locIndex < locExtends.size(); locIndex++) {
+            JsonNode locParent = locExtends.get(locIndex);
+            String locLocation = locBase + "/" + locIndex;
+            if (!locParent.isTextual()) throw new AIxCodegenValidationException(
+                    "Parent must be a URI reference", locHint, locSource, locLocation);
+            String locReference = locParent.asText();
+            URI locUri;
+            try {
+                locUri = URI.create(locReference);
+            } catch (IllegalArgumentException ex) {
+                throw new AIxCodegenValidationException("Invalid explicit parent URI: " + locReference,
+                        locHint, locSource, locLocation, ex);
+            }
+            String locPointer = locUri.getRawFragment() == null ? "" :
+                    java.net.URLDecoder.decode(locUri.getRawFragment(), java.nio.charset.StandardCharsets.UTF_8);
+            if (!locPointer.isEmpty() && !locPointer.startsWith("/"))
+                throw new AIxCodegenValidationException("Unsupported explicit parent anchor: "
+                        + locReference, locHint, locSource, locLocation);
+            if (locUri.isAbsolute() && !locUri.getScheme().equals("file")) {
+                var locCandidates = aIndex.values().stream().filter(u ->
+                    u.document.path("$id").asText().equals(locReference.split("#", 2)[0])
+                    && u.pointer.equals(locPointer)).toList();
+                if (locCandidates.size() != 1) throw new AIxCodegenValidationException(
+                        "Unresolved or ambiguous explicit parent: " + locReference
+                        + " (matching input declarations: " + locCandidates.size() + ")",
+                        locHint, locSource, locLocation);
+                locParents.add(locCandidates.get(0));
+                continue;
+            }
+            Path locChild = aRepository.resolve(aUnit.schema);
+            Path locTarget = (locUri.isAbsolute() ? Path.of(locUri.getPath())
+                    : locUri.getPath().isEmpty() ? locChild
+                    : locChild.getParent().resolve(locUri.getPath())).toAbsolutePath().normalize();
+            if (!locTarget.startsWith(aRepository)) throw new AIxCodegenValidationException(
+                    "explicit parent escapes repository: " + locReference,
+                    locHint, locSource, locLocation);
+            AIcdUnit locUnit = aIndex.get(portable(aRepository.relativize(locTarget)) + "#" + locPointer);
+            if (locUnit == null) throw new AIxCodegenValidationException(
+                    "explicit parent is not an emitted contract: " + locReference,
+                    locHint, locSource, locLocation);
+            locParents.add(locUnit);
         }
         if (locParents.stream().distinct().count() != locParents.size()) {
-            throw new AIxCodegenValidationException("Duplicate explicit parent in " + aUnit.schema(), "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
+            throw new AIxCodegenValidationException("Duplicate explicit parent in " + aUnit.schema(),
+                    "List each parent contract at most once.", locSource, locBase);
         }
         return List.copyOf(locParents);
     }

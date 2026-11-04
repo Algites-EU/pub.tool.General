@@ -61,8 +61,8 @@ _BOOTSTRAP_SDO_PYTHON_DISTRIBUTIONS = (
 )
 # These are *Python module identities*, not checkout/repository paths. A source
 # checkout can place the module in any artifact exposing src/product/python.
-_CODEGEN_MODULE = Path('eu/algites/tool/codegen/defs/old/impl/standard/'
-                       'aic_schema_contract_bindings_generator.py')
+_CODEGEN_MODULE = Path('eu/algites/tool/codegen/defs/old/impl/cli/'
+                       'aic_defs_codegen_cli.py')
 _SDO_MODULE = Path('eu/algites/tool/codegen/sdo/old/impl/cli/aic_sdo_codegen_cli.py')
 _NAMING_MODULE = Path('eu/algites/lib/naming/convention/impl/standard/'
                       'aic_name_convention_catalog.py')
@@ -289,12 +289,12 @@ def _load_codegen(repository: Path, output: Path, module: Path = _CODEGEN_MODULE
             raise RuntimeError('Cannot import the bootstrap SDO Codegen implementation') from error
         return sdo_main
     try:
-        from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import (
-            AIcSchemaContractBindingsGenerator,
+        from eu.algites.tool.codegen.defs.old.impl.cli.aic_defs_codegen_cli import (
+            AIcDefsCodegenCli,
         )
     except ImportError as error:
-        raise RuntimeError('Cannot import the bootstrap Defs Codegen implementation') from error
-    return AIcSchemaContractBindingsGenerator()
+        raise RuntimeError('Cannot import the bootstrap Defs Codegen CLI') from error
+    return AIcDefsCodegenCli.main
 
 
 # Temporary bootstrap-level Algites SDO convention selection (not Codegen runtime
@@ -315,6 +315,10 @@ def _python_contract_source(path: Path) -> bool:
     try:
         tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
     except (SyntaxError, UnicodeError) as exc:
+        if _validation_policy() == 'false':
+            # Leave malformed sources for the SDO CLI validation collector.
+            # Discovery must not hide later errors by failing first.
+            return True
         raise ValueError(f'Invalid Python source while discovering DataObjects: {path}') from exc
     for item in tree.body:
         if not isinstance(item, ast.ClassDef):
@@ -382,6 +386,7 @@ def generate_sdo_python(repository: Path, root: Path, output: Path) -> int:
                     shutil.copyfile(item, target)
             arguments = [
                 f'--repository-root={repository}',
+                '--codegen-validate-one-input-at-a-time-only=' + _validation_policy(),
                 f'--technology-dointf-input-dir:python={staging}',
                 f'--technology-sdointf-output-dir:python={destination}',
                 f'--technology-sdoimpl-output-dir:python={destination}',
@@ -411,25 +416,88 @@ def generate_sdo_python(repository: Path, root: Path, output: Path) -> int:
     return total
 
 
+def _defs_cli_arguments(repository: Path, manifest: dict) -> list[str]:
+    """Translate one generic artifact selection into Defs' public qualified CLI.
+
+    The bootstrap owns neither Defs' internal manifest format nor its parser.
+    All naming, root and output options are therefore passed through the same
+    settings/CLI boundary that is used by a manual invocation.
+    """
+    arguments = [f'--repository-root={repository}']
+    selected_kinds = {item['kind'] for item in manifest['schema_inputs']}
+    # Packaged CLI defaults select all format directories; remove unselected
+    # defaults so --root restricts the artifact's real input scope.
+    for kind in SOURCE_KINDS:
+        if kind not in selected_kinds:
+            arguments.append(f'--schema-input-dir:{kind}=')
+    for item in manifest['schema_inputs']:
+        arguments.append(f"--schema-input-dir:{item['kind']}={item['directory']}")
+    for kind, profile in manifest['schema_input_naming_conventions'].items():
+        arguments.append(f'--input-schema-naming-convention:{kind}={profile}')
+    # Neutral native CLI defaults may select Python even when only Java
+    # output was declared. Empty overrides remove every unselected output role.
+    for tech in ('java', 'python'):
+        if tech not in manifest['languages']:
+            arguments.extend([
+                f'--technology-dointf-output-dir:{tech}=',
+                f'--output-enum-technology-naming-convention:{tech}=',
+                f'--common-codegen-naming-convention:{tech}=',
+                f'--defs-codegen-naming-convention:{tech}=',
+            ])
+            for role in ('common', 'xmldefs_type', 'xmldefs_element',
+                         'xmldefs_namespace', 'yamldefs', 'jsondefs'):
+                arguments.append(f'--output-interface-technology-naming-convention:{tech}:{role}:defsintf=')
+    for tech, directory in manifest['technology_outputs'].items():
+        arguments.append(f'--technology-dointf-output-dir:{tech}={directory}')
+    for tech, roles in manifest['technology_output_naming_conventions'].items():
+        for role, profile in roles.items():
+            arguments.append(f'--output-interface-technology-naming-convention:{tech}:{role}:defsintf={profile}')
+    for tech, profile in manifest['technology_enum_output_naming_conventions'].items():
+        arguments.append(f'--output-enum-technology-naming-convention:{tech}={profile}')
+    for tech, profile in manifest['common_codegen_naming_conventions'].items():
+        arguments.append(f'--common-codegen-naming-convention:{tech}={profile}')
+    for tech, profile in manifest['defs_codegen_naming_conventions'].items():
+        arguments.append(f'--defs-codegen-naming-convention:{tech}={profile}')
+    for index, catalog in enumerate(manifest['naming_convention_files']):
+        arguments.append(f'--naming-conventions-file:bootstrap_{index}={catalog}')
+    for tech in manifest['languages']:
+        arguments.extend([
+            f'--naming-conventions-file:codegen_common=classpath:algites-{tech}-common-codegen-conventions.yml',
+            f'--naming-conventions-file:codegen_defs=classpath:algites-{tech}-defs-codegen-conventions.yml',
+        ])
+    arguments.append('--codegen-validate-one-input-at-a-time-only=' + _validation_policy())
+    return arguments
+
+
+def _validation_policy() -> str:
+    """Strictly validate the inherited, shared policy before either generator runs."""
+    value = os.environ.get('MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY', 'true')
+    if value not in ('true', 'false'):
+        raise ValueError('MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY must be true or false')
+    return value
+
+
 def generate(repository: Path, root: Path, output: Path) -> int:
+    """Invoke the standalone Defs CLI, not its private manifest implementation."""
     modules = _applicable_artifacts(repository, root)
     if not modules:
         print('No applicable Defs schemas below the selected root; nothing generated.', flush=True)
         return 0
-    codegen = _load_codegen(repository, output)
+    cli = _load_codegen(repository, output)
     produced = 0
     for (artifact, branch), (languages, kinds) in modules.items():
-        sources = codegen.generate_manifest(
-            repository, _manifest(repository, artifact, languages, kinds, branch))
-        if not sources:
-            raise RuntimeError(f'Defs Codegen produced no contracts for {artifact}')
-        produced += len(sources)
+        manifest = _manifest(repository, artifact, languages, kinds, branch)
+        outcome = cli(_defs_cli_arguments(repository, manifest))
+        if outcome not in (None, 0):
+            raise RuntimeError(f'Defs CLI generation failed for {artifact}: exit code {outcome}')
         for language in languages:
             directory = artifact / 'src' / branch / (language + '.gen')
             suffix = '.java' if language == 'java' else '.py'
-            if not any(path.is_file() for path in directory.rglob('*' + suffix)):
-                raise RuntimeError(f'Incomplete {language} generation: {artifact}')
-    print(f'Regenerated {produced} Defs contracts in {len(modules)} artifacts', flush=True)
+            count = sum(path.is_file() for path in directory.rglob('*' + suffix))
+            if not count:
+                raise RuntimeError(f'Incomplete {language} Defs CLI generation: {artifact}')
+            produced += count
+    print(f'Regenerated {produced} Defs source files via CLI in {len(modules)} artifacts', flush=True)
     return produced
 
 
@@ -447,14 +515,14 @@ def main() -> None:
         generate(repository, root, args.output.resolve())
         generate_sdo_python(repository, root, args.output.resolve())
     except Exception as failure:
-        # The bootstrap calls Codegen as a library, bypassing the CLI entrypoint.
-        # Import only at the failure boundary: source-based bootstrap may set up
+        # Both generators use their public CLI entrypoints. Import diagnostics
+        # at the failure boundary: source mode may only then expose Codegen paths.
         # the Codegen module paths inside _load_codegen.
         try:
             from eu.algites.tool.codegen.common.diagnostics import report_exception
         except ImportError:
             raise failure  # Report the generation failure, not a diagnostics import.
-        if report_exception(failure, generator='Bootstrap Codegen', source=root):
+        if report_exception(failure, generator='Bootstrap Codegen'):
             raise SystemExit(2) from None
         raise
 

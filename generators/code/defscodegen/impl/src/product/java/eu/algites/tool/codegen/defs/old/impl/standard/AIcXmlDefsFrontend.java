@@ -139,7 +139,12 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
         if (locBranches.isEmpty()) throw new IOException("Empty XSD choice in " + aRequest.path());
         List<AIcdDataType> locAlternatives = new ArrayList<>();
         for (Element locBranch : locBranches) {
-            if (locBranch.hasAttribute("minOccurs") || locBranch.hasAttribute("maxOccurs"))
+            // Explicit occurrence=1 is equivalent to the XSD default and must not
+            // turn an otherwise supported exact-one choice into an error.
+            if ((!locBranch.getAttribute("minOccurs").isBlank()
+                    && !"1".equals(locBranch.getAttribute("minOccurs")))
+                    || (!locBranch.getAttribute("maxOccurs").isBlank()
+                    && !"1".equals(locBranch.getAttribute("maxOccurs"))))
                 throw new IOException("Unsupported XSD choice occurrence in " + aRequest.path());
             String locKind = locBranch.getLocalName();
             if (!("element".equals(locKind) || "sequence".equals(locKind)))

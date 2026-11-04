@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+from eu.algites.tool.codegen.common.validation_batch import (
+    AIcCodegenValidationBatch, selected_policy, parse_boolean)
+
 
 import argparse
 import ast
@@ -75,6 +78,7 @@ def main(args=None):
     catalog_kinds: set[str] = set()
     mutable_package = concrete_package = ''
     setter_policy = None
+    validation_policy = selected_policy(arguments)
     check = clean = False
     for option in arguments:
         if option in {'--check', '--clean-only'}:
@@ -94,11 +98,12 @@ def main(args=None):
                              'dointf-input-paths'}):
             continue  # The Java SDO CLI consumes the corresponding Java keys.
         if name in {'repository-root', 'sdointf-subpackage', 'sdoclass-subpackage',
-                    'setter-inheritance-policy'} and not qualifiers:
+                    'setter-inheritance-policy', 'codegen-validate-one-input-at-a-time-only'} and not qualifiers:
             if name == 'repository-root': root = Path(value).resolve()
             elif name == 'sdointf-subpackage': mutable_package = value
             elif name == 'sdoclass-subpackage': concrete_package = value
-            else: setter_policy = value
+            elif name == 'setter-inheritance-policy': setter_policy = value
+            else: validation_policy = parse_boolean(value)
         elif name == 'naming-conventions-file' and len(qualifiers) == 1:
             catalog_kinds.add(qualifiers[0])
             naming_sources.append(value)
@@ -211,6 +216,7 @@ def main(args=None):
                 sys.path.insert(0, absolute)
                 added.append(absolute)
         results = {}
+        validation = AIcCodegenValidationBatch(validation_policy)
         found = set()
         policy_key = 'ALGITES_SDO_CODEGEN_SETTER_INHERITANCE_POLICY'
         previous_policy = os.environ.get(policy_key)
@@ -219,40 +225,46 @@ def main(args=None):
             for source_root in source_roots:
                 selected = {}
                 for source in sorted(source_root.rglob('*.py')):
-                    matches = []
-                    for role, name in profiles[0].items():
-                        match = catalog.recognize_filename(source.name, {name})
-                        if match is not None:
-                            parsed = catalog.parse(name, 'file_name_stem', source.stem)
-                            try:
-                                class_name = catalog.format(name, 'type_name', parsed,
-                                                            catalog.identifier_convention(name, 'file_name_stem'))
-                            except (KeyError, ValueError):
-                                continue
-                            matches.append((role, class_name))
-                    names = {name for _, name in matches}
-                    if len(names) > 1:
-                        raise AIxCodegenValidationException(f'Ambiguous input DataObject class in {source}: {matches}', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
-                    if names and any(role in profiles[1] and role in profiles[2] for role, _ in matches):
-                        selected[source.relative_to(source_root)] = next(iter(names))
-                        continue
-                    # Manually authored contracts do not have to match the Algites filename
-                    # grammar. Their explicit metadata and actual marker bases select a role.
-                    module = ast.parse(source.read_text(encoding='utf-8'), filename=str(source))
-                    annotated_classes = []
-                    for declaration in module.body:
-                        if not isinstance(declaration, ast.ClassDef):
+                    try:
+                        matches = []
+                        for role, name in profiles[0].items():
+                            match = catalog.recognize_filename(source.name, {name})
+                            if match is not None:
+                                parsed = catalog.parse(name, 'file_name_stem', source.stem)
+                                try:
+                                    class_name = catalog.format(name, 'type_name', parsed,
+                                                                catalog.identifier_convention(name, 'file_name_stem'))
+                                except (KeyError, ValueError):
+                                    continue
+                                matches.append((role, class_name))
+                        names = {name for _, name in matches}
+                        if len(names) > 1:
+                            raise AIxCodegenValidationException(f'Ambiguous input DataObject class in {source}: {matches}', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
+                        if names and any(role in profiles[1] and role in profiles[2] for role, _ in matches):
+                            selected[source.relative_to(source_root)] = next(iter(names))
                             continue
-                        if any(isinstance(node, (ast.Assign, ast.AnnAssign)) and (
-                                any(isinstance(target, ast.Name) and target.id == '__data_object__'
-                                    for target in node.targets) if isinstance(node, ast.Assign)
-                                else isinstance(node.target, ast.Name) and node.target.id == '__data_object__')
-                                for node in declaration.body):
-                            annotated_classes.append(declaration.name)
-                    if len(annotated_classes) > 1:
-                        raise AIxCodegenValidationException(f'Multiple manually authored DataObject types in {source}: {annotated_classes}', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
-                    if annotated_classes:
-                        selected[source.relative_to(source_root)] = annotated_classes[0]
+                        # Manually authored contracts do not have to match the Algites filename
+                        # grammar. Their explicit metadata and actual marker bases select a role.
+                        module = ast.parse(source.read_text(encoding='utf-8'), filename=str(source))
+                        annotated_classes = []
+                        for declaration in module.body:
+                            if not isinstance(declaration, ast.ClassDef):
+                                continue
+                            if any(isinstance(node, (ast.Assign, ast.AnnAssign)) and (
+                                    any(isinstance(target, ast.Name) and target.id == '__data_object__'
+                                        for target in node.targets) if isinstance(node, ast.Assign)
+                                    else isinstance(node.target, ast.Name) and node.target.id == '__data_object__')
+                                    for node in declaration.body):
+                                annotated_classes.append(declaration.name)
+                        if len(annotated_classes) > 1:
+                            raise AIxCodegenValidationException(f'Multiple manually authored DataObject types in {source}: {annotated_classes}', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
+                        if annotated_classes:
+                            selected[source.relative_to(source_root)] = annotated_classes[0]
+                    except AIxCodegenValidationException as exc:
+                        validation.add(exc, source=str(source))
+                    except (SyntaxError, UnicodeError, ValueError) as exc:
+                        validation.add(AIxCodegenValidationException(str(exc),
+                            'Correct the Python DataObject source declaration.'), source=str(source))
                 # Explicit module:Class selectors can name hand-written
                 # contracts that do not use the generated filename grammar.
                 for module, selected_class in selected_qualified:
@@ -268,15 +280,32 @@ def main(args=None):
                 for rel, name in selected.items():
                     found.add(('.'.join(rel.with_suffix('').parts), name))
                 if selected:
-                    generated = AIcSdoCodegenService().generate_from_sources(
-                        source_root, selected, naming=(*profiles, catalog),
-                        mutable_subpackage=mutable_package,
-                        concrete_subpackage=concrete_package,
-                        enabled_roles=set(input_roles) & set(mutable_roles) & set(concrete_roles))
-                    results.update({(source_root, key): item for key, item in generated.items()})
+                    # The fast path preserves the old one-call-per-root behavior.
+                    # The full-validation path isolates inputs so one invalid
+                    # contract cannot hide errors in subsequent contracts.
+                    groups = ([selected] if validation_policy else
+                              [{relative: type_name} for relative, type_name in selected.items()])
+                    for group in groups:
+                        try:
+                            generated = AIcSdoCodegenService().generate_from_sources(
+                                source_root, group, naming=(*profiles, catalog),
+                                mutable_subpackage=mutable_package,
+                                concrete_subpackage=concrete_package,
+                                enabled_roles=set(input_roles) & set(mutable_roles) & set(concrete_roles))
+                            results.update({(source_root, key): item for key, item in generated.items()})
+                        except AIxCodegenValidationException as exc:
+                            validation.add(exc, source=str(source_root / next(iter(group))))
+                        except (ValueError, SyntaxError) as exc:
+                            validation.add(AIxCodegenValidationException(str(exc),
+                                'Correct the invalid Python DataObject contract.'),
+                                source=str(source_root / next(iter(group))))
             missing = selected_qualified - found
             if missing:
-                raise AIxCodegenValidationException(f'Explicit Python DataObject contracts not found: {sorted(missing)}', 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
+                validation.add(AIxCodegenValidationException(
+                    f'Explicit Python DataObject contracts not found: {sorted(missing)}',
+                    'Verify that each class exists in the selected source roots.'),
+                    source=';'.join(str(item) for item in source_roots))
+            validation.finish()
         finally:
             if setter_policy is not None:
                 if previous_policy is None: os.environ.pop(policy_key, None)

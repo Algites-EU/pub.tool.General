@@ -460,6 +460,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         mapped_contract = issubclass(read_contract, AIiMultiMappedList)
         method_catalog = catalog()
         synthetic_key_method = None
+        synthetic_value_method = None
         if method_catalog is not None and method_catalog.generated_method_profile:
             composition = method_catalog.generated_method_reference(
                 'multi_mapped_list_key_synthetic_getter')
@@ -476,15 +477,31 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     if candidate in all_fields:
                         raise AIxCodegenValidationException('Virtual parent property key cannot be a serialized field', 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
                     synthetic_key_method = candidate
+            value_getter = method_catalog.generated_method_reference(
+                'multi_mapped_list_value_synthetic_getter')
+            if value_getter is not None:
+                if not value_getter.isidentifier():
+                    raise AIxCodegenValidationException('Invalid synthetic value getter identifier: ' + repr(value_getter), 'Update the Common method naming catalog and regenerate the contracts.')
+                method = getattr(read_contract, value_getter, None)
+                if callable(method):
+                    if not (issubclass(read_contract, AIiJsonDataObject)
+                            or issubclass(read_contract, AIiYamlDataObject)):
+                        raise AIxCodegenValidationException('Virtual JSON/YAML map value getter is not an XML field', 'Use the matching source contract and Common naming profile.')
+                    if value_getter in all_fields or getattr(method, '__data_object_field__', None) is not None:
+                        raise AIxCodegenValidationException('Virtual map value getter cannot be a serialized field', 'Remove the field annotation from the synthetic getter.')
+                    if synthetic_key_method is None:
+                        raise AIxCodegenValidationException('Virtual map value getter requires a virtual key getter', 'Declare both synthetic map-entry getters in the read-only contract.')
+                    synthetic_value_method = value_getter
         if mapped_contract or synthetic_key_method is not None:
             concrete_lines.extend(['',
-                '    def __init__(self, aMapping=None, *, definitions=(), parent_property_key=None):',
+                '    def __init__(self, aMapping=None, *, definitions=(), parent_property_key=None, parent_property_value=None):',
                 '        """Initialize the SDO and its nonserialized collection/key identity.',
                 '',
                 '        Args:',
                 '            aMapping: Optional typed virtual field graph.',
                 '            definitions: Stable key definitions owned by this mapped collection.',
                 '            parent_property_key: Actual property name of this JSON/YAML map entry.',
+                '            parent_property_value: Typed value belonging to the map entry, not an embedded field.',
                 '        """',
                 '        super().__init__(aMapping)'])
             if mapped_contract:
@@ -502,6 +519,18 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     '        if self._parent_property_key is None:',
                     "            raise ValueError('Map entry was not constructed with its parent property key')",
                     '        return self._parent_property_key'])
+            if synthetic_value_method is not None:
+                constructor_end = next(i for i, line in enumerate(concrete_lines)
+                                       if line == '        self._parent_property_key = parent_property_key')
+                concrete_lines.insert(constructor_end + 1,
+                    '        self._parent_property_value = parent_property_value')
+                concrete_lines.extend([
+                    '',
+                    f'    def {synthetic_value_method}(self):',
+                    "        '''Return the typed map value without introducing a serialized field.'''",
+                    '        if self._parent_property_value is None:',
+                    "            raise ValueError('Map entry was not constructed with its parent property value')",
+                    '        return self._parent_property_value'])
             if mapped_contract:
                 concrete_lines.extend(['',
                     '    def __len__(self):',

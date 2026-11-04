@@ -18,6 +18,14 @@ Dependencies:
         ArtifactId: pub.lib.General_common.util
         Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      # Interim single-artifact SDO outputs for the pre-Builder-1.1 bootstrap.
+      # The generated AIigd*/AIcgd* classes currently reside alongside the
+      # read-only contracts; they require the SmartDataObject runtime until
+      # the agreed model.schema/do/sdo artifact split is available.
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.smartdataobject.impl
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.naming
         ArtifactId: pub.lib.General_naming.convention.intf
         Usages: [product_api]

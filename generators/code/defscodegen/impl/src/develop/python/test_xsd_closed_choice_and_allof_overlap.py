@@ -39,6 +39,22 @@ def test_xml_closed_choice_preserves_qname_in_recursive_alternatives(tmp_path):
         'urn:choice:regression', 'urn:choice:regression']
 
 
+def test_xml_closed_choice_accepts_explicit_default_occurrences(tmp_path):
+    """Explicit one-on-one branch cardinality is identical to implicit XSD defaults.
+
+    Both Java and Python frontends must preserve the same supported CHOICE shape.
+    """
+    xsd = tmp_path / 'payment_1.xsd'
+    xsd.write_text(CHOICE.replace(
+        'name="cash" type="xs:integer"',
+        'name="cash" type="xs:integer" minOccurs="1" maxOccurs="1"'))
+    definition = AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(
+        xsd, AInDefinitionSourceKind.XMLDEFS,
+        AIcAlgitesNamingProfiles.python_profile()))
+    assert definition.data_type.kind is AInDataTypeKind.ONE_OF
+    assert len(definition.data_type.alternatives) == 2
+
+
 def test_xml_closed_choice_generates_namespace_contracts_per_language(tmp_path, monkeypatch):
     sources = tmp_path / 'intf/src/product/xmldefs/example/choice'
     sources.mkdir(parents=True)
@@ -67,6 +83,49 @@ def test_xml_closed_choice_generates_namespace_contracts_per_language(tmp_path, 
     importlib.import_module('example.choice.aiig_payment_alternative1_1')
     element = importlib.import_module('example.choice.aiig__xe_payment_1')
     assert element.AIig_xePayment_1.__xml_data_object__.namespace_local_name == 'payment'
+
+
+def test_common_xml_choice_is_importable_and_matches_java_contract(tmp_path):
+    """A merged cross-format choice must not reference the XML-only base in Python.
+
+    The common Java contract deliberately has no XML inheritance. Its Python
+    counterpart must be importable without a dangling ``AIiXmlDataObject``
+    name; only the XML-specific derivative may extend that marker.
+    """
+    from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_closed_choice_generator import (
+        AIcClosedChoiceGenerator,
+    )
+    from explicit_legacy_naming import configured_generation
+
+    path = tmp_path / 'payment_1.xsd'
+    path.write_text(CHOICE)
+    definition = AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(
+        path, AInDefinitionSourceKind.XMLDEFS,
+        AIcAlgitesNamingProfiles.python_profile()))
+
+    generator = AIcClosedChoiceGenerator()
+    java = generator.generate(configured_generation(
+        definition, AInCodeGenerationTarget.JAVA, 'example.choice',
+        AIcAlgitesNamingProfiles.java_profile(), contract_role='common'))[0].source
+    python = generator.generate(configured_generation(
+        definition, AInCodeGenerationTarget.PYTHON, 'example.choice',
+        AIcAlgitesNamingProfiles.python_profile(), contract_role='common'))[0].source
+    assert 'public interface AIigPayment_1 {' in java
+    assert 'AIiXmlDataObject' not in java
+    assert 'AIiXmlDataObject' not in python
+    assert 'class AIigPayment_1:' in python
+    scope = {}
+    exec(compile(python, '<generated-common-xml-choice>', 'exec'), scope)
+    assert scope['AIigPayment_1'].__bases__ == (object,)
+
+    specific = generator.generate(configured_generation(
+        definition, AInCodeGenerationTarget.PYTHON, 'example.choice',
+        AIcAlgitesNamingProfiles.python_profile(),
+        xml_type_qname='{urn:choice:regression}PaymentChoice',
+        contract_role='xmldefs_type'))[0].source
+    assert 'from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject' in specific
+    assert 'class AIigPayment_1(AIiXmlDataObject)' in specific
 
 
 @pytest.mark.parametrize('schema_type', ['jsondefs', 'yamldefs'])

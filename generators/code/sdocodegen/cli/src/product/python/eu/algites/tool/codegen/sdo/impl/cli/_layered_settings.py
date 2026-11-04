@@ -88,10 +88,83 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
         directory = Path(prefix or '.')
         append_file(directory / override_path)
         append_file(directory / override_name)
-    sources.extend(overrides)
     if file_options:
         path = Path(file_options[0])
         sources.append((str(path), path.read_text(encoding='utf-8')))
+
+    # Profile resources may be installed simultaneously (Algites, Standard
+    # Prefix and Standard Postfix).  They are *alternatives*, not successive
+    # configuration layers.  In particular, combining a Standard Prefix source
+    # filename catalog with an explicitly selected Algites catalog would leave
+    # multiple conventions matching the same schema filename.
+    #
+    # Choose a single profile family using the caller's qualified profile IDs.
+    # The selection is driven by settings data, never by a vendor-specific path
+    # or by arbitrary sys.path precedence. Within the selected family, multiple
+    # identical resource copies may still layer as before.
+    def profile_selections(content: str) -> dict[str, str]:
+        """Extract explicitly named profile identities from CLI/settings text.
+
+        Naming catalog file paths are deliberately excluded: their resources
+        can be shared, whereas profile IDs determine the intended family.
+        """
+        keys = (
+            '--input-schema-naming-convention:',
+            '--common-codegen-naming-convention:',
+            '--defs-codegen-naming-convention:',
+            '--sdo-codegen-naming-convention:',
+            '--output-interface-technology-naming-convention:',
+            '--output-enum-technology-naming-convention:',
+            '--input-technology-naming-convention:',
+            '--output-technology-naming-convention:',
+        )
+        selected: dict[str, str] = {}
+        for line in content.splitlines():
+            token = line.strip()
+            if token.startswith(keys) and '=' in token:
+                key, value = token.split('=', 1)
+                if value:
+                    selected[key] = value
+        return selected
+
+    requested = profile_selections('\n'.join(remainder))
+    if file_options:
+        requested.update(profile_selections(sources[-1][1]))
+
+    families: dict[tuple[tuple[str, str], ...], list[tuple[str, str]]] = {}
+    for candidate in overrides:
+        signature = tuple(sorted(profile_selections(candidate[1]).items()))
+        if signature:
+            families.setdefault(signature, []).append(candidate)
+    if families:
+        if requested:
+            matching = [signature for signature in families
+                        if any(requested.get(key) == value for key, value in signature)
+                        and not any(key in requested and requested[key] != value
+                                    for key, value in signature)]
+            # Unknown, explicitly supplied custom profiles do not inherit a
+            # random built-in profile. A partially mixed family is an error.
+            if not matching and any(any(key in requested and requested[key] == value
+                                        for key, value in signature)
+                                    for signature in families):
+                raise AIxCodegenValidationException(
+                    'Conflicting naming profile selection: no single installed profile '
+                    'matches the explicitly selected profile IDs',
+                    'Select exactly one naming family (Algites, Standard Prefix, '
+                    'Standard Postfix or a custom family); do not mix their IDs.')
+        else:
+            matching = list(families)
+        if len(matching) > 1:
+            origins = sorted({source for signature in matching
+                              for source, _ in families[signature]})
+            raise AIxCodegenValidationException(
+                'Ambiguous Codegen naming profile overlays: ' + ', '.join(origins),
+                'Select one profile family explicitly with qualified naming '
+                'profile arguments or --settings-file; profiles are alternatives.')
+        if matching:
+            sources.extend(families[matching[0]])
+    # Do not silently append an unrelated packaged profile. This also allows
+    # calls with fully custom profiles and explicit catalogs.
 
     # Qualified option names are the stable configuration identity. Do not
     # translate them into the obsolete kind:value parser representation.

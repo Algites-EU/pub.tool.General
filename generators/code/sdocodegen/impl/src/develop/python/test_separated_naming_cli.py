@@ -17,7 +17,7 @@ def test_sdo_cli_renders_selected_common_and_specific_roles(tmp_path: Path, invo
     handwritten.test_handwritten_contract_uses_annotated_convention_not_filename(tmp_path)
     settings = tmp_path / 'custom.settings'
     profile_root = (Path(__file__).resolve().parents[5] / 'profile/algites/src/product/config'
-                    / 'eu/algites/tool/codegen')
+                    / 'eu/algites/lib/naming/convention/sourcecode')
     sdo = yaml.safe_load((profile_root/'algites-python-sdo-codegen-conventions.yml').read_text())
     sdo['NameCompositions']['algites-python-raw_getter_1']['Segments'][0][
         'NameFragmentsSegmentValue']['Value'] = '_selectedRaw_'

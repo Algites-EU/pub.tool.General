@@ -20,7 +20,7 @@ from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefin
 from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget
 from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
 
-STEMS = ('parity-root', 'parity-child', 'parity-leaf', 'parity-status', 'parity-builtins')
+STEMS = ('parity-supported', 'parity-child', 'parity-leaf', 'parity-status', 'parity-supported-builtins')
 FORMATS = ((AInDefinitionSourceKind.YAMLDEFS, 'yamldefs', 'yamldef.schema.json'),
            (AInDefinitionSourceKind.JSONDEFS, 'jsondefs', 'jsondef.schema.json'),
            (AInDefinitionSourceKind.XMLDEFS, 'xmldefs', 'xsd'))
@@ -50,7 +50,7 @@ def test_equivalent_models_and_complete_outputs(stem):
             normalize(model), target, 'parity_generated', profile)) for model in models]
         assert outputs[0] == outputs[1] == outputs[2]
     root = models[0]
-    if stem == 'parity-root':
+    if stem == 'parity-supported':
         props = {p.source_name: p for p in root.data_type.properties}
         assert len(props) == 28 and 'inner' not in props
         assert props['children'].data_type.kind is AInDataTypeKind.ARRAY
@@ -59,7 +59,7 @@ def test_equivalent_models_and_complete_outputs(stem):
         assert (props['nullableText'].presence is AInFieldPresenceKind.REQUIRED) and props['nullableText'].nullable
         assert props['boundedInteger'].data_type.constraints.minimum == '-4'
         assert props['boundedDecimal'].data_type.constraints.exclusive_maximum
-    if stem == 'parity-builtins':
+    if stem == 'parity-supported-builtins':
         props = {p.source_name: p for p in root.data_type.properties}
         assert len(props) == 46
         assert props['unsignedLong'].data_type.constraints.maximum == '18446744073709551615'
@@ -73,7 +73,7 @@ def test_schema_field_name_constants_across_all_definition_kinds():
     """Verify documented canonical field-name constants for YAML, JSON and XML inputs."""
     service = AIcDefaultDefsCodegenService()
     for fmt in FORMATS:
-        model = load('parity-root', *fmt)
+        model = load('parity-supported', *fmt)
         java_source = service.generate(AIcdCodeGenerationRequest(
             model, AInCodeGenerationTarget.JAVA, 'parity_generated', AIcAlgitesNamingProfiles.java_profile())).source
         assert 'public static final String SCHEMA_FIELD_NAME__OPTIONAL_TEXT = "optionalText";' in java_source
@@ -106,7 +106,7 @@ def test_schema_field_constant_uses_entire_selected_constant_convention():
         custom_data['NameCompositions']['constant-name_1']['Segments'][0]['Convention'] = 'upper_camel_case_1'
         custom = AIcNameConventionCatalog(custom_data)
         assert names.schema_field_name_constant('optionalText', rendering_catalog(custom, language)) == 'SchemaFieldName__OptionalText'
-        model = load('parity-root', *FORMATS[1])
+        model = load('parity-supported', *FORMATS[1])
         output = AIcDefaultDefsCodegenService().generate(AIcdCodeGenerationRequest(
             model, target, 'parity_generated', custom)).source
         assert 'SchemaFieldName__OptionalText' in output
@@ -140,7 +140,7 @@ def valid_payload():
         nullableText=None, child={'name':'child', 'detail':{'label':'leaf', 'quantity':10**90}},
         children=[{'name':'second','detail':{'label':'nested','quantity':2}}], status='pending', statuses=['pending','complete'],
         texts=['a','b'], counts=[10**80], amounts=[Decimal('0.123456789012345678901')], flags=[True,False],
-        freeObject={'a':1}, inlineObject={'inner':'value'}, anything={'value':[1,2]}, inlineState='first',
+        freeObject={'a':1}, inlineObject={'inner':'value'}, anything='some text', inlineState='first',
         dateValue='12345-02-28+14:00', timeValue='23:59:59.1234567890123456789Z',
         timestamp='2024-02-29T23:59:59.1234567890123456789Z', durationValue='P1Y2M3DT4H5M6.123456789S',
         binaryHex='01FF', binaryBase64='Af8=', boundedText='ABC', boundedInteger=8, boundedDecimal=Decimal('2.499999999999999999'))
@@ -151,9 +151,9 @@ def test_generated_python_exact_types_and_invalid_values(tmp_path):
     (tmp_path / 'parity_generated/__init__.py').touch()
     sys.path.insert(0, str(tmp_path))
     try:
-        root_path = next(path for path in paths if 'parity_root' in path.name)
+        root_path = next(path for path in paths if 'parity_supported' in path.name)
         module = importlib.import_module('parity_generated.' + root_path.stem)
-        cls = next(value for value in vars(module).values() if isinstance(value, type) and getattr(value, '__canonical_source_id__', '').endswith(':parity-root:1'))
+        cls = next(value for value in vars(module).values() if isinstance(value, type) and getattr(value, '__canonical_source_id__', '').endswith(':parity-supported:1'))
         assert typing.get_type_hints(cls)
         payload = valid_payload()
         value = cls.from_mapping(payload)

@@ -13,6 +13,7 @@ locAction=--upload
 locRootInput=.
 locActionSeen=0
 locRootSeen=0
+locValidateSeen=0
 while (( $# )); do
     case "$1" in
         --plan-only|--prepare-only|--upload)
@@ -25,20 +26,37 @@ while (( $# )); do
         --root=*)
             (( locRootSeen == 0 )) || { echo '--root may be specified only once' >&2; exit 2; }
             locRootInput="${1#--root=}"; locRootSeen=1; shift ;;
+        --codegen-validate-one-input-at-a-time-only=*)
+            (( locValidateSeen == 0 )) || { echo 'Specify Codegen validation policy only once' >&2; exit 2; }
+            locValidatePolicy="${1#--codegen-validate-one-input-at-a-time-only=}"
+            [[ "$locValidatePolicy" == true || "$locValidatePolicy" == false ]] || {
+                echo 'Codegen validation policy must be true or false' >&2; exit 2;
+            }
+            export MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY="$locValidatePolicy"
+            locValidateSeen=1; shift ;;
         --help|-h)
             cat <<'HELP'
 Usage: bash devops/bootstrap/bootstrap.sh [--root DIRECTORY] [--plan-only|--prepare-only|--upload]
+    [--codegen-validate-one-input-at-a-time-only=true|false]
 By default the root is the complete source repository and the action is upload.
 --root restricts artifact selection, code generation, generated-source cleanup,
 build and publication to a directory below this repository. Paths are resolved
 relative to the source repository (not the caller's working directory).
 --plan-only never deletes generated sources, compiles or uploads.
+The Codegen validation policy defaults to true (fail fast). With false,
+Defs and SDO validate all selected inputs and aggregate detectable errors.
 HELP
             exit 0 ;;
         *) echo "Unsupported bootstrap option: $1" >&2; exit 2 ;;
     esac
 done
 
+# All generator CLIs, including Gradle's Java SDO process, inherit one policy.
+export MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY="${MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY:-true}"
+[[ "$MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY" == true ||
+   "$MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY" == false ]] || {
+    echo 'MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY must be true or false' >&2; exit 2;
+}
 locPython="${ALGITES_PYTHON_EXECUTABLE:-python3}"
 command -v "$locPython" >/dev/null 2>&1 || { echo "Missing Python: $locPython" >&2; exit 2; }
 locRoot="$("$locPython" "$locBootstrapDirectory/clean_generated.py" validate --repository "$locRepository" --root "$locRootInput")"

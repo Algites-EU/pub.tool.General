@@ -65,12 +65,60 @@ public final class AIcLayeredCodegenSettings {
         String locProfileRoot = "eu/algites/tool/codegen/" + locProfilePackage.replace(".", "/") + "/";
         String locProfileBase = "generators/code/" + aGenerator
                 + "/intf/src/product/config/" + locProfileRoot;
-        for (var locOverlay : readOverlays(locProfileRoot + locOverrideName,
-                Path.of(locProfileBase, locOverrideName)))
-            addLines(locSettings, locOverlay.getValue(), locOverlay.getKey());
+        String locUserFile = locSpecifiedFile == null ? ""
+                : Files.readString(Path.of(locSpecifiedFile));
+        Map<String, String> locRequested = profileSelections(locUserFile);
+        locRequested.putAll(profileSelections(String.join("\n", locInvocation)));
+        // Installed Algites, Standard Prefix and Standard Postfix settings are
+        // alternatives. Never merge unrelated profiles merely because several
+        // wheels/JARs happen to be on the classpath.
+        var locOverlays = readOverlays(locProfileRoot + locOverrideName,
+                Path.of(locProfileBase, locOverrideName));
+        Map<Map<String, String>, List<Map.Entry<String, String>>> locFamilies =
+                new LinkedHashMap<>();
+        for (var locOverlay : locOverlays) {
+            var locSignature = profileSelections(locOverlay.getValue());
+            if (!locSignature.isEmpty())
+                locFamilies.computeIfAbsent(locSignature, ignored -> new ArrayList<>())
+                        .add(locOverlay);
+        }
+        List<Map<String, String>> locMatching = new ArrayList<>();
+        for (var locSignature : locFamilies.keySet()) {
+            if (locRequested.isEmpty()) {
+                locMatching.add(locSignature);
+                continue;
+            }
+            boolean locAgrees = locSignature.entrySet().stream().anyMatch(item ->
+                    item.getValue().equals(locRequested.get(item.getKey())));
+            boolean locConflicts = locSignature.entrySet().stream().anyMatch(item ->
+                    locRequested.containsKey(item.getKey())
+                    && !item.getValue().equals(locRequested.get(item.getKey())));
+            if (locAgrees && !locConflicts) locMatching.add(locSignature);
+        }
+        if (locMatching.size() > 1) {
+            List<String> locOrigins = new ArrayList<>();
+            for (var locSignature : locMatching)
+                for (var locOverlay : locFamilies.get(locSignature))
+                    locOrigins.add(locOverlay.getKey());
+            throw new AIxCodegenValidationException(
+                    "Ambiguous Codegen naming profile overlays: " + String.join(", ", locOrigins),
+                    "Select exactly one naming family using qualified profile IDs or --settings-file.");
+        }
+        if (locMatching.isEmpty() && !locRequested.isEmpty()) {
+            boolean locPartiallyMatched = locFamilies.keySet().stream().anyMatch(signature ->
+                    signature.entrySet().stream().anyMatch(item ->
+                            item.getValue().equals(locRequested.get(item.getKey()))));
+            if (locPartiallyMatched)
+                throw new AIxCodegenValidationException(
+                        "Conflicting naming profile selection: no single installed profile matches "
+                        + "the explicitly selected profile IDs",
+                        "Do not mix Algites, Standard Prefix and Standard Postfix profile IDs.");
+        }
+        if (locMatching.size() == 1)
+            for (var locOverlay : locFamilies.get(locMatching.get(0)))
+                addLines(locSettings, locOverlay.getValue(), locOverlay.getKey());
         if (locSpecifiedFile != null)
-            addLines(locSettings,
-                    Files.readString(Path.of(locSpecifiedFile)), locSpecifiedFile);
+            addLines(locSettings, locUserFile, locSpecifiedFile);
         for (String locArg : locInvocation)
             addOption(locSettings, locArg);
         List<String> locExpanded = new ArrayList<>();
@@ -90,6 +138,36 @@ public final class AIcLayeredCodegenSettings {
         return locExpanded.toArray(String[]::new);
     }
 
+    /**
+     * Identifies the naming profile chosen by settings without introducing
+     * vendor-specific profile names into the generic CLI settings loader.
+     *
+     * @param aContent newline-delimited qualified CLI options
+     * @return all nonempty naming-profile identity selectors in the content
+     */
+    private static Map<String, String> profileSelections(String aContent) {
+        Set<String> locPrefixes = Set.of(
+                "--input-schema-naming-convention:",
+                "--common-codegen-naming-convention:",
+                "--defs-codegen-naming-convention:",
+                "--sdo-codegen-naming-convention:",
+                "--output-interface-technology-naming-convention:",
+                "--output-enum-technology-naming-convention:",
+                "--input-technology-naming-convention:",
+                "--output-technology-naming-convention:");
+        Map<String, String> locResult = new LinkedHashMap<>();
+        for (String locLine : aContent.lines().toList()) {
+            String locToken = locLine.strip();
+            int locEquals = locToken.indexOf('=');
+            if (locEquals <= 0 || locToken.startsWith("#")) continue;
+            String locKey = locToken.substring(0, locEquals);
+            String locValue = locToken.substring(locEquals + 1);
+            if (!locValue.isEmpty() && locPrefixes.stream().anyMatch(locKey::startsWith))
+                locResult.put(locKey, locValue);
+        }
+        return locResult;
+    }
+
     private static String readBuiltIn(String aResource, Path aCheckout) throws IOException {
         try (InputStream locStream = AIcLayeredCodegenSettings.class.getClassLoader()
                 .getResourceAsStream(aResource)) {
@@ -101,7 +179,7 @@ public final class AIcLayeredCodegenSettings {
     }
 
     /**
-     * Reads every matching classpath settings file rather than selecting one.
+     * Discovers available classpath profile overlays for subsequent selection.
      *
      * <p>ClassLoader lookup order places the first resource at highest priority.
      * Overlay files are therefore applied in reverse enumeration order, so the

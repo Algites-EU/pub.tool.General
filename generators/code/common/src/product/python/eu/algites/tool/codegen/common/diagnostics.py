@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TextIO
 
 from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+from eu.algites.tool.codegen.common.validation_batch import AIxCodegenBatchValidationException
 
 
 def debug_enabled() -> bool:
@@ -55,6 +56,20 @@ def report_exception(exc: BaseException, *, generator: str = 'Codegen',
     Returns:
         True only when a validation error was rendered.
     """
+    if isinstance(exc, AIxCodegenBatchValidationException):
+        output = stream if stream is not None else sys.stderr
+        output.write(f'\n  VALIDATION ERRORS - {generator}: {len(exc.errors)} issue(s)\n')
+        for index, error in enumerate(exc.errors, 1):
+            output.write(f'\n  [{index}/{len(exc.errors)}] {error.message}\n')
+            if error.source:
+                output.write(f'  Source: {error.source}\n')
+            if error.location:
+                output.write(f'  Location: {error.location}\n')
+            output.write(f'  Hint: {error.hint}\n')
+        output.write('\n')
+        if debug_enabled():
+            traceback.print_exception(type(exc), exc, exc.__traceback__, file=output)
+        return True
     if not isinstance(exc, AIxCodegenValidationException):
         return False
     output = stream if stream is not None else sys.stderr

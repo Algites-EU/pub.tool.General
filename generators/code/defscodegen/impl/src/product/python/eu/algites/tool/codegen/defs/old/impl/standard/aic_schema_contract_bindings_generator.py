@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+from eu.algites.tool.codegen.common.validation_batch import AIcCodegenValidationBatch, parse_boolean
 
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -47,6 +48,13 @@ class AIcSchemaContractBindingsGenerator:
 
     def generate_manifest(self, repository: Path, manifest: dict, check: bool = False) -> list[dict[str, str]]:
         """Generate all selected targets from explicit schema roots and YAML naming catalogs."""
+        policy = manifest.get('codegen_validate_one_input_at_a_time_only', True)
+        if isinstance(policy, str):
+            policy = parse_boolean(policy)
+        if not isinstance(policy, bool):
+            raise AIxCodegenValidationException('Codegen validation policy must be true or false',
+                'Set --codegen-validate-one-input-at-a-time-only to true or false.')
+        validation = AIcCodegenValidationBatch(policy)
         repository = Path(os.path.abspath(repository))
         intf = self._inside(repository, manifest.get('artifact', '.'))
         explicit = 'schema_inputs' in manifest
@@ -137,47 +145,54 @@ class AIcSchemaContractBindingsGenerator:
             for source in sorted(root.rglob('*')):
                 if not source.is_file() or not source.name.endswith(suffix):
                     continue
-                schema = source.relative_to(repository).as_posix()
-                if schema in root_by_source:
-                    raise AIxCodegenValidationException('Overlapping schema input roots: ' + schema, 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
-                root_by_source[schema] = root
-                kind_by_source[schema] = kind
-                if configured and kind not in source_catalogs:
-                    continue
-                if kind in source_catalogs:
-                    loc_profile = manifest.get('schema_input_naming_conventions', {}).get(kind) if configured else None
-                    recognized = source_catalogs[kind].recognize_filename(source.name,
-                        {loc_profile} if loc_profile else None)
-                    if recognized is None:
-                        raise AIxCodegenValidationException('Schema filename violates input naming profile: ' + schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
-                    profile_by_source[schema] = recognized.convention_name
-                    if not manifest.get('allow_unversioned_schemas', False) and 'version' not in recognized.variables:
-                        raise AIxCodegenValidationException('Unversioned schema is not allowed: ' + schema, 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
-                document = {} if kind == 'xmldefs' else load_schema(source)
-                if kind != 'xmldefs':
-                    source_catalog = source_catalogs.get(kind)
-                    source_profile = profile_by_source.get(schema)
-                    if source_catalog is None or not source_profile:
-                        raise AIxCodegenValidationException('Missing source naming catalog/profile for ' + schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
-                    id_field = source_catalog.schema_metadata_fields(source_profile).get(
-                        'schema_source_schema_identifier', '')
-                    declared_identity_by_source[schema] = bool(id_field and document.get(id_field))
-                match = source_catalogs[kind].recognize_filename(source.name,
-                    {profile_by_source[schema]})
-                if match is None or not match.variables.get('identifier'):
-                    raise AIxCodegenValidationException('Schema file name cannot be parsed by source profile: ' + schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
-                base = match.variables['identifier']
-                if kind == 'xmldefs':
-                    units.append(self.AIcdUnit(schema, '', base, {}, {}))
-                    for name in AIcXmlDefsFrontend().additional_named_type_names(source):
-                        units.append(self.AIcdUnit(schema, '@type/' + name, name, {}, {}))
-                else:
-                    self._collect(document, '', base, schema, document, overrides, units,
-                        source_catalogs[kind], profile_by_source[schema])
+                try:
+                    schema = source.relative_to(repository).as_posix()
+                    if schema in root_by_source:
+                        raise AIxCodegenValidationException('Overlapping schema input roots: ' + schema, 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
+                    root_by_source[schema] = root
+                    kind_by_source[schema] = kind
+                    if configured and kind not in source_catalogs:
+                        continue
+                    if kind in source_catalogs:
+                        loc_profile = manifest.get('schema_input_naming_conventions', {}).get(kind) if configured else None
+                        recognized = source_catalogs[kind].recognize_filename(source.name,
+                            {loc_profile} if loc_profile else None)
+                        if recognized is None:
+                            raise AIxCodegenValidationException('Schema filename violates input naming profile: ' + schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
+                        profile_by_source[schema] = recognized.convention_name
+                        if not manifest.get('allow_unversioned_schemas', False) and 'version' not in recognized.variables:
+                            raise AIxCodegenValidationException('Unversioned schema is not allowed: ' + schema, 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
+                    document = {} if kind == 'xmldefs' else load_schema(source)
+                    if kind != 'xmldefs':
+                        source_catalog = source_catalogs.get(kind)
+                        source_profile = profile_by_source.get(schema)
+                        if source_catalog is None or not source_profile:
+                            raise AIxCodegenValidationException('Missing source naming catalog/profile for ' + schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
+                        id_field = source_catalog.schema_metadata_fields(source_profile).get(
+                            'schema_source_schema_identifier', '')
+                        declared_identity_by_source[schema] = bool(id_field and document.get(id_field))
+                    match = source_catalogs[kind].recognize_filename(source.name,
+                        {profile_by_source[schema]})
+                    if match is None or not match.variables.get('identifier'):
+                        raise AIxCodegenValidationException('Schema file name cannot be parsed by source profile: ' + schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
+                    base = match.variables['identifier']
+                    if kind == 'xmldefs':
+                        units.append(self.AIcdUnit(schema, '', base, {}, {}))
+                        for name in AIcXmlDefsFrontend().additional_named_type_names(source):
+                            units.append(self.AIcdUnit(schema, '@type/' + name, name, {}, {}))
+                    else:
+                        self._collect(document, '', base, schema, document, overrides, units,
+                            source_catalogs[kind], profile_by_source[schema])
+                except AIxCodegenValidationException as exc:
+                    validation.add(exc, source=str(source))
+                except (ValueError, OSError) as exc:
+                    validation.add(AIxCodegenValidationException(str(exc),
+                        'Correct the invalid schema or its metadata.'), source=str(source))
         if existing_source_directories == 0:
             print('Defs Codegen: no configured schema input directory exists; nothing to generate',
                   file=__import__('sys').stderr)
             return []
+        validation.finish()
         discovered = {unit.schema + '#' + unit.pointer for unit in units}
         for key in overrides:
             if key not in discovered:
@@ -217,127 +232,135 @@ class AIcSchemaContractBindingsGenerator:
         reader = AIcJsonSchemaReader()
         generator = AIcSchemaContractInterfaceGenerator()
         for unit in units:
-            source = self._inside(repository, unit.schema)
-            kind = kind_by_source[unit.schema]
-            package = source.parent.relative_to(root_by_source[unit.schema]).as_posix().replace('/', '.')
-            if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*', package):
-                raise AIxCodegenValidationException(f'Schema must have a legal package path: {unit.schema}', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
-            projection = deepcopy(unit.node)
-            fields = {}
-            if kind != 'xmldefs':
-                if '$defs' in unit.document:
-                    projection['$defs'] = unit.document['$defs']
-                source_catalog = source_catalogs.get(kind)
-                source_profile = profile_by_source.get(unit.schema)
-                if source_catalog is None or not source_profile:
-                    raise AIxCodegenValidationException('Missing source naming catalog/profile for ' + unit.schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
-                fields = source_catalog.schema_metadata_fields(source_profile) if source_catalog and source_profile else {}
-                id_key = fields.get('schema_source_schema_identifier', '')
-                version_key = fields.get('schema_source_schema_version', '')
-                url_key = fields.get('schema_source_schema_url', '')
-                declared_id = str(unit.document.get(id_key) or unit.name) if id_key else unit.name
-                projection['x-jsondefs-id'] = declared_id + ('#' + unit.pointer if unit.pointer else '')
-                if version_key and version_key in unit.document:
-                    projection['x-jsondefs-version'] = unit.document[version_key]
-                if url_key and url_key in unit.document:
-                    projection['$id'] = unit.document[url_key]
-                projection['x-jsondefs-name'] = unit.name
-            parent_units = self._parent_units(unit, unit_index, repository) if kind != 'xmldefs' else ()
-            for language in manifest['languages']:
-                target = AInCodeGenerationTarget(language)
-                profile = target_profiles.get(language)
-                if profile is None:
-                    raise AIxCodegenValidationException(f'No output naming profile configured for {language}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
-                load = AIcdDefinitionLoadRequest(source,
-                    {'yamldefs': AInDefinitionSourceKind.YAMLDEFS, 'jsondefs': AInDefinitionSourceKind.JSONDEFS,
-                     'xmldefs': AInDefinitionSourceKind.XMLDEFS}[kind], profile,
-                     profile_by_source[unit.schema])
-                if kind == 'xmldefs':
-                    definition = (AIcXmlDefsFrontend().load_named_type(load, unit.pointer[6:])
-                                  if unit.pointer.startswith('@type/') else AIcXmlDefsFrontend().load(load))
-                else:
-                    definition = reader.read(projection, load, load.source_kind, 'x-jsondefs-id', 'x-jsondefs-version', 'x-jsondefs-name', '$id')
-                # Source naming decides which schema properties were read; the
-                # selected method/output profile independently controls wire emission.
-                # XMLDEFS do not use JSON/YAML document-header mappings. Preserve
-                # legacy XML contract annotations instead of applying JSON metadata
-                # requirements to an XSD without such source fields.
-                output_fields = ({} if kind == 'xmldefs' else
-                    profile.schema_metadata_fields(profile.generated_method_profile)
-                    if profile.generated_method_profile else fields)
-                for suffix in ('url', 'identifier', 'version'):
-                    output_key = f'data_source_schema_{suffix}'
-                    if output_fields.get(output_key) and (
-                            not fields.get(f'schema_source_schema_{suffix}')
-                            or not output_fields.get(f'schema_source_schema_{suffix}')):
-                        raise AIxCodegenValidationException(f'{unit.schema}: {output_key} has no schema source', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
-                definition = replace(definition, source_resource=unit.schema + ('#' + unit.pointer if unit.pointer else ''),
-                    data_source_schema_url_field=output_fields.get('data_source_schema_url', ''),
-                    data_source_schema_identifier_field=output_fields.get('data_source_schema_identifier', ''),
-                    data_source_schema_version_field=output_fields.get('data_source_schema_version', ''),
-                    schema_source_schema_url_field=(None if kind == 'xmldefs' else
-                        fields.get('schema_source_schema_url', '')
-                        if output_fields.get('schema_source_schema_url') else ''),
-                    schema_source_schema_identifier_field=(None if kind == 'xmldefs' else
-                        fields.get('schema_source_schema_identifier', '')
-                        if output_fields.get('schema_source_schema_identifier') else ''),
-                    schema_source_schema_version_field=(None if kind == 'xmldefs' else
-                        fields.get('schema_source_schema_version', '')
-                        if output_fields.get('schema_source_schema_version') else ''))
-                xml_type_qname = (('{' + AIcXmlDefsFrontend().schema_namespace(load) + '}' + unit.pointer[6:]
-                    if not AIcXmlDefsFrontend().is_synthetic_choice_type_name(source, unit.pointer[6:]) else None)
-                    if unit.pointer.startswith('@type/') else AIcXmlDefsFrontend().root_type_qname(load)) if kind == 'xmldefs' else None
-                if xml_type_qname is not None and xml_type_qname.endswith('}__root__'):
-                    xml_type_qname = None
-                source_role = 'xmldefs_type' if kind == 'xmldefs' else kind
-                configured_roles = manifest.get('technology_output_naming_conventions', {}).get(language, {})
-                enabled_roles = ([role for role in ('common', source_role) if role in configured_roles]
-                                 if configured else [''])
-                for role in enabled_roles:
-                    selected_id = configured_roles[role] if configured else ''
-                    role_profile = profile
-                    if configured:
-                        entries = {kind: selected_id for kind in (AInDefsNameRole.INTERFACE_TYPE,
-                            AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
-                            AInDefsNameRole.DATA_TYPE, AInDefsNameRole.DATA_TYPE_FILE_STEM)}
-                        element_id = configured_roles.get('xmldefs_element')
-                        if element_id:
-                            entries.update({kind: element_id for kind in (AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE,
-                                AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)})
-                        namespace_id = configured_roles.get('xmldefs_namespace')
-                        if namespace_id:
-                            entries.update({kind: namespace_id for kind in
-                                (AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE,
-                                 AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM)})
-                        enum_id = manifest.get('technology_enum_output_naming_conventions', {}).get(language, selected_id)
-                        entries.update({kind: enum_id for kind in (AInDefsNameRole.ENUM_TYPE,
-                            AInDefsNameRole.ENUM_TYPE_FILE_STEM)})
-                        role_profile = AIcSelectedNamingCatalog(profile, entries)
-                    output_package = package
-                    if kind == 'xmldefs' and role != 'common' and unit.schema in scoped_xml_documents:
-                        document = re.sub(r'[^A-Za-z0-9_]', '_', source.stem).lower()
-                        output_package += '.xmlschema_' + document
-                    common_profile = None
-                    common_keyed_fields = frozenset()
-                    common_id = configured_roles.get('common')
-                    if role != 'common' and common_id:
-                        common_profile = AIcSelectedNamingCatalog(profile, {
-                            kind: common_id for kind in (AInDefsNameRole.INTERFACE_TYPE,
+            try:
+                source = self._inside(repository, unit.schema)
+                kind = kind_by_source[unit.schema]
+                package = source.parent.relative_to(root_by_source[unit.schema]).as_posix().replace('/', '.')
+                if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*', package):
+                    raise AIxCodegenValidationException(f'Schema must have a legal package path: {unit.schema}', 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
+                projection = deepcopy(unit.node)
+                fields = {}
+                if kind != 'xmldefs':
+                    if '$defs' in unit.document:
+                        projection['$defs'] = unit.document['$defs']
+                    source_catalog = source_catalogs.get(kind)
+                    source_profile = profile_by_source.get(unit.schema)
+                    if source_catalog is None or not source_profile:
+                        raise AIxCodegenValidationException('Missing source naming catalog/profile for ' + unit.schema, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
+                    fields = source_catalog.schema_metadata_fields(source_profile) if source_catalog and source_profile else {}
+                    id_key = fields.get('schema_source_schema_identifier', '')
+                    version_key = fields.get('schema_source_schema_version', '')
+                    url_key = fields.get('schema_source_schema_url', '')
+                    declared_id = str(unit.document.get(id_key) or unit.name) if id_key else unit.name
+                    projection['x-jsondefs-id'] = declared_id + ('#' + unit.pointer if unit.pointer else '')
+                    if version_key and version_key in unit.document:
+                        projection['x-jsondefs-version'] = unit.document[version_key]
+                    if url_key and url_key in unit.document:
+                        projection['$id'] = unit.document[url_key]
+                    projection['x-jsondefs-name'] = unit.name
+                parent_units = self._parent_units(unit, unit_index, repository) if kind != 'xmldefs' else ()
+                for language in manifest['languages']:
+                    target = AInCodeGenerationTarget(language)
+                    profile = target_profiles.get(language)
+                    if profile is None:
+                        raise AIxCodegenValidationException(f'No output naming profile configured for {language}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
+                    load = AIcdDefinitionLoadRequest(source,
+                        {'yamldefs': AInDefinitionSourceKind.YAMLDEFS, 'jsondefs': AInDefinitionSourceKind.JSONDEFS,
+                         'xmldefs': AInDefinitionSourceKind.XMLDEFS}[kind], profile,
+                         profile_by_source[unit.schema])
+                    if kind == 'xmldefs':
+                        definition = (AIcXmlDefsFrontend().load_named_type(load, unit.pointer[6:])
+                                      if unit.pointer.startswith('@type/') else AIcXmlDefsFrontend().load(load))
+                    else:
+                        definition = reader.read(projection, load, load.source_kind, 'x-jsondefs-id', 'x-jsondefs-version', 'x-jsondefs-name', '$id')
+                    # Source naming decides which schema properties were read; the
+                    # selected method/output profile independently controls wire emission.
+                    # XMLDEFS do not use JSON/YAML document-header mappings. Preserve
+                    # legacy XML contract annotations instead of applying JSON metadata
+                    # requirements to an XSD without such source fields.
+                    output_fields = ({} if kind == 'xmldefs' else
+                        profile.schema_metadata_fields(profile.generated_method_profile)
+                        if profile.generated_method_profile else fields)
+                    for suffix in ('url', 'identifier', 'version'):
+                        output_key = f'data_source_schema_{suffix}'
+                        if output_fields.get(output_key) and (
+                                not fields.get(f'schema_source_schema_{suffix}')
+                                or not output_fields.get(f'schema_source_schema_{suffix}')):
+                            raise AIxCodegenValidationException(f'{unit.schema}: {output_key} has no schema source', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
+                    definition = replace(definition, source_resource=unit.schema + ('#' + unit.pointer if unit.pointer else ''),
+                        data_source_schema_url_field=output_fields.get('data_source_schema_url', ''),
+                        data_source_schema_identifier_field=output_fields.get('data_source_schema_identifier', ''),
+                        data_source_schema_version_field=output_fields.get('data_source_schema_version', ''),
+                        schema_source_schema_url_field=(None if kind == 'xmldefs' else
+                            fields.get('schema_source_schema_url', '')
+                            if output_fields.get('schema_source_schema_url') else ''),
+                        schema_source_schema_identifier_field=(None if kind == 'xmldefs' else
+                            fields.get('schema_source_schema_identifier', '')
+                            if output_fields.get('schema_source_schema_identifier') else ''),
+                        schema_source_schema_version_field=(None if kind == 'xmldefs' else
+                            fields.get('schema_source_schema_version', '')
+                            if output_fields.get('schema_source_schema_version') else ''))
+                    xml_type_qname = (('{' + AIcXmlDefsFrontend().schema_namespace(load) + '}' + unit.pointer[6:]
+                        if not AIcXmlDefsFrontend().is_synthetic_choice_type_name(source, unit.pointer[6:]) else None)
+                        if unit.pointer.startswith('@type/') else AIcXmlDefsFrontend().root_type_qname(load)) if kind == 'xmldefs' else None
+                    if xml_type_qname is not None and xml_type_qname.endswith('}__root__'):
+                        xml_type_qname = None
+                    source_role = 'xmldefs_type' if kind == 'xmldefs' else kind
+                    configured_roles = manifest.get('technology_output_naming_conventions', {}).get(language, {})
+                    enabled_roles = ([role for role in ('common', source_role) if role in configured_roles]
+                                     if configured else [''])
+                    for role in enabled_roles:
+                        selected_id = configured_roles[role] if configured else ''
+                        role_profile = profile
+                        if configured:
+                            entries = {kind: selected_id for kind in (AInDefsNameRole.INTERFACE_TYPE,
                                 AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
-                                AInDefsNameRole.DATA_TYPE, AInDefsNameRole.DATA_TYPE_FILE_STEM)})
-                        common_keyed_fields = frozenset(field.source_name
-                            for field in definition.data_type.properties
-                            if field.data_type.keyed_value_type is not None)
-                    request = AIcdCodeGenerationRequest(definition, target, output_package, role_profile,
-                        xml_type_qname, selected_id, role, common_profile, common_keyed_fields)
-                    preview = generator.generate(request)
-                    key = language + '#' + preview.relative_path
-                    requests.setdefault(key, []).append(request)
-                    unit_requests[(language, role, unit.schema, unit.pointer)] = request
-                    relations.setdefault(key, []).append(parent_units)
-                    result.append(dict(schema=unit.schema, pointer=unit.pointer, language=language, type=preview.type_name,
-                        path=(output_roots.get(language, intf / 'src/product' / (language + '.gen')) / preview.relative_path).relative_to(repository).as_posix()))
+                                AInDefsNameRole.DATA_TYPE, AInDefsNameRole.DATA_TYPE_FILE_STEM)}
+                            element_id = configured_roles.get('xmldefs_element')
+                            if element_id:
+                                entries.update({kind: element_id for kind in (AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE,
+                                    AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM)})
+                            namespace_id = configured_roles.get('xmldefs_namespace')
+                            if namespace_id:
+                                entries.update({kind: namespace_id for kind in
+                                    (AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE,
+                                     AInDefsNameRole.XML_NAMESPACE_INTERFACE_TYPE_FILE_STEM)})
+                            enum_id = manifest.get('technology_enum_output_naming_conventions', {}).get(language, selected_id)
+                            entries.update({kind: enum_id for kind in (AInDefsNameRole.ENUM_TYPE,
+                                AInDefsNameRole.ENUM_TYPE_FILE_STEM)})
+                            role_profile = AIcSelectedNamingCatalog(profile, entries)
+                        output_package = package
+                        if kind == 'xmldefs' and role != 'common' and unit.schema in scoped_xml_documents:
+                            document = re.sub(r'[^A-Za-z0-9_]', '_', source.stem).lower()
+                            output_package += '.xmlschema_' + document
+                        common_profile = None
+                        common_keyed_fields = frozenset()
+                        common_id = configured_roles.get('common')
+                        if role != 'common' and common_id:
+                            common_profile = AIcSelectedNamingCatalog(profile, {
+                                kind: common_id for kind in (AInDefsNameRole.INTERFACE_TYPE,
+                                    AInDefsNameRole.INTERFACE_TYPE_FILE_STEM,
+                                    AInDefsNameRole.DATA_TYPE, AInDefsNameRole.DATA_TYPE_FILE_STEM)})
+                            common_keyed_fields = frozenset(field.source_name
+                                for field in definition.data_type.properties
+                                if field.data_type.keyed_value_type is not None)
+                        request = AIcdCodeGenerationRequest(definition, target, output_package, role_profile,
+                            xml_type_qname, selected_id, role, common_profile, common_keyed_fields)
+                        preview = generator.generate(request)
+                        key = language + '#' + preview.relative_path
+                        requests.setdefault(key, []).append(request)
+                        unit_requests[(language, role, unit.schema, unit.pointer)] = request
+                        relations.setdefault(key, []).append(parent_units)
+                        result.append(dict(schema=unit.schema, pointer=unit.pointer, language=language, type=preview.type_name,
+                            path=(output_roots.get(language, intf / 'src/product' / (language + '.gen')) / preview.relative_path).relative_to(repository).as_posix()))
 
+            except AIxCodegenValidationException as exc:
+                validation.add(exc, source=str(source), location=unit.pointer or '/')
+            except ValueError as exc:
+                validation.add(AIxCodegenValidationException(str(exc),
+                    'Correct the invalid schema declaration or naming profile.'),
+                    source=str(source), location=unit.pointer or '/')
+        validation.finish()
         units_by_resource = {unit.schema + ('#' + unit.pointer if unit.pointer else ''): unit
                              for unit in units}
         # Source-format-specific inheritance must bind to an independently emitted
@@ -963,37 +986,77 @@ class AIcSchemaContractBindingsGenerator:
 
     @staticmethod
     def _parent_units(unit, index, repository):
-        """Resolve only explicit Defs Codegen parents; constraints never define inheritance."""
+        """Resolve explicit parents with the declaring source and JSON Pointer.
+
+        Args:
+            unit: Schema declaration containing the explicit parent reference.
+            index: Declarations that participate in this generation invocation.
+            repository: Root of the source repository.
+
+        Returns:
+            Emitted parent declarations in their declared order.
+
+        Raises:
+            AIxCodegenValidationException: If a parent cannot be resolved uniquely
+                or if its reference is malformed, inaccessible, or repeated. The
+                error identifies the *child* schema and the failing array item.
+        """
         references = unit.node.get('x-algites-defscodegen-extends', [])
-        if not isinstance(references, list) or any(not isinstance(item, str) for item in references):
-            raise AIxCodegenValidationException('x-algites-defscodegen-extends must be an array of URI references', 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
+        source = str(repository / unit.schema)
+        location_base = ('#' + unit.pointer if unit.pointer else '') + '/x-algites-defscodegen-extends'
+        hint = ('Provide the referenced parent schema as an explicit generation input '
+                'with an emitted contract in the required role. A Maven/API dependency '
+                'alone does not add schemas to the Defs input index. Verify the '
+                'parent $id, JSON Pointer, version, and schema ownership.')
+        if not isinstance(references, list):
+            raise AIxCodegenValidationException(
+                'x-algites-defscodegen-extends must be an array of URI references',
+                hint, source=source, location=location_base)
         parents = []
-        for reference in references:
+        for index_number, reference in enumerate(references):
+            location = f'{location_base}/{index_number}'
+            if not isinstance(reference, str):
+                raise AIxCodegenValidationException(
+                    'x-algites-defscodegen-extends must contain only URI references',
+                    hint, source=source, location=location)
             parts = urlsplit(reference)
             if parts.fragment and not unquote(parts.fragment).startswith('/'):
-                raise AIxCodegenValidationException('Unsupported explicit parent anchor: ' + reference, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
+                raise AIxCodegenValidationException(
+                    'Unsupported explicit parent anchor: ' + reference,
+                    hint, source=source, location=location)
             if parts.scheme and parts.scheme != 'file':
                 matches = [candidate for candidate in index.values()
                     if candidate.document.get('$id') == reference.split('#', 1)[0]
                     and candidate.pointer == unquote(parts.fragment)]
                 if len(matches) != 1:
-                    raise AIxCodegenValidationException('Unresolved or ambiguous explicit parent: ' + reference, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
+                    raise AIxCodegenValidationException(
+                        'Unresolved or ambiguous explicit parent: ' + reference
+                        + f' (matching input declarations: {len(matches)})',
+                        hint, source=source, location=location)
                 parents.append(matches[0])
                 continue
             if parts.scheme == 'file':
                 target = Path(unquote(parts.path))
             else:
-                target = (repository / unit.schema).parent / unquote(parts.path) if parts.path else repository / unit.schema
+                target = ((repository / unit.schema).parent / unquote(parts.path)
+                          if parts.path else repository / unit.schema)
             target = Path(os.path.abspath(target))
             if not target.is_relative_to(repository):
-                raise AIxCodegenValidationException('explicit parent escapes repository: ' + reference, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
+                raise AIxCodegenValidationException(
+                    'explicit parent escapes repository: ' + reference,
+                    hint, source=source, location=location)
             pointer = unquote(parts.fragment)
             parent = index.get((target.relative_to(repository).as_posix(), pointer))
             if parent is None:
-                raise AIxCodegenValidationException('explicit parent is not an emitted contract: ' + reference, 'Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.')
+                raise AIxCodegenValidationException(
+                    'explicit parent is not an emitted contract: ' + reference,
+                    hint, source=source, location=location)
             parents.append(parent)
-        if len({(unit.schema, unit.pointer) for unit in parents}) != len(parents):
-            raise AIxCodegenValidationException('Duplicate explicit parent in ' + unit.schema, 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
+        if len({(parent.schema, parent.pointer) for parent in parents}) != len(parents):
+            raise AIxCodegenValidationException(
+                'Duplicate explicit parent in ' + unit.schema,
+                'List each parent contract at most once.',
+                source=source, location=location_base)
         return tuple(parents)
 
     @staticmethod
