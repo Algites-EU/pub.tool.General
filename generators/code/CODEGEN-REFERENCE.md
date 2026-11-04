@@ -46,7 +46,7 @@ The Java CLI entry point is
 `eu.algites.tool.codegen.defs.old.impl.cli.AIcDefsCodegenCli`; the Python CLI is
 `python -m eu.algites.tool.codegen.defs.old.impl.cli.aic_defs_codegen_cli`.
 Both accept the same kebab-case option names. See
-[Defs Codegen naming CLI](defscodegen/CLI-NAMING-BATCH.md) for a complete
+[Defs Codegen naming CLI](defscodegen/DEFS-CODEGEN-REFERENCE.md) for a complete
 invocation and the role/configuration contract.
 
 The key distinction is **one repeatable list of naming catalog files**, such
@@ -61,6 +61,8 @@ and **independent mappings of semantic roles to exact convention IDs**:
 | `--output-interface-technology-naming-convention:TECH:ROLE:defsintf=ID` | Convention for a specific generated read-interface role. |
 | `--output-enum-technology-naming-convention:TECH=ID` | Independent naming for generated enums. |
 | `--naming-conventions-file:ENTRY_ID=PATH` | Add a YAML catalog; repeatable, including `classpath:NAME`. |
+| `--common-codegen-naming-convention:TECH=ID` | Common getters/setters, CONST and schema metadata naming shared with SDO. |
+| `--defs-codegen-naming-convention:TECH=ID` | Defs-only synthetic type/enum naming; linked to the Common profile. |
 | `--settings-file=PATH` | Overlay an invocation settings file on bundled and classpath defaults; explicit CLI arguments override matching keys. |
 | `--check`, `--clean-only` | Read-only verification or cleanup of generator-owned outputs. |
 
@@ -134,7 +136,7 @@ programmatic generator service for individual definitions.
 The Java CLI entry point is
 `eu.algites.tool.codegen.sdo.old.impl.cli.AIcSdoCodegenCli`; the Python CLI is
 `python -m eu.algites.tool.codegen.sdo.old.impl.cli.aic_sdo_codegen_cli`.
-See [SDO Codegen naming CLI](sdocodegen/CLI-NAMING-BATCH.md).
+See [SDO Codegen naming CLI](sdocodegen/SDO-CODEGEN-REFERENCE.md).
 
 | Parameter | Meaning |
 |---|---|
@@ -144,6 +146,8 @@ See [SDO Codegen naming CLI](sdocodegen/CLI-NAMING-BATCH.md).
 | `--input-technology-naming-convention:TECH:ROLE:defsintf=ID` | Name parser for read interfaces of a role. |
 | `--output-technology-naming-convention:TECH:ROLE:sdointf=ID` and `--output-technology-naming-convention:TECH:ROLE:sdoclass=ID` | Independent output naming conventions. |
 | `--naming-conventions-file:ENTRY_ID=PATH` | Repeatable shared YAML catalog or `classpath:NAME`. |
+| `--common-codegen-naming-convention:TECH=ID` | Shared Common naming profile. |
+| `--sdo-codegen-naming-convention:TECH=ID` | SDO-specific raw getter/presence/unsetter profile, linked to Common. |
 | `--sdointf-subpackage=SUFFIX`, `--sdoclass-subpackage=SUFFIX` | Optional, independent package suffixes; defaults are in settings. |
 | `--dointf-classpath:TECH=PATHS` | Supporting Java binary / Python import-path dependencies, not generation inputs. |
 | `--dointf-input-artifacts:TECH=LIST`, `--dointf-input-classes:TECH=LIST` | Semicolon-delimited artifact selectors or explicit Java/Python contract names. |
@@ -167,6 +171,15 @@ With zero arguments, each SDO CLI selects its technology-specific settings:
 `impl` output subpackages to avoid split-package conflicts between different
 JPMS modules. As with Defs, missing role mappings mean no output for that
 role; IDs in custom catalogs need not carry an `_1` suffix.
+
+**Split codegen catalog entries:** Defs uses `codegen_common` plus
+`codegen_defs`; SDO uses `codegen_common` plus `codegen_sdo`. These entries
+refer to separate files (`*-common-codegen-conventions.yml`,
+`*-defs-codegen-conventions.yml`, `*-sdo-codegen-conventions.yml`). Each native
+CLI selects both matching profile IDs for its technology, and validates
+`CommonNamingConvention`. The Algites, Standard Prefix and Standard Postfix
+Java/Python `.settings` files use this layout. The older combined method
+profile is not selected by these stock settings.
 
 ## 4. YAML naming configuration — reference
 
@@ -302,7 +315,7 @@ is not a separate code generator or a built-in source schema format.
 
 ## 1.1 recursive and XML contract migration
 
-The current staged model, XML element naming `_xe`, closed choices, canonical field presence and explicit limitations are documented in [Defs Codegen recursive types](defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md). This replaces neither the explicit bootstrap procedure nor the existing source-ownership contracts.
+The current staged model, XML element naming `_xe`, closed choices, canonical field presence and explicit limitations are documented in [Defs Codegen recursive types](defscodegen/DEFS-CODEGEN-REFERENCE.md). This replaces neither the explicit bootstrap procedure nor the existing source-ownership contracts.
 
 
 ## 5. Recursive canonical contracts and XML-element naming (migration)
@@ -359,7 +372,7 @@ imported group/element references, wildcards, unrestricted restriction,
 `xsi:type` polymorphism and complete `block`/`final` enforcement remain
 outside the supported subset and must not be treated as silently equivalent
 to valid generated contracts. See
-[the technical limits and examples](defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md).
+[the technical limits and examples](defscodegen/DEFS-CODEGEN-REFERENCE.md).
 
 ## Writable setter parameter inheritance (1.1)
 

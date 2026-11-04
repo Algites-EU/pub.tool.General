@@ -41,17 +41,29 @@ def test_arbitrary_user_name_remains_part_of_the_entity(technology):
 def test_both_generator_settings_select_one_valid_naming_catalog(style, stem, technology):
     """Defs and SDO settings in each profile are complete for either technology kind."""
     config = TOOL/'profile'/style/'src/product/config'
-    methods = yaml.safe_load((config/PATH/f'{style}-{technology}-codegen-method-conventions.yml').read_text())
-    for item in methods['GeneratedDataObjectMethodNameConventions']['NameConventions'].values():
-        assert item['SchemaMetadataNaming']['data_source_schema_url'] == '$schema'
-        assert item['SchemaMetadataNaming']['schema_source_schema_identifier'] == 'x-algites-schema-id'
-        assert item['SchemaMetadataNaming']['schema_source_schema_version'] == 'x-algites-schema-version'
+    codegen_config = config/'eu/algites/tool/codegen'
+    common = yaml.safe_load((codegen_config/
+        f'{style}-{technology}-common-codegen-conventions.yml').read_text())
+    common_profile = common['CommonCodegenNameConventions']['NameConventions'][
+        f'{style}-{technology}-codegen-common_1']
+    assert common_profile['SchemaMetadataNaming']['data_source_schema_url'] == '$schema'
+    assert common_profile['SchemaMetadataNaming']['schema_source_schema_identifier'] == 'x-algites-schema-id'
+    assert common_profile['SchemaMetadataNaming']['schema_source_schema_version'] == 'x-algites-schema-version'
     for generator,subdir in (('defscodegen','defs'),('sdocodegen','sdo')):
-        settings = (config/f'eu/algites/tool/codegen/{subdir}'/
-                    f'{generator}-{technology}.settings').read_text()
+        settings = (codegen_config/subdir/f'{generator}-{technology}.settings').read_text()
+        domain = subdir
+        source = yaml.safe_load((codegen_config/
+            f'{style}-{technology}-{domain}-codegen-conventions.yml').read_text())
+        family = 'DefsCodegenNameConventions' if domain == 'defs' else 'SdoCodegenNameConventions'
+        profile_id = f'{style}-{technology}-{generator}-standard_1'
+        assert source[family]['NameConventions'][profile_id]['CommonNamingConvention'] == (
+            f'{style}-{technology}-codegen-common_1')
         assert f'classpath:{stem}-{technology}-name-conventions.yml' in settings
-        assert f'classpath:{style}-{technology}-codegen-method-conventions.yml' in settings
-        assert f'--generated-dataobject-method-naming-convention:{technology}=' in settings
+        assert f'--naming-conventions-file:codegen_common=classpath:{style}-{technology}-common-codegen-conventions.yml' in settings
+        assert f'--naming-conventions-file:codegen_{domain}=classpath:{style}-{technology}-{domain}-codegen-conventions.yml' in settings
+        assert f'--common-codegen-naming-convention:{technology}={style}-{technology}-codegen-common_1' in settings
+        assert f'--{domain}-codegen-naming-convention:{technology}={profile_id}' in settings
+        assert '--generated-dataobject-method-naming-convention' not in settings
         assert '--naming-conventions-file:standard=classpath:standard-conventions.yml' in settings
 
 @pytest.mark.parametrize('style',('algites','standardprefix','standardpostfix'))
@@ -66,7 +78,7 @@ def test_native_artifact_is_build_time_settings_only(style):
 def test_defs_generator_outputs_both_languages_only_with_selected_profile(style, tmp_path):
     """The native generator respects the selected Java/Python profile without a built-in fallback."""
     import json
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import (
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import (
         AIcSchemaContractBindingsGenerator)
 
     stem = {'algites': 'algites', 'standardprefix': 'standard-prefix',
@@ -110,7 +122,7 @@ def test_sdo_generator_emits_native_types_under_selected_profile(style):
     from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
     from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
     from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
-    from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+    from eu.algites.tool.codegen.sdo.old.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
 
     stem = {'algites': 'algites', 'standardprefix': 'standard-prefix',
             'standardpostfix': 'standard-postfix'}[style]
@@ -144,12 +156,62 @@ def test_sdo_generator_emits_native_types_under_selected_profile(style):
 
 def test_generators_reject_missing_explicit_output_profile(tmp_path):
     """An installed Algites package is not permission to choose its naming rules implicitly."""
-    from eu.algites.tool.codegen.defs.impl.standard.aic_schema_contract_bindings_generator import (
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import (
         AIcSchemaContractBindingsGenerator)
-    from eu.algites.tool.codegen.defs.impl.standard.aic_generation_names import AIcGenerationNames
-    from eu.algites.tool.codegen.defs.ain_defs_name_role import AInDefsNameRole
+    from eu.algites.tool.codegen.defs.old.impl.standard.aic_generation_names import AIcGenerationNames
+    from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
     with pytest.raises(ValueError, match='No explicit output naming catalog'):
         AIcSchemaContractBindingsGenerator().generate_manifest(tmp_path, {
             'artifact': '.', 'languages': ['java', 'python']})
     with pytest.raises(ValueError, match='No output naming profile configured'):
         AIcGenerationNames().render('Customer', 1, object(), AInDefsNameRole.INTERFACE_TYPE)
+
+
+def test_defs_cli_applies_separated_common_and_defs_profiles(tmp_path):
+    """A selected Common composition changes an actual generated Defs accessor."""
+    import json
+    from eu.algites.tool.codegen.defs.old.impl.cli.aic_defs_codegen_cli import (
+        AIcDefsCodegenCli)
+
+    source = tmp_path/'src/product/jsondefs/demo/customer_1.jsondef.schema.json'
+    source.parent.mkdir(parents=True)
+    source.write_text(json.dumps({
+        '$schema': 'https://json-schema.org/draft/2020-12/schema',
+        '$id': 'urn:demo:customer:1', 'x-algites-schema-id': 'demo.customer',
+        'x-algites-schema-version': 1, 'type': 'object',
+        'properties': {'Name': {'type': 'string'}}}), encoding='utf-8')
+    common_path = (TOOL/'profile/algites/src/product/config/eu/algites/tool/codegen'
+                   /'algites-python-common-codegen-conventions.yml')
+    common = yaml.safe_load(common_path.read_text(encoding='utf-8'))
+    common['NameCompositions']['selected-getter_1'] = {'Segments': [
+        {'NameFragmentsSegmentValue': {'Kind': 'constant_string', 'Value': 'selectedGet'}},
+        {'NameFragmentsSegmentValue': {
+            'Kind': 'identifier', 'Convention': 'upper_camel_case_1'}}]}
+    common['CommonCodegenNameConventions']['NameConventions'][
+        'algites-python-codegen-common_1']['StructureNaming'][
+        'standard_getter'] = 'selected-getter_1'
+    custom_catalog = tmp_path/'custom-common.yml'
+    custom_catalog.write_text(yaml.safe_dump(common), encoding='utf-8')
+
+    assert AIcDefsCodegenCli.main([
+        f'--repository-root={tmp_path}',
+        '--naming-conventions-file:codegen_common=custom-common.yml']) == 0
+    emitted = '\n'.join(path.read_text(encoding='utf-8') for path in
+                        (tmp_path/'src/product/python.gen').rglob('*.py'))
+    assert 'def selectedGetName(self)' in emitted
+    assert 'def getName(self)' not in emitted
+
+
+def test_defs_cli_rejects_incomplete_or_mismatched_split_profiles(tmp_path):
+    """A Common profile must be paired with the correct Defs specialization."""
+    from eu.algites.tool.codegen.defs.old.impl.cli.aic_defs_codegen_cli import (
+        AIcDefsCodegenCli)
+
+    with pytest.raises(ValueError, match='both Common and Defs profiles'):
+        AIcDefsCodegenCli.main([
+            f'--repository-root={tmp_path}',
+            '--defs-codegen-naming-convention:python='])
+    with pytest.raises(ValueError, match='Unknown Common/defs'):
+        AIcDefsCodegenCli.main([
+            f'--repository-root={tmp_path}',
+            '--defs-codegen-naming-convention:python=algites-python-sdocodegen-standard_1'])

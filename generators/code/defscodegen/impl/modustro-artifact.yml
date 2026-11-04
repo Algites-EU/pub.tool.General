@@ -20,6 +20,12 @@ Dependencies:
       - GroupId: eu.algites.tool.codegen
         ArtifactId: pub.tool.General_generators.code.defscodegen.intf
         Usages: [product_api]
+      # Canonical SDO implementations are generated from Defs' read-only
+      # contracts into this module, never into defscodegen.intf.
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.smartdataobject.impl
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.data
         ArtifactId: pub.lib.General_data.dataobject.intf
         Usages: [product_api]

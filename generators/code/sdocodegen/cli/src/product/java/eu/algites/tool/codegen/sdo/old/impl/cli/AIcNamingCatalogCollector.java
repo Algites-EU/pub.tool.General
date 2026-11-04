@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 final class AIcNamingCatalogCollector {
     private static final String PREFIX = "eu/algites/lib/naming/convention/";
     private static final String SOURCECODE_PREFIX = PREFIX + "sourcecode/";
+    private static final String CODEGEN_PREFIX = "eu/algites/tool/codegen/";
     private static final Pattern FILE_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*\\.yml");
     private static final Pattern STANDARD = Pattern.compile(
             "(?m)^\\s*StandardConventionsFile:\\s*[\"']?([A-Za-z0-9][A-Za-z0-9_.-]*\\.yml)");
@@ -62,6 +63,8 @@ final class AIcNamingCatalogCollector {
                 /* Shared grammar stays in the general naming namespace. */
                 if (!locResources.hasMoreElements())
                     locResources = locLoader.getResources(PREFIX + locName);
+                if (!locResources.hasMoreElements())
+                    locResources = locLoader.getResources(CODEGEN_PREFIX + locName);
                 List<URL> locUrls = new ArrayList<>();
                 Set<String> locSeen = new HashSet<>();
                 while (locResources.hasMoreElements()) {

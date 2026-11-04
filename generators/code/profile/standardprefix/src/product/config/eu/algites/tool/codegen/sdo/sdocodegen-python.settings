@@ -19,5 +19,7 @@
 --naming-conventions-file:xmldefs=classpath:standard-prefix-xmldef-name-conventions.yml
 --naming-conventions-file:yamldefs=classpath:standard-prefix-yamldef-name-conventions.yml
 --naming-conventions-file:jsondefs=classpath:standard-prefix-jsondef-name-conventions.yml
---naming-conventions-file:generated_dataobject=classpath:standardprefix-python-codegen-method-conventions.yml
---generated-dataobject-method-naming-convention:python=standard-prefix-python-codegen-standard_1
+--naming-conventions-file:codegen_common=classpath:standardprefix-python-common-codegen-conventions.yml
+--naming-conventions-file:codegen_sdo=classpath:standardprefix-python-sdo-codegen-conventions.yml
+--common-codegen-naming-convention:python=standardprefix-python-codegen-common_1
+--sdo-codegen-naming-convention:python=standardprefix-python-sdocodegen-standard_1

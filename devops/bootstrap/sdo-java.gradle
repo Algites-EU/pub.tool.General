@@ -124,7 +124,8 @@ tasks.register('bootstrapSdoJava') {
                 'standard-conventions.yml', 'algites-java-name-conventions.yml',
                 'algites-python-name-conventions.yml', 'algites-jsondef-name-conventions.yml',
                 'algites-yamldef-name-conventions.yml', 'algites-xmldef-name-conventions.yml',
-                'algites-java-codegen-method-conventions.yml'
+                'algites-java-common-codegen-conventions.yml',
+                'algites-java-sdo-codegen-conventions.yml'
         ]
         def roles = [common: '', xmldefs_type: '-xml-type', xmldefs_element: '-xml-element',
                      yamldefs: '-yaml', jsondefs: '-json']
@@ -299,7 +300,8 @@ tasks.register('bootstrapSdoJava') {
                     '--technology-sdointf-output-dir:java=' + output.absolutePath,
                     '--technology-sdoimpl-output-dir:java=' + output.absolutePath,
                     '--sdointf-subpackage=impl.intf', '--sdoclass-subpackage=impl',
-                    '--generated-dataobject-method-naming-convention:java=algites-java-codegen-standard_1'
+                    '--common-codegen-naming-convention:java=algites-java-codegen-common_1',
+                    '--sdo-codegen-naming-convention:java=algites-java-sdocodegen-standard_1'
             ]
             arguments << '--dointf-input-classes:java=' + eligible.join(';')
             arguments << '--dointf-classpath:java=' + classpath
@@ -313,6 +315,8 @@ tasks.register('bootstrapSdoJava') {
                 String catalogArgument = '--naming-conventions-file:catalog-' + locCatalogIndex + '=resource:' + naming[locCatalogIndex]
                 arguments.add(catalogArgument)
             }
+            arguments.add('--naming-conventions-file:codegen_common=classpath:algites-java-common-codegen-conventions.yml')
+            arguments.add('--naming-conventions-file:codegen_sdo=classpath:algites-java-sdo-codegen-conventions.yml')
             roles.each { role, suffix ->
                 arguments << "--input-technology-naming-convention:java:${role}:defsintf=algites-java-gen${suffix}-intf-versioned_1"
                 arguments << "--output-technology-naming-convention:java:${role}:sdointf=algites-java-gen-data${suffix}-intf-versioned_1"

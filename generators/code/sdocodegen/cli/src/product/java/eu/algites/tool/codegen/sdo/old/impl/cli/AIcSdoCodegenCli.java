@@ -78,6 +78,9 @@ public final class AIcSdoCodegenCli {
         String locMutableSubpackage = "";
         String locConcreteSubpackage = "";
         String locGeneratedMethodsProfile = null;
+        String locCommonCodegenProfile = null;
+        String locSdoCodegenProfile = null;
+        Set<String> locCatalogKinds = new LinkedHashSet<>();
         boolean locCheck = false;
         boolean locClean = false;
         for (String locOption : aArgs) {
@@ -102,11 +105,20 @@ public final class AIcSdoCodegenCli {
                 case "naming-conventions-file" -> {
                     if (locQualified.length != 2 || locQualified[1].isBlank())
                         throw new AIxCodegenValidationException("Catalog option needs a unique qualifier: " + locOption, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
+                    locCatalogKinds.add(locQualified[1]);
                     locCatalogSources.add(locValue);
                 }
                 case "generated-dataobject-method-naming-convention" -> {
                     requireQualifiers(locQualified, "java");
                     locGeneratedMethodsProfile = locValue;
+                }
+                case "common-codegen-naming-convention" -> {
+                    requireQualifiers(locQualified, "java");
+                    locCommonCodegenProfile = locValue;
+                }
+                case "sdo-codegen-naming-convention" -> {
+                    requireQualifiers(locQualified, "java");
+                    locSdoCodegenProfile = locValue;
                 }
                 case "dointf-classpath" -> {
                     requireQualifiers(locQualified, "java");
@@ -163,8 +175,17 @@ public final class AIcSdoCodegenCli {
                     ? locResolved : root(locRepository, locResolved).toString());
         }
         AIcNameConventionCatalog locNames = AIcNamingCatalogCollector.load(locSources);
-        if (locGeneratedMethodsProfile != null)
+        if (locCommonCodegenProfile != null || locSdoCodegenProfile != null) {
+            if (locCommonCodegenProfile == null || locSdoCodegenProfile == null
+                    || locGeneratedMethodsProfile != null
+                    || !locCatalogKinds.contains("codegen_common")
+                    || !locCatalogKinds.contains("codegen_sdo"))
+                throw new AIxCodegenValidationException("SDO needs both Common and SDO naming profiles "
+                        + "and codegen_common/codegen_sdo catalogs", "Use the paired new naming profile selectors.");
+            locNames = locNames.withCodegenNamingProfiles(locCommonCodegenProfile, locSdoCodegenProfile, "sdo");
+        } else if (locGeneratedMethodsProfile != null) {
             locNames = locNames.withGeneratedMethodProfile(locGeneratedMethodsProfile);
+        }
         AIcNameConventionCatalog locInputNames = locNames.withRoles(locInputRoles);
         AIcNameConventionCatalog locMutableNames = locNames.withRoles(locMutableRoles);
         AIcNameConventionCatalog locConcreteNames = locNames.withRoles(locConcreteRoles);

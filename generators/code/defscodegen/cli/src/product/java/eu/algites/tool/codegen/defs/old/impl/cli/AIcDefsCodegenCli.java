@@ -65,12 +65,15 @@ public final class AIcDefsCodegenCli {
         ObjectNode locRoles = locManifest.putObject("technology_output_naming_conventions");
         ObjectNode locEnums = locManifest.putObject("technology_enum_output_naming_conventions");
         ObjectNode locMethods = locManifest.putObject("generated_dataobject_method_naming_conventions");
+        ObjectNode locCommon = locManifest.putObject("common_codegen_naming_conventions");
+        ObjectNode locDefs = locManifest.putObject("defs_codegen_naming_conventions");
         ArrayNode locCatalogFiles = locManifest.putArray("naming_convention_files");
         Path locRepository = Path.of(".").toAbsolutePath().normalize();
         boolean locCheck = false;
         boolean locClean = false;
         var locInputs = new LinkedHashMap<String, String>();
         var locFiles = new LinkedHashSet<String>();
+        var locCatalogKinds = new LinkedHashSet<String>();
         var locArtifactSelectors = new LinkedHashMap<String, String>();
         for (String locArgument : aArgs) {
             if (locArgument.equals("--check")) { locCheck = true; continue; }
@@ -95,6 +98,7 @@ public final class AIcDefsCodegenCli {
             }
             if (locKey.startsWith("naming-conventions-file:") && locKey.indexOf(':') < locKey.length()-1) {
                 if (locValue.isBlank()) throw new AIxCodegenValidationException("Empty naming catalog path", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
+                locCatalogKinds.add(locKey.substring("naming-conventions-file:".length()));
                 locFiles.add(locValue); continue;
             }
             String[] locQualified = locKey.split(":", -1);
@@ -109,6 +113,7 @@ public final class AIcDefsCodegenCli {
                     else locInputProfiles.put(locKind, locValue);
                 }
                 case "generated-dataobject-method-naming-convention",
+                     "common-codegen-naming-convention", "defs-codegen-naming-convention",
                      "technology-dointf-output-dir", "output-enum-technology-naming-convention",
                      "defs-input-artifacts" -> {
                     require(locQualified, 2);
@@ -117,6 +122,8 @@ public final class AIcDefsCodegenCli {
                         throw new AIxCodegenValidationException("Unknown target technology: " + locTech, "Inspect the qualified CLI option and layered settings file; correct the indicated value or remove the conflicting option.");
                     switch (locBase) {
                         case "generated-dataobject-method-naming-convention" -> locMethods.put(locTech, locValue);
+                        case "common-codegen-naming-convention" -> locCommon.put(locTech, locValue);
+                        case "defs-codegen-naming-convention" -> locDefs.put(locTech, locValue);
                         case "technology-dointf-output-dir" -> locOutputDirs.put(locTech, locValue);
                         case "output-enum-technology-naming-convention" -> locEnums.put(locTech, locValue);
                         default -> locArtifactSelectors.put(locTech, locValue);
@@ -136,6 +143,15 @@ public final class AIcDefsCodegenCli {
                 }
                 default -> throw new AIxCodegenValidationException("Unknown batch option: " + locKey, "Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.");
             }
+        }
+        for (String locTechnology : Set.of("java", "python")) {
+            boolean locSelected = locCommon.has(locTechnology) || locDefs.has(locTechnology);
+            if (locSelected && (!locCommon.has(locTechnology) || !locDefs.has(locTechnology)
+                    || locMethods.has(locTechnology) || !locCatalogKinds.contains("codegen_common")
+                    || !locCatalogKinds.contains("codegen_defs")))
+                throw new AIxCodegenValidationException("Defs Codegen requires a Common and a Defs profile "
+                        + "with codegen_common/codegen_defs catalogs (without the legacy method profile): "
+                        + locTechnology, "Supply both profile IDs and their dedicated naming catalog files.");
         }
         for (String locFile : locFiles) locCatalogFiles.add(locFile);
         if (locFiles.isEmpty()) throw new AIxCodegenValidationException("Provide --naming-conventions-file", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");

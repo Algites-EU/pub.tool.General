@@ -175,7 +175,7 @@ public final class AItcSchemaContractGenerationTest {
         Assert.assertFalse(locDefinition.dataType().properties().get(2).presence() == eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED);
     }
 
-    /** Local allOf inheritance becomes real Java/Python interface inheritance. */
+    /** Explicit Defs inheritance creates Java/Python interfaces; allOf itself stays validation-only. */
     @Test
     public void AIcGeneratesSchemaInheritance() throws Exception {
         Path locRoot = Files.createTempDirectory("defs-inheritance-");
@@ -185,8 +185,10 @@ public final class AItcSchemaContractGenerationTest {
             {"$id":"urn:parent:1","type":"object","properties":{"Name":{"type":"string"}},"required":["Name"]}
             """);
         Files.writeString(locDefinitions.resolve("child_1.jsondef.schema.json"), """
-            {"$id":"urn:child:1","allOf":[{"$ref":"parent_1.jsondef.schema.json"},
-              {"type":"object","properties":{"Count":{"type":"integer"}}}]}
+            {"$id":"urn:child:1","type":"object",
+             "x-algites-defscodegen-extends":["parent_1.jsondef.schema.json"],
+             "allOf":[{"$ref":"parent_1.jsondef.schema.json"}],
+             "properties":{"Count":{"type":"integer"}}}
             """);
         Path locManifest = locRoot.resolve("bindings.json");
         Files.writeString(locManifest, """

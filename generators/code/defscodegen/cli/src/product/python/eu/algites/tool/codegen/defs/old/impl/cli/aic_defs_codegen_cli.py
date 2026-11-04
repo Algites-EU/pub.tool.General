@@ -42,6 +42,9 @@ class AIcDefsCodegenCli:
         output_dirs: dict[str, str] = {}
         enumerations: dict[str, str] = {}
         method_profiles: dict[str, str] = {}
+        common_profiles: dict[str, str] = {}
+        defs_profiles: dict[str, str] = {}
+        catalog_kinds: set[str] = set()
         roles: dict[str, dict[str, str]] = {}
         catalogs: list[str] = []
         artifact_lists: dict[str, str] = {}
@@ -64,20 +67,33 @@ class AIcDefsCodegenCli:
                 if name == 'repository-root': root = Path(value).resolve()
                 else: setter_policy = value
             elif name == 'naming-conventions-file' and len(qualifiers) == 1:
+                catalog_kinds.add(qualifiers[0])
                 catalogs.append(value)
             elif name in {'schema-input-dir', 'input-schema-naming-convention'} and len(qualifiers) == 1 and qualifiers[0] in formats:
                 (inputs if name == 'schema-input-dir' else input_profiles)[qualifiers[0]] = value
             elif name in {'technology-dointf-output-dir', 'output-enum-technology-naming-convention',
-                          'generated-dataobject-method-naming-convention', 'defs-input-artifacts'} and len(qualifiers) == 1 and qualifiers[0] in targets:
+                          'generated-dataobject-method-naming-convention',
+                          'common-codegen-naming-convention', 'defs-codegen-naming-convention',
+                          'defs-input-artifacts'} and len(qualifiers) == 1 and qualifiers[0] in targets:
                 dest = {'technology-dointf-output-dir': output_dirs,
                         'output-enum-technology-naming-convention': enumerations,
                         'generated-dataobject-method-naming-convention': method_profiles,
+                        'common-codegen-naming-convention': common_profiles,
+                        'defs-codegen-naming-convention': defs_profiles,
                         'defs-input-artifacts': artifact_lists}[name]
                 dest[qualifiers[0]] = value
             elif name == 'output-interface-technology-naming-convention' and len(qualifiers) == 3 and qualifiers[0] in targets and qualifiers[1] in known_roles and qualifiers[2] == 'defsintf':
                 roles.setdefault(qualifiers[0], {})[qualifiers[1]] = value
             else:
                 raise AIxCodegenValidationException(f'Unrecognized or unqualified Defs option: {option}', 'Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.')
+        for tech in targets:
+            if tech in common_profiles or tech in defs_profiles:
+                if (tech not in common_profiles or tech not in defs_profiles
+                        or tech in method_profiles
+                        or not {'codegen_common', 'codegen_defs'} <= catalog_kinds):
+                    raise AIxCodegenValidationException(
+                        f'Defs requires both Common and Defs profiles and catalog files for {tech}',
+                        'Supply codegen_common/codegen_defs catalogs and both profile IDs, without the legacy method profile.')
         if check and clean:
             raise AIxCodegenValidationException('--check conflicts with --clean-only', 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
         if not catalogs:
@@ -133,6 +149,8 @@ class AIcDefsCodegenCli:
                     technology_output_naming_conventions=roles,
                     technology_enum_output_naming_conventions=enumerations,
                     generated_dataobject_method_naming_conventions=method_profiles,
+                    common_codegen_naming_conventions=common_profiles,
+                    defs_codegen_naming_conventions=defs_profiles,
                     naming_convention_files=list(dict.fromkeys(catalogs)),
                     languages=list(output_dirs), clean_only=clean,
                     allow_unversioned_schemas=allow_unversioned)

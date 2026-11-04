@@ -41,7 +41,7 @@ naming/validator/cli/algites-artifact.yml
 
 The generator now retains exact integers/decimals, calendars, durations, binary
 content and basic scalar facets. The cross-format fixtures and coverage limits
-are documented in `generators/code/defscodegen/impl/src/develop/SCHEMA-PARITY.md`.
+are documented in `generators/code/defscodegen/DEFS-CODEGEN-REFERENCE.md`.
 Generated Java numeric components now use BigInteger/BigDecimal where earlier
 outputs used Long/Double. Generated Python Decimal values require a compatible
 JSON serializer. No further pub.lib.General source changes are required.

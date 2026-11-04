@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The very first Python invocation must not write bytecode beside source files.
+# The flag is inherited by generators, Gradle subprocesses and nested bootstraps.
+export PYTHONDONTWRITEBYTECODE=1
+
 # Universal Algites/Modustro bootstrap entry point. Repository differences are
 # declared by the artifact tree and its build/generator adapters, not this CLI.
 locBootstrapDirectory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"

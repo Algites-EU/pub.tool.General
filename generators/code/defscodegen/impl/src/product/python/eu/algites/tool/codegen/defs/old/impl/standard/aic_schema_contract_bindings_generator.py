@@ -69,9 +69,20 @@ class AIcSchemaContractBindingsGenerator:
         if configured:
             catalogs = {language: shared_names for language in output_roots}
             method_profiles = manifest.get('generated_dataobject_method_naming_conventions', {})
-            target_profiles = {language: shared_names.with_generated_method_profile(method_profiles[language])
-                               if language in method_profiles else shared_names
-                               for language in output_roots}
+            commons = manifest.get('common_codegen_naming_conventions', {})
+            defs = manifest.get('defs_codegen_naming_conventions', {})
+            target_profiles = {}
+            for language in output_roots:
+                if language in commons or language in defs:
+                    if language not in commons or language not in defs or language in method_profiles:
+                        raise ValueError(f'Incomplete or conflicting Defs naming profile for {language}')
+                    target_profiles[language] = shared_names.with_codegen_naming_profiles(
+                        commons[language], defs[language], 'defs')
+                elif language in method_profiles:
+                    target_profiles[language] = shared_names.with_generated_method_profile(
+                        method_profiles[language])
+                else:
+                    target_profiles[language] = shared_names
             source_catalogs = {kind: shared_names for kind in manifest.get('schema_input_naming_conventions', {})}
         if not configured and not manifest.get('technology_naming_profiles'):
             raise AIxCodegenValidationException('No explicit output naming catalog configured', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
@@ -871,7 +882,17 @@ class AIcSchemaContractBindingsGenerator:
         if explicit[2] != version:
             return False
         candidate = str(explicit[1])
-        return ((not pointer and candidate == package + '.' + name)
+        # A published XML QName namespace is an exact alias of the implicit
+        # package/name identity. Check the *whole* versioned path: never merge
+        # an unrelated schema just because its final filename happens to match.
+        public_package = package.removesuffix('.old')
+        publication = ('https://defs.dev.algites.eu/api/xmldefs/'
+                       + public_package.replace('.', '/') + '/' + name
+                       + '_' + str(version) + '.xsd')
+        publication_normalized = publication.replace('/api/xmldefs/', '/api/schema/')[:-4] + '.schema'
+        return ((not pointer and (candidate == package + '.' + name
+                                 or candidate == publication
+                                 or candidate == publication_normalized))
                 or (candidate.startswith('urn:algites:')
                     and candidate.endswith(f':{name}:{version}')))
 
@@ -888,6 +909,8 @@ class AIcSchemaContractBindingsGenerator:
         if identity[0] != 'explicit':
             return identity
         value = str(identity[1])
+        value = re.sub(r'(/api/)(?:xmldefs|jsondefs|yamldefs)(/)', r'\1schema\2', value)
+        value = re.sub(r'\.(?:yamldef|jsondef)\.schema\.json(?=#|$)|\.xsd(?=#|$)', '.schema', value)
         if ('#' not in definition.source_resource
                 and value.startswith('https://defs.dev.algites.eu/api/schema/')
                 and definition.version is not None):
@@ -896,7 +919,7 @@ class AIcSchemaContractBindingsGenerator:
             # Only match the URL when its directory maps to the generated
             # package and its versioned filename maps to the logical schema.
             expected = ('https://defs.dev.algites.eu/api/schema/'
-                + package_name.replace('.', '/') + '/'
+                + package_name.removesuffix('.old').replace('.', '/') + '/'
                 + definition.logical_name + '_' + str(definition.version) + '.schema')
             if value == expected:
                 return ('explicit', package_name + '.' + definition.logical_name,

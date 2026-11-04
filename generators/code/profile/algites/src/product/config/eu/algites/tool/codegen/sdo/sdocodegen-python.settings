@@ -19,5 +19,7 @@
 --naming-conventions-file:xmldefs=classpath:algites-xmldef-name-conventions.yml
 --naming-conventions-file:yamldefs=classpath:algites-yamldef-name-conventions.yml
 --naming-conventions-file:jsondefs=classpath:algites-jsondef-name-conventions.yml
---naming-conventions-file:generated_dataobject=classpath:algites-python-codegen-method-conventions.yml
---generated-dataobject-method-naming-convention:python=algites-python-codegen-standard_1
+--naming-conventions-file:codegen_common=classpath:algites-python-common-codegen-conventions.yml
+--naming-conventions-file:codegen_sdo=classpath:algites-python-sdo-codegen-conventions.yml
+--common-codegen-naming-convention:python=algites-python-codegen-common_1
+--sdo-codegen-naming-convention:python=algites-python-sdocodegen-standard_1

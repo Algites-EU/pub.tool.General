@@ -1,0 +1,8 @@
+# Neutral native Codegen defaults; naming profiles are selected by an external build-time profile artifact.
+--repository-root=.
+--technology-dointf-input-dir:python=src/product/python.gen
+--technology-sdointf-output-dir:python=src/product/python.gen
+--technology-sdoimpl-output-dir:python=src/product/python.gen
+--sdointf-subpackage=impl.intf
+--sdoclass-subpackage=impl
+--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER

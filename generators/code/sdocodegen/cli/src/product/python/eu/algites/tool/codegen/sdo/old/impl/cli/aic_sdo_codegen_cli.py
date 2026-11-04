@@ -71,6 +71,8 @@ def main(args=None):
     input_artifacts = ''
     input_paths: list[str] = []
     method_profile = None
+    common_profile = sdo_profile = None
+    catalog_kinds: set[str] = set()
     mutable_package = concrete_package = ''
     setter_policy = None
     check = clean = False
@@ -86,6 +88,7 @@ def main(args=None):
         if (qualifiers and qualifiers[0] == 'java'
                 and name in {'technology-dointf-input-dir', 'technology-sdointf-output-dir',
                              'technology-sdoimpl-output-dir', 'generated-dataobject-method-naming-convention',
+                             'common-codegen-naming-convention', 'sdo-codegen-naming-convention',
                              'input-technology-naming-convention', 'output-technology-naming-convention',
                              'dointf-classpath', 'dointf-input-classes', 'dointf-input-artifacts',
                              'dointf-input-paths'}):
@@ -97,12 +100,17 @@ def main(args=None):
             elif name == 'sdoclass-subpackage': concrete_package = value
             else: setter_policy = value
         elif name == 'naming-conventions-file' and len(qualifiers) == 1:
+            catalog_kinds.add(qualifiers[0])
             naming_sources.append(value)
         elif name in {'technology-dointf-input-dir', 'technology-sdointf-output-dir',
                       'technology-sdoimpl-output-dir'} and qualifiers == ['python']:
             directories[name] = value
         elif name == 'generated-dataobject-method-naming-convention' and qualifiers == ['python']:
             method_profile = value
+        elif name == 'common-codegen-naming-convention' and qualifiers == ['python']:
+            common_profile = value
+        elif name == 'sdo-codegen-naming-convention' and qualifiers == ['python']:
+            sdo_profile = value
         elif name == 'input-technology-naming-convention' and len(qualifiers) == 3 and qualifiers[0] == 'python' and qualifiers[1] in _ROLES and qualifiers[2] == 'defsintf':
             input_roles[qualifiers[1]] = value
         elif name == 'output-technology-naming-convention' and len(qualifiers) == 3 and qualifiers[0] == 'python' and qualifiers[1] in _ROLES and qualifiers[2] in {'sdointf', 'sdoclass'}:
@@ -140,7 +148,14 @@ def main(args=None):
                for s in naming_sources]
     with expand_naming_catalogs(sources) as paths:
         catalog = AIcNameConventionCatalog.load_many(paths)
-    if method_profile:
+    if common_profile is not None or sdo_profile is not None:
+        if (not common_profile or not sdo_profile or method_profile is not None
+                or not {'codegen_common', 'codegen_sdo'} <= catalog_kinds):
+            raise AIxCodegenValidationException(
+                'SDO needs Common and SDO naming profiles and both catalog files',
+                'Use the paired new naming profile selectors without the legacy method profile.')
+        catalog = catalog.with_codegen_naming_profiles(common_profile, sdo_profile, 'sdo')
+    elif method_profile:
         catalog = catalog.with_generated_method_profile(method_profile)
     profiles = [input_roles, mutable_roles, concrete_roles]
     for roles in profiles:

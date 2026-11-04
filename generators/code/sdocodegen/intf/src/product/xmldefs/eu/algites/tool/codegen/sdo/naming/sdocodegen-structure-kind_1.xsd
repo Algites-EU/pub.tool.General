@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/sdo/naming/sdocodegen-structure-kind_1.xsd" xmlns:tns="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/sdo/naming/sdocodegen-structure-kind_1.xsd" version="1">
+  <xs:annotation><xs:documentation>Valid sdo naming roles; each value is documented separately. This schema supersedes the mixed method role enum for the new codegen.</xs:documentation></xs:annotation>
+  <xs:simpleType name="SdoCodegenStructureKind"><xs:restriction base="xs:string">
+    <xs:enumeration value="raw_getter"><xs:annotation><xs:documentation>Optional SDO method for reading an unconverted field value.</xs:documentation></xs:annotation></xs:enumeration>
+    <xs:enumeration value="raw_presence_checker_method"><xs:annotation><xs:documentation>Optional SDO method for checking field presence.</xs:documentation></xs:annotation></xs:enumeration>
+    <xs:enumeration value="raw_unsetter"><xs:annotation><xs:documentation>Optional SDO method for clearing a field.</xs:documentation></xs:annotation></xs:enumeration>
+  </xs:restriction></xs:simpleType>
+</xs:schema>

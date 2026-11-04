@@ -131,8 +131,20 @@ public final class AIcSchemaContractBindingsGenerator {
                 catalogs.put(locTechnology, locSharedNames);
                 String locMethods = manifest.path("generated_dataobject_method_naming_conventions")
                         .path(locTechnology).asText("");
-                targetProfiles.put(locTechnology, locMethods.isBlank()
-                        ? locSharedNames : locSharedNames.withGeneratedMethodProfile(locMethods));
+                String locCommon = manifest.path("common_codegen_naming_conventions")
+                        .path(locTechnology).asText("");
+                String locDefs = manifest.path("defs_codegen_naming_conventions")
+                        .path(locTechnology).asText("");
+                if (!locCommon.isBlank() || !locDefs.isBlank()) {
+                    if (locCommon.isBlank() || locDefs.isBlank() || !locMethods.isBlank())
+                        throw new AIxCodegenValidationException("Incomplete or conflicting Defs codegen naming profile for "
+                                + locTechnology, "Supply both Common and Defs naming conventions.");
+                    targetProfiles.put(locTechnology,
+                            locSharedNames.withCodegenNamingProfiles(locCommon, locDefs, "defs"));
+                } else {
+                    targetProfiles.put(locTechnology, locMethods.isBlank()
+                            ? locSharedNames : locSharedNames.withGeneratedMethodProfile(locMethods));
+                }
             }
             for (var locEntry : iterable(manifest.path("schema_input_naming_conventions").fields()))
                 sourceCatalogs.put(locEntry.getKey(), locSharedNames);
@@ -999,8 +1011,15 @@ public final class AIcSchemaContractBindingsGenerator {
         String locPackage = String.valueOf(locImplicit.get(1));
         String locName = String.valueOf(locImplicit.get(2));
         String locVersion = String.valueOf(locImplicit.get(3));
+        String locPublicPackage = locPackage.endsWith(".old")
+                ? locPackage.substring(0, locPackage.length() - 4) : locPackage;
+        String locPublished = "https://defs.dev.algites.eu/api/xmldefs/"
+                + locPublicPackage.replace('.', '/') + "/" + locName + "_" + locVersion + ".xsd";
+        String locNormalized = locPublished.replace("/api/xmldefs/", "/api/schema/")
+                .replaceAll("\\.xsd$", ".schema");
         return ((String.valueOf(locImplicit.get(4)).isEmpty()
-                    && locCandidate.equals(locPackage + "." + locName))
+                    && (locCandidate.equals(locPackage + "." + locName)
+                        || locCandidate.equals(locPublished) || locCandidate.equals(locNormalized)))
                 || (locCandidate.startsWith("urn:algites:")
                     && locCandidate.endsWith(":" + locName + ":" + locVersion)));
     }

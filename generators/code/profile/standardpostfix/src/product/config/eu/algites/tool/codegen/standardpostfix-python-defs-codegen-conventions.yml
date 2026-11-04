@@ -1,0 +1,113 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.yamldef.schema.json
+# New shared/specialized codegen naming profile. Legacy .old profiles are unchanged.
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.yamldef.schema.json
+NameCompositions:
+  standardpostfix-python-synthetic_property_type_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: variable
+        Name: owner_type
+        Regexp: .+
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: Property
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+  standardpostfix-python-synthetic_list_item_type_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: variable
+        Name: owner_type
+        Regexp: .+
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: Item
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+  standardpostfix-python-synthetic_map_value_type_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: variable
+        Name: owner_type
+        Regexp: .+
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: Value
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+  standardpostfix-python-synthetic_positional_item_type_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: variable
+        Name: owner_type
+        Regexp: .+
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: Position
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+    - NameFragmentsSegmentValue:
+        Kind: variable
+        Name: position
+        Regexp: '[0-9]+'
+  standardpostfix-python-synthetic_choice_variant_type_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: variable
+        Name: owner_type
+        Regexp: .+
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: Variant
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+    - NameFragmentsSegmentValue:
+        Kind: variable
+        Name: position
+        Regexp: '[0-9]+'
+  standardpostfix-python-synthetic_group_type_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: variable
+        Name: owner_type
+        Regexp: .+
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: Group
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+  standardpostfix-python-string_enum_item_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: ''
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+  standardpostfix-python-non_string_enum_item_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: Value
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+DefsCodegenNameConventions:
+  NameConventions:
+    standardpostfix-python-defscodegen-standard_1:
+      CommonNamingConvention: standardpostfix-python-codegen-common_1
+      StructureNaming:
+        synthetic_property_type: standardpostfix-python-synthetic_property_type_1
+        synthetic_list_item_type: standardpostfix-python-synthetic_list_item_type_1
+        synthetic_map_value_type: standardpostfix-python-synthetic_map_value_type_1
+        synthetic_positional_item_type: standardpostfix-python-synthetic_positional_item_type_1
+        synthetic_choice_variant_type: standardpostfix-python-synthetic_choice_variant_type_1
+        synthetic_group_type: standardpostfix-python-synthetic_group_type_1
+        string_enum_item: standardpostfix-python-string_enum_item_1
+        non_string_enum_item: standardpostfix-python-non_string_enum_item_1

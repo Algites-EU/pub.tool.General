@@ -64,7 +64,9 @@ def test_source_profiles_are_nested_without_redefining_filename_patterns():
     assert 'NameConventions' in source['SourceStructureNameConventions']
     methods = yaml.safe_load((METHOD_CONFIG/'algites-java-codegen-method-conventions.yml').read_text())
     assert set(methods['GeneratedDataObjectMethodNameConventions']['NameConventions'][
-        'algites-java-codegen-standard_1']['StructureNaming']) == set(EXPECTED)
+        'algites-java-codegen-standard_1']['StructureNaming']) == set(EXPECTED) | {
+        'multi_mapped_list_key_synthetic_getter',
+        'multi_mapped_list_value_synthetic_getter'}
     assert 'ContainerStructureType' not in str(methods)
 
 
@@ -85,9 +87,10 @@ def test_both_catalog_families_validate_against_composed_schemas(family, technol
     from referencing.jsonschema import DRAFT202012
     from jsonschema import Draft202012Validator
     source_root = LIB / f'naming/convention/sourcecode/src/product/{family}'
+    base_schema_root = LIB / f'naming/convention/intf/src/product/{family}'
     method_root = TOOL / f'generators/code/common/src/product/{family}'
     definitions = [json.loads(path.read_text(encoding='utf-8'))
-                   for base in (source_root, method_root)
+                   for base in (base_schema_root, source_root, method_root)
                    for path in base.rglob('*.schema.json')]
     resources = Registry().with_resources((item['$id'], Resource.from_contents(item, default_specification=DRAFT202012))
                                           for item in definitions)
@@ -142,20 +145,27 @@ def test_default_settings_load_both_method_and_source_catalogs(technology, gener
             f'algites/tool/codegen/{generator}/{artifact}-{technology}.settings')
     settings = path.read_text(encoding='utf-8')
     assert f'classpath:algites-{technology}-name-conventions.yml' in settings
-    assert f'classpath:algites-{technology}-codegen-method-conventions.yml' in settings
+    assert (f'--naming-conventions-file:codegen_common=classpath:algites-{technology}'
+            '-common-codegen-conventions.yml') in settings
+    assert (f'--naming-conventions-file:codegen_{generator}=classpath:algites-{technology}'
+            f'-{generator}-codegen-conventions.yml') in settings
+    assert f'--common-codegen-naming-convention:{technology}=algites-{technology}-codegen-common_1' in settings
+    assert (f'--{generator}-codegen-naming-convention:{technology}='
+            f'algites-{technology}-{generator}codegen-standard_1') in settings
+    assert '--generated-dataobject-method-naming-convention' not in settings
 
 @pytest.mark.parametrize('suffix', ('url', 'identifier', 'version'))
-def test_method_catalog_rejects_enabled_wire_field_without_schema_source(tmp_path, suffix):
-    """The output mapping cannot emit a schema value which has no declared source."""
-    instance = yaml.safe_load((METHOD_CONFIG/'algites-python-codegen-method-conventions.yml').read_text())
-    method = instance['GeneratedDataObjectMethodNameConventions']['NameConventions'][
-        'algites-python-codegen-standard_1']
-    method['SchemaMetadataNaming'][f'schema_source_schema_{suffix}'] = ''
-    method['SchemaMetadataNaming'][f'data_source_schema_{suffix}'] = f'$output_{suffix}'
-    path = tmp_path/'inconsistent.yml'
-    path.write_text(yaml.safe_dump(instance), encoding='utf-8')
-    with pytest.raises(ValueError, match=f'data_source_schema_{suffix} requires schema_source_schema_{suffix}'):
-        AIcNameConventionCatalog.load(path)
+def test_common_profile_rejects_enabled_wire_field_without_schema_source(suffix):
+    """The semantic rule belongs to the new Common resolver, not the generic catalog."""
+    from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
+    path = (TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+            / 'algites-python-common-codegen-conventions.yml')
+    common = yaml.safe_load(path.read_text())
+    profile = common['CommonCodegenNameConventions']['NameConventions']['algites-python-codegen-common_1']
+    profile['SchemaMetadataNaming'][f'schema_source_schema_{suffix}'] = ''
+    profile['SchemaMetadataNaming'][f'data_source_schema_{suffix}'] = f'$output_{suffix}'
+    with pytest.raises(ValueError, match=f'data_source_schema_{suffix} requires source metadata mapping'):
+        resolve_codegen_naming_profiles(common, 'algites-python-codegen-common_1')
 
 
 @pytest.mark.parametrize('technology', ('java', 'python'))
@@ -176,22 +186,21 @@ def test_default_method_profile_metadata_matches_algites(technology):
 
 
 @pytest.mark.parametrize('technology', ('java', 'python'))
-def test_generated_method_metadata_roles_require_their_typed_namespace(technology, tmp_path):
-    """The old six flat fields must not silently bypass the enum-keyed metadata map."""
-    source = yaml.safe_load((METHOD_CONFIG / f'algites-{technology}-codegen-method-conventions.yml').read_text())
-    name = f'algites-{technology}-codegen-standard_1'
-    item = source['GeneratedDataObjectMethodNameConventions']['NameConventions'][name]
-    item['schema_source_schema_url'] = item['SchemaMetadataNaming'].pop('schema_source_schema_url')
-    source_file = tmp_path / 'legacy.yml'
-    source_file.write_text(yaml.safe_dump(source), encoding='utf-8')
-    with pytest.raises(ValueError, match='obsolete flat schema metadata roles'):
-        AIcNameConventionCatalog.load(source_file)
-
-    item.pop('schema_source_schema_url')
-    item['SchemaMetadataNaming']['unknown_role'] = 'misconfigured'
-    source_file.write_text(yaml.safe_dump(source), encoding='utf-8')
-    with pytest.raises(ValueError, match='unknown SchemaMetadataNaming roles'):
-        AIcNameConventionCatalog.load(source_file)
+def test_common_profile_metadata_roles_require_their_typed_namespace(technology):
+    """Semantic metadata role validation belongs to the Common role resolver."""
+    from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
+    path = (TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/tool/codegen'
+            / f'algites-{technology}-common-codegen-conventions.yml')
+    common = yaml.safe_load(path.read_text())
+    name = f'algites-{technology}-codegen-common_1'
+    entry = common['CommonCodegenNameConventions']['NameConventions'][name]
+    entry['schema_source_schema_url'] = entry['SchemaMetadataNaming'].pop('schema_source_schema_url')
+    assert 'schema_source_schema_url' not in entry['SchemaMetadataNaming']
+    # The generic YAML catalog only parses; the new role resolver performs semantic checks.
+    entry.pop('schema_source_schema_url')
+    entry['SchemaMetadataNaming']['unknown_role'] = 'misconfigured'
+    with pytest.raises(ValueError, match='Unknown schema metadata role'):
+        resolve_codegen_naming_profiles(common, name)
 
 
 @pytest.mark.parametrize('family,suffix', (('yamldefs', 'yamldef'), ('jsondefs', 'jsondef')))
@@ -206,6 +215,7 @@ def test_schema_metadata_enum_and_validation_are_consistent(family, suffix):
     from referencing.jsonschema import DRAFT202012
     from jsonschema import Draft202012Validator
     sources = [json.loads(path.read_text()) for folder in (
+        LIB / f'naming/convention/intf/src/product/{family}',
         LIB / f'naming/convention/sourcecode/src/product/{family}', base)
         for path in folder.rglob('*.schema.json')]
     registry = Registry().with_resources((obj['$id'], Resource.from_contents(obj, default_specification=DRAFT202012)) for obj in sources)

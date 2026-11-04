@@ -33,8 +33,12 @@ ALGITES_NAMING_FILES = [f'resource:{name}' for name in (
     'standard-conventions.yml', 'algites-java-name-conventions.yml',
     'algites-python-name-conventions.yml', 'algites-jsondef-name-conventions.yml',
     'algites-yamldef-name-conventions.yml', 'algites-xmldef-name-conventions.yml',
-    'algites-java-codegen-method-conventions.yml',
-    'algites-python-codegen-method-conventions.yml',
+    'algites-java-common-codegen-conventions.yml',
+    'algites-python-common-codegen-conventions.yml',
+    'algites-java-defs-codegen-conventions.yml',
+    'algites-python-defs-codegen-conventions.yml',
+    'algites-java-sdo-codegen-conventions.yml',
+    'algites-python-sdo-codegen-conventions.yml',
 )]
 # Temporary bootstrap-only build-source prerequisites. All repositories share
 # this list until Modustro supports a declared build_source dependency usage.
@@ -45,6 +49,7 @@ BOOTSTRAP_BUILD_SOURCE_PYTHON_DISTRIBUTIONS = (
     'eu_algites_pub_tool_general_generators_code_defscodegen_cli',
     'eu_algites_pub_lib_general_naming_convention_impl',
     'eu_algites_pub_lib_general_naming_convention_profile_algites',
+    'eu_algites_pub_tool_general_generators_code_profile_algites',
     'eu_algites_pub_lib_general_data_dataobject_intf',
 )
 # The second generator is loaded only if SDO-eligible sources were found.
@@ -132,8 +137,12 @@ def _manifest(repository: Path, artifact: Path, languages: list[str], kinds: lis
             language: f'algites-{language}-gen-enum-versioned_1'
             for language in languages
         },
-        'generated_dataobject_method_naming_conventions': {
-            language: f'algites-{language}-codegen-standard_1'
+        'common_codegen_naming_conventions': {
+            language: f'algites-{language}-codegen-common_1'
+            for language in languages
+        },
+        'defs_codegen_naming_conventions': {
+            language: f'algites-{language}-defscodegen-standard_1'
             for language in languages
         },
         'naming_convention_files': ALGITES_NAMING_FILES,
@@ -377,10 +386,15 @@ def generate_sdo_python(repository: Path, root: Path, output: Path) -> int:
                 f'--technology-sdointf-output-dir:python={destination}',
                 f'--technology-sdoimpl-output-dir:python={destination}',
                 '--sdointf-subpackage=impl.intf', '--sdoclass-subpackage=impl',
-                '--generated-dataobject-method-naming-convention:python=algites-python-codegen-standard_1',
+                '--common-codegen-naming-convention:python=algites-python-codegen-common_1',
+                '--sdo-codegen-naming-convention:python=algites-python-sdocodegen-standard_1',
             ]
             arguments += [f'--naming-conventions-file:catalog-{index}={value}'
                           for index, value in enumerate(ALGITES_NAMING_FILES)]
+            arguments += [
+                '--naming-conventions-file:codegen_common=classpath:algites-python-common-codegen-conventions.yml',
+                '--naming-conventions-file:codegen_sdo=classpath:algites-python-sdo-codegen-conventions.yml',
+            ]
             for role, suffix in _SDO_ROLES.items():
                 arguments.extend((
                     f'--input-technology-naming-convention:python:{role}:defsintf=algites-python-gen{suffix}-intf-versioned_1',

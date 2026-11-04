@@ -1,0 +1,101 @@
+{
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/2020-12/dialect_1.jsonmetadef.schema.json",
+  "$id": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.yamldef.schema.json",
+  "title": "DefsCodegenNameConventions",
+  "description": "New defs naming profiles; other-domain roles forbidden.",
+  "allOf": [
+    {
+      "$ref": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "DefsCodegenNameConventions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "NameConventions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "StructureNaming": {
+                "type": "object",
+                "propertyNames": {
+                  "$ref": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/naming/defscodegen-structure-kind_1.yamldef.schema.json"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "properties": {
+                  "synthetic_property_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Naming composition for a synthetic type representing an inline property."
+                  },
+                  "synthetic_list_item_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Naming composition for a synthetic list item type."
+                  },
+                  "synthetic_map_value_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Naming composition for an additionalProperties/map value type."
+                  },
+                  "synthetic_positional_item_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Naming composition for a prefixItems tuple position type."
+                  },
+                  "synthetic_choice_variant_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Naming composition for an alternative of a choice."
+                  },
+                  "synthetic_group_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Naming composition for a required separately generated group type."
+                  },
+                  "string_enum_item": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Naming composition for string-valued enumeration constant."
+                  },
+                  "non_string_enum_item": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Naming composition for non-string enumeration constant."
+                  }
+                },
+                "description": "Role names are restricted to the defs domain. Values reference naming compositions except the two literal key/value getters."
+              },
+              "CommonNamingConvention": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Required ID of the common naming profile providing shared methods and metadata. Resolved across supplied profile documents."
+              }
+            },
+            "required": [
+              "CommonNamingConvention",
+              "StructureNaming"
+            ]
+          }
+        }
+      },
+      "required": [
+        "NameConventions"
+      ]
+    }
+  },
+  "required": [
+    "DefsCodegenNameConventions"
+  ],
+  "x-algites-defscodegen-extends": [
+    "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
+  ],
+  "x-algites-schema-id": "eu.algites.tool.codegen.defs.naming.defscodegen-naming-conventions",
+  "x-algites-schema-version": 1
+}

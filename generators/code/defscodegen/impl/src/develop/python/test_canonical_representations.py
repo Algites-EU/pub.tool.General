@@ -1,7 +1,7 @@
 from explicit_legacy_naming import catalog, source_convention, output_convention, rendering_catalog
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
-from dataclasses import replace
+from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import replace
 from pathlib import Path
 import pytest
 import sys

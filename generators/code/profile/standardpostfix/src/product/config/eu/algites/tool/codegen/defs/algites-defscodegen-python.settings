@@ -14,5 +14,7 @@
 --naming-conventions-file:xmldefs=classpath:standard-postfix-xmldef-name-conventions.yml
 --naming-conventions-file:yamldefs=classpath:standard-postfix-yamldef-name-conventions.yml
 --naming-conventions-file:jsondefs=classpath:standard-postfix-jsondef-name-conventions.yml
---naming-conventions-file:generated_dataobject=classpath:standardpostfix-python-codegen-method-conventions.yml
---generated-dataobject-method-naming-convention:python=standard-postfix-python-codegen-standard_1
+--naming-conventions-file:codegen_common=classpath:standardpostfix-python-common-codegen-conventions.yml
+--naming-conventions-file:codegen_defs=classpath:standardpostfix-python-defs-codegen-conventions.yml
+--common-codegen-naming-convention:python=standardpostfix-python-codegen-common_1
+--defs-codegen-naming-convention:python=standardpostfix-python-defscodegen-standard_1

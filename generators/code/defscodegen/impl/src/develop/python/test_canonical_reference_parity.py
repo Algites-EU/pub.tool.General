@@ -3,7 +3,7 @@ from eu.algites.tool.codegen.defs.old.aicd_value_constraints import AIcdValueCon
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
 """Reference parity compares canonical targets, not source serialization suffixes."""
-from dataclasses import replace
+from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import replace
 import pytest
 
 from eu.algites.tool.codegen.defs.old.aicd_canonical_definition import AIcdCanonicalDefinition

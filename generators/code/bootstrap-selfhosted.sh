@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Keep Python bytecode and pytest caches out of the checked-out source tree.
+export PYTHONDONTWRITEBYTECODE=1
+export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:+${PYTEST_ADDOPTS} }-p no:cacheprovider"
+
 # Legacy emergency self-hosting build (canonical CLI: devops/bootstrap/bootstrap.sh).
 # Independent emergency bootstrap for both source-code generators.
 # The generated Gradle projects deliberately do not apply Modustro conventions.
@@ -63,9 +67,6 @@ mkdir -p "$locBuildRoot/work"
 locPython="${ALGITES_PYTHON_EXECUTABLE:-python3}"
 "$locPython" "$locCodeDirectory/regenerate_sources.py" clean --repository "$locRepositoryDirectory"
 locTemporaryDirectory="$(mktemp -d "$locBuildRoot/work/launcher.XXXXXXXX")"
-# Keep Python bytecode and pytest caches out of the checked-out source tree.
-export PYTHONDONTWRITEBYTECODE=1
-export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:+${PYTEST_ADDOPTS} }-p no:cacheprovider"
 trap 'rm -rf -- "$locTemporaryDirectory"' EXIT
 # Optionally republish the actual library contracts from a sibling checkout before
 # compiling tool generators. A stale 1.1-SNAPSHOT JAR may resolve successfully while

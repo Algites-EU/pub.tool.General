@@ -59,16 +59,17 @@ def test_contract_stale_ownership(tmp_path):
     assert not (tmp_path/'impl').exists()
 
 
-def test_schema_allof_creates_inherited_java_and_python_contracts(tmp_path):
+def test_schema_explicit_parent_creates_inherited_java_and_python_contracts(tmp_path):
     schemas = tmp_path / 'intf/src/product/jsondefs/example/contracts'
     schemas.mkdir(parents=True)
     (schemas / 'parent_1.jsondef.schema.json').write_text(json.dumps({
         '$id':'urn:example:parent:1', 'type':'object',
         'properties':{'Name':{'type':'string'}},'required':['Name']}))
     (schemas / 'child_1.jsondef.schema.json').write_text(json.dumps({
-        '$id':'urn:example:child:1', 'allOf':[
-            {'$ref':'parent_1.jsondef.schema.json'},
-            {'type':'object','properties':{'Count':{'type':'integer'}}}]}))
+        '$id':'urn:example:child:1', 'type':'object',
+        'x-algites-defscodegen-extends':['parent_1.jsondef.schema.json'],
+        'allOf':[{'$ref':'parent_1.jsondef.schema.json'}],
+        'properties':{'Count':{'type':'integer'}}}))
     manifest=tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python'],'bindings':[]}))
     generator=AIcSchemaContractBindingsGenerator()
@@ -83,13 +84,14 @@ def test_schema_allof_creates_inherited_java_and_python_contracts(tmp_path):
     assert generator.generate_repository(tmp_path,_explicit(manifest),check=True)==output
 
 
-def test_allof_rejects_missing_parent_contract(tmp_path):
+def test_explicit_parent_rejects_missing_parent_contract(tmp_path):
     manifest = _fixture(tmp_path)
     schemas=tmp_path/'intf/src/product/jsondefs/example/contracts'
     schema=schemas/'example_1.jsondef.schema.json'
-    schema.write_text(json.dumps({'allOf':[
-        {'$ref':'missing_1.jsondef.schema.json'},
-        {'type':'object','properties':{'Count':{'type':'integer'}}}]}))
+    schema.write_text(json.dumps({'type':'object',
+        'x-algites-defscodegen-extends':['missing_1.jsondef.schema.json'],
+        'allOf':[{'$ref':'missing_1.jsondef.schema.json'}],
+        'properties':{'Count':{'type':'integer'}}}))
     with pytest.raises(ValueError,match='parent is not an emitted contract'):
         AIcSchemaContractBindingsGenerator().generate_repository(tmp_path,_explicit(manifest))
 

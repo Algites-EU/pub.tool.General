@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/sdo/naming/sdocodegen-naming-conventions_1.yamldef.schema.json
+# New shared/specialized codegen naming profile. Legacy .old profiles are unchanged.
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/sdo/naming/sdocodegen-naming-conventions_1.yamldef.schema.json
+NameCompositions:
+  standardprefix-python-raw_getter_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: _getRaw_
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+  standardprefix-python-raw_presence_checker_method_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: _isPresent_
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+  standardprefix-python-raw_unsetter_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: _unset_
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+SdoCodegenNameConventions:
+  NameConventions:
+    standardprefix-python-sdocodegen-standard_1:
+      CommonNamingConvention: standardprefix-python-codegen-common_1
+      StructureNaming:
+        raw_getter: standardprefix-python-raw_getter_1
+        raw_presence_checker_method: standardprefix-python-raw_presence_checker_method_1
+        raw_unsetter: standardprefix-python-raw_unsetter_1

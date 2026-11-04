@@ -42,12 +42,26 @@ public final class AIcCommonContractProjection {
             String aPackage, Object aOriginal) {
         if (!(aOriginal instanceof List<?> locParts) || locParts.size() < 3
                 || !Objects.equals(locParts.get(0), "explicit")) return aOriginal;
-        String locIdentity = String.valueOf(locParts.get(1));
+        String locIdentity = String.valueOf(locParts.get(1))
+                .replaceAll("(/api/)(?:xmldefs|jsondefs|yamldefs)(/)", "$1schema$2")
+                .replaceAll("\\.(?:yamldef|jsondef)\\.schema\\.json(?=#|$)|\\.xsd(?=#|$)", ".schema");
         if (!aDefinition.sourceResource().contains("#")
-                && aDefinition.version() != null) {
+                && aDefinition.version() != null
+                && locIdentity.startsWith("https://defs.dev.algites.eu/api/schema/")) {
+            String locPublicPackage = aPackage.endsWith(".old")
+                    ? aPackage.substring(0, aPackage.length() - 4) : aPackage;
             String locExpected = "https://defs.dev.algites.eu/api/schema/"
-                    + aPackage.replace('.', '/') + "/" + aDefinition.logicalName()
+                    + locPublicPackage.replace('.', '/') + "/" + aDefinition.logicalName()
                     + "_" + aDefinition.version() + ".schema";
+            if (locIdentity.equals(locExpected))
+                return java.util.Arrays.asList("explicit", aPackage + "."
+                        + aDefinition.logicalName(), aDefinition.version());
+        }
+        if (aDefinition.sourceKind() == eu.algites.tool.codegen.defs.old.AInDefinitionSourceKind.XMLDEFS
+                && aPackage.startsWith("eu.algites.") && aDefinition.version() != null) {
+            String locSuffix = aPackage.substring("eu.algites.".length()).replace('.', ':');
+            String locExpected = "urn:eu:algites:" + locSuffix + ":"
+                    + aDefinition.logicalName() + ":" + aDefinition.version();
             if (locIdentity.equals(locExpected))
                 return java.util.Arrays.asList("explicit", aPackage + "."
                         + aDefinition.logicalName(), aDefinition.version());
@@ -58,7 +72,7 @@ public final class AIcCommonContractProjection {
             case JSONDEFS -> ":jsondef:";
             default -> "";
         };
-        if (!locFormat.isEmpty()) locIdentity = locIdentity.replace(locFormat, ":");
+        if (!locFormat.isEmpty()) locIdentity = locIdentity.replaceFirst(locFormat, ":");
         return java.util.Arrays.asList("explicit", locIdentity, locParts.get(2));
     }
 

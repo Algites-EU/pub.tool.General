@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/codegen-common-naming-conventions_1.yamldef.schema.json
+# New shared/specialized codegen naming profile. Legacy .old profiles are unchanged.
+$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/codegen-common-naming-conventions_1.yamldef.schema.json
+NameCompositions:
+  standardpostfix-java-positional-getter_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: getItem
+    - NameFragmentsSegmentValue:
+        Kind: variable
+        Name: position
+        Regexp: '[0-9]+'
+  standardpostfix-java-const_container_interface_1:
+    Segments:
+    - NameFragmentsSegmentValue:
+        Kind: constant_string
+        Value: CONST
+    - NameFragmentsSegmentValue:
+        Kind: identifier
+        Convention: upper_camel_case_1
+CommonCodegenNameConventions:
+  NameConventions:
+    standardpostfix-java-codegen-common_1:
+      StructureNaming:
+        standard_getter: java-getter-method-name_1
+        standard_setter: java-setter-method-name_1
+        multi_mapped_list_key_synthetic_getter: _getKey
+        multi_mapped_list_value_synthetic_getter: _getValue
+        positional_item_synthetic_getter: standardpostfix-java-positional-getter_1
+        const_container_interface: standardpostfix-java-const_container_interface_1
+      SchemaMetadataNaming:
+        schema_source_schema_url: $id
+        schema_source_schema_identifier: x-algites-schema-id
+        schema_source_schema_version: x-algites-schema-version
+        data_source_schema_url: $schema
+        data_source_schema_identifier: ''
+        data_source_schema_version: ''
+      IndexesStartingFrom: 1

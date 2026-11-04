@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd" elementFormDefault="qualified" version="1" xmlns:tns="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd">
+  <xs:simpleType name="StructureKind">
+    <xs:annotation>
+      <xs:documentation>Seven canonical kinds</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="TYPE">
+        <xs:annotation>
+          <xs:documentation>TYPE</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="ELEMENTLIST">
+        <xs:annotation>
+          <xs:documentation>ELEMENTLIST</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="ELEMENT">
+        <xs:annotation>
+          <xs:documentation>ELEMENT</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="LIST">
+        <xs:annotation>
+          <xs:documentation>LIST</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="MAP">
+        <xs:annotation>
+          <xs:documentation>MAP</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="SCALAR">
+        <xs:annotation>
+          <xs:documentation>SCALAR</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="ENUM">
+        <xs:annotation>
+          <xs:documentation>ENUM</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Composition">
+    <xs:annotation>
+      <xs:documentation>Group compositor; ALL is ordered for canonical traversal</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="SEQUENCE">
+        <xs:annotation>
+          <xs:documentation>SEQUENCE</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="ALL">
+        <xs:annotation>
+          <xs:documentation>ALL</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="CHOICE">
+        <xs:annotation>
+          <xs:documentation>CHOICE</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="MapKind">
+    <xs:annotation>
+      <xs:documentation>Map participation and property-map policy</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="COMMON_MAP">
+        <xs:annotation>
+          <xs:documentation>COMMON_MAP</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="INTEGRATED_PROPERTY_MAP">
+        <xs:annotation>
+          <xs:documentation>INTEGRATED_PROPERTY_MAP</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="TypeOrigin">
+    <xs:annotation>
+      <xs:documentation>Declared or synthesized during schema loading</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="DECLARED">
+        <xs:annotation>
+          <xs:documentation>DECLARED</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="SYNTHETIC">
+        <xs:annotation>
+          <xs:documentation>SYNTHETIC</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ResolutionState">
+    <xs:annotation>
+      <xs:documentation>Temporary resolution state on TYPE; only RESOLVED survives finalization</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="RESOLVED">
+        <xs:annotation>
+          <xs:documentation>RESOLVED</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="REFERENCE">
+        <xs:annotation>
+          <xs:documentation>REFERENCE</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="UNDEFINED">
+        <xs:annotation>
+          <xs:documentation>UNDEFINED</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ScalarKind">
+    <xs:annotation>
+      <xs:documentation>Canonical scalar type</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ANY">
+        <xs:annotation>
+          <xs:documentation>ANY</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="STRING">
+        <xs:annotation>
+          <xs:documentation>STRING</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="INTEGER">
+        <xs:annotation>
+          <xs:documentation>INTEGER</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="NUMBER">
+        <xs:annotation>
+          <xs:documentation>NUMBER</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="BOOLEAN">
+        <xs:annotation>
+          <xs:documentation>BOOLEAN</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="NULL">
+        <xs:annotation>
+          <xs:documentation>NULL</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="SourceInputKind">
+    <xs:annotation>
+      <xs:documentation>Schema language provenance</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="XMLDEFS">
+        <xs:annotation>
+          <xs:documentation>XMLDEFS</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="YAMLDEFS">
+        <xs:annotation>
+          <xs:documentation>YAMLDEFS</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="JSONDEFS">
+        <xs:annotation>
+          <xs:documentation>JSONDEFS</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="SourceBinding">
+    <xs:annotation>
+      <xs:documentation>Exact source binding</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="source_resource" type="xs:string" minOccurs="1" />
+      <xs:element name="source_pointer" type="xs:string" minOccurs="1" />
+      <xs:element name="representation_kind" type="xs:string" minOccurs="1" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="KeyDefinition">
+    <xs:annotation>
+      <xs:documentation>Deferred XML key constraint</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="identifier" type="xs:string" minOccurs="1" />
+      <xs:element name="selector" type="xs:string" minOccurs="1" />
+      <xs:element name="source_pointer" type="xs:string" minOccurs="1" />
+      <xs:element name="fields" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="required" type="xs:boolean" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="EnumValue">
+    <xs:annotation>
+      <xs:documentation>Canonical enumeration value</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="wire_value" type="xs:string" minOccurs="1" />
+      <xs:element name="display_name" type="xs:string" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Structure">
+    <xs:annotation>
+      <xs:documentation>One of seven canonical shapes</xs:documentation>
+    </xs:annotation>
+    <xs:choice>
+      <xs:element name="Type" type="tns:Type" minOccurs="1" />
+      <xs:element name="ElementList" type="tns:ElementList" minOccurs="1" />
+      <xs:element name="Element" type="tns:Element" minOccurs="1" />
+      <xs:element name="List" type="tns:List" minOccurs="1" />
+      <xs:element name="Map" type="tns:Map" minOccurs="1" />
+      <xs:element name="Scalar" type="tns:Scalar" minOccurs="1" />
+      <xs:element name="Enum" type="tns:Enum" minOccurs="1" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="Type">
+    <xs:annotation>
+      <xs:documentation>Declared or synthetic named type</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="identity" type="xs:string" minOccurs="1" />
+      <xs:element name="name" type="xs:string" minOccurs="1" />
+      <xs:element name="origin" type="tns:TypeOrigin" minOccurs="1" />
+      <xs:element name="schema_version" type="xs:string" minOccurs="0" />
+      <xs:element name="description" type="xs:string" minOccurs="0" />
+      <xs:element name="path_segments" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="inherited_from_types" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="structure" type="tns:Structure" minOccurs="1" />
+      <xs:element name="resolution_state" type="tns:ResolutionState" minOccurs="1" />
+      <xs:element name="source_bindings" type="tns:SourceBindings" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ElementList">
+    <xs:annotation>
+      <xs:documentation>Ordered composition of structural children</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="composition" type="tns:Composition" minOccurs="1" />
+      <xs:element name="children" type="tns:ElementListChild" minOccurs="1" maxOccurs="unbounded" />
+      <xs:element name="min_occurs" type="xs:nonNegativeInteger" minOccurs="1" />
+      <xs:element name="max_occurs" type="xs:int" minOccurs="1" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="XmlWireName">
+    <xs:annotation><xs:documentation>Exact XML field QName and attribute/element kind, independent of semantic schema ID.</xs:documentation></xs:annotation>
+    <xs:sequence>
+      <xs:element name="namespace_uri" type="xs:string" minOccurs="1" />
+      <xs:element name="local_name" type="xs:string" minOccurs="1" />
+      <xs:element name="value_kind" minOccurs="1">
+        <xs:simpleType><xs:restriction base="xs:string">
+          <xs:enumeration value="ELEMENT" />
+          <xs:enumeration value="ATTRIBUTE" />
+        </xs:restriction></xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Element">
+    <xs:annotation>
+      <xs:documentation>Named member</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="name" type="xs:string" minOccurs="1" />
+      <xs:element name="structure" type="tns:Structure" minOccurs="1" />
+      <xs:element name="description" type="xs:string" minOccurs="0" />
+      <xs:element name="xml_wire" type="tns:XmlWireName" minOccurs="0" />
+      <xs:element name="key_definitions" type="tns:KeyDefinition" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="source_bindings" type="tns:SourceBindings" minOccurs="0" />
+      <xs:element name="min_occurs" type="xs:nonNegativeInteger" minOccurs="1" />
+      <xs:element name="max_occurs" type="xs:int" minOccurs="1" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="List">
+    <xs:annotation>
+      <xs:documentation>Homogeneous collection</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="name" type="xs:string" minOccurs="1" />
+      <xs:element name="item" type="tns:Structure" minOccurs="1" />
+      <xs:element name="min_occurs" type="xs:nonNegativeInteger" minOccurs="1" />
+      <xs:element name="max_occurs" type="xs:int" minOccurs="1" />
+      <xs:element name="xml_wire" type="tns:XmlWireName" minOccurs="0" />
+      <xs:element name="key_definitions" type="tns:KeyDefinition" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Map">
+    <xs:annotation>
+      <xs:documentation>Ordinary or integrated property map</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="name" type="xs:string" minOccurs="1" />
+      <xs:element name="map_kind" type="tns:MapKind" minOccurs="1" />
+      <xs:element name="key_type" type="tns:Structure" minOccurs="1" />
+      <xs:element name="value_type" type="tns:Structure" minOccurs="1" />
+      <xs:element name="source_bindings" type="tns:SourceBindings" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Scalar">
+    <xs:annotation>
+      <xs:documentation>Canonical scalar value</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="scalar_kind" type="tns:ScalarKind" minOccurs="1" />
+      <xs:element name="format" type="xs:string" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Enum">
+    <xs:annotation>
+      <xs:documentation>Canonical enumeration</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="base_scalar_type" type="tns:ScalarKind" minOccurs="1" />
+      <xs:element name="values" type="tns:EnumValue" minOccurs="1" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ElementListChild">
+    <xs:annotation>
+      <xs:documentation>One direct child of ELEMENTLIST</xs:documentation>
+    </xs:annotation>
+    <xs:choice>
+      <xs:element name="Element" type="tns:Element" minOccurs="1" />
+      <xs:element name="ElementList" type="tns:ElementList" minOccurs="1" />
+      <xs:element name="List" type="tns:List" minOccurs="1" />
+      <xs:element name="Map" type="tns:Map" minOccurs="1" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="SourceBindingGroup">
+    <xs:annotation>
+      <xs:documentation>One source technology and all ordered bindings from that technology.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="InputKind" type="tns:SourceInputKind" />
+      <xs:element name="Binding" type="tns:SourceBinding" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SourceBindings">
+    <xs:annotation>
+      <xs:documentation>Ordered source bindings by technology. Corresponds to JSON/YAML SourceBindings mapping.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="SourceBindingGroup" type="tns:SourceBindingGroup" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CanonicalModel">
+    <xs:annotation>
+      <xs:documentation>Structure model for Defs Codegen. These interfaces are generated by the established Defs Codegen; the new frontend parses and validates values in its impl module.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="types" type="tns:Type" minOccurs="1" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="CanonicalModel" type="tns:CanonicalModel" />
+</xs:schema>

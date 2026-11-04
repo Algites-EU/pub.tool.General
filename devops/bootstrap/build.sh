@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Also safe when build.sh is invoked directly rather than through bootstrap.sh.
+export PYTHONDONTWRITEBYTECODE=1
+export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:+${PYTEST_ADDOPTS} }-p no:cacheprovider"
+
 # Descriptor-driven Maven + Python bootstrap. No Modustro Builder.
 # Like the other Algites/Modustro bootstraps, one invocation builds and uploads
 # unless MODUSTRO_BOOTSTRAP_PREPARE_ONLY=1 explicitly disables publication.
@@ -112,8 +116,6 @@ locArgs=(--repository "$locRepo" --output "$locBuildRoot" --version "$locVersion
 if [[ -n "${MODUSTRO_BOOTSTRAP_PYTHON_VERSION:-}" ]]; then
     locArgs+=(--python-version "$MODUSTRO_BOOTSTRAP_PYTHON_VERSION")
 fi
-export PYTHONDONTWRITEBYTECODE=1
-export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:+${PYTEST_ADDOPTS} }-p no:cacheprovider"
 "$locPython" "$locHelper" plan "${locArgs[@]}"
 if [[ "$locMode" == --plan-only ]]; then
     echo "Bootstrap plan generated in $locBuildRoot; no build and no upload performed."

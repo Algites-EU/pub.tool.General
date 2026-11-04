@@ -1,6 +1,6 @@
 from eu.algites.tool.codegen.defs.old.aicd_data_type import AIcdDataType
 """Diagnostic regression for all pairs, source lines and changed documentation."""
-from dataclasses import replace
+from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import replace
 from pathlib import Path
 import pytest
 

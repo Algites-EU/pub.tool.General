@@ -171,7 +171,7 @@ Recursive JSON/YAML types are now compared beyond the legacy flat fields,
 including nested choices and array members; full structural parity with XSD
 still requires a richer XML projection. XSD supports a limited same-file
 `complexContent` extension and attribute-presence restriction subset; see
-[the Defs Codegen limitations](generators/code/defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md).
+[the Defs Codegen limitations](generators/code/defscodegen/DEFS-CODEGEN-REFERENCE.md).
 Pointers and anchors refer to nodes inside a schema; their fragments are never
 parsed as versioned filenames. `allOf` compositions contribute object fields
 and requiredness. Canonical URL references are resolved from checked-out
@@ -228,4 +228,4 @@ not provide this Python test environment.
 
 ## Defs/SDO 1.1 in progress
 
-See [recursive canonical types and XML element contracts](generators/code/defscodegen/RECURSIVE-TYPES-AND-XML-ELEMENTS.md) for the new model, `OpenChoice`/`ClosedChoice` code-generation behavior, schema naming roles, compatibility requirements, and current unsupported XSD features.
+See [recursive canonical types and XML element contracts](generators/code/defscodegen/DEFS-CODEGEN-REFERENCE.md) for the new model, `OpenChoice`/`ClosedChoice` code-generation behavior, schema naming roles, compatibility requirements, and current unsupported XSD features.

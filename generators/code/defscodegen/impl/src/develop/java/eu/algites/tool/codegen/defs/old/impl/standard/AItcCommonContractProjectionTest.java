@@ -87,6 +87,38 @@ public final class AItcCommonContractProjectionTest {
                 List.of("explicit", locForeign.identity(), 1)),
                 List.of("explicit", locForeign.identity(), 1));
     }
+    /** An exact versioned publication URL normalizes to the common root identity. */
+    @Test
+    public void AIcNormalizePublishedXmlRootAndRejectUnrelatedNamespaces() {
+        String locPackage = "eu.algites.tool.codegen.defs.old";
+        var locDefinition = definition(AInDefinitionSourceKind.XMLDEFS,
+                "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/capability-definition_1.xsd",
+                List.of());
+        var locPublished = List.of("explicit", locDefinition.identity(), 1);
+        var locNormalized = AIcCommonContractProjection.canonicalIdentity(
+                locDefinition, locPackage, locPublished);
+        Assert.assertEquals(locNormalized,
+                List.of("explicit", locPackage + ".capability-definition", 1));
+        var locForeign = List.of("explicit",
+                "https://elsewhere.example/api/xmldefs/eu/algites/tool/codegen/defs/capability-definition_1.xsd", 1);
+        Assert.assertEquals(AIcCommonContractProjection.canonicalIdentity(
+                locDefinition, locPackage, locForeign), locForeign);
+    }
+
+    /** A precisely corresponding Algites XML URN is the same logical root. */
+    @Test
+    public void AIcNormalizeExactXmlUrnAndPreserveUnrelatedUrns() {
+        String locPackage = "eu.algites.tool.codegen.defs.old";
+        var locUrn = "urn:eu:algites:tool:codegen:defs:old:capability-definition:1";
+        var locDefinition = definition(AInDefinitionSourceKind.XMLDEFS, locUrn, List.of());
+        Assert.assertEquals(AIcCommonContractProjection.canonicalIdentity(locDefinition,
+                locPackage, List.of("explicit", locUrn, 1)),
+                List.of("explicit", locPackage + ".capability-definition", 1));
+        var locOther = List.of("explicit", "urn:eu:algites:other:capability-definition:1", 1);
+        Assert.assertEquals(AIcCommonContractProjection.canonicalIdentity(
+                locDefinition, locPackage, locOther), locOther);
+    }
+
     /**
      * A package-qualified XML namespace can denote the same root type as
      * JSONDEFS/YAMLDEFS with no declared logical identifier. Other namespaces
@@ -100,6 +132,14 @@ public final class AItcCommonContractProjectionTest {
                 "https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd", 1);
         Assert.assertTrue(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
                 locQualified, locImplicit));
+        var locLegacyNamespace = List.of("implicit", "eu.algites.tool.codegen.defs.old",
+                "input-profile", 1, "");
+        Assert.assertTrue(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
+                List.of("explicit", "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd", 1),
+                locLegacyNamespace));
+        Assert.assertFalse(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
+                List.of("explicit", "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/another-profile_1.xsd", 1),
+                locLegacyNamespace));
         Assert.assertFalse(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(
                 List.of("explicit", "eu.other.convention.common-naming-conventions", 1), locImplicit));
         Assert.assertFalse(AIcSchemaContractBindingsGenerator.commonExplicitMatchesImplicit(

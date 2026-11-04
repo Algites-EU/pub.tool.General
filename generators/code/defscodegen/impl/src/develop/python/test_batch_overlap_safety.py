@@ -13,8 +13,7 @@ def _naming_resource_bytes(name: str) -> bytes:
     """Read published naming resources without depending on another artifact's source layout."""
     providers = (
         ('eu.algites.lib.naming.convention', ()),
-        ('algites.pub.lib.general.naming.convention.profile.algites',
-         ('eu', 'algites', 'lib', 'naming', 'convention')),
+        ('eu.algites.lib.naming.convention.sourcecode', ()),
     )
     for package, subpath in providers:
         try:

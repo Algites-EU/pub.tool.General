@@ -18,9 +18,11 @@ _RESOURCE_PREFIXES = ('classpath:', 'resource:')
 # The common grammar remains in naming/intf; source-code profiles moved to /sourcecode.
 _NAMING_ROOT = ('eu', 'algites', 'lib', 'naming', 'convention')
 _PROFILE_SUBPATH = (*_NAMING_ROOT, 'sourcecode')
+_CODEGEN_SUBPATH = ('eu', 'algites', 'tool', 'codegen')
 def _providers():
     """Discover installed naming-profile resource namespaces without selecting a vendor."""
     yield ('eu.algites.lib.naming.convention', ('sourcecode',))
+    yield ('eu.algites.tool.codegen', ())
     # Shared standards and existing fixture/legacy catalogs remain at the base.
     yield ('eu.algites.lib.naming.convention', ())
     from importlib.metadata import distributions
@@ -64,7 +66,8 @@ def resolve_naming_catalog(source: str) -> str:
     for item in sys.path:
         # The empty sys.path entry denotes the current working directory.
         directory = Path(item or '.')
-        for candidate in (directory.joinpath(*_PROFILE_SUBPATH, name),
+        for candidate in (directory.joinpath(*_CODEGEN_SUBPATH, name),
+                          directory.joinpath(*_PROFILE_SUBPATH, name),
                           directory.joinpath(*_NAMING_ROOT, name),
                           directory.joinpath(name)):
             if candidate.is_file():
@@ -160,7 +163,8 @@ def expand_naming_catalogs(sources):
                     continue
             for entry in reversed(sys.path):
                 directory = Path(entry or '.')
-                for candidate in (directory.joinpath(*_PROFILE_SUBPATH, name),
+                for candidate in (directory.joinpath(*_CODEGEN_SUBPATH, name),
+                          directory.joinpath(*_PROFILE_SUBPATH, name),
                                   directory.joinpath(*_NAMING_ROOT, name),
                                   directory / name):
                     if candidate.is_file():
