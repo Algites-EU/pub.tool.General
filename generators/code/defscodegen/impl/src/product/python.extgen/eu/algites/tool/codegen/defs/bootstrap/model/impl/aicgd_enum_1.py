@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
     from eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.aiigd_enum_value_1 import AIigdEnumValue_1
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy
@@ -38,10 +39,10 @@ class AIcgdEnum_1(AIcSmartDataObject, AIigdEnum_1['AIigdEnumValue_1']):
     def _unset_BaseScalarType(self):
         self.unset_Field('BaseScalarType')
 
-    def getValuesList(self) -> list[AIigdEnumValue_1]:
+    def getValuesList(self) -> AIiBoundedList[AIigdEnumValue_1]:
         return self.get_OrCreateCollectionField('ValuesList', False)
 
-    def _getRaw_ValuesList(self) -> list[AIigdEnumValue_1]:
+    def _getRaw_ValuesList(self) -> AIiBoundedList[AIigdEnumValue_1]:
         return self.get_RawField('ValuesList')
 
     def _isPresent_ValuesList(self):

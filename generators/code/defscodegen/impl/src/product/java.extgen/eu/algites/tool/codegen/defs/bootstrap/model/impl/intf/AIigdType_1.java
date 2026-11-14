@@ -47,8 +47,8 @@ public interface AIigdType_1<TInheritedFromTypesList extends java.lang.String, T
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Inherited from types list")
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "inherited_from_types", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
 @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "inherited_from_types", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
-            @Override java.util.List<? extends TInheritedFromTypesList> getInheritedFromTypesList();
-    java.util.List<? extends TInheritedFromTypesList> _getRaw_InheritedFromTypesList();
+            @Override eu.algites.lib.common.list.AIiBoundedList<? extends TInheritedFromTypesList> getInheritedFromTypesList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends TInheritedFromTypesList> _getRaw_InheritedFromTypesList();
     boolean _isPresent_InheritedFromTypesList();
     void _unset_InheritedFromTypesList();
     /** Typed writable access to field Name under the published setter policy. */
@@ -78,8 +78,8 @@ public interface AIigdType_1<TInheritedFromTypesList extends java.lang.String, T
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Path segments list")
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "path_segments", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
 @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "path_segments", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
-            @Override java.util.List<? extends TPathSegmentsList> getPathSegmentsList();
-    java.util.List<? extends TPathSegmentsList> _getRaw_PathSegmentsList();
+            @Override eu.algites.lib.common.list.AIiBoundedList<? extends TPathSegmentsList> getPathSegmentsList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends TPathSegmentsList> _getRaw_PathSegmentsList();
     boolean _isPresent_PathSegmentsList();
     void _unset_PathSegmentsList();
     /** Typed writable access to field ResolutionState under the published setter policy. */

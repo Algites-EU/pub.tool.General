@@ -82,7 +82,7 @@ public interface AIigType_1 extends eu.algites.lib.data.dataobject.AIiDataObject
     /** Value of schema field path_segments. Field is optional; cardinality 0..-1.
      * @return field value in its canonical representation
      */
-    java.util.List<? extends String> getPathSegmentsList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends String> getPathSegmentsList();
 
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "inherited_from_types", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
     @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "inherited_from_types", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
@@ -90,7 +90,7 @@ public interface AIigType_1 extends eu.algites.lib.data.dataobject.AIiDataObject
     /** Value of schema field inherited_from_types. Field is optional; cardinality 0..-1.
      * @return field value in its canonical representation
      */
-    java.util.List<? extends String> getInheritedFromTypesList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends String> getInheritedFromTypesList();
 
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "content", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
     @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "content", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)

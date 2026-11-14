@@ -16,8 +16,8 @@ public class AIcgdEnum_1 extends eu.algites.lib.data.smartdataobject.impl.common
     @Override public eu.algites.tool.codegen.defs.bootstrap.model.AIngScalarKind_1 _getRaw_BaseScalarType() { return (eu.algites.tool.codegen.defs.bootstrap.model.AIngScalarKind_1) get_RawField("BaseScalarType"); }
     @Override public boolean _isPresent_BaseScalarType() { return isPresent_Field("BaseScalarType"); }
     @Override public void _unset_BaseScalarType() { unset_Field("BaseScalarType"); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdEnumValue_1> getValuesList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdEnumValue_1>) get_OrCreateCollectionField("ValuesList", false); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdEnumValue_1> _getRaw_ValuesList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdEnumValue_1>) get_RawField("ValuesList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdEnumValue_1> getValuesList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdEnumValue_1>) get_OrCreateCollectionField("ValuesList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdEnumValue_1> _getRaw_ValuesList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdEnumValue_1>) get_RawField("ValuesList"); }
     @Override public boolean _isPresent_ValuesList() { return isPresent_Field("ValuesList"); }
     @Override public void _unset_ValuesList() { unset_Field("ValuesList"); }
 }

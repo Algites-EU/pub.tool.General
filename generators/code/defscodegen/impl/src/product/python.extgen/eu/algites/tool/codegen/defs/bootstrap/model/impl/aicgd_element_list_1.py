@@ -38,10 +38,10 @@ class AIcgdElementList_1(AIcSmartDataObject, AIigdElementList_1):
     def _unset_Composition(self):
         self.unset_Field('Composition')
 
-    def getChildrenList(self) -> list[AIigElementListChild_1]:
+    def getChildrenList(self) -> AIiBoundedList[AIigElementListChild_1]:
         return self.get_OrCreateCollectionField('ChildrenList', False)
 
-    def _getRaw_ChildrenList(self) -> list[AIigElementListChild_1]:
+    def _getRaw_ChildrenList(self) -> AIiBoundedList[AIigElementListChild_1]:
         return self.get_RawField('ChildrenList')
 
     def _isPresent_ChildrenList(self):

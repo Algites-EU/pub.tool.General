@@ -9,6 +9,9 @@ export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:+${PYTEST_ADDOPTS} }-p no:cacheprovider"
 # Like the other Algites/Modustro bootstraps, one invocation builds and uploads
 # unless MODUSTRO_BOOTSTRAP_PREPARE_ONLY=1 explicitly disables publication.
 locRepo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+# Java SDO must receive the source checkout root even for a direct build.sh
+# invocation, not the current directory or the selected module directory.
+export MODUSTRO_BOOTSTRAP_REPOSITORY="$locRepo"
 locBootstrap="$locRepo/devops/bootstrap"
 locHelper="$locBootstrap/prepare.py"
 locPython="${ALGITES_PYTHON_EXECUTABLE:-python3}"

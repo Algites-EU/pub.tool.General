@@ -12,6 +12,7 @@ from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.jsondefs.aia_json_data_object import AIaJsonDataObject
 from eu.algites.lib.data.dataobject.yamldefs.aia_yaml_data_object import AIaYamlDataObject
 from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema
+from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
 from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField
 from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema
 from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValueKind
@@ -115,15 +116,15 @@ class AIigType_1(AIiDataObject):
         """Return Canonical field description. (optional, cardinality 0..1)."""
         raise NotImplementedError
 
-    @AIaDataObjectField(dataFieldName='path_segments', presence=AInFieldPresenceKind.ALLOWED, allows_null=False, expected_type=list, order=5, min_item_count=0, max_item_count=-1, is_empty_allowed=False)
+    @AIaDataObjectField(dataFieldName='path_segments', presence=AInFieldPresenceKind.ALLOWED, allows_null=False, expected_type=AIiBoundedList, order=5, min_item_count=0, max_item_count=-1, is_empty_allowed=False)
     @abstractmethod
-    def getPathSegmentsList(self) -> list[str]:
+    def getPathSegmentsList(self) -> AIiBoundedList[str]:
         """Return Canonical field path_segments. (optional, cardinality 0..-1)."""
         raise NotImplementedError
 
-    @AIaDataObjectField(dataFieldName='inherited_from_types', presence=AInFieldPresenceKind.ALLOWED, allows_null=False, expected_type=list, order=6, min_item_count=0, max_item_count=-1, is_empty_allowed=False)
+    @AIaDataObjectField(dataFieldName='inherited_from_types', presence=AInFieldPresenceKind.ALLOWED, allows_null=False, expected_type=AIiBoundedList, order=6, min_item_count=0, max_item_count=-1, is_empty_allowed=False)
     @abstractmethod
-    def getInheritedFromTypesList(self) -> list[str]:
+    def getInheritedFromTypesList(self) -> AIiBoundedList[str]:
         """Return Canonical field inherited_from_types. (optional, cardinality 0..-1)."""
         raise NotImplementedError
 

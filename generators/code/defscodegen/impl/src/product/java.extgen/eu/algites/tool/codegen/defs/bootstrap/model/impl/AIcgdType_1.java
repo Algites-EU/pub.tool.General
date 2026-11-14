@@ -30,8 +30,8 @@ public class AIcgdType_1 extends eu.algites.lib.data.smartdataobject.impl.common
     @Override public void _unset_Identity() { unset_Field("Identity"); }
     @Override public void _setEmpty_Identity() { set_EmptyField("Identity"); }
     @Override public boolean _isEmpty_Identity() { return isEmpty_Field("Identity"); }
-    @Override public java.util.List<? extends java.lang.String> getInheritedFromTypesList() { return (java.util.List<? extends java.lang.String>) get_OrCreateCollectionField("InheritedFromTypesList", false); }
-    @Override public java.util.List<? extends java.lang.String> _getRaw_InheritedFromTypesList() { return (java.util.List<? extends java.lang.String>) get_RawField("InheritedFromTypesList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String> getInheritedFromTypesList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String>) get_OrCreateCollectionField("InheritedFromTypesList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String> _getRaw_InheritedFromTypesList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String>) get_RawField("InheritedFromTypesList"); }
     @Override public boolean _isPresent_InheritedFromTypesList() { return isPresent_Field("InheritedFromTypesList"); }
     @Override public void _unset_InheritedFromTypesList() { unset_Field("InheritedFromTypesList"); }
     @Override public java.lang.String getName() { return (java.lang.String) get_EffectiveField("Name"); }
@@ -46,8 +46,8 @@ public class AIcgdType_1 extends eu.algites.lib.data.smartdataobject.impl.common
     @Override public eu.algites.tool.codegen.defs.bootstrap.model.AIngTypeOrigin_1 _getRaw_Origin() { return (eu.algites.tool.codegen.defs.bootstrap.model.AIngTypeOrigin_1) get_RawField("Origin"); }
     @Override public boolean _isPresent_Origin() { return isPresent_Field("Origin"); }
     @Override public void _unset_Origin() { unset_Field("Origin"); }
-    @Override public java.util.List<? extends java.lang.String> getPathSegmentsList() { return (java.util.List<? extends java.lang.String>) get_OrCreateCollectionField("PathSegmentsList", false); }
-    @Override public java.util.List<? extends java.lang.String> _getRaw_PathSegmentsList() { return (java.util.List<? extends java.lang.String>) get_RawField("PathSegmentsList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String> getPathSegmentsList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String>) get_OrCreateCollectionField("PathSegmentsList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String> _getRaw_PathSegmentsList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String>) get_RawField("PathSegmentsList"); }
     @Override public boolean _isPresent_PathSegmentsList() { return isPresent_Field("PathSegmentsList"); }
     @Override public void _unset_PathSegmentsList() { unset_Field("PathSegmentsList"); }
     @Override public eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1 getResolutionState() { return (eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1) get_EffectiveField("ResolutionState"); }

@@ -11,8 +11,8 @@ public class AIcgdCanonicalModel_1 extends eu.algites.lib.data.smartdataobject.i
     public AIcgdCanonicalModel_1() { super(); }
     /** Reconstruct an identity-preserving typed SmartDataObject graph. */
     public AIcgdCanonicalModel_1(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdType_1<?, ?, ?>> getTypesList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdType_1<?, ?, ?>>) get_OrCreateCollectionField("TypesList", false); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdType_1<?, ?, ?>> _getRaw_TypesList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdType_1<?, ?, ?>>) get_RawField("TypesList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdType_1<?, ?, ?>> getTypesList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdType_1<?, ?, ?>>) get_OrCreateCollectionField("TypesList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdType_1<?, ?, ?>> _getRaw_TypesList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdType_1<?, ?, ?>>) get_RawField("TypesList"); }
     @Override public boolean _isPresent_TypesList() { return isPresent_Field("TypesList"); }
     @Override public void _unset_TypesList() { unset_Field("TypesList"); }
 }

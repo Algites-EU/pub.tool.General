@@ -102,7 +102,16 @@ public final class AIcSdoCodegenCli {
             String locValue = locOption.substring(locEquals + 1);
             String[] locQualified = locName.split(":");
             String locBase = locQualified[0];
-            if (locQualified.length > 1 && locQualified[1].equals("python")) continue;
+            // Accept known selectors of the other technology in combined
+            // invocations; unknown qualified options must remain errors.
+            if (locQualified.length == 2 && locQualified[1].equals("python")
+                    && Set.of("technology-sdointf-output-dir", "technology-sdoimpl-output-dir",
+                            "generated-dataobject-method-naming-convention",
+                            "common-codegen-naming-convention", "sdo-codegen-naming-convention",
+                            "dointf-naming-convention", "sdointf-naming-convention",
+                            "sdoimpl-naming-convention", "sdo-dependency-artifacts",
+                            "sdo-dependency-paths", "sdo-input-artifacts", "sdo-input-paths",
+                            "dointf-input-classes").contains(locBase)) continue;
             switch (locBase) {
                 case "setter-inheritance-policy" -> {
                     var locPolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.valueOf(locValue);
@@ -249,22 +258,34 @@ public final class AIcSdoCodegenCli {
         }
         List<Path> locSourceRoots = new ArrayList<>();
         List<Path> locBinaryPaths = new ArrayList<>();
+        // A direct source-file selector restricts generation to that file;
+        // a directory selector deliberately selects all eligible contracts.
+        Map<Path, Set<Path>> locSelectedSourceFiles = new LinkedHashMap<>();
+        Set<Path> locUnrestrictedSourceRoots = new LinkedHashSet<>();
         for (String input : locArtifacts) {
             Path selected = root(locRepository, input);
             if (!Files.exists(selected)) throw new IOException("SDO input path does not exist: " + selected);
             if (Files.isDirectory(selected)) {
                 try (var walk = Files.walk(selected)) {
-                    if (walk.anyMatch(path -> path.toString().endsWith(".java"))) locSourceRoots.add(selected);
-                    else locBinaryPaths.add(selected);
+                    if (walk.anyMatch(path -> path.toString().endsWith(".java"))) {
+                        if (!locSourceRoots.contains(selected)) locSourceRoots.add(selected);
+                        locUnrestrictedSourceRoots.add(selected);
+                    } else locBinaryPaths.add(selected);
                 }
             } else if (selected.toString().endsWith(".java")) {
-                locSourceRoots.add(selected.getParent());
+                Path locParent = selected.getParent();
+                if (!locSourceRoots.contains(locParent)) locSourceRoots.add(locParent);
+                locSelectedSourceFiles.computeIfAbsent(locParent, ignored -> new LinkedHashSet<>())
+                        .add(selected);
             } else locBinaryPaths.add(selected);
         }
         for (Path locSourceRoot : locSourceRoots) {
             List<Path> locContracts = new ArrayList<>();
             try (var locWalk = Files.walk(locSourceRoot)) {
                 for (Path locSource : locWalk.filter(aPath -> aPath.toString().endsWith(".java")).sorted().toList()) {
+                    if (!locUnrestrictedSourceRoots.contains(locSourceRoot)
+                            && locSelectedSourceFiles.containsKey(locSourceRoot)
+                            && !locSelectedSourceFiles.get(locSourceRoot).contains(locSource)) continue;
                     String locText = Files.readString(locSource, StandardCharsets.UTF_8);
                     // All source interfaces are type-checked after compilation.
                     // Only the reflected neutral @AIaDataObject declaration or

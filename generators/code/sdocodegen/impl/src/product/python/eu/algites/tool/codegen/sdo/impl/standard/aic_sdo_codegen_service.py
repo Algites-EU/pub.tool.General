@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import get_type_hints, get_args, get_origin, Union
 from types import UnionType
 from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList
+from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject
 from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object_namespace import AIiXmlDataObjectNamespace
@@ -112,7 +113,8 @@ def _is_sdo_input(contract: type) -> bool:
     Returns:
         True for one eligible read-only contract.
     """
-    if (not isclass(contract) or not issubclass(contract, AIiDataObject)
+    if (not isclass(contract) or issubclass(contract, AIiBoundedList)
+            or not issubclass(contract, AIiDataObject)
             or contract.__module__.startswith('eu.algites.lib.data.dataobject')):
         return False
     return (getattr(contract, '__data_object__', None) is not None
@@ -202,6 +204,10 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         """Generate native SDO types while preserving inherited field and label annotations."""
         if naming is None or len(naming) not in (3, 4):
             raise AIxCodegenValidationException('Missing explicit SDO input/mutable/implementation naming profiles', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
+        if isclass(read_contract) and issubclass(read_contract, AIiBoundedList):
+            raise AIxCodegenValidationException(
+                'A collection is not a DataObject: ' + read_contract.__name__,
+                'Generate bounded and multi-mapped lists as collection values, not SDO classes.')
         if not isclass(read_contract) or not issubclass(read_contract, AIiDataObject) or read_contract.__module__.startswith("eu.algites.lib.data.dataobject"):
             # Source-family marker types are infrastructure, not generated schema contracts.
             raise AIxCodegenValidationException('Read contract must extend AIiDataObject', 'Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.')
@@ -584,10 +590,6 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                                f'    __data_object__ = AIcdDataObject(setter_inheritance_policy=AInFieldSetterInheritancePolicy.{(inherited.setter_inheritance_policy if inherited.setter_inheritance_policy is not AInFieldSetterInheritancePolicy.DEFAULT else _default_setter_inheritance_policy()).name})',
                                '    """Generated implementation; inherited fields use parent behavior."""'])
         concrete_lines.extend(concrete_format_annotations)
-        # A named schema type may be both a SmartDataObject and the owner of
-        # an ordered indexed collection.  A SmartDataObject base has no list
-        # storage: build a real AIcMultiMappedList and delegate every ABC method.
-        mapped_contract = issubclass(read_contract, AIiMultiMappedList)
         method_catalog = catalog()
         synthetic_key_method = None
         synthetic_value_method = None
@@ -620,22 +622,17 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     if synthetic_key_method is None:
                         raise AIxCodegenValidationException('Virtual map value getter requires a virtual key getter', 'Declare both synthetic map-entry getters in the read-only contract.')
                     synthetic_value_method = value_getter
-        if mapped_contract or synthetic_key_method is not None:
+        if synthetic_key_method is not None:
             concrete_lines.extend(['',
-                '    def __init__(self, aMapping=None, *, definitions=(), parent_property_key=None, parent_property_value=None):',
-                '        """Initialize the SDO and its nonserialized collection/key identity.',
+                '    def __init__(self, aMapping=None, *, parent_property_key=None, parent_property_value=None):',
+                '        """Initialize the SDO and its nonserialized map-entry key identity.',
                 '',
                 '        Args:',
                 '            aMapping: Optional typed virtual field graph.',
-                '            definitions: Stable key definitions owned by this mapped collection.',
                 '            parent_property_key: Actual property name of this JSON/YAML map entry.',
                 '            parent_property_value: Typed value belonging to the map entry, not an embedded field.',
                 '        """',
                 '        super().__init__(aMapping)'])
-            if mapped_contract:
-                concrete_lines.insert(4,
-                    'from eu.algites.lib.common.list.aic_multi_mapped_list import AIcMultiMappedList')
-                concrete_lines.append('        self._mapped_entries = AIcMultiMappedList(definitions)')
             if synthetic_key_method is not None:
                 concrete_lines.extend([
                     '        if parent_property_key is not None and (not isinstance(parent_property_key, str) or not parent_property_key):',
@@ -660,43 +657,6 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     '        if self._parent_property_value is None:',
                     "            raise ValueError('Map entry was not constructed with its parent property value')",
                     '        return self._parent_property_value'])
-            if mapped_contract:
-                concrete_lines.extend(['',
-                    '    def __len__(self):',
-                    '        """Return the number of indexed elements."""',
-                    '        return len(self._mapped_entries)',
-                    '',
-                    '    def __getitem__(self, index):',
-                    '        """Return the element at an index."""',
-                    '        return self._mapped_entries[index]',
-                    '',
-                    '    def __setitem__(self, index, value):',
-                    '        """Replace an indexed value using atomic key validation."""',
-                    '        self._mapped_entries[index] = value',
-                    '',
-                    '    def __delitem__(self, index):',
-                    '        """Remove an indexed entry and refresh key maps."""',
-                    '        del self._mapped_entries[index]',
-                    '',
-                    '    def insert(self, index, value):',
-                    '        """Insert an entry, rejecting conflicting unique keys."""',
-                    '        self._mapped_entries.insert(index, value)',
-                    '',
-                    '    def map_by_key_type(self, definition):',
-                    '        """Return the cached live map for an exact registered definition."""',
-                    '        return self._mapped_entries.map_by_key_type(definition)',
-                    '',
-                    '    def key_definition(self, identifier):',
-                    '        """Look up the registered definition by schema index identity."""',
-                    '        return self._mapped_entries.key_definition(identifier)',
-                    '',
-                    '    def copy_range(self, start, stop):',
-                    '        """Return a detached indexed shallow copy of the given range."""',
-                    '        return self._mapped_entries.copy_range(start, stop)',
-                    '',
-                    '    def sub_list(self, start, stop):',
-                    '        """Return a tracked membership-backed subsequence."""',
-                    '        return self._mapped_entries.sub_list(start, stop)'])
         mutable_imports = []
         concrete_imports = []
         xml_nested_imports = {}
@@ -753,7 +713,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             auxiliary_details = (_auxiliary_read_only_contract(read_contract, getter, name)
                                  if nested_details is None else None)
             keyed_collection = get_origin(_unwrap_optional(_field_annotation(read_contract, getter, name))[0]) is AIiMultiMappedList
-            nested_type = ((('AIiMultiMappedList[' if keyed_collection else 'list[') + names_for(nested_details[0])[0] + ']' 
+            nested_type = ((('AIiMultiMappedList[' if keyed_collection else 'AIiBoundedList[') + names_for(nested_details[0])[0] + ']' 
                 if nested_details[2] else names_for(nested_details[0])[0])
                 + (' | None' if nested_details[1] else '')) if nested_details else None
             if technology == 'xmldefs' and (effective_xml[name].wire is not None or descriptor.embedded):
@@ -775,7 +735,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             auxiliary_type = None
             if auxiliary_details is not None:
                 aux_class, aux_nullable, aux_repeated = auxiliary_details
-                auxiliary_type = ((('AIiMultiMappedList[' if keyed_collection else 'list[')
+                auxiliary_type = ((('AIiMultiMappedList[' if keyed_collection else 'AIiBoundedList[')
                                    + aux_class.__name__ + ']') if aux_repeated else aux_class.__name__)
                 if aux_nullable:
                     auxiliary_type += ' | None'
@@ -788,7 +748,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     concrete_imports.append(collection_import)
             typed_value = nested_type or auxiliary_type or 'object'
             variable = type_variables.get(name)
-            interface_type = (((f'AIiMultiMappedList[{variable}]' if keyed_collection else f'list[{variable}]') if nested_details[2] else variable)
+            interface_type = (((f'AIiMultiMappedList[{variable}]' if keyed_collection else f'AIiBoundedList[{variable}]') if nested_details[2] else variable)
                               + (' | None' if nested_details[1] else '')) if variable else typed_value
             if nested_type is not None:
                 nested_class = nested_details[0]
@@ -798,28 +758,22 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 if keyed_collection:
                     mutable_imports.append('from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList')
                     concrete_imports.append('from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList')
+                elif nested_details[2]:
+                    mutable_imports.append('from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList')
+                    concrete_imports.append('from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList')
                 mutable_imports.append(f'from {subpackage(nested_package, mutable_subpackage)}.{nested_file} import {nested_name}')
                 concrete_imports.append(f'from {subpackage(nested_package, mutable_subpackage)}.{nested_file} import {nested_name}')
-            named_mapped_collection = bool(nested_details and not nested_details[2]
-                and issubclass(nested_details[0], AIiMultiMappedList))
-            is_collection = (named_mapped_collection or keyed_collection
+            is_collection = (keyed_collection
                 or nested_details is not None and nested_details[2]
                 or get_origin(_unwrap_optional(_field_annotation(read_contract, getter, name))[0])
-                in (list, tuple, AIiMultiMappedList))
+                in (list, tuple, AIiBoundedList, AIiMultiMappedList))
             if nested_type is not None or auxiliary_type is not None:
                 mutable_lines.extend(['', '    @abstractmethod',
                     f'    def {getter}(self) -> {interface_type}: ...'])
             if not is_collection:
                 mutable_lines.extend(['', '    @abstractmethod',
                     f'    def {setter}(self, {parameter_name}: {interface_type}) -> None: ...'])
-            if named_mapped_collection:
-                nested_concrete = names_for(nested_details[0])[1]
-                nested_package = nested_details[0].__module__.rsplit('.', 1)[0]
-                nested_module = (subpackage(nested_package, concrete_subpackage) + '.'
-                    + stem_for(nested_concrete, False, nested_details[0]))
-                getter_body = ('        from ' + nested_module + ' import ' + nested_concrete + '\n'
-                    + f'        return self.get_OrCreateNamedMappedCollectionField({name!r}, {nested_concrete})')
-            elif is_collection:
+            if is_collection:
                 getter_body = f'        return self.get_OrCreateCollectionField({name!r}, {keyed_collection})'
             else:
                 getter_body = f'        return self.get_EffectiveField({name!r})'
@@ -984,7 +938,7 @@ def _nested_contract(read_contract: type, getter: str, field_name: str = '') -> 
     """Discover referenced contracts under optional single values and repeated collections."""
     annotation, nullable = _unwrap_optional(_field_annotation(read_contract, getter, field_name))
     repeated = False
-    if get_origin(annotation) in (list, tuple, AIiMultiMappedList):
+    if get_origin(annotation) in (list, tuple, AIiBoundedList, AIiMultiMappedList):
         args = get_args(annotation)
         if args:
             repeated = True
@@ -1007,7 +961,7 @@ def _auxiliary_read_only_contract(read_contract: type, getter: str,
     """
     annotation, nullable = _unwrap_optional(_field_annotation(read_contract, getter, field_name))
     repeated = False
-    if get_origin(annotation) in (list, tuple, AIiMultiMappedList):
+    if get_origin(annotation) in (list, tuple, AIiBoundedList, AIiMultiMappedList):
         arguments = get_args(annotation)
         if arguments:
             repeated = True
@@ -1024,8 +978,8 @@ def _auxiliary_read_only_contract(read_contract: type, getter: str,
 def _repeated_contract_field(read_contract: type, getter: str, field_name: str, descriptor) -> bool:
     """Recognize XML repeated element contracts even when the items are scalars."""
     annotation, _ = _unwrap_optional(_field_annotation(read_contract, getter, field_name))
-    return (get_origin(annotation) in (list, tuple, AIiMultiMappedList)
-            or getattr(descriptor, 'expected_type', None) in (list, tuple, AIiMultiMappedList))
+    return (get_origin(annotation) in (list, tuple, AIiBoundedList, AIiMultiMappedList)
+            or getattr(descriptor, 'expected_type', None) in (list, tuple, AIiBoundedList, AIiMultiMappedList))
 
 
 def _default_field_title(name: str) -> str:

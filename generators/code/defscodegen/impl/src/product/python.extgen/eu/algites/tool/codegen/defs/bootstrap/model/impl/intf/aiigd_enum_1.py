@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
     from eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.aiigd_enum_value_1 import AIigdEnumValue_1
 from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema
 from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField
@@ -58,10 +59,10 @@ class AIigdEnum_1(AIigEnum_1, AIiSmartDataObject, Generic[TValuesList]):
     def _unset_BaseScalarType(self) -> None: ...
 
     @abstractmethod
-    def getValuesList(self) -> list[TValuesList]: ...
+    def getValuesList(self) -> AIiBoundedList[TValuesList]: ...
 
     @abstractmethod
-    def _getRaw_ValuesList(self) -> list[TValuesList]: ...
+    def _getRaw_ValuesList(self) -> AIiBoundedList[TValuesList]: ...
 
     @abstractmethod
     def _isPresent_ValuesList(self) -> bool: ...

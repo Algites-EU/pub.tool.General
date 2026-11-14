@@ -12,6 +12,7 @@ from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.jsondefs.aia_json_data_object import AIaJsonDataObject
 from eu.algites.lib.data.dataobject.yamldefs.aia_yaml_data_object import AIaYamlDataObject
 from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema
+from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
 from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField
 from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema
 from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValueKind
@@ -78,9 +79,9 @@ class AIigElementList_1(AIiDataObject):
         raise NotImplementedError
 
     @AIaDataObjectFieldListConstraints(min_items=1)
-    @AIaDataObjectField(dataFieldName='children', presence=AInFieldPresenceKind.REQUIRED, allows_null=False, expected_type=list, order=1, min_item_count=1, max_item_count=-1, is_empty_allowed=False)
+    @AIaDataObjectField(dataFieldName='children', presence=AInFieldPresenceKind.REQUIRED, allows_null=False, expected_type=AIiBoundedList, order=1, min_item_count=1, max_item_count=-1, is_empty_allowed=False)
     @abstractmethod
-    def getChildrenList(self) -> list[AIigElementListChild_1]:
+    def getChildrenList(self) -> AIiBoundedList[AIigElementListChild_1]:
         """Return Canonical field children. (required, cardinality 1..-1)."""
         raise NotImplementedError
 

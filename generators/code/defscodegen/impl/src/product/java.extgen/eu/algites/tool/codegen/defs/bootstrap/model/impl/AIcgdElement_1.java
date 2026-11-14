@@ -42,8 +42,8 @@ public class AIcgdElement_1 extends eu.algites.lib.data.smartdataobject.impl.com
     @Override public java.lang.Boolean _getRaw_IsEmptyAllowed() { return (java.lang.Boolean) get_RawField("IsEmptyAllowed"); }
     @Override public boolean _isPresent_IsEmptyAllowed() { return isPresent_Field("IsEmptyAllowed"); }
     @Override public void _unset_IsEmptyAllowed() { unset_Field("IsEmptyAllowed"); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>> getKeyDefinitionsList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>>) get_OrCreateCollectionField("KeyDefinitionsList", false); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>> _getRaw_KeyDefinitionsList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>>) get_RawField("KeyDefinitionsList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>> getKeyDefinitionsList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>>) get_OrCreateCollectionField("KeyDefinitionsList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>> _getRaw_KeyDefinitionsList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>>) get_RawField("KeyDefinitionsList"); }
     @Override public boolean _isPresent_KeyDefinitionsList() { return isPresent_Field("KeyDefinitionsList"); }
     @Override public void _unset_KeyDefinitionsList() { unset_Field("KeyDefinitionsList"); }
     @Override public java.lang.Long getMaxItemCount() { return (java.lang.Long) get_EffectiveField("MaxItemCount"); }

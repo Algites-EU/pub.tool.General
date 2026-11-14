@@ -14,8 +14,8 @@ public interface AIigdElementList_1<TChildrenList extends eu.algites.tool.codege
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Children list")
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "children", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
 @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "children", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
-            @Override java.util.List<? extends TChildrenList> getChildrenList();
-    java.util.List<? extends TChildrenList> _getRaw_ChildrenList();
+            @Override eu.algites.lib.common.list.AIiBoundedList<? extends TChildrenList> getChildrenList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends TChildrenList> _getRaw_ChildrenList();
     boolean _isPresent_ChildrenList();
     void _unset_ChildrenList();
     /** Typed writable access to field Composition under the published setter policy. */

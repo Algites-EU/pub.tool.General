@@ -222,11 +222,13 @@ and required runtime imports but **never become additional SDO targets**.
 
 `TECH` is `java` or `python`. Java reads interfaces from source or bytecode
 according to the selected path; Python reads annotated, importable classes
-from source trees or wheels. A direct `--sdo-input-paths:python=/path/to/file.py`
-selects precisely the specified module, not every sibling `.py` file; its
-containing `python`/`python.gen` import root remains available for loading
-its own read-only dependencies. Direct `.py` dependency paths likewise add
-only their import root, never a new generation target. If the input selection is empty, there is no
+from source trees or wheels. A direct
+`--sdo-input-paths:python=/path/to/file.py` or
+`--sdo-input-paths:java=/path/to/Interface.java` selects only the specified
+source file, not sibling contracts. Python retains the containing `python` or
+`python.gen` import root to load dependencies; Java source compilation also
+resolves required referenced types. Direct `.py` dependency paths likewise
+add only their import root, never a new generation target. If the input selection is empty, there is no
 implicit scan of all available dependencies. Naming convention selection is
 independent of where the input came from. `--dointf-input-classes` is a
 legacy additional explicit filter and is not a substitute for an input root.
@@ -369,8 +371,8 @@ Java (processing a binary JAR):
 ```sh
 java -cp "$CLASSPATH" eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli \
     --settings-file=config/my-sdocodegen.settings \
-    --dointf-input-artifacts:java=eu.example:read-contracts:1.1-SNAPSHOT \
-    --dointf-classpath:java=build/libs/dependencies
+    --sdo-input-artifacts:java=eu.example:read-contracts:1.1-SNAPSHOT \
+    --sdo-dependency-paths:java=build/libs/dependencies
 ```
 
 Python (using the native source loader):

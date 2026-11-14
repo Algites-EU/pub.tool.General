@@ -16,8 +16,8 @@ public class AIcgdList_1 extends eu.algites.lib.data.smartdataobject.impl.common
     @Override public eu.algites.tool.codegen.defs.bootstrap.model.AIigStructure_1 _getRaw_Item() { return (eu.algites.tool.codegen.defs.bootstrap.model.AIigStructure_1) get_RawField("Item"); }
     @Override public boolean _isPresent_Item() { return isPresent_Field("Item"); }
     @Override public void _unset_Item() { unset_Field("Item"); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>> getKeyDefinitionsList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>>) get_OrCreateCollectionField("KeyDefinitionsList", false); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>> _getRaw_KeyDefinitionsList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>>) get_RawField("KeyDefinitionsList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>> getKeyDefinitionsList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>>) get_OrCreateCollectionField("KeyDefinitionsList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>> _getRaw_KeyDefinitionsList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdKeyDefinition_1<?>>) get_RawField("KeyDefinitionsList"); }
     @Override public boolean _isPresent_KeyDefinitionsList() { return isPresent_Field("KeyDefinitionsList"); }
     @Override public void _unset_KeyDefinitionsList() { unset_Field("KeyDefinitionsList"); }
     @Override public java.lang.Long getMaxItemCount() { return (java.lang.Long) get_EffectiveField("MaxItemCount"); }

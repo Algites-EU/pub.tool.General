@@ -13,8 +13,8 @@ public interface AIigdKeyDefinition_1<TFieldsList extends java.lang.String> exte
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Fields list")
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "fields", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
 @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "fields", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
-            @Override java.util.List<? extends TFieldsList> getFieldsList();
-    java.util.List<? extends TFieldsList> _getRaw_FieldsList();
+            @Override eu.algites.lib.common.list.AIiBoundedList<? extends TFieldsList> getFieldsList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends TFieldsList> _getRaw_FieldsList();
     boolean _isPresent_FieldsList();
     void _unset_FieldsList();
     /** Typed writable access to field Identifier under the published setter policy. */

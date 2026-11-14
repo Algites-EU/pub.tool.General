@@ -1,5 +1,6 @@
 """Native canonical Defs emitter contract tests, independent of legacy backends."""
 import json
+import os
 import subprocess
 import sys
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import replace
@@ -10,6 +11,10 @@ import yaml
 
 TOOL = next(p for p in Path(__file__).resolve().parents if p.name == 'pub.tool.General')
 LIB = TOOL.parent / 'pub.lib.General'
+JAVA_SOURCEPATH = os.pathsep.join((
+    str(LIB / 'data/dataobject/intf/src/product/java'),
+    str(LIB / 'common/util/src/product/java'),
+))
 for name in ('generators/code/common/src/product/python',
              'generators/code/defscodegen/intf/src/product/python',
              'generators/code/defscodegen/impl/src/product/python'):
@@ -75,7 +80,7 @@ def test_end_to_end_canonical_sources_compile_java_and_python(tmp_path):
     java = (tmp_path / 'java/test/output/AIigNode_1.java').read_text()
     python = (tmp_path / 'python/test/output/aiig_node_1.py').read_text()
     assert 'AIigNode_1 getNext()' in java
-    assert 'java.util.List<? extends AIigNode_1> getChildrenList()' in java
+    assert 'eu.algites.lib.common.list.AIiBoundedList<? extends AIigNode_1> getChildrenList()' in java
     assert 'void setNext(' not in java
     assert 'def getNext(self) -> AIigNode_1' in python
     assert 'def setNext(' not in python
@@ -83,7 +88,7 @@ def test_end_to_end_canonical_sources_compile_java_and_python(tmp_path):
     assert 'required; cardinality 1..1' in java
     assert '"on-hold"' in (tmp_path / 'java/test/output/AIigStatus_1.java').read_text()
     assert "'on-hold'" in (tmp_path / 'python/test/output/aiig_status_1.py').read_text()
-    compiled = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
+    compiled = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH, '-d', str(tmp_path / 'classes'),
                                 *[str(p) for p in (tmp_path / 'java').rglob('*.java')]],
                                text=True, capture_output=True)
     assert compiled.returncode == 0, compiled.stderr
@@ -121,7 +126,7 @@ def test_sealed_choice_records_compile_and_retain_typed_variants(tmp_path):
             'permits AIigT1, AIigT2') in java
     assert 'record AIigT1(String value) implements AIigT0' in (tmp_path / 'java/test/output/AIigT1.java').read_text()
     assert 'record AIigT2(Long value) implements AIigT0' in (tmp_path / 'java/test/output/AIigT2.java').read_text()
-    result = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
+    result = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH, '-d', str(tmp_path / 'classes'),
                              *map(str, (tmp_path / 'java').rglob('*.java'))],
                             capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -153,7 +158,7 @@ def test_structured_choice_records_compile_and_preserve_fields(tmp_path, monkeyp
     assert 'String getName() { return field1; }' in java
     assert 'Long getAge() { return field2; }' in java
     assert 'requireNonNull(field1' in java
-    compiled = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
+    compiled = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH, '-d', str(tmp_path / 'classes'),
                                *map(str, (tmp_path / 'java').rglob('*.java'))],
                               capture_output=True, text=True)
     assert compiled.returncode == 0, compiled.stderr
@@ -199,7 +204,7 @@ def test_emitter_preserves_choice_variant_constraint_annotations_and_invalid_nam
         out.write_text(entry.content)
         if entry.language == 'python':
             compile(entry.content, str(out), 'exec')
-    compiled = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'),
+    compiled = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH,
                                '-d', str(tmp_path / 'classes'),
                                *map(str, (tmp_path / 'java').rglob('*.java'))],
                               capture_output=True, text=True)
@@ -229,7 +234,7 @@ def test_emitter_preserves_named_inheritance_and_dependency_references(tmp_path)
             path = tmp_path / entry.relative_path
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(entry.content)
-    compiled = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
+    compiled = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH, '-d', str(tmp_path / 'classes'),
                                 *[str(path) for path in tmp_path.rglob('*.java')]],
                                capture_output=True, text=True)
     assert compiled.returncode == 0, compiled.stderr
@@ -297,7 +302,7 @@ def test_exact_numeric_enums_compile_and_keep_python_wire_types(tmp_path, schema
     assert member in java and member in py
     source = tmp_path / 'AIigCodes.java'
     source.write_text(java)
-    compiled = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'), str(source)],
+    compiled = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH, '-d', str(tmp_path / 'classes'), str(source)],
                               capture_output=True, text=True)
     assert compiled.returncode == 0, compiled.stderr
     import types
@@ -324,16 +329,16 @@ def test_repeated_xml_particle_emits_direct_typed_list_in_both_languages(tmp_pat
     output = _emitter(result.types, names).render(result.types)
     java = next(entry.content for entry in output if entry.language == 'java')
     python = next(entry.content for entry in output if entry.language == 'python')
-    assert 'java.util.List<? extends String> getLineList()' in java
+    assert 'eu.algites.lib.common.list.AIiBoundedList<? extends String> getLineList()' in java
     assert 'void setLine(' not in java
     assert 'cardinality 0..-1' in java
-    assert 'def getLineList(self) -> list[str]' in python
+    assert 'def getLineList(self) -> AIiBoundedList[str]' in python
     assert 'def setLine(' not in python
     for entry in output:
         file = tmp_path / entry.language / entry.relative_path
         file.parent.mkdir(parents=True, exist_ok=True)
         file.write_text(entry.content)
-    compile_result = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
+    compile_result = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH, '-d', str(tmp_path / 'classes'),
                                     *map(str, (tmp_path / 'java').rglob('*.java')),
                                     *(str(LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs' / name)
                                       for name in ('AIaXmlDataObjectField.java', 'AInXmlValueKind.java'))],
@@ -412,7 +417,7 @@ def test_string_enum_control_characters_emit_compilable_java_and_python(tmp_path
           }
         }
     ''')
-    build = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
+    build = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH, '-d', str(tmp_path / 'classes'),
                             *map(str, (tmp_path / 'java').rglob('*.java')), str(runtime)],
                            capture_output=True, text=True)
     assert build.returncode == 0, build.stderr
@@ -442,7 +447,7 @@ def test_const_property_emits_named_singleton_enum_in_both_languages(tmp_path):
     py_sources = '\n'.join(item.content for item in outputs if item.language == 'python')
     assert '"urn:fixed-schema"' in java_sources
     assert "'urn:fixed-schema'" in py_sources
-    compiled = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'),
+    compiled = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH,
                                '-d', str(tmp_path / 'classes'),
                                *map(str, (tmp_path / 'java').rglob('*.java'))],
                               capture_output=True, text=True)
@@ -480,7 +485,7 @@ def test_open_json_object_ignores_untyped_wildcards_with_diagnostics(tmp_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(entry.content)
     compiler = subprocess.run([
-        'javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'),
+        'javac', '-sourcepath', JAVA_SOURCEPATH,
         '-d', str(tmp_path / 'classes'),
         *map(str, (tmp_path / 'java').rglob('*.java'))],
         text=True, capture_output=True)
@@ -519,7 +524,7 @@ def test_xsd_named_choice_branches_emit_typed_java_python_records(tmp_path):
         if item.language == 'python':
             compile(item.content, str(destination), 'exec')
     compile_result = subprocess.run([
-        'javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'),
+        'javac', '-sourcepath', JAVA_SOURCEPATH,
         '-d', str(tmp_path / 'classes'),
         *map(str, (tmp_path / 'java').rglob('*.java')),
     ], capture_output=True, text=True)
@@ -554,7 +559,7 @@ def test_xsd_anonymous_enum_is_nominal_type_in_both_targets(tmp_path):
         dest.write_text(item.content)
         if item.language == 'python':
             compile(item.content, str(dest), 'exec')
-    compiled = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'),
+    compiled = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH,
         '-d', str(tmp_path / 'classes'), *map(str, (tmp_path / 'java').rglob('*.java'))],
         capture_output=True, text=True)
     assert compiled.returncode == 0, compiled.stderr
@@ -603,7 +608,7 @@ def test_json_yaml_inline_property_enum_emits_nominal_java_python_types(tmp_path
         if entry.language == 'python':
             compile(entry.content, str(dest), 'exec')
     compiled = subprocess.run(['javac',
-        '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'),
+        '-sourcepath', JAVA_SOURCEPATH,
         '-d', str(tmp_path / 'classes'),
         *map(str, (tmp_path / 'java').rglob('*.java'))],
         capture_output=True, text=True)

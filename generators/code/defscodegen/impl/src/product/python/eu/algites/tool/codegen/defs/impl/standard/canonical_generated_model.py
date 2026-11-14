@@ -335,35 +335,30 @@ def _collection(obj: Any, stem: str, *, ensure_live: bool = False):
 
 
 def _set_collection(obj: Any, stem: str, values: Any):
-    """Assign a complete schema-generated list using its matching setter.
+    """Populate a generated getter-only SDO collection in source order.
 
-    Do not initialize mandatory nonempty SDO collections by writing ``[]``
-    and then appending: the SDO runtime correctly enforces minItems at each
-    setter call, so the intermediate empty assignment is invalid. This helper
-    preserves list cardinality and uses generated accessor names, without
-    materializing a parallel canonical collection model.
+    A collection getter materializes its own bounded or indexed collection.
+    Collection fields have no setters: their identity, key indexes, and
+    non-worsening cardinality policy are maintained by the live collection.
+    Atomic extension never installs a transient, invalid plain list value.
 
     :param obj: Generated mutable SDO owner.
     :param stem: CamelCase semantic field stem without ``List``.
-    :param values: Complete list to assign, in source order.
-    :raises AttributeError: If no generated collection accessor is available.
-    :raises TypeError: If a getter-only field does not expose a live collection.
-    :raises ValueError: If the SDO schema rejects the full list.
+    :param values: Entries to append, in source order.
+    :raises AttributeError: If no generated collection getter exists.
+    :raises TypeError: If its value is not a live writable collection.
+    :raises ValueError: If a key constraint rejects the completed change.
     """
-    values = list(values)
+    materialized = list(values)
     for suffix in ('List', ''):
-        setter = getattr(obj, 'set' + stem + suffix, None)
-        if callable(setter):
-            setter(values)
-            return
         getter = getattr(obj, 'get' + stem + suffix, None)
         if callable(getter):
             collection = getter()
             if collection is None or not hasattr(collection, 'extend'):
                 raise TypeError(f'Generated getter {stem}{suffix} is not a live mutable list')
-            collection.extend(values)
+            collection.extend(materialized)
             return
-    raise AttributeError(f'No generated list accessor for {type(obj).__name__}.{stem}')
+    raise AttributeError(f'No generated list getter for {type(obj).__name__}.{stem}')
 
 
 def _bindings_object(source: Mapping | None):

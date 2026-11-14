@@ -69,8 +69,8 @@ public interface AIigdElement_1<TKeyDefinitionsList extends eu.algites.tool.code
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Key definitions list")
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "key_definitions", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
 @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "key_definitions", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
-            @Override java.util.List<? extends TKeyDefinitionsList> getKeyDefinitionsList();
-    java.util.List<? extends TKeyDefinitionsList> _getRaw_KeyDefinitionsList();
+            @Override eu.algites.lib.common.list.AIiBoundedList<? extends TKeyDefinitionsList> getKeyDefinitionsList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends TKeyDefinitionsList> _getRaw_KeyDefinitionsList();
     boolean _isPresent_KeyDefinitionsList();
     void _unset_KeyDefinitionsList();
     /** Typed writable access to field MaxItemCount under the published setter policy. */

@@ -11,8 +11,8 @@ public class AIcgdElementList_1 extends eu.algites.lib.data.smartdataobject.impl
     public AIcgdElementList_1() { super(); }
     /** Reconstruct an identity-preserving typed SmartDataObject graph. */
     public AIcgdElementList_1(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.AIigElementListChild_1> getChildrenList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.AIigElementListChild_1>) get_OrCreateCollectionField("ChildrenList", false); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.AIigElementListChild_1> _getRaw_ChildrenList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.AIigElementListChild_1>) get_RawField("ChildrenList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.AIigElementListChild_1> getChildrenList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.AIigElementListChild_1>) get_OrCreateCollectionField("ChildrenList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.AIigElementListChild_1> _getRaw_ChildrenList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.AIigElementListChild_1>) get_RawField("ChildrenList"); }
     @Override public boolean _isPresent_ChildrenList() { return isPresent_Field("ChildrenList"); }
     @Override public void _unset_ChildrenList() { unset_Field("ChildrenList"); }
     @Override public eu.algites.tool.codegen.defs.bootstrap.model.AIngComposition_1 getComposition() { return (eu.algites.tool.codegen.defs.bootstrap.model.AIngComposition_1) get_EffectiveField("Composition"); }

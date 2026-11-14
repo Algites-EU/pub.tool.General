@@ -24,6 +24,6 @@ public interface AIigSourceBindings_1 extends eu.algites.lib.data.dataobject.AIi
     /** Value of schema field SourceBindingGroup. Field is optional; cardinality 0..-1.
      * @return field value in its canonical representation
      */
-    java.util.List<? extends AIigSourceBindingGroup_1> getSourceBindingGroupList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends AIigSourceBindingGroup_1> getSourceBindingGroupList();
 
 }

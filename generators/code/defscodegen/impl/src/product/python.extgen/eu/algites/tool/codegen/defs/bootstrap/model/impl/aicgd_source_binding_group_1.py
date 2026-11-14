@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
     from eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.aiigd_source_binding_1 import AIigdSourceBinding_1
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy
@@ -38,10 +39,10 @@ class AIcgdSourceBindingGroup_1(AIcSmartDataObject, AIigdSourceBindingGroup_1['A
     def _unset_InputKind(self):
         self.unset_Field('InputKind')
 
-    def getBindingList(self) -> list[AIigdSourceBinding_1]:
+    def getBindingList(self) -> AIiBoundedList[AIigdSourceBinding_1]:
         return self.get_OrCreateCollectionField('BindingList', False)
 
-    def _getRaw_BindingList(self) -> list[AIigdSourceBinding_1]:
+    def _getRaw_BindingList(self) -> AIiBoundedList[AIigdSourceBinding_1]:
         return self.get_RawField('BindingList')
 
     def _isPresent_BindingList(self):

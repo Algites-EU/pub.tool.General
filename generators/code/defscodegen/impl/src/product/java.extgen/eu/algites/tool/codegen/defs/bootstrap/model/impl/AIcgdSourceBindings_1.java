@@ -11,8 +11,8 @@ public class AIcgdSourceBindings_1 extends eu.algites.lib.data.smartdataobject.i
     public AIcgdSourceBindings_1() { super(); }
     /** Reconstruct an identity-preserving typed SmartDataObject graph. */
     public AIcgdSourceBindings_1(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBindingGroup_1<?>> getSourceBindingGroupList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBindingGroup_1<?>>) get_OrCreateCollectionField("SourceBindingGroupList", false); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBindingGroup_1<?>> _getRaw_SourceBindingGroupList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBindingGroup_1<?>>) get_RawField("SourceBindingGroupList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBindingGroup_1<?>> getSourceBindingGroupList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBindingGroup_1<?>>) get_OrCreateCollectionField("SourceBindingGroupList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBindingGroup_1<?>> _getRaw_SourceBindingGroupList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBindingGroup_1<?>>) get_RawField("SourceBindingGroupList"); }
     @Override public boolean _isPresent_SourceBindingGroupList() { return isPresent_Field("SourceBindingGroupList"); }
     @Override public void _unset_SourceBindingGroupList() { unset_Field("SourceBindingGroupList"); }
 }

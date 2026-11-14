@@ -65,7 +65,6 @@ apply from: file('sdo-java.gradle')
             self.write(f'target/fixtures/{scenario}/example/Contract.java', 'package example;\n' + body)
         self.java('cli', 'eu.algites.tool.codegen.sdo.impl.standard', 'AIcSdoCodegenService', '''
 public class AIcSdoCodegenService {
-    public static final String KEYED_SDO_GENERATOR_REVISION = "indexed-collection-delegation-20261031-1";
 }''')
         self.java('cli', 'eu.algites.tool.codegen.sdo.impl.cli', 'AIcSdoCodegenCli', '''
 public class AIcSdoCodegenCli {

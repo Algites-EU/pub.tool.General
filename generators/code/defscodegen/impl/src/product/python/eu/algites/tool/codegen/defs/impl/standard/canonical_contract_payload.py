@@ -6,7 +6,7 @@ projection or intermediary DTO hierarchy is maintained here.
 """
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import is_dataclass
 from decimal import Decimal
 from enum import Enum
@@ -81,7 +81,7 @@ def _generated_data_tree(value: Any) -> Any:
         if not all(isinstance(key, str) for key in value):
             raise TypeError('Canonical data object keys must be strings')
         return {key: _generated_data_tree(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
         return [_generated_data_tree(item) for item in value]
     raise TypeError('Unexpected canonical generated value: ' + repr(type(value)))
 
@@ -113,7 +113,7 @@ class AIcDefsCodegenCanonicalContractPayload:
             seen.add(declared.identity)
             _require_linked(declared)
         document = AIcgdCanonicalModel_1()
-        document.setTypesList(roots)
+        document.getTypesList().extend(roots)
         # The generated SDO runtime owns all field definitions. Use only its
         # current schema-neutral metadata, never deprecated to_mapping().
         return _generated_data_tree(document)

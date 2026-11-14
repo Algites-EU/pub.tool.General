@@ -86,7 +86,7 @@ public interface AIigElement_1 extends eu.algites.lib.data.dataobject.AIiDataObj
     /** Value of schema field key_definitions. Field is optional; cardinality 0..-1.
      * @return field value in its canonical representation
      */
-    java.util.List<? extends AIigKeyDefinition_1> getKeyDefinitionsList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends AIigKeyDefinition_1> getKeyDefinitionsList();
 
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "source_bindings", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
     @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "source_bindings", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)

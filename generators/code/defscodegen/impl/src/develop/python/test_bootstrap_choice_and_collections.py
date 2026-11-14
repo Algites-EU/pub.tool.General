@@ -45,7 +45,7 @@ def test_bootstrap_choice_variants_are_generated_immutable_non_sdo():
     with pytest.raises(FrozenInstanceError):
         variant.field1 = 'modified'
     java = BOOTSTRAP_READ / 'java.extgen/eu/algites/tool/codegen/defs/bootstrap/model/AIigTypeContent_1.java'
-    assert 'public interface AIigTypeContent_1' in java.read_text(encoding='utf-8')
+    assert 'interface AIigTypeContent_1' in java.read_text(encoding='utf-8')
     # First-stage seed may use a non-sealed ABI interface; the fresh output
     # must be sealed because the set of alternatives is closed.
     generated = (BOOTSTRAP_READ / 'java.gen/eu/algites/tool/codegen/defs/model/AIigTypeContent_1.java')

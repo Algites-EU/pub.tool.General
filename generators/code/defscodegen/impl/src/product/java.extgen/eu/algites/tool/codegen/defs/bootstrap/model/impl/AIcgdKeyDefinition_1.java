@@ -11,8 +11,8 @@ public class AIcgdKeyDefinition_1 extends eu.algites.lib.data.smartdataobject.im
     public AIcgdKeyDefinition_1() { super(); }
     /** Reconstruct an identity-preserving typed SmartDataObject graph. */
     public AIcgdKeyDefinition_1(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }
-    @Override public java.util.List<? extends java.lang.String> getFieldsList() { return (java.util.List<? extends java.lang.String>) get_OrCreateCollectionField("FieldsList", false); }
-    @Override public java.util.List<? extends java.lang.String> _getRaw_FieldsList() { return (java.util.List<? extends java.lang.String>) get_RawField("FieldsList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String> getFieldsList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String>) get_OrCreateCollectionField("FieldsList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String> _getRaw_FieldsList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends java.lang.String>) get_RawField("FieldsList"); }
     @Override public boolean _isPresent_FieldsList() { return isPresent_Field("FieldsList"); }
     @Override public void _unset_FieldsList() { unset_Field("FieldsList"); }
     @Override public java.lang.String getIdentifier() { return (java.lang.String) get_EffectiveField("Identifier"); }

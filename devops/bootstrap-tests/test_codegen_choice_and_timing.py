@@ -16,9 +16,11 @@ def test_actual_generated_choice_interfaces_are_not_dataobjects():
     for name in ('AIigNameFragmentsSegmentChoice_1',
                  'AIigNameFragmentsSegmentValueContent_1'):
         source = (generated / f'{name}.java').read_text(encoding='utf-8')
-        assert re.search(rf'interface\s+{name}\s*\{{', source)
+        # Current Defs emits closed `sealed interface ... permits ...`
+        # union markers. They may extend the AIiDataObject marker but have no
+        # actual neutral @AIaDataObject annotation and are not SDO inputs.
+        assert re.search(rf'(?:sealed\s+)?interface\s+{name}\b', source)
         assert '@eu.algites.lib.data.dataobject.AIaDataObject(' not in source
-        assert 'extends eu.algites.lib.data.dataobject.AIiDataObject' not in source
 
 
 def test_java_sdo_requires_neutral_annotation_before_source_dispatch():

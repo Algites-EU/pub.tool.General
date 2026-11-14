@@ -11,8 +11,8 @@ public class AIcgdSourceBindingGroup_1 extends eu.algites.lib.data.smartdataobje
     public AIcgdSourceBindingGroup_1() { super(); }
     /** Reconstruct an identity-preserving typed SmartDataObject graph. */
     public AIcgdSourceBindingGroup_1(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBinding_1> getBindingList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBinding_1>) get_OrCreateCollectionField("BindingList", false); }
-    @Override public java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBinding_1> _getRaw_BindingList() { return (java.util.List<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBinding_1>) get_RawField("BindingList"); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBinding_1> getBindingList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBinding_1>) get_OrCreateCollectionField("BindingList", false); }
+    @Override public eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBinding_1> _getRaw_BindingList() { return (eu.algites.lib.common.list.AIiBoundedList<? extends eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.AIigdSourceBinding_1>) get_RawField("BindingList"); }
     @Override public boolean _isPresent_BindingList() { return isPresent_Field("BindingList"); }
     @Override public void _unset_BindingList() { unset_Field("BindingList"); }
     @Override public eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1 getInputKind() { return (eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1) get_EffectiveField("InputKind"); }

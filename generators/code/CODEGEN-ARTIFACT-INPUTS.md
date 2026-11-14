@@ -36,12 +36,12 @@ artifacts are not scanned. Existing directory inputs remain supported.
 ## SDO inputs
 
 ```properties
---dointf-input-artifacts:java=eu.algites.lib:pub.lib.General_example.defsintf:1.1-SNAPSHOT
---dointf-input-artifacts:python=example-defsintf>=1.1.dev0,<1.1a0
+--sdo-input-artifacts:java=eu.algites.lib:pub.lib.General_example.defsintf:1.1-SNAPSHOT
+--sdo-input-artifacts:python=example-defsintf>=1.1.dev0,<1.1a0
 --dointf-input-classes:java=eu.example.AIiPerson_1;eu.example.AIiAddress_1
 --dointf-input-classes:python=eu.example.person:AIiPerson_1;eu.example.address:AIiAddress_1
---technology-dointf-input-dir:java=src/product/java.gen
---technology-dointf-input-dir:python=src/product/python.gen
+--sdo-input-paths:java=src/product/java.gen
+--sdo-input-paths:python=src/product/python.gen
 --technology-sdointf-output-dir:java=src/product/java.gen
 --technology-sdoimpl-output-dir:java=src/product/java.gen
 --technology-sdointf-output-dir:python=src/product/python.gen
@@ -49,11 +49,11 @@ artifacts are not scanned. Existing directory inputs remain supported.
 ```
 
 The class selectors narrow the selected sources. Java uses Java class FQNs;
-Python uses `importable.module:Class`. `--dointf-input-paths:java` accepts a
+Python uses `importable.module:Class`. `--sdo-input-paths:java` accepts a
 semicolon-separated set of local JAR or class-directory paths, and the Python
 variant accepts wheels or source directories. Supporting Java binary paths and
-Python module paths are supplied with `--dointf-classpath:java` and
-`--dointf-classpath:python` respectively. They are **not automatically
+Python module paths are supplied with `--sdo-dependency-paths:java` and
+`--sdo-dependency-paths:python` respectively. They are **not automatically
 included** in the generation selection.
 
 ## Shared artifact selector grammar
@@ -85,7 +85,7 @@ Create two separate Modustro artifact directories with their own
 `modustro-artifact.yml`. Run Defs Codegen so its `--technology-dointf-output-dir`
 points into the `defsintf` artifact, compile and publish that artifact locally,
 then run SDO Codegen selecting this compiled `defsintf` via
-`--dointf-input-artifacts`. Direct SDO outputs into the `sdo` artifact, compile
+`--sdo-input-artifacts`. Direct SDO outputs into the `sdo` artifact, compile
 and publish. Artifact naming and distribution publication remain the Builder's
 responsibility; a generator only produces sources.
 

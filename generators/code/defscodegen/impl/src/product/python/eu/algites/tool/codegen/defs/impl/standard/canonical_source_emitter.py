@@ -611,7 +611,7 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             if node.key_definitions:
                 return (f'eu.algites.lib.common.list.AIiMultiMappedList<{'? extends ' if target == 'java' else ''}{item}>'
                         if target == 'java' else f'AIiMultiMappedList[{item}]')
-            return f'java.util.List<? extends {item}>' if target == 'java' else f'list[{item}]'
+            return f'eu.algites.lib.common.list.AIiBoundedList<? extends {item}>' if target == 'java' else f'AIiBoundedList[{item}]'
         if isinstance(node, MapNode):
             if node.map_kind not in (MapKind.COMMON_MAP, MapKind.INTEGRATED_PROPERTY_MAP):
                 raise ValueError(f'Unsupported map kind in {containing}')
@@ -886,37 +886,7 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                     '    /** @return the exact typed schema wire value */\n'
                     f'    public {code_type} code() {{ return wireCode; }}\n}}\n')
         if isinstance(node.structure, ListNode):
-            # A named, keyed JSON/YAML object is a collection DataObject,
-            # not an artificial object with a persisted `items` property.
-            # Preserve the established SDO ABI: a named read-only collection
-            # directly extends the typed AIiMultiMappedList contract.
-            item = self._typed(node.structure.item, 'java', types, node.identity + '/items')
-            parent_types = [self.output_names[x].java_type if x in self.output_names
-                            else self.external_parents[x]['java']
-                            for x in node.inherited_from_types]
-            if self.common_projection:
-                parent_types = ['eu.algites.lib.data.dataobject.AIiDataObject']
-            elif self.common_output_names:
-                parent_types = [self.common_output_names[node.identity].java_type] + parent_types
-            if not parent_types:
-                parent_types.append('eu.algites.lib.data.dataobject.AIiDataObject')
-            parent_types.append('eu.algites.lib.common.list.AIiMultiMappedList<' + item + '>')
-            for source, technology in ((SourceKind.JSONDEFS, 'json'), (SourceKind.YAMLDEFS, 'yaml')):
-                if source in node.source_bindings and not self.common_projection:
-                    header += (f'@eu.algites.lib.data.dataobject.{technology}defs.AIa{technology.title()}DataObject('
-                               f'schemaId = {_java_string(node.identity)}, '
-                               f'schemaVersion = {self._schema_version_number(node)}'
-                               + (f', schemaUrl = {_java_string(url)}' if (url := self._published_schema_url(node, source)) else '')
-                               + ')\n')
-                    header += ('@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema('
-                               f'schemaId = {_java_string(node.identity)}, '
-                               f'schemaVersion = {self._schema_version_number(node)}'
-                               + (f', schemaUrl = {_java_string(url)}' if (url := self._published_schema_url(node, source)) else '')
-                               + ')\n')
-            return (header + ('@eu.algites.lib.data.dataobject.AIaDataObject('
-                    + 'description = ' + _java_string(node.description or node.name)
-                    + ')\n' if self.common_projection or not self.common_output_names else '') + 'public interface ' + name + ' extends '
-                    + ', '.join(parent_types) + ' {\n}\n')
+            raise ValueError('Collection aliases are not DataObjects; resolve their list value at the referencing field')
         fields = self._fields(node, types, 'java')
         technology = self._data_object_technology(node)
         marker = ('eu.algites.lib.data.dataobject.' +
@@ -1280,61 +1250,7 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                          '        return self.value\n'))
             return header + ''.join(body)
         if isinstance(node.structure, ListNode):
-            item_type = self._typed(node.structure.item, 'python', types, node.identity + '/items')
-            parent_imports = []
-            for parent in node.inherited_from_types:
-                if parent in self.external_parents:
-                    spec = self.external_parents[parent]
-                    parent_imports.append(f"from {spec['python_module']} import {spec['python_type']}\n")
-                else:
-                    symbol = self.output_names[parent]
-                    parent_imports.append(f'from .{symbol.python_module} import {symbol.python_type}\n')
-            for identity, symbol in self.output_names.items():
-                if identity != node.identity and identity not in node.inherited_from_types and \
-                        re.search(r'\b' + re.escape(symbol.python_type) + r'\b', item_type):
-                    parent_imports.append(f'from .{symbol.python_module} import {symbol.python_type}\n')
-            parents = ([self.output_names[x].python_type if x in self.output_names
-                        else self.external_parents[x]['python_type']
-                        for x in node.inherited_from_types]
-                       or ['AIiDataObject'])
-            if self.common_projection:
-                parents = ['AIiDataObject']
-            elif self.common_output_names:
-                if parents == ['AIiDataObject']:
-                    parents = []
-                parents.insert(0, self.common_output_names[node.identity].python_type)
-                common = self.common_output_names[node.identity]
-                parent_imports.append(f'from .{common.python_module} import {common.python_type}\n')
-            parents.append('AIiMultiMappedList[' + item_type + ']')
-            return (header + 'from abc import ABC\n'
-                    + 'from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\n'
-                    + 'from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList\n'
-                    + 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n'
-                    + ('from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema\n' if not self.common_projection else '')
-                    + ''.join(f'from eu.algites.lib.data.dataobject.{fmt}defs.aia_{fmt}_data_object '
-                        f'import AIa{fmt.title()}DataObject\n' for kind, fmt in
-                        ((SourceKind.JSONDEFS, 'json'), (SourceKind.YAMLDEFS, 'yaml'))
-                        if kind in node.source_bindings and not self.common_projection)
-                    + ''.join(dict.fromkeys(parent_imports)) + '\n\n'
-                    + f'class {name}({", ".join(parents)}, ABC):\n'
-                    + f'    """{_py_doc(node.description or "Named schema collection")}"""\n'
-                    + (f'    __data_object__ = AIcdDataObject(description={node.description or node.name!r})\n'
-                       if self.common_projection or not self.common_output_names else '')
-                    + ''.join(
-                        f'    __{fmt}_data_object__ = AIa{fmt.title()}DataObject('
-                        f'schema_id={node.identity!r}, schema_version={self._schema_version_number(node)}'
-                        + (f', schema_url={url!r}' if (url := self._published_schema_url(node, kind)) else '')
-                        + ')\n'
-                        for kind, fmt in ((SourceKind.JSONDEFS, 'json'), (SourceKind.YAMLDEFS, 'yaml'))
-                        if kind in node.source_bindings and not self.common_projection)
-                    + ''.join(
-                        f'    __json_schema__ = AIaDataObjectJsonSchema('
-                        f'schema_id={node.identity!r}, schema_version={self._schema_version_number(node)}'
-                        + (f', schema_url={url!r}' if (url := self._published_schema_url(node, kind)) else '')
-                        + ')\n'
-                        for kind in (SourceKind.JSONDEFS, SourceKind.YAMLDEFS)
-                        if kind in node.source_bindings and not self.common_projection)
-                    + '    __slots__ = ()\n')
+            raise ValueError('Collection aliases are not DataObjects; resolve their list value at the referencing field')
         fields = self._fields(node, types, 'python')
         parent_imports = []
         for parent in node.inherited_from_types:
@@ -1384,6 +1300,8 @@ class AIcDefsCodegenCanonicalSourceEmitter:
         if (indexed_fields or any(identity == node.identity for identity, _ in self._scoped_index_targets)
                 or any('AIiMultiMappedList[' in value_type for _, _, _, value_type, _, _, _ in fields)):
             header += 'from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList\n'
+        if any('AIiBoundedList[' in value_type for _, _, _, value_type, _, _, _ in fields):
+            header += 'from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList\n'
         xml_members = [(position, child) for position, child in enumerate(node.structure.children)
                        if isinstance(child, (Element, ListNode)) and child.xml_wire is not None
                        and (not self.common_projection or self.source_representations)]
@@ -1556,6 +1474,7 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             doc = _py_doc(description or f'Canonical field {original}.')
             runtime_type = (typ if typ in ('str', 'int', 'float', 'bool') else
                             'AIiMultiMappedList' if typ.startswith('AIiMultiMappedList[') else
+                            'AIiBoundedList' if typ.startswith('AIiBoundedList[') else
                             'list' if typ.startswith('list[') else
                             'dict' if typ.startswith('dict[') else None)
             metadata = next((child for child in node.structure.children

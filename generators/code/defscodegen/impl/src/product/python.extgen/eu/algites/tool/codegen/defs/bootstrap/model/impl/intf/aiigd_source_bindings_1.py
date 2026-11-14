@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
     from eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.aiigd_source_binding_group_1 import AIigdSourceBindingGroup_1
 from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema
 from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField
@@ -43,10 +44,10 @@ class AIigdSourceBindings_1(AIigSourceBindings_1, AIiSmartDataObject, Generic[TS
     }
 
     @abstractmethod
-    def getSourceBindingGroupList(self) -> list[TSourceBindingGroupList]: ...
+    def getSourceBindingGroupList(self) -> AIiBoundedList[TSourceBindingGroupList]: ...
 
     @abstractmethod
-    def _getRaw_SourceBindingGroupList(self) -> list[TSourceBindingGroupList]: ...
+    def _getRaw_SourceBindingGroupList(self) -> AIiBoundedList[TSourceBindingGroupList]: ...
 
     @abstractmethod
     def _isPresent_SourceBindingGroupList(self) -> bool: ...

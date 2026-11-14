@@ -1065,7 +1065,7 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                         + "? extends " + value + ">"
                         : "AIiMultiMappedList[" + value + "]";
             }
-            return javaTarget ? "java.util.List<? extends " + value + ">" : "list[" + value + "]";
+            return javaTarget ? "eu.algites.lib.common.list.AIiBoundedList<? extends " + value + ">" : "AIiBoundedList[" + value + "]";
         }
         if (node instanceof AIcDefsCanonicalMap map) {
             String key = typed(map.keyType(), types, javaTarget, context + "/key");
@@ -1665,6 +1665,9 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                 || scopedIndexedMembers.stream().anyMatch(member ->
                 member.startsWith(type.identity() + "#"))) {
             result.append("from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList\n");
+        }
+        if (fields.stream().anyMatch(field -> field.type().contains("AIiBoundedList["))) {
+            result.append("from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList\n");
         }
         boolean hasXmlWires = type.structure() instanceof AIcDefsCanonicalElementList group
                 && group.children().stream().anyMatch(child ->

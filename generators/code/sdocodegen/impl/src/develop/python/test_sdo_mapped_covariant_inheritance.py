@@ -80,7 +80,7 @@ class AIigJsonChild_1(AIigParent_1):
     child = generated['json_child'].mutable_interface.source
     implementation = generated['json_child'].implementation.source
     assert 'TRuleList = TypeVar(' in parent
-    assert 'list[TRuleList]' in parent
+    assert 'AIiBoundedList[TRuleList]' in parent
     assert 'TRuleList = TypeVar(' in child
     assert 'AIigdParent_1[TRuleList]' in child
     assert 'AIiMultiMappedList[TRuleList]' in child

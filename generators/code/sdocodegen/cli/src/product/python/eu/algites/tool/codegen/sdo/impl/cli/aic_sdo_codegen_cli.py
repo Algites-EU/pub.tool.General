@@ -90,8 +90,8 @@ def _main(arguments: list[str]):
             raise AIxCodegenValidationException(f'Invalid SDO option: {option}', 'Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.')
         key, value = option[2:].split('=', 1)
         name, *qualifiers = key.split(':')
-        if (qualifiers and qualifiers[0] == 'java'
-                and name in {'technology-dointf-input-dir', 'technology-sdointf-output-dir',
+        if (qualifiers == ['java']
+                and name in {'technology-sdointf-output-dir',
                              'technology-sdoimpl-output-dir', 'generated-dataobject-method-naming-convention',
                              'common-codegen-naming-convention', 'sdo-codegen-naming-convention',
                              'dointf-naming-convention', 'sdointf-naming-convention',
@@ -116,7 +116,7 @@ def _main(arguments: list[str]):
         elif name == 'naming-conventions-file' and len(qualifiers) == 1:
             catalog_kinds.add(qualifiers[0])
             naming_sources.append(value)
-        elif name in {'technology-dointf-input-dir', 'technology-sdointf-output-dir',
+        elif name in {'technology-sdointf-output-dir',
                       'technology-sdoimpl-output-dir'} and qualifiers == ['python']:
             directories[name] = value
         elif name == 'generated-dataobject-method-naming-convention' and qualifiers == ['python']:

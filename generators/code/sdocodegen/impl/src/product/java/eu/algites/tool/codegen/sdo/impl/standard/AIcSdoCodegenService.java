@@ -41,13 +41,6 @@ import java.util.Objects;
 /** Generate mutable contracts and concrete SmartDataObjects from annotated read-only DataObject contracts. */
 public final class AIcSdoCodegenService implements AIiSdoCodegenService {
     /**
-     * Schema model revision emitted by this generator binary. Bootstrap verifies
-     * it before reading read-contract classes, avoiding stale SNAPSHOT generators
-     * silently writing source incompatible with the current runtime.
-     */
-    public static final String KEYED_SDO_GENERATOR_REVISION = "indexed-collection-delegation-20261031-1";
-
-    /**
      * Effective semantic field used by SDO generation. The value getter may be
      * covariantly specialized by a format projection whose method intentionally
      * has no {@link AIaDataObjectField}. The original getter remains the sole
@@ -191,6 +184,9 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         if (!locMarker.matches("[a-z][a-z0-9]*")) {
             throw new AIxCodegenValidationException("Invalid implementation marker: " + locMarker, "Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.");
         }
+        if (eu.algites.lib.common.list.AIiBoundedList.class.isAssignableFrom(aReadContract))
+            throw new AIxCodegenValidationException("A collection is not a DataObject: " + aReadContract,
+                    "Generate bounded and multi-mapped lists as collection values, not SDO classes.");
         if (!aReadContract.isInterface() || !AIiDataObject.class.isAssignableFrom(aReadContract)
                 || !isReadContract(aReadContract)) {
             throw new AIxCodegenValidationException("Expected an interface extending AIiDataObject: " + aReadContract, "Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.");
@@ -343,8 +339,6 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         String locMutableParents = locParentDeclarations.stream()
                 .reduce("", (aLeft, aRight) -> aLeft + ", " + aRight);
         String locConcreteParent = implementationBase(aReadContract);
-        Class<?> locMappedValue = mappedValueContract(aReadContract);
-        String locMappedValueName = locMappedValue == null ? null : locMappedValue.getCanonicalName();
         String locConcreteArguments = locTypeVariables.isEmpty() ? "" : "<" + String.join(", ",
                 locTypeVariables.keySet().stream().map(aName -> {
                     return genericSetterElementBound(locAll.get(aName).method(),
@@ -368,42 +362,12 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 + "readContracts = {" + aReadContract.getCanonicalName() + ".class})\n"
                 + "public class " + locConcrete + " extends " + locConcreteParent
                 + " implements " + locMutablePackage + "." + locMutable + locConcreteArguments
-                + (locMappedValueName == null ? "" : ", eu.algites.lib.common.list.AIiMultiMappedListForwarding<" + locMappedValueName + ">")
                 + " {\n"
                 + "    /** Create an object whose raw fields are initially absent. */\n"
                 + "    public " + locConcrete + "() { super(); }\n"
                 + "    /** Reconstruct an identity-preserving typed SmartDataObject graph. */\n"
                 + "    public " + locConcrete
                 + "(java.util.Map<String, eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue> aMapping) { super(aMapping); }\n");
-        if (locMappedValueName != null) {
-            locImplementation.append("    /** Ordered entries with the runtime's unique/grouped key indexes. */\n")
-                    .append("    private eu.algites.lib.common.list.AIcMultiMappedList<")
-                    .append(locMappedValueName).append("> mappedEntries = new eu.algites.lib.common.list.AIcMultiMappedList<>();\n")
-                    .append("    /** Construct a keyed list with explicit, stable schema index definitions.\n")
-                    .append("     * @param aDefinitions independently named, unique/grouped key definitions\n")
-                    .append("     * @throws IllegalArgumentException if a definition is repeated or invalid\n")
-                    .append("     */\n")
-                    .append("    public ").append(locConcrete)
-                    .append("(java.util.Collection<? extends eu.algites.lib.common.list.AIiKeyDefinition<")
-                    .append(locMappedValueName).append(", ?>> aDefinitions) {\n")
-                    .append("        super();\n")
-                    .append("        mappedEntries = new eu.algites.lib.common.list.AIcMultiMappedList<>(aDefinitions);\n")
-                    .append("    }\n")
-                    .append("    /** Ordered-list value equality as required by java.util.List.\n")
-                    .append("     * @param aOther object to compare\n")
-                    .append("     * @return true when the other list contains equivalent ordered elements\n")
-                    .append("     */\n")
-                    .append("    @Override public boolean equals(Object aOther) {\n")
-                    .append("        return aOther instanceof java.util.List<?> aList && mappedEntries.equals(aList);\n")
-                    .append("    }\n")
-                    .append("    /** @return standard order-sensitive Java List hash code */\n")
-                    .append("    @Override public int hashCode() { return mappedEntries.hashCode(); }\n")
-                    .append("    /** Return the real list/index delegate; no list state is duplicated.\n")
-                    .append("     * @return ordered entries and registered index views\n")
-                    .append("     */\n")
-                    .append("    @Override public eu.algites.lib.common.list.AIiMultiMappedList<")
-                    .append(locMappedValueName).append("> multiMappedDelegate() { return mappedEntries; }\n");
-        }
         String locSyntheticKeyName = aInputNames.generatedMethodLiteral(
                 "multi_mapped_list_key_synthetic_getter");
         Method locSyntheticKeyGetter = syntheticGetter(aReadContract, locSyntheticKeyName);
@@ -523,7 +487,6 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             boolean locCollection = java.util.Collection.class.isAssignableFrom(locGetter.getReturnType());
             boolean locMapped = eu.algites.lib.common.list.AIiMultiMappedList.class
                     .isAssignableFrom(locGetter.getReturnType());
-            boolean locNamedMappedCollection = locMapped && isSdoInput(locGetter.getReturnType());
             String locEmptySetter = !locField.field().isEmptyAllowed() ? null
                     : locMethodProfile == null || locAccessorCatalog.generatedMethodReference("raw_empty_setter") == null
                     ? null : locAccessorCatalog.format(locMethodProfile, "raw_empty_setter",
@@ -606,19 +569,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 locInterface.append("    boolean ").append(locEmptyChecker).append("();\n");
             locImplementation.append("    @Override public ").append(locType).append(' ').append(locGetter.getName())
                     .append("() { return (").append(locBoxed).append(") ");
-            if (locNamedMappedCollection) {
-                String locNestedConcrete = qualifiedName(locGetter.getReturnType(),
-                        typeName(locGetter.getReturnType(), locMarker, false,
-                                aInputNames, aMutableNames, aConcreteNames), aConcreteSubpackage);
-                Class<?> locMappedElement = mappedValueContract(locGetter.getReturnType());
-                locImplementation.append("this.<")
-                        .append(locMappedElement.getCanonicalName()).append(", ")
-                        .append(locNestedConcrete).append(">get_OrCreateNamedMappedCollectionField(")
-                        .append(locLiteral).append(", ").append(locNestedConcrete).append("::new");
-            } else {
-                locImplementation.append(locCollection ? "get_OrCreateCollectionField(" : "get_EffectiveField(")
-                        .append(locLiteral).append(locCollection ? ", " + locMapped : "");
-            }
+            locImplementation.append(locCollection ? "get_OrCreateCollectionField(" : "get_EffectiveField(")
+                    .append(locLiteral).append(locCollection ? ", " + locMapped : "");
             locImplementation.append("); }\n");
             if (!locCollection) locImplementation.append("    @Override public void ")
                     .append(locSetterName).append('(').append(locType).append(' ')
@@ -766,42 +718,6 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 .append(aResolver.factoryClass().getCanonicalName()).append(".class")
                 .append(", factoryCategory = \"").append(escape(aResolver.factoryCategory())).append("\"")
                 .append(", factoryProviderId = \"").append(escape(aResolver.factoryProviderId())).append("\")");
-    }
-
-    /**
-     * Resolve the declared element type of a schema-generated mapped-list contract.
-     *
-     * <p>Traversal follows actual generic interface inheritance, never textual
-     * assumptions about generated class names or schema field spellings.
-     * A raw or unresolved mapped-list contract is unsupported because generating
-     * one would erase its published element type.
-     *
-     * @param aType source read-only DataObject contract
-     * @return the list element contract, or {@code null} for ordinary objects
-     * @throws IllegalArgumentException if an inherited mapped-list binding is unresolved
-     */
-    private static Class<?> mappedValueContract(Class<?> aType) {
-        if (!eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(aType)) return null;
-        for (Type locParent : aType.getGenericInterfaces()) {
-            if (locParent instanceof ParameterizedType locParameterized) {
-                Type locRaw = locParameterized.getRawType();
-                if (locRaw == eu.algites.lib.common.list.AIiMultiMappedList.class) {
-                    Type locValue = locParameterized.getActualTypeArguments()[0];
-                    if (locValue instanceof Class<?> locClass) return locClass;
-                    throw new AIxCodegenValidationException("Unresolved mapped-list element type: " + aType + " / " + locValue, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
-                }
-                if (locRaw instanceof Class<?> locClass
-                        && eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locClass)) {
-                    Class<?> locResolved = mappedValueContract(locClass);
-                    if (locResolved != null) return locResolved;
-                }
-            } else if (locParent instanceof Class<?> locClass
-                    && eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locClass)) {
-                Class<?> locResolved = mappedValueContract(locClass);
-                if (locResolved != null) return locResolved;
-            }
-        }
-        throw new AIxCodegenValidationException("Missing typed AIiMultiMappedList ancestor: " + aType, "Verify that the referenced type, schema or artifact exists, is included in explicit inputs, and uses the expected namespace/version. Check import and classpath configuration.");
     }
 
     /**
@@ -1105,7 +1021,8 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * @return {@code true} only for an eligible non-framework read-only contract
      */
     public static boolean isReadContract(Class<?> aClass) {
-        return aClass.isInterface() && !aClass.getPackageName().startsWith("eu.algites.lib.data.dataobject")
+        return aClass.isInterface() && !eu.algites.lib.common.list.AIiBoundedList.class.isAssignableFrom(aClass)
+                && !aClass.getPackageName().startsWith("eu.algites.lib.data.dataobject")
                 && AIiDataObject.class.isAssignableFrom(aClass)
                 && !AIiSmartDataObject.class.isAssignableFrom(aClass)
                 && !(AIiXmlDataObjectNamespace.class.isAssignableFrom(aClass)
@@ -1507,7 +1424,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 .isAssignableFrom(aGetter.getReturnType()))
             return "eu.algites.lib.common.list.AIiMultiMappedList<? extends " + aVariable + ">";
         if (java.util.List.class.isAssignableFrom(aGetter.getReturnType()))
-            return "java.util.List<? extends " + aVariable + ">";
+            return "eu.algites.lib.common.list.AIiBoundedList<? extends " + aVariable + ">";
         return aVariable;
     }
 
@@ -1558,7 +1475,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         if (java.util.List.class.isAssignableFrom(locReturn)) {
             Class<?> locNested = referencedContract(aGetter);
             if (locNested != null) {
-                return "java.util.List<? extends " + qualifiedMutableValueName(locNested, aMarker,
+                return "eu.algites.lib.common.list.AIiBoundedList<? extends " + qualifiedMutableValueName(locNested, aMarker,
                         aInput, aMutableNames, aConcreteNames, aMutableSubpackage) + ">";
             }
         }

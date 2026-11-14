@@ -14,8 +14,8 @@ public interface AIigdSourceBindingGroup_1<TBindingList extends eu.algites.tool.
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Binding list")
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "Binding", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
 @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "Binding", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
-            @Override java.util.List<? extends TBindingList> getBindingList();
-    java.util.List<? extends TBindingList> _getRaw_BindingList();
+            @Override eu.algites.lib.common.list.AIiBoundedList<? extends TBindingList> getBindingList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends TBindingList> _getRaw_BindingList();
     boolean _isPresent_BindingList();
     void _unset_BindingList();
     /** Typed writable access to field InputKind under the published setter policy. */

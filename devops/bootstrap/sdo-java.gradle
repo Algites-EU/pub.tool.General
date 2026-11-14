@@ -312,8 +312,7 @@ tasks.register('bootstrapSdoJava') {
             }
             // Resolve the engine and validate its resources only after the
             // module's own runtime has proved that generation is necessary.
-            // Ordinary prerequisite interfaces must not depend on any cached
-            // generator revision (especially during the .old migration).
+            // Ordinary prerequisite interfaces do not need the SDO engine.
             def toolClasspath = resolveToolClasspath()
             def toolFiles = toolClasspath.files.findAll { !ownPublishedJar(it) }
             binaryClasspath += files(toolFiles)
@@ -335,7 +334,6 @@ tasks.register('bootstrapSdoJava') {
                         + entry.artifactId + ': ' + missingClasspath)
             def existingDependencyFiles = binaryClasspath.files.findAll { it.exists() }
             def classpath = files(existingDependencyFiles).asPath
-            binaryUrls = existingDependencyFiles.collect { it.toURI().toURL() }
             // Fail with the original classpath URLs if another library still
             // contributes an incompatible naming standard. Identical copies
             // are harmless, but an old published standard cannot be combined
@@ -364,45 +362,23 @@ tasks.register('bootstrapSdoJava') {
             } finally {
                 standardLoader.close()
             }
-            // A generator revision is required only when this artifact really
-            // needs SDO generation. Validate it before launching the CLI.
-            def revisionLoader = new java.net.URLClassLoader(
-                    binaryUrls.toArray(new java.net.URL[0]),
-                    ClassLoader.getPlatformClassLoader())
-            try {
-                def service
-                try {
-                    service = Class.forName(
-                            'eu.algites.tool.codegen.sdo.impl.standard.AIcSdoCodegenService',
-                            false, revisionLoader)
-                } catch (ClassNotFoundException missingGenerator) {
-                    throw new GradleException('SDO generator implementation not found for '
-                            + entry.artifactId + '. A source bootstrap must compile and publish '
-                            + 'sdocodegen.intf as a temporary Defs-only ABI, then build '
-                            + 'sdocodegen.impl and sdocodegen.cli, before rebuilding the '
-                            + 'complete sdocodegen.intf API. Resolved classpath: '
-                            + binaryClasspath.asPath, missingGenerator)
-                }
-                def origin = service.protectionDomain?.codeSource?.location
-                logger.lifecycle('SDO Java: generator implementation ' + origin)
-                def revision
-                try {
-                    revision = service.getField('KEYED_SDO_GENERATOR_REVISION').get(null)
-                } catch (NoSuchFieldException obsolete) {
-                    throw new GradleException('Outdated SDO generator binary at ' + origin
-                            + ': missing indexed-collection revision. Rebuild and publish the '
-                            + 'pub.tool.General SDO Codegen CLI/impl before source bootstrap.', obsolete)
-                }
-                if (revision != 'indexed-collection-delegation-20261031-1') {
-                    throw new GradleException('Incompatible SDO generator revision ' + revision
-                            + ' at ' + origin + '; require indexed-collection-delegation-20261031-1')
-                }
-            } finally {
-                revisionLoader.close()
-            }
+            // Keep the source checkout distinct from the selected artifact:
+            // invocation workspaces belong below <repository>/build, never
+            // below <artifact>/build. Both bootstrap.sh and build.sh export
+            // this value regardless of the caller's working directory.
+            def repositoryPath = System.getenv('MODUSTRO_BOOTSTRAP_REPOSITORY')
+            if (!repositoryPath)
+                throw new GradleException('Missing MODUSTRO_BOOTSTRAP_REPOSITORY for Java SDO bootstrap')
+            def sourceRepository = new File(repositoryPath).canonicalFile
+            if (!new File(sourceRepository, 'modustro-source-repository.yml').isFile())
+                throw new GradleException('Java SDO repository root is not a Modustro checkout: '
+                        + sourceRepository)
+            if (!moduleProject.projectDir.canonicalFile.toPath().startsWith(sourceRepository.toPath()))
+                throw new GradleException('Java SDO artifact escapes repository: '
+                        + moduleProject.projectDir)
             def arguments = [
-                    '--repository-root=' + moduleProject.projectDir.absolutePath,
-                                        '--technology-sdointf-output-dir:java=' + output.absolutePath,
+                    '--repository-root=' + sourceRepository.absolutePath,
+                    '--technology-sdointf-output-dir:java=' + output.absolutePath,
                     '--technology-sdoimpl-output-dir:java=' + output.absolutePath,
                     '--sdointf-subpackage=impl.intf', '--sdoclass-subpackage=impl',
                     '--common-codegen-naming-convention:java=algites-java-codegen-common_1',
@@ -456,8 +432,10 @@ tasks.register('bootstrapSdoJava') {
             if (!diagnosticsRoot.isDirectory() && !diagnosticsRoot.mkdirs())
                 throw new GradleException('Cannot create SDO diagnostics directory: ' + diagnosticsRoot)
             def logFile = new File(diagnosticsRoot, entry.project + '.log')
+            // Do not let relative paths in the child resolve under an artifact.
+            // The generator receives the same repository root in its CLI args.
             def process = new ProcessBuilder(command.toArray(new String[0]))
-                    .directory(moduleProject.projectDir)
+                    .directory(sourceRepository)
                     .redirectErrorStream(true)
                     .start()
             logFile.withWriter('UTF-8') { writer ->

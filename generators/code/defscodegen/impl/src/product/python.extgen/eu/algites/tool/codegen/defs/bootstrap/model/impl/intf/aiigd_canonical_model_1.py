@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
     from eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.aiigd_type_1 import AIigdType_1
 from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema
 from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField
@@ -43,10 +44,10 @@ class AIigdCanonicalModel_1(AIigCanonicalModel_1, AIiSmartDataObject, Generic[TT
     }
 
     @abstractmethod
-    def getTypesList(self) -> list[TTypesList]: ...
+    def getTypesList(self) -> AIiBoundedList[TTypesList]: ...
 
     @abstractmethod
-    def _getRaw_TypesList(self) -> list[TTypesList]: ...
+    def _getRaw_TypesList(self) -> AIiBoundedList[TTypesList]: ...
 
     @abstractmethod
     def _isPresent_TypesList(self) -> bool: ...

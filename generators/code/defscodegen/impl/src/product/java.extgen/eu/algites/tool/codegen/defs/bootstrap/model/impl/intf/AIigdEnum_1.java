@@ -24,8 +24,8 @@ public interface AIigdEnum_1<TValuesList extends eu.algites.tool.codegen.defs.bo
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Values list")
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "values", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
 @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "values", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
-            @Override java.util.List<? extends TValuesList> getValuesList();
-    java.util.List<? extends TValuesList> _getRaw_ValuesList();
+            @Override eu.algites.lib.common.list.AIiBoundedList<? extends TValuesList> getValuesList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends TValuesList> _getRaw_ValuesList();
     boolean _isPresent_ValuesList();
     void _unset_ValuesList();
 }

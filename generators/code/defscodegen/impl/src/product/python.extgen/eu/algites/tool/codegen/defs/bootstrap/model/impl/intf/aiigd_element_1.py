@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
     from eu.algites.tool.codegen.defs.bootstrap.model.aiig_structure_1 import AIigStructure_1
     from eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.aiigd_key_definition_1 import AIigdKeyDefinition_1
     from eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.aiigd_source_bindings_1 import AIigdSourceBindings_1
@@ -159,10 +160,10 @@ class AIigdElement_1(AIigElement_1, AIiSmartDataObject, Generic[TXmlWire, TKeyDe
     def _unset_XmlWire(self) -> None: ...
 
     @abstractmethod
-    def getKeyDefinitionsList(self) -> list[TKeyDefinitionsList]: ...
+    def getKeyDefinitionsList(self) -> AIiBoundedList[TKeyDefinitionsList]: ...
 
     @abstractmethod
-    def _getRaw_KeyDefinitionsList(self) -> list[TKeyDefinitionsList]: ...
+    def _getRaw_KeyDefinitionsList(self) -> AIiBoundedList[TKeyDefinitionsList]: ...
 
     @abstractmethod
     def _isPresent_KeyDefinitionsList(self) -> bool: ...

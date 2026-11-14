@@ -1,61 +1,58 @@
-"""Verify the split domain-specific profiles against published library schema sources.
-
-Profiles are prepared for the tool's next generator-interface migration, while
-legacy method catalogs remain available to the current codegen bootstrap.
-"""
+"""Verify the active three-part Common / Defs / SDO profile architecture."""
 from pathlib import Path
-import json
 import yaml
 import pytest
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
-from referencing.jsonschema import DRAFT202012
 
-ROOT = Path(__file__).resolve().parents[7]
-LIB = ROOT / 'pub.lib.General/naming/convention'
-TOOL = ROOT / 'pub.tool.General/generators/code'
+TOOL = next(p for p in Path(__file__).resolve().parents if p.name == 'pub.tool.General')
+PROFILES = ('algites', 'standardprefix', 'standardpostfix')
+LANGUAGES = ('java', 'python')
 
-@pytest.mark.parametrize('family', ('jsondefs', 'yamldefs'))
-@pytest.mark.parametrize('profile', ('algites', 'standardprefix', 'standardpostfix'))
-@pytest.mark.parametrize('language', ('java', 'python'))
-@pytest.mark.parametrize('domain', ('dataobject', 'smartdataobject'))
-def test_split_naming_catalog_schema_parity(family, profile, language, domain):
-    """Validate every profile and ensure unrelated method/metadata roles are absent."""
-    schemas = []
-    suffix = 'jsondef' if family == 'jsondefs' else 'yamldef'
-    for module in ('intf', 'sourcecode'):
-        for path in (LIB / module / 'src/product' / family).rglob(f'*.{suffix}.schema.json'):
-            schemas.append(json.loads(path.read_text(encoding='utf-8')))
-    registry = Registry().with_resources((item['$id'], Resource.from_contents(
-        item, default_specification=DRAFT202012)) for item in schemas)
-    path = (TOOL / 'profile' / profile / 'src/product/config/eu/algites/lib/naming/convention/sourcecode'
-            / f'{profile}-{language}-{domain}-conventions.yml')
-    document = yaml.safe_load(path.read_text(encoding='utf-8'))
-    schema_url = document['$schema']
-    if family == 'jsondefs':
-        schema_url = schema_url.replace('/yamldefs/', '/jsondefs/').replace(
-            '.yamldef.schema.json', '.jsondef.schema.json')
-    schema = next(item for item in schemas if item['$id'] == schema_url)
-    Draft202012Validator(schema, registry=registry).validate(document)
-    field = ('DataObjectNameConventions' if domain == 'dataobject'
-             else 'SmartDataObjectNameConventions')
-    assert field in document
-    assert ('SmartDataObjectNameConventions' if domain == 'dataobject'
-            else 'DataObjectNameConventions') not in document
-    entries = document[field]['NameConventions']['NameConvention']
-    assert len(entries) == 1
-    profile_body = entries[0]
-    name = profile_body['name']
-    assert name == f'{profile}-{language}-' + ('defscodegen' if domain == 'dataobject' else 'sdocodegen') + '-standard_1'
-    roles = {entry['kind']: entry['Value'] for entry in profile_body['StructureNaming']['Rule']}
-    assert len(roles) == len(profile_body['StructureNaming']['Rule'])
-    if domain == 'dataobject':
-        assert roles['data_source_schema_url'] == '$schema'
-        assert roles['schema_source_schema_url'] == '$id'
-        assert roles['schema_source_schema_identifier'] == 'x-algites-schema-id'
-        assert roles['data_source_schema_identifier'] == ''
-        assert 'raw_getter' not in roles
-    else:
-        assert roles['standard_getter']
-        assert roles['raw_getter']
-        assert 'data_source_schema_url' not in roles
+
+@pytest.mark.parametrize('profile', PROFILES)
+@pytest.mark.parametrize('language', LANGUAGES)
+def test_new_split_catalogs_are_selected_by_native_settings(profile, language):
+    root = TOOL / 'generators/code/profile' / profile / 'src/product/config'
+    catalog_root = root / 'eu/algites/lib/naming/convention/sourcecode'
+    for generator, specialization, root_key, option in (
+        ('defscodegen', 'defs', 'DefsCodegenNameConventions', 'codegen_defs'),
+        ('sdocodegen', 'sdo', 'SdoCodegenNameConventions', 'codegen_sdo'),
+    ):
+        catalog = catalog_root / f'{profile}-{language}-{specialization}-codegen-conventions.yml'
+        common = catalog_root / f'{profile}-{language}-common-codegen-conventions.yml'
+        settings = root / f'eu/algites/tool/codegen/{specialization}/{generator}-{language}.settings'
+        selected = settings.read_text(encoding='utf-8')
+        assert f'--naming-conventions-file:codegen_common=classpath:{common.name}' in selected
+        assert f'--naming-conventions-file:{option}=classpath:{catalog.name}' in selected
+        assert f'--{specialization}-codegen-naming-convention:{language}=' in selected
+        assert '--generated-dataobject-method-naming-convention:' not in selected
+        document = yaml.safe_load(catalog.read_text(encoding='utf-8'))
+        shared = yaml.safe_load(common.read_text(encoding='utf-8'))
+        assert root_key in document
+        assert 'CommonCodegenNameConventions' in shared
+        assert len(document[root_key]['NameConventions']['NameConvention']) == 1
+        assert len(shared['CommonCodegenNameConventions']['NameConventions']['NameConvention']) == 1
+
+
+@pytest.mark.parametrize('profile', PROFILES)
+@pytest.mark.parametrize('language', LANGUAGES)
+def test_retired_parallel_catalogs_not_packaged(profile, language):
+    root = (TOOL / 'generators/code/profile' / profile /
+            'src/product/config/eu/algites/lib/naming/convention/sourcecode')
+    for obsolete in ('dataobject', 'smartdataobject'):
+        assert not (root / f'{profile}-{language}-{obsolete}-conventions.yml').exists()
+    # The legacy method catalog is still needed by currently exercised
+    # development utilities, but not selected by native Defs/SDO settings.
+    assert (root / f'{profile}-{language}-codegen-method-conventions.yml').is_file()
+
+
+@pytest.mark.parametrize('profile', PROFILES)
+@pytest.mark.parametrize('language', LANGUAGES)
+@pytest.mark.parametrize('generator, subpackage', [('defscodegen', 'defs'), ('sdocodegen', 'sdo')])
+def test_public_profile_settings_alias_matches_native_overlay(profile, language, generator, subpackage):
+    """The two distributed settings names are exact aliases, not competing profiles."""
+    root = TOOL / 'generators/code/profile' / profile / 'src/product/config'
+    directory = root / 'eu/algites/tool/codegen' / subpackage
+    prefixed = directory / f'algites-{generator}-{language}.settings'
+    selected = directory / f'{generator}-{language}.settings'
+    assert prefixed.is_file() and selected.is_file()
+    assert prefixed.read_bytes() == selected.read_bytes()

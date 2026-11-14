@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
     from eu.algites.tool.codegen.defs.bootstrap.model.impl.intf.aiigd_type_1 import AIigdType_1
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy
@@ -23,10 +24,10 @@ class AIcgdCanonicalModel_1(AIcSmartDataObject, AIigdCanonicalModel_1['AIigdType
     __json_data_object__ = AIaJsonDataObject(schema_id='eu.algites.tool.codegen.defs.model.canonical-model', schema_version=1, schema_url='https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/model/canonical-model_1.jsondef.schema.json', data_source_schema_url_field='', data_source_schema_identifier_field='', data_source_schema_version_field='')
     __yaml_data_object__ = AIaYamlDataObject(schema_id='eu.algites.tool.codegen.defs.model.canonical-model', schema_version=1, schema_url='https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.yamldef.schema.json', data_source_schema_url_field='', data_source_schema_identifier_field='', data_source_schema_version_field='')
 
-    def getTypesList(self) -> list[AIigdType_1]:
+    def getTypesList(self) -> AIiBoundedList[AIigdType_1]:
         return self.get_OrCreateCollectionField('TypesList', False)
 
-    def _getRaw_TypesList(self) -> list[AIigdType_1]:
+    def _getRaw_TypesList(self) -> AIiBoundedList[AIigdType_1]:
         return self.get_RawField('TypesList')
 
     def _isPresent_TypesList(self):

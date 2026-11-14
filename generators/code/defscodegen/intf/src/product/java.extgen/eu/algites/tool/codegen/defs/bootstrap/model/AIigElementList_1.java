@@ -43,7 +43,7 @@ public interface AIigElementList_1 extends eu.algites.lib.data.dataobject.AIiDat
     /** Value of schema field children. Field is required; cardinality 1..-1.
      * @return field value in its canonical representation
      */
-    java.util.List<? extends AIigElementListChild_1> getChildrenList();
+    eu.algites.lib.common.list.AIiBoundedList<? extends AIigElementListChild_1> getChildrenList();
 
     @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "min_item_count", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
     @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "min_item_count", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)

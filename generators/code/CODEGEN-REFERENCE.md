@@ -146,20 +146,25 @@ See [SDO Codegen naming CLI](sdocodegen/SDO-CODEGEN-REFERENCE.md).
 
 | Parameter | Meaning |
 |---|---|
-| `--technology-dointf-input-dir:TECH=PATH` | Source directory of annotated getter interfaces. |
+| `--sdo-input-paths:TECH=LIST` | Source directories, individual files or compiled input archives selected for generation. |
+| `--sdo-input-artifacts:TECH=LIST` | Maven/Python input distributions selected for generation. |
+| `--sdo-dependency-paths:TECH=LIST` | Supporting source/classpath dependencies, never automatic generation inputs. |
+| `--sdo-dependency-artifacts:TECH=LIST` | Packaged dependencies used only for resolution. |
+| `--dointf-input-classes:TECH=LIST` | Optional filter of explicitly selected contracts. |
 | `--technology-sdointf-output-dir:TECH=PATH` | Mutable-interface output directory. |
 | `--technology-sdoimpl-output-dir:TECH=PATH` | Concrete-implementation output directory. |
-| `--input-technology-naming-convention:TECH:ROLE:defsintf=ID` | Name parser for read interfaces of a role. |
-| `--output-technology-naming-convention:TECH:ROLE:sdointf=ID` and `--output-technology-naming-convention:TECH:ROLE:sdoclass=ID` | Independent output naming conventions. |
-| `--naming-conventions-file:ENTRY_ID=PATH` | Repeatable shared YAML catalog or `classpath:NAME`. |
-| `--common-codegen-naming-convention:TECH=ID` | Shared Common naming profile. |
-| `--sdo-codegen-naming-convention:TECH=ID` | SDO-specific raw getter/presence/unsetter profile, linked to Common. |
-| `--sdointf-subpackage=SUFFIX`, `--sdoclass-subpackage=SUFFIX` | Optional, independent package suffixes; defaults are in settings. |
-| `--dointf-classpath:TECH=PATHS` | Supporting Java binary / Python import-path dependencies, not generation inputs. |
-| `--dointf-input-artifacts:TECH=LIST`, `--dointf-input-classes:TECH=LIST` | Semicolon-delimited artifact selectors or explicit Java/Python contract names. |
-| `--dointf-input-paths:TECH=LIST` | Explicit local JAR/class-directory or wheel/Python-directory inputs. |
-| `--settings-file=PATH`, `--check`, `--clean-only` | Layered settings, verification and explicit owned-output cleanup. |
-| `--cleanup-output-folder-before-generation=true|false` | Default `false`; `true` enables deletion of this Codegen's indexed obsolete files, not the other Codegen's outputs. |
+| `--dointf-naming-convention:TECH=ID`, `--sdointf-naming-convention:TECH=ID`, `--sdoimpl-naming-convention:TECH=ID` | Independent, schema-neutral input and output naming roles. |
+| `--naming-conventions-file:ENTRY_ID=PATH` | Shared and generator-specific catalog or `classpath:NAME`. |
+| `--common-codegen-naming-convention:TECH=ID` | Common naming profile. |
+| `--sdo-codegen-naming-convention:TECH=ID` | SDO-specific naming profile, linked to Common. |
+| `--sdointf-subpackage=SUFFIX`, `--sdoclass-subpackage=SUFFIX` | Optional package suffixes. |
+| `--settings-file=PATH`, `--check`, `--clean-only` | Layered settings, verification, owned-output cleanup. |
+| `--cleanup-output-folder-before-generation=true|false` | Optional removal of obsolete files owned by this Codegen (default `false`). |
+
+A direct `.java` or `.py` input selects that file alone; a directory
+selects eligible annotated contracts beneath it. File names never establish
+SDO eligibility; the input must carry the common DataObject metadata or
+inherit them from its neutral parent.
 
 Java SDO uses source compilation/reflection and can also scan full compiled
 JARs and class directories. A modular JAR can be loaded for generation as a
