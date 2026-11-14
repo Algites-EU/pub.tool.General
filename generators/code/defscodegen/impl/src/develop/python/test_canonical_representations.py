@@ -22,8 +22,8 @@ def test_common_metadata_representations():
     root = Path(__file__).parents[1]
     service = AIcDefaultDefsCodegenService()
     profile = catalog('python')
-    yaml = service.load(AIcdDefinitionLoadRequest(root / "yamldefs/document-common-metadata_1.yamldef.schema.json", AInDefinitionSourceKind.YAMLDEFS, profile, "algites-yamldef-schema-versioned_1"))
-    json = service.load(AIcdDefinitionLoadRequest(root / "jsondefs/document-common-metadata_1.jsondef.schema.json", AInDefinitionSourceKind.JSONDEFS, profile, "algites-jsondef-schema-versioned_1"))
+    yaml = service.load(AIcdDefinitionLoadRequest(root / "examples/yamldefs/document-common-metadata_1.yamldef.schema.json", AInDefinitionSourceKind.YAMLDEFS, profile, "algites-yamldef-schema-versioned_1"))
+    json = service.load(AIcdDefinitionLoadRequest(root / "examples/jsondefs/document-common-metadata_1.jsondef.schema.json", AInDefinitionSourceKind.JSONDEFS, profile, "algites-jsondef-schema-versioned_1"))
     assert yaml.data_type.properties == json.data_type.properties
     merged = AIcCanonicalDefinitionMerger.merge((yaml, json))
     for target in AInCodeGenerationTarget:
@@ -61,13 +61,25 @@ def test_local_pointer_and_anchor(tmp_path):
 
 
 def test_composition_and_xml_identity(tmp_path):
-    """Retain composed fields and distinguish canonical files with generic XSD type names."""
+    """Separate legacy validation-only allOf from owned fields and XML identities."""
     service = AIcDefaultDefsCodegenService()
     profile = catalog('python')
     path = tmp_path / "composed_1.jsondef.schema.json"
     path.write_text('{"$defs":{"content":{"type":"object","properties":{"Name":{"type":"string"}},"required":["Name"]}},"allOf":[{"$ref":"#/$defs/content"}]}')
     definition = service.load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, profile, "algites-jsondef-schema-versioned_1"))
-    assert len(definition.data_type.properties) == 1 and (definition.data_type.properties[0].presence is AInFieldPresenceKind.REQUIRED)
+    # The older DataType reader does not claim fields from an allOf branch as
+    # *owned* properties. The new canonical TypeNode frontend separately tests
+    # explicit inherited type contracts in test_canonical_metadata.py.
+    assert definition.data_type.kind is AInDataTypeKind.ANY
+    assert definition.data_type.properties == ()
+    path.write_text('{"type":"object","properties":{"Own":{"type":"string"}},'
+                    '"allOf":[{"$ref":"#/$defs/content"}],'
+                    '"$defs":{"content":{"type":"object",'
+                    '"properties":{"Name":{"type":"string"}}}}}')
+    own = service.load(AIcdDefinitionLoadRequest(
+        path, AInDefinitionSourceKind.JSONDEFS, profile,
+        "algites-jsondef-schema-versioned_1"))
+    assert [field.source_name for field in own.data_type.properties] == ['Own']
     path = tmp_path / "xml-contract_1.xsd"
     path.write_text('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:complexType name="Configuration"><xs:sequence><xs:element name="Item" type="xs:string" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:schema>')
     definition = service.load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS, profile, "algites-xmldef-schema-versioned_1"))

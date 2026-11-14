@@ -17,12 +17,12 @@ for root in ('generators/code/common/src/product/python',
 
 from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIcgd_jSourceBinding_1 as Binding, AIigSourceInputKind_1 as Kind,
-    AIcgd_jScalar_1, AIcgd_jType_1,
-    AIcgd_jElement_1, AIcgd_jElementList_1,
-    AIigScalarKind_1 as ScalarKind,
-    AIigComposition_1 as Composition, AIigResolutionState_1 as State,
-    AIigTypeOrigin_1 as Origin, freeze_bindings)
+    AIcgdSourceBinding_1 as Binding, AIngSourceInputKind_1 as Kind,
+    AIcgdScalar_1, AIcgdType_1,
+    AIcgdElement_1, AIcgdElementList_1,
+    AIngScalarKind_1 as ScalarKind,
+    AIngComposition_1 as Composition, AIngResolutionState_1 as State,
+    AIngTypeOrigin_1 as Origin, freeze_bindings)
 from eu.algites.tool.codegen.defs.impl.standard.canonical_schema_frontend import AIcDefsCodegenCanonicalSchemaFrontend
 from eu.algites.tool.codegen.defs.impl.standard.canonical_contract_payload import AIcDefsCodegenCanonicalContractPayload
 
@@ -41,7 +41,9 @@ def _frontend():
 @pytest.mark.parametrize('kind', (Kind.YAMLDEFS, Kind.JSONDEFS))
 def test_contract_payload_schema_validated_with_choice_map_and_synthetic_types(kind):
     source = {'type': 'object', 'title': 'Person', 'properties': {
-        'kind': {'oneOf': [{'type': 'string'}, {'type': 'integer'}]},
+        'kind': {'type': 'object', 'x-algites-defscodegen-choice': True,
+                 'properties': {'text': {'type': 'string'}, 'number': {'type': 'integer'}},
+                 'minProperties': 1, 'maxProperties': 1, 'additionalProperties': False},
         'contacts': {'type': 'array', 'items': {'type': 'object', 'properties': {
             'value': {'type': 'string'}}}}},
         'additionalProperties': {'type': 'boolean'}}
@@ -49,26 +51,30 @@ def test_contract_payload_schema_validated_with_choice_map_and_synthetic_types(k
     payload = AIcDefsCodegenCanonicalContractPayload.emit((root,))
     schema = json.loads(SCHEMA_FILE.read_text(encoding='utf-8'))
     Draft202012Validator(schema).validate(payload)
-    fields = payload['types'][0]['structure']['ElementList']['children']
+    fields = payload['types'][0]['content']['structure']['ElementList']['children']
     assert fields[0]['Element']['structure']['Type']['origin'] == 'SYNTHETIC'
-    assert len(fields[0]['Element']['structure']['Type']['structure']['ElementList']['children']) == 2
+    assert len(fields[0]['Element']['structure']['Type']['content']['structure']['ElementList']['children']) == 2
     assert fields[2]['Map']['map_kind'] == 'INTEGRATED_PROPERTY_MAP'
-    assert fields[2]['Map']['source_bindings'][kind.value][0]['source_pointer'] == '#/additionalProperties'
+    group = fields[2]['Map']['source_bindings']['SourceBindingGroup']
+    assert len(group) == 1 and group[0]['InputKind'] == kind.value
+    assert group[0]['Binding'][0]['source_pointer'] == '#/additionalProperties'
 
 
 def test_multiple_bindings_with_same_input_kind_and_duplicate_resource_paths():
     bindings = freeze_bindings({Kind.JSONDEFS: [Binding('x.json', '#/properties/A', 'member'),
                                                Binding('x.json', '#/properties/B', 'member')],
                                 Kind.YAMLDEFS: [Binding('y.yaml', '#/properties/A', 'member')]})
-    node = AIcgd_jType_1('id', 'Root', Origin.DECLARED,
-        structure=AIcgd_jElementList_1(Composition.SEQUENCE,
-            (AIcgd_jElement_1('a', AIcgd_jScalar_1(ScalarKind.STRING), source_bindings=bindings),)),
+    node = AIcgdType_1('id', 'Root', Origin.DECLARED,
+        structure=AIcgdElementList_1(Composition.SEQUENCE,
+            (AIcgdElement_1('a', AIcgdScalar_1(ScalarKind.STRING), source_bindings=bindings),)),
         source_bindings=bindings)
     emitted = AIcDefsCodegenCanonicalContractPayload.emit((node,))
     Draft202012Validator(json.loads(SCHEMA_FILE.read_text())).validate(emitted)
-    assert [x['source_pointer'] for x in emitted['types'][0]['source_bindings']['JSONDEFS']] == [
+    groups = emitted['types'][0]['source_bindings']['SourceBindingGroup']
+    by_kind = {group['InputKind']: group['Binding'] for group in groups}
+    assert [item['source_pointer'] for item in by_kind['JSONDEFS']] == [
         '#/properties/A', '#/properties/B']
-    assert len(emitted['types'][0]['source_bindings']['YAMLDEFS']) == 1
+    assert len(by_kind['YAMLDEFS']) == 1
 
 
 def test_unresolved_refs_are_not_silently_serialized_as_any():
@@ -79,6 +85,6 @@ def test_unresolved_refs_are_not_silently_serialized_as_any():
 
 
 def test_duplicate_type_identity_rejected():
-    scalar = AIcgd_jType_1('id', 'Root', Origin.DECLARED, structure=AIcgd_jScalar_1(ScalarKind.STRING))
+    scalar = AIcgdType_1('id', 'Root', Origin.DECLARED, structure=AIcgdScalar_1(ScalarKind.STRING))
     with pytest.raises(ValueError, match='Duplicate canonical TYPE identity'):
         AIcDefsCodegenCanonicalContractPayload.emit([scalar, scalar])

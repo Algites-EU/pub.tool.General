@@ -1,0 +1,176 @@
+"""Resolve naming catalogs for current Defs Codegen.
+
+@author linhart1
+"""
+from __future__ import annotations
+
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
+
+import importlib.resources
+from pathlib import Path
+import re
+import sys
+
+
+_RESOURCE_PREFIXES = ('classpath:', 'resource:')
+# The common grammar remains in naming/intf; source-code profiles moved to /sourcecode.
+_NAMING_ROOT = ('eu', 'algites', 'lib', 'naming', 'convention')
+_PROFILE_SUBPATH = (*_NAMING_ROOT, 'sourcecode')
+_CODEGEN_SUBPATH = ('eu', 'algites', 'tool', 'codegen')
+def _providers():
+    """Discover installed naming-profile resource namespaces without selecting a vendor."""
+    yield ('eu.algites.lib.naming.convention', ('sourcecode',))
+    yield ('eu.algites.tool.codegen', ())
+    # Shared standards and existing fixture/legacy catalogs remain at the base.
+    yield ('eu.algites.lib.naming.convention', ())
+    from importlib.metadata import distributions
+    for distribution in distributions():
+        name = distribution.metadata.get('Name', '').replace('_', '-').lower()
+        if not name.startswith('eu-algites-pub-lib-general-naming-convention-'):
+            continue
+        suffix = name.removeprefix('eu-algites-pub-lib-general-naming-convention-')
+        yield (f'algites.pub.lib.general.naming.convention.{suffix.replace("-", ".")}',
+               _PROFILE_SUBPATH)
+        yield (f'algites.pub.lib.general.naming.convention.{suffix.replace("-", ".")}',
+               _NAMING_ROOT)
+
+
+
+def resolve_naming_catalog(source: str) -> str:
+    """Return a filesystem override or the existing naming-library resource URI.
+
+    The override is deliberately limited to a file directly beneath each
+    ``sys.path`` root; a non-direct descendant is a package resource and must
+    be obtained through the package-resource provider. When a filesystem
+    override is selected, the naming library reads referenced sibling YAML
+    files from the same directory.
+    """
+    if not source.startswith(_RESOURCE_PREFIXES):
+        return source
+    name = source.partition(':')[2]
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.yml', name):
+        raise AIxCodegenValidationException(f'Invalid classpath naming catalog filename: {name!r}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
+
+    packaged = False
+    for package, subpath in _providers():
+        try:
+            candidate = importlib.resources.files(package).joinpath(*subpath, name)
+            if candidate.is_file():
+                packaged = True
+                break
+        except (ModuleNotFoundError, TypeError, FileNotFoundError):
+            continue
+
+    for item in sys.path:
+        # The empty sys.path entry denotes the current working directory.
+        directory = Path(item or '.')
+        for candidate in (directory.joinpath(*_CODEGEN_SUBPATH, name),
+                          directory.joinpath(*_PROFILE_SUBPATH, name),
+                          directory.joinpath(*_NAMING_ROOT, name),
+                          directory.joinpath(name)):
+            if candidate.is_file():
+                return str(candidate.resolve())
+    if packaged:
+        return 'resource:' + name
+    raise FileNotFoundError(
+        f'Naming catalog {name!r} not found in importlib.resources '
+        'or as a direct file in any sys.path directory')
+
+
+from contextlib import contextmanager
+from tempfile import TemporaryDirectory
+
+
+@contextmanager
+def expand_naming_catalogs(sources):
+    """Collect every classpath naming resource into one ordered catalog set.
+
+    Package resources are enumerated first, followed by direct sys.path roots
+    (in reverse order for standard Python import precedence). Every resource is
+    materialized with its referenced StandardConventionsFile, which can live in
+    the shared naming-intf distribution rather than the profile distribution.
+    ZIP-backed Traversables are supported. Identical physical locations are deduplicated.
+    Distinct conflicting naming IDs remain errors in the naming library.
+    """
+    resolved = []
+    physical_seen = set()
+    with TemporaryDirectory(prefix='algites-naming-classpath-') as temp:
+        staging = Path(temp)
+        index = 0
+
+        def add_packaged(candidate, name, provider_root):
+            nonlocal index
+            if not candidate.is_file():
+                return
+            if isinstance(candidate, Path):
+                absolute = candidate.resolve()
+                if absolute in physical_seen:
+                    return
+                physical_seen.add(absolute)
+            index += 1
+            folder = staging / str(index)
+            folder.mkdir(parents=True)
+            text = candidate.read_text(encoding='utf-8')
+            (folder / name).write_text(text, encoding='utf-8')
+            standard = re.search(
+                r'(?m)^\s*StandardConventionsFile:\s*[\"\']?([A-Za-z0-9][A-Za-z0-9_.-]*\.yml)',
+                text)
+            if standard:
+                # Profile wheels no longer duplicate the common naming grammar.
+                # Respect an explicitly co-located resource for custom catalogs,
+                # otherwise resolve the shared resource from naming/intf.
+                sibling = provider_root.joinpath(standard.group(1))
+                if not sibling.is_file():
+                    try:
+                        shared_root = importlib.resources.files(
+                            'eu.algites.lib.naming.convention')
+                        sibling = shared_root.joinpath(standard.group(1))
+                    except (ModuleNotFoundError, TypeError, FileNotFoundError):
+                        pass
+                if not sibling.is_file():
+                    for sys_entry in sys.path:
+                        candidate_shared = Path(sys_entry or '.').joinpath(*_NAMING_ROOT, standard.group(1))
+                        if candidate_shared.is_file():
+                            sibling = candidate_shared
+                            break
+                if not sibling.is_file():
+                    raise FileNotFoundError(
+                        f'Missing shared StandardConventionsFile {standard.group(1)!r} '
+                        f'for {name!r} (expected in naming/intf or alongside the catalog)')
+                (folder / standard.group(1)).write_bytes(sibling.read_bytes())
+            resolved.append(str(folder / name))
+
+        for source in sources:
+            if not source.startswith(_RESOURCE_PREFIXES):
+                resolved.append(source)
+                continue
+            name = source.partition(':')[2]
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.yml', name):
+                raise AIxCodegenValidationException(f'Invalid classpath naming catalog filename: {name!r}', 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
+            matched = False
+            for package, subpath in _providers():
+                try:
+                    provider_root = importlib.resources.files(package).joinpath(*subpath)
+                    candidate = provider_root.joinpath(name)
+                    if candidate.is_file():
+                        matched = True
+                    add_packaged(candidate, name, provider_root)
+                except (ModuleNotFoundError, TypeError, FileNotFoundError) as exc:
+                    if isinstance(exc, FileNotFoundError) and 'StandardConventionsFile' in str(exc):
+                        raise
+                    continue
+            for entry in reversed(sys.path):
+                directory = Path(entry or '.')
+                for candidate in (directory.joinpath(*_CODEGEN_SUBPATH, name),
+                          directory.joinpath(*_PROFILE_SUBPATH, name),
+                                  directory.joinpath(*_NAMING_ROOT, name),
+                                  directory / name):
+                    if candidate.is_file():
+                        matched = True
+                        absolute = candidate.resolve()
+                        if absolute not in physical_seen:
+                            physical_seen.add(absolute)
+                            resolved.append(str(absolute))
+            if not matched:
+                raise FileNotFoundError(f'Naming catalog {name!r} not found on package or sys.path')
+        yield resolved

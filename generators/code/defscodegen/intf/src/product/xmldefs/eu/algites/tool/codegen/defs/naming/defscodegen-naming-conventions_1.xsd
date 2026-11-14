@@ -1,15 +1,62 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:common="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd" xmlns:kind="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-structure-kind_1.xsd" targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.xsd" version="1">
-  <xs:annotation><xs:documentation>New defs naming profile schema. The Java/Python loaders validate that referenced CommonNamingConvention exists; XML profile values are not URLs. Schema metadata role pairing is enforced by the JSONDEFS/YAMLDEFS schemas and loaders.</xs:documentation></xs:annotation>
+<?xml version='1.0' encoding='UTF-8'?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:common="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd" xmlns:kind="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-structure-kind_1.xsd" xmlns:tns="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.xsd" targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.xsd" version="1">
+  <xs:annotation>
+    <xs:documentation>New defs naming profile schema. The Java/Python loaders validate that referenced CommonNamingConvention exists; XML profile values are not URLs. Schema metadata role pairing is enforced by the JSONDEFS/YAMLDEFS schemas and loaders.</xs:documentation>
+  </xs:annotation>
   <xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"/>
   <xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-structure-kind_1.xsd" schemaLocation="defscodegen-structure-kind_1.xsd"/>
-  <xs:complexType name="DefsCodegenNameConventionsType"><xs:complexContent><xs:extension base="common:CommonNamingConventions"><xs:sequence>
-   <xs:element name="DefsCodegenNameConventions"><xs:complexType><xs:sequence><xs:element name="NameConventions"><xs:complexType><xs:sequence>
-    <xs:element name="NameConvention" minOccurs="0" maxOccurs="unbounded"><xs:complexType><xs:sequence>
+  <xs:complexType name="DefsCodegenNameConventionsType">
+    <xs:complexContent>
+      <xs:extension base="common:CommonNamingConventions">
+        <xs:sequence>
+          <xs:element name="DefsCodegenNameConventions">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="NameConventions">
+                  <xs:complexType>
+                    <xs:sequence>
+                      <xs:element name="NameConvention" minOccurs="0" maxOccurs="unbounded" type="tns:DefsCodegenNameConvention"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                  <xs:key name="UniqueProfileIds">
+                    <xs:selector xpath="NameConvention"/>
+                    <xs:field xpath="@name"/>
+                  </xs:key>
+                </xs:element>
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="DefsCodegenNameConvention">
+    <xs:sequence>
       <xs:element name="CommonNamingConvention" type="xs:string"/>
-      <xs:element name="StructureNaming"><xs:complexType><xs:sequence><xs:element name="Rule" minOccurs="0" maxOccurs="unbounded"><xs:complexType><xs:simpleContent><xs:extension base="xs:string"><xs:attribute name="kind" type="kind:DefsCodegenStructureKind" use="required"/></xs:extension></xs:simpleContent></xs:complexType></xs:element></xs:sequence></xs:complexType><xs:key name="UniqueStructureRoles"><xs:selector xpath="Rule"/><xs:field xpath="@kind"/></xs:key></xs:element>
-      
-    </xs:sequence><xs:attribute name="name" type="xs:string" use="required"/></xs:complexType></xs:element>
-   </xs:sequence></xs:complexType><xs:key name="UniqueProfileIds"><xs:selector xpath="NameConvention"/><xs:field xpath="@name"/></xs:key></xs:element></xs:sequence></xs:complexType></xs:element>
-  </xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+      <xs:element name="StructureNaming">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Rule" minOccurs="0" maxOccurs="unbounded" type="tns:DefsCodegenStructureNamingRule"/>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:key name="UniqueStructureRoles">
+          <xs:selector xpath="Rule"/>
+          <xs:field xpath="@kind"/>
+        </xs:key>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="name" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:minLength value="1"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+  <xs:complexType name="DefsCodegenStructureNamingRule">
+    <xs:sequence>
+      <xs:element name="Value" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="kind" type="kind:DefscodegenStructureKind" use="required"/>
+  </xs:complexType>
 </xs:schema>

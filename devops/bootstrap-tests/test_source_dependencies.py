@@ -114,7 +114,7 @@ def test_cycle_reports_chain(tmp_path):
     tool = make_repo(tmp_path, 'pub.tool.General')
     a = 'pub.lib.General_common.util'
     b = 'pub.tool.General_generators.impl'
-    make_artifact(lib, 'common', [b])
+    make_artifact(lib, 'common/util', [b])
     make_artifact(tool, 'generators/impl', [a])
     result = invoke(tool, 'generators/impl', 'plan')
     assert result.returncode == 2
@@ -156,7 +156,7 @@ def test_bootstrap_plan_only_reports_sources_without_cleaning(tmp_path):
     base = make_artifact(lib, 'common')
     make_artifact(tool, 'generators/impl', [base])
     for filename in ('bootstrap.sh', 'clean_generated.py', 'bootstrap-config.py',
-                     'modustro-bootstrap.yml', 'source-dependencies.py'):
+                     'modustro-bootstrap.yml', 'source-dependencies.py', 'selfhosting.py'):
         directory = tool / 'devops/bootstrap'
         directory.mkdir(parents=True, exist_ok=True)
         shutil.copy2(BOOTSTRAP / filename, directory / filename)
@@ -196,3 +196,62 @@ def test_source_gradle_restricts_transitive_modustro_groups(tmp_path):
     assert 'modustro-sources-only' in gradle
     assert 'eu.algites.lib.data' in gradle
     assert 'eu.algites.lib.common' in gradle
+
+
+def test_sdo_cli_bootstrap_seeds_own_api_then_regenerates_it(tmp_path):
+    """Build the generator API without its engine, then regenerate it with the fresh engine.
+
+    SDO Codegen's own read-only naming contracts must compile before the
+    generator CLI exists, but its generated SDO runtime must be built after it.
+    The same ordering is required when the library starts source bootstrap.
+    """
+    lib = make_repo(tmp_path, 'pub.lib.General')
+    tool = make_repo(tmp_path, 'pub.tool.General')
+    make_artifact(lib, 'common')
+    naming = make_artifact(lib, 'naming/convention/intf', ['pub.lib.General_common'])
+    make_artifact(tool, 'generators/code/common')
+    gen_intf = make_artifact(tool, 'generators/code/sdocodegen/intf',
+                             ['pub.tool.General_generators.code.common', naming])
+    gen_impl = make_artifact(tool, 'generators/code/sdocodegen/impl', [gen_intf])
+    gen_cli = make_artifact(tool, 'generators/code/sdocodegen/cli', [gen_impl])
+    for owner in (lib, tool):
+        script = owner / 'devops/bootstrap/bootstrap.sh'
+        script.parent.mkdir(parents=True)
+        script.write_text(
+            '#!/usr/bin/env bash\n'
+            'printf "%s:%s:%s\\n" "source" '
+            '"$2" "${MODUSTRO_BOOTSTRAP_SDO_ABI_SEED:-0}" >> "$SOURCE_TEST_LOG"\n',
+            encoding='utf-8')
+    # The engine must not know any repository-specific artifact identifiers:
+    # the test declares the self-hosting compiler cycle in tool's policy.
+    tool_policy = tool / 'devops/bootstrap/bootstrap-specializations.yml'
+    tool_policy.write_text(yaml.safe_dump({'SourceCompilerBootstraps': [{
+        'CliArtifactId': gen_cli,
+        'SeedArtifactIds': [naming, gen_intf],
+        'TriggerArtifactIds': [naming, gen_intf],
+        'RebuildAfterCliArtifactIds': [gen_intf],
+    }]}), encoding='utf-8')
+    lib_policy = lib / 'devops/bootstrap/bootstrap-specializations.yml'
+    lib_policy.write_text(yaml.safe_dump({'Snapshots': [{
+        'ArtifactPath': 'naming/convention/intf',
+        'Program': 'promote-naming-extgen.py',
+        'CheckSeed': '--check',
+    }]}), encoding='utf-8')
+    for owner in (lib, tool):
+        shutil.copy2(BOOTSTRAP / 'selfhosting.py', owner / 'devops/bootstrap/selfhosting.py')
+    checker = lib / 'devops/bootstrap/promote-naming-extgen.py'
+    checker.write_text('import sys\nassert sys.argv[1:] == ["--check"]\n')
+    log = tmp_path / 'bootstrap-phases.log'
+    result = invoke(lib, 'naming/convention/intf', 'prepare',
+                    extra_env={'SOURCE_TEST_LOG': str(log)})
+    assert result.returncode == 0, result.stderr
+    phases = log.read_text(encoding='utf-8').splitlines()
+    def index(artifact, seed):
+        # Stubs log artifact paths relative to the checkout. Every path
+        # appears as --root argument 2 in the subprocess's argv.
+        return next(i for i, phase in enumerate(phases)
+                    if phase.endswith(':' + artifact + ':' + seed))
+    assert index('generators/code/sdocodegen/intf', '1') < index('generators/code/sdocodegen/impl', '0')
+    assert index('generators/code/sdocodegen/impl', '0') < index('generators/code/sdocodegen/cli', '0')
+    assert index('generators/code/sdocodegen/cli', '0') < index('generators/code/sdocodegen/intf', '0')
+    assert index('naming/convention/intf', '1') < index('generators/code/sdocodegen/cli', '0')

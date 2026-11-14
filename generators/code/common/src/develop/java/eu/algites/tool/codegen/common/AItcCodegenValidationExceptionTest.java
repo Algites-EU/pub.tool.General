@@ -3,6 +3,7 @@ package eu.algites.tool.codegen.common;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -31,6 +32,32 @@ public class AItcCodegenValidationExceptionTest {
         Assert.assertTrue(rendered.contains("Message: " + original));
         Assert.assertTrue(rendered.contains("Hint: " + hint));
         Assert.assertFalse(rendered.contains("at eu.algites."), "Validation is not an unhandled stack trace");
+    }
+
+    /** Count each file's issues independently even when the report interleaves files. */
+    @Test
+    public void batchDiagnosticsIncludeGlobalAndPerFileCounters() {
+        List<AIxCodegenValidationException> issues = List.of(
+                new AIxCodegenValidationException("first-A", "fix A", "a.xsd", "/one"),
+                new AIxCodegenValidationException("only-B", "fix B", "b.xsd", null),
+                new AIxCodegenValidationException("second-A", "fix A", "a.xsd", "/two"),
+                new AIxCodegenValidationException("unknown", "inspect input"),
+                new AIxCodegenValidationException("third-A", "fix A", "a.xsd", null),
+                new AIxCodegenValidationException("unknown-2", "inspect input"));
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        boolean handled = AIcCodegenDiagnostics.report(
+                new AIxCodegenBatchValidationException(issues), "SDO Codegen", null,
+                new PrintStream(bytes, true, StandardCharsets.UTF_8));
+        Assert.assertTrue(handled);
+        String rendered = bytes.toString(StandardCharsets.UTF_8);
+        Assert.assertTrue(rendered.contains("[1/6] (1/3) first-A"));
+        Assert.assertTrue(rendered.contains("[2/6] (1/1) only-B"));
+        Assert.assertTrue(rendered.contains("[3/6] (2/3) second-A"));
+        Assert.assertTrue(rendered.contains("[4/6] (1/1) unknown"));
+        Assert.assertTrue(rendered.contains("[5/6] (3/3) third-A"));
+        Assert.assertTrue(rendered.contains("[6/6] (1/1) unknown-2"));
+        Assert.assertTrue(rendered.contains("Source: a.xsd"));
+        Assert.assertTrue(rendered.contains("Location: /two"));
     }
 
     /** Assert that stack traces for unexpected failures remain possible. */

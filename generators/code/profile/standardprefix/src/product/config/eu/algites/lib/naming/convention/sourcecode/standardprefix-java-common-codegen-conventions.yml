@@ -2,38 +2,75 @@
 # New shared/specialized codegen naming profile. Legacy .old profiles are unchanged.
 $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/codegen-common-naming-conventions_1.yamldef.schema.json
 NameCompositions:
-  standardprefix-java-positional-getter_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: getItem
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: position
-        Regexp: '[0-9]+'
-  standardprefix-java-const_container_interface_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: CONST
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
+  NameComposition:
+    - name: standardprefix-java-list-getter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: get
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: List
+    - name: standardprefix-java-positional-getter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: getItem
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: position
+                Regexp: '[0-9]+'
+    - name: standardprefix-java-const_container_interface_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: CONST
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
 CommonCodegenNameConventions:
   NameConventions:
-    standardprefix-java-codegen-common_1:
-      StructureNaming:
-        standard_getter: java-getter-method-name_1
-        standard_setter: java-setter-method-name_1
-        multi_mapped_list_key_synthetic_getter: _getKey
-        multi_mapped_list_value_synthetic_getter: _getValue
-        positional_item_synthetic_getter: standardprefix-java-positional-getter_1
-        const_container_interface: standardprefix-java-const_container_interface_1
-      SchemaMetadataNaming:
-        schema_source_schema_url: $id
-        schema_source_schema_identifier: x-algites-schema-id
-        schema_source_schema_version: x-algites-schema-version
-        data_source_schema_url: $schema
-        data_source_schema_identifier: ''
-        data_source_schema_version: ''
-      IndexesStartingFrom: 1
+    NameConvention:
+      - name: standardprefix-java-codegen-common_1
+        StructureNaming:
+          Rule:
+            - kind: standard_getter
+              Value: java-getter-method-name_1
+            - kind: list_getter
+              Value: standardprefix-java-list-getter_1
+            - kind: standard_setter
+              Value: java-setter-method-name_1
+            - kind: multi_mapped_list_key_synthetic_getter
+              Value: _getKey
+            - kind: multi_mapped_list_value_synthetic_getter
+              Value: _getValue
+            - kind: positional_item_synthetic_getter
+              Value: standardprefix-java-positional-getter_1
+            - kind: const_container_interface
+              Value: standardprefix-java-const_container_interface_1
+        SchemaMetadataNaming:
+          Rule:
+            - kind: schema_source_schema_url
+              Value: $id
+            - kind: schema_source_schema_identifier
+              Value: x-algites-schema-id
+            - kind: schema_source_schema_version
+              Value: x-algites-schema-version
+            - kind: data_source_schema_url
+              Value: $schema
+            - kind: data_source_schema_identifier
+              Value: ''
+            - kind: data_source_schema_version
+              Value: ''
+        IndexesStartingFrom: 1

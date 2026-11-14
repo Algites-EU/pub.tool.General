@@ -24,11 +24,18 @@ def _manifest(tmp_path, *languages):
     return output
 
 
+def _choice(properties):
+    """Generate a choice using explicitly named alternatives and portable JSON validation."""
+    return {'type': 'object', 'x-algites-defscodegen-choice': True,
+            'properties': properties, 'minProperties': 1, 'maxProperties': 1,
+            'additionalProperties': False}
+
+
 def test_recursive_types_keep_nested_object_array_and_choice(tmp_path):
     path = tmp_path / 'recursion_1.jsondef.schema.json'
     path.write_text(json.dumps({'type': 'object', 'properties': {
         'items': {'type': 'array', 'items': {'type': 'array', 'items': {'type': 'object',
-            'properties': {'code': {'oneOf': [{'type': 'string'}, {'type': 'integer'}]}}}}}}}))
+            'properties': {'code': _choice({'Text': {'type': 'string'}, 'Count': {'type': 'integer'}})}}}}}}))
     profile = AIcAlgitesNamingProfiles.python_profile()
     model = AIcJsonDefsFrontend().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS, profile))
     nodes = model.data_type.properties[0].data_type
@@ -37,27 +44,29 @@ def test_recursive_types_keep_nested_object_array_and_choice(tmp_path):
     assert nodes.element_type.element_type.kind is AInDataTypeKind.OBJECT
     choice = nodes.element_type.element_type.properties[0].data_type
     assert choice.kind is AInDataTypeKind.ONE_OF
-    assert tuple(a.kind for a in choice.alternatives) == (AInDataTypeKind.STRING, AInDataTypeKind.INTEGER)
+    assert tuple(a.properties[0].data_type.kind for a in choice.alternatives) == (
+        AInDataTypeKind.STRING, AInDataTypeKind.INTEGER)
 
 
 def test_closed_choice_generates_sealed_java_and_importable_python_records(tmp_path, monkeypatch):
     source = tmp_path / 'intf/src/product/jsondefs/example/choice'
     source.mkdir(parents=True)
     (source / 'choice_1.jsondef.schema.json').write_text(json.dumps({
-        '$defs': {'crypto': {'type': 'object', 'properties': {'wallet': {'type': 'string'}}}},
-        'oneOf': [{'$ref': '#/$defs/crypto'}, {'type': 'integer'}]}))
+        '$defs': {'Crypto': {'type': 'object', 'properties': {'wallet': {'type': 'string'}}}},
+        **_choice({'Crypto': {'$ref': '#/$defs/Crypto'}, 'Number': {'type': 'integer'}})}))
     generated = AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _manifest(tmp_path, 'java', 'python'))
     assert len(generated) == 4
     root = tmp_path / 'intf/src/product/java.gen/example/choice'
     assert 'public sealed interface AIigChoice_1 permits' in (root / 'AIigChoice_1.java').read_text()
-    assert 'AIigChoiceDefinitionCrypto_1 value' in (root / 'AIigChoiceChoiceDefinitionCrypto_1.java').read_text()
-    assert 'Long value' in (root / 'AIigChoiceAlternative2_1.java').read_text()
+    assert 'AIigChoiceCrypto_1 value' in (root / 'AIigChoiceSelectedCrypto_1.java').read_text()
+    assert 'AIigChoiceNumber_1 value' in (root / 'AIigChoiceSelectedNumber_1.java').read_text()
+    assert 'java.math.BigInteger getNumber()' in (root / 'AIigChoiceNumber_1.java').read_text()
     pyroot = tmp_path / 'intf/src/product/python.gen'
     monkeypatch.syspath_prepend(str(pyroot))
-    module = importlib.import_module('example.choice.aiig_choice_alternative2_1')
-    assert module.AIigChoiceAlternative2_1(42).value == 42
+    module = importlib.import_module('example.choice.aiig_choice_selected_number_1')
+    assert module.AIigChoiceSelectedNumber_1.__annotations__['value'] == 'AIigChoiceNumber_1'
     with pytest.raises(TypeError):
-        module.AIigChoiceAlternative2_1('not an integer')
+        module.AIigChoiceSelectedNumber_1('not an integer payload')
 
 
 def test_global_xml_elements_generate_nominal_substitution_types(tmp_path, monkeypatch):
@@ -126,6 +135,8 @@ def test_allof_child_can_narrow_inherited_optional_presence(tmp_path):
     (schemas / 'parent_1.jsondef.schema.json').write_text(json.dumps({
         'type': 'object', 'properties': {'status': {'type': 'string'}}}))
     (schemas / 'child_1.jsondef.schema.json').write_text(json.dumps({
+        'type': 'object', 'x-algites-defscodegen-extends': ['parent_1.jsondef.schema.json'],
+        'properties': {'status': {'type': 'string'}}, 'required': ['status'],
         'allOf': [{'$ref': 'parent_1.jsondef.schema.json'},
                   {'type': 'object', 'properties': {'status': {'type': 'string'}},
                    'required': ['status']}]}))
@@ -146,16 +157,14 @@ def test_closed_choice_can_wrap_same_simple_name_from_two_other_packages(tmp_pat
             'type': 'object', 'properties': {'name': {'type': 'string'}}}))
     folder = root / 'payment'
     folder.mkdir(parents=True)
-    (folder / 'choice_1.jsondef.schema.json').write_text(json.dumps({
-        'oneOf': [{'$ref': '../c/value_1.jsondef.schema.json'},
-                  {'$ref': '../d/value_1.jsondef.schema.json'}]}))
+    (folder / 'choice_1.jsondef.schema.json').write_text(json.dumps(
+        _choice({'FirstValue': {'$ref': '../c/value_1.jsondef.schema.json'},
+                 'SecondValue': {'$ref': '../d/value_1.jsondef.schema.json'}})))
     AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _manifest(tmp_path, 'java', 'python'))
-    java = sorted((tmp_path / 'intf/src/product/java.gen/example/payment').glob('AIigChoiceValue*.java'))
-    assert len(java) == 2
-    assert any('example.c.AIigValue_1 value' in path.read_text() for path in java)
-    assert any('example.d.AIigValue_1 value' in path.read_text() for path in java)
-    python = sorted((tmp_path / 'intf/src/product/python.gen/example/payment').glob('aiig_choice_value*.py'))
-    assert len(python) == 2
+    java = tmp_path / 'intf/src/product/java.gen/example/payment'
+    assert 'example.c.AIigValue_1' in (java / 'AIigChoiceFirstValue_1.java').read_text()
+    assert 'example.d.AIigValue_1' in (java / 'AIigChoiceSecondValue_1.java').read_text()
+    python = sorted((tmp_path / 'intf/src/product/python.gen/example/payment').glob('aiig_choice_*.py'))
     assert any('from example.c.aiig_value_1 import AIigValue_1' in path.read_text() for path in python)
     assert any('from example.d.aiig_value_1 import AIigValue_1' in path.read_text() for path in python)
     monkeypatch.syspath_prepend(str(tmp_path / 'intf/src/product/python.gen'))
@@ -181,18 +190,16 @@ def test_closed_choice_accepts_typed_string_array_alternative(tmp_path, monkeypa
     """An array branch is a real typed choice, not an opaque or dropped variant."""
     source = tmp_path / 'intf/src/product/jsondefs/example/choice'
     source.mkdir(parents=True)
-    (source / 'mixed_1.jsondef.schema.json').write_text(json.dumps({
-        'oneOf': [
-            {'type': 'array', 'items': {'type': 'string'}},
-            {'type': 'object', 'properties': {'Code': {'type': 'string'}}},
-        ]}))
+    (source / 'mixed_1.jsondef.schema.json').write_text(json.dumps(
+        _choice({'StringList': {'type': 'array', 'items': {'type': 'string'}},
+                 'Record': {'type': 'object', 'properties': {'Code': {'type': 'string'}}}})))
     AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _manifest(tmp_path, 'java', 'python'))
     java_root = tmp_path / 'intf/src/product/java.gen/example/choice'
     java_variants = '\n'.join(path.read_text() for path in java_root.glob('AIigMixed*.java'))
-    assert 'java.util.List<String> value' in java_variants
+    assert 'java.util.List<? extends String> getStringList()' in java_variants
     python_root = tmp_path / 'intf/src/product/python.gen'
     monkeypatch.syspath_prepend(str(python_root))
-    module = importlib.import_module('example.choice.aiig_mixed_alternative1_1')
-    assert module.AIigMixedAlternative1_1(['one', 'two']).value == ['one', 'two']
+    module = importlib.import_module('example.choice.aiig_mixed_selected_string_list_1')
+    assert module.AIigMixedSelectedStringList_1.__annotations__['value'] == 'AIigMixedStringList_1'
     with pytest.raises(TypeError):
-        module.AIigMixedAlternative1_1('not a list')
+        module.AIigMixedSelectedStringList_1('not a list payload')

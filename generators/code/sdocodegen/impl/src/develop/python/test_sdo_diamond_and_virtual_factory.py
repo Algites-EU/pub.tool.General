@@ -7,7 +7,8 @@ from explicit_sdo_fixture import configured_service, explicit_generic_manifest
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
-from eu.algites.lib.data.smartdataobject.impl.standard.ais_smart_data_object_factory import AIsSmartDataObjectFactory
+from eu.algites.lib.data.smartdataobject.impl.common.ais_smart_data_object_factory import AIsSmartDataObjectFactory
+from eu.algites.lib.data.smartdataobject.impl.common.aic_smart_data_object_binding_registry import AIcSmartDataObjectBindingRegistry
 
 
 def test_diamond_contract_generated_and_constructed(tmp_path, monkeypatch):
@@ -31,10 +32,10 @@ def test_diamond_contract_generated_and_constructed(tmp_path, monkeypatch):
         name = f'AIig{suffix}_1'
         (folder / f'aiig_{suffix.lower()}_1.py').write_text(
             imports + 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n'
-            'from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField\n'
+            'from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField\n'
             f'class {name}({parent}):\n'
-            f'    __data_object__ = AIcdDataObject(schema_id="test.diamond.{suffix.lower()}", schema_version=1)\n'
-            f'    __data_object_fields__ = (AIcdDataObjectField({field!r}, getter_name={"get"+field!r}),)\n'
+            f'    __data_object__ = AIcdDataObject()\n'
+            f'    @AIaDataObjectField(dataFieldName={field!r})\n'
             f'    def get{field}(self): raise NotImplementedError\n')
     monkeypatch.syspath_prepend(str(tmp_path))
     generator = configured_service()
@@ -55,9 +56,10 @@ def test_diamond_contract_generated_and_constructed(tmp_path, monkeypatch):
     value.setC('c')
     value.setD('d')
     assert value.getName() == 'shared'
-    mapping = value._toMapping(AInSdoFieldValueLoadingMode.RAW_VALUES)
-    assert mapping['Name'].value_representation == 'shared'
-    duplicate = AIsSmartDataObjectFactory.from_mapping(cls, mapping)
+    mapping = value.getRawValues()
+    assert mapping['Name'] == 'shared'
+    registry = AIcSmartDataObjectBindingRegistry.builder().register(cls).build()
+    duplicate = AIsSmartDataObjectFactory.fromImplementationData(cls, mapping, registry)
     assert duplicate.getName() == 'shared'
     assert duplicate.getD() == 'd'
-    assert duplicate.__data_object__.schema_id == 'test.diamond.d'
+    assert duplicate.__data_object__.setter_inheritance_policy is not None

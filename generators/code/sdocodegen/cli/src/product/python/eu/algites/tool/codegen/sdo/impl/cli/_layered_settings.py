@@ -88,9 +88,34 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
         directory = Path(prefix or '.')
         append_file(directory / override_path)
         append_file(directory / override_name)
+    invocation = None
     if file_options:
         path = Path(file_options[0])
-        sources.append((str(path), path.read_text(encoding='utf-8')))
+        invocation = (str(path), path.read_text(encoding='utf-8'))
+
+    # Older published profiles can carry qualified selectors removed from the
+    # new SDO CLI. They are not ordinary settings, even if their legacy keys
+    # do not supply a current Common/SDO family signature. Never merge them
+    # with a fresh source profile, but fail explicitly if no usable profile
+    # exists. Caller-provided invalid options are still validated normally.
+    obsolete_prefixes = (
+        '--input-technology-naming-convention:',
+        '--output-technology-naming-convention:',
+        '--output-enum-technology-naming-convention:',
+    )
+    stale_profiles = [source for source, content in overrides
+                      if any(line.strip().startswith(obsolete_prefixes)
+                             for line in content.splitlines()
+                             if not line.strip().startswith('#'))]
+    overrides = [(source, content) for source, content in overrides
+                 if source not in stale_profiles]
+    if not overrides and stale_profiles:
+        raise AIxCodegenValidationException(
+            'Only outdated SDO naming profile overlays were found: '
+            + ', '.join(stale_profiles),
+            'Use a current source naming profile or republish the profile '
+            'artifact; legacy input-technology naming options are not '
+            'supported by the new SDO CLI.')
 
     # Profile resources may be installed simultaneously (Algites, Standard
     # Prefix and Standard Postfix).  They are *alternatives*, not successive
@@ -100,8 +125,8 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
     #
     # Choose a single profile family using the caller's qualified profile IDs.
     # The selection is driven by settings data, never by a vendor-specific path
-    # or by arbitrary sys.path precedence. Within the selected family, multiple
-    # identical resource copies may still layer as before.
+    # or by arbitrary sys.path precedence. Revisions of the *same* family
+    # resolve by resource precedence; different families remain alternatives.
     def profile_selections(content: str) -> dict[str, str]:
         """Extract explicitly named profile identities from CLI/settings text.
 
@@ -113,10 +138,11 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
             '--common-codegen-naming-convention:',
             '--defs-codegen-naming-convention:',
             '--sdo-codegen-naming-convention:',
-            '--output-interface-technology-naming-convention:',
+            '--dointf-naming-convention:',
+            '--sdointf-naming-convention:',
+            '--sdoimpl-naming-convention:',
             '--output-enum-technology-naming-convention:',
-            '--input-technology-naming-convention:',
-            '--output-technology-naming-convention:',
+            '--dointf-naming-convention:',
         )
         selected: dict[str, str] = {}
         for line in content.splitlines():
@@ -129,29 +155,58 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
 
     requested = profile_selections('\n'.join(remainder))
     if file_options:
-        requested.update(profile_selections(sources[-1][1]))
+        requested.update(profile_selections(invocation[1]))
 
-    families: dict[tuple[tuple[str, str], ...], list[tuple[str, str]]] = {}
+    def profile_family(signature: dict[str, str]) -> tuple[tuple[str, str], ...]:
+        """Group revisions of one Common/SDO family, not unrelated profiles.
+
+        Input/output interface selectors may be customized independently of
+        the family and must not turn a stale packaged copy into a rival family.
+        Without family selectors, use the full signature to stay conservative.
+        """
+        family = {key: value for key, value in signature.items()
+                  if key.startswith(('--common-codegen-naming-convention:',
+                                     '--defs-codegen-naming-convention:',
+                                     '--sdo-codegen-naming-convention:'))}
+        return tuple(sorted((family or signature).items()))
+
+    # `overrides` is ordered from lower to higher precedence. Select the last
+    # revision of each family; source-mode checkout resources therefore supersede
+    # stale installed artifacts without hiding *different* naming families.
+    preferred: dict[tuple[tuple[str, str], ...], tuple[str, str]] = {}
     for candidate in overrides:
-        signature = tuple(sorted(profile_selections(candidate[1]).items()))
+        signature = profile_selections(candidate[1])
         if signature:
-            families.setdefault(signature, []).append(candidate)
+            preferred[profile_family(signature)] = candidate
+    families: dict[tuple[tuple[str, str], ...], list[tuple[str, str]]] = {}
+    for candidate in preferred.values():
+        signature = tuple(sorted(profile_selections(candidate[1]).items()))
+        families.setdefault(signature, []).append(candidate)
     if families:
         if requested:
+            # Caller-specific overrides (for example a handwritten input
+            # contract) may intentionally use an ID not present in *any*
+            # installed overlay. Those custom IDs must not invalidate an
+            # otherwise unambiguous installed family. Conversely, referring
+            # to IDs belonging to two different installed families is an error.
             matching = [signature for signature in families
                         if any(requested.get(key) == value for key, value in signature)
                         and not any(key in requested and requested[key] != value
+                                    and not key.startswith('--dointf-naming-convention:')
                                     for key, value in signature)]
-            # Unknown, explicitly supplied custom profiles do not inherit a
-            # random built-in profile. A partially mixed family is an error.
-            if not matching and any(any(key in requested and requested[key] == value
+            if not matching and any(any(requested.get(key) == value
                                         for key, value in signature)
                                     for signature in families):
                 raise AIxCodegenValidationException(
                     'Conflicting naming profile selection: no single installed profile '
                     'matches the explicitly selected profile IDs',
-                    'Select exactly one naming family (Algites, Standard Prefix, '
-                    'Standard Postfix or a custom family); do not mix their IDs.')
+                    'Select one Common/Defs/SDO naming family. A custom input '
+                    'interface convention may override the selected family.')
+            if len(matching) > 1:
+                raise AIxCodegenValidationException(
+                    'Conflicting naming profile selection: multiple installed '
+                    'families match the explicitly selected profile IDs',
+                    'Choose only one installed naming profile family.')
         else:
             matching = list(families)
         if len(matching) > 1:
@@ -161,8 +216,22 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
                 'Ambiguous Codegen naming profile overlays: ' + ', '.join(origins),
                 'Select one profile family explicitly with qualified naming '
                 'profile arguments or --settings-file; profiles are alternatives.')
-        if matching:
-            sources.extend(families[matching[0]])
+        selected = set(families[matching[0]]) if matching else set()
+    else:
+        selected = set()
+    # Unqualified settings are independent additions, not competing profile
+    # families. Keep their original ordering (including sys.path precedence).
+    # Explicit profile families are mutually exclusive, but ordinary settings
+    # files from multiple source roots must accumulate.
+    sources.extend(candidate for candidate in overrides
+                   if not profile_selections(candidate[1])
+                   or (candidate in selected
+                       and preferred.get(profile_family(
+                           profile_selections(candidate[1]))) == candidate))
+    # Invocation settings and direct CLI arguments have precedence over all
+    # packaged and classpath defaults; no profile may shadow explicit settings.
+    if invocation is not None:
+        sources.append(invocation)
     # Do not silently append an unrelated packaged profile. This also allows
     # calls with fully custom profiles and explicit catalogs.
 
@@ -180,6 +249,12 @@ def expand(arguments: list[str], generator: str, technology: str, package: str) 
             raise AIxCodegenValidationException('Nested settings-file is not supported', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         if value == '':
             merged.pop(key, None)
+        elif key.removeprefix('--').partition(':')[0] in {
+                'defs-input-artifacts', 'defs-input-paths',
+                'defs-dependency-artifacts', 'defs-dependency-paths',
+                'sdo-input-artifacts', 'sdo-input-paths',
+                'sdo-dependency-artifacts', 'sdo-dependency-paths'} and key in merged:
+            merged[key] += ';' + value
         else:
             merged[key] = value
 

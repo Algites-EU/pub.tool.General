@@ -2,112 +2,169 @@
 # New shared/specialized codegen naming profile. Legacy .old profiles are unchanged.
 $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.yamldef.schema.json
 NameCompositions:
-  standardpostfix-java-synthetic_property_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Property
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standardpostfix-java-synthetic_list_item_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Item
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standardpostfix-java-synthetic_map_value_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Value
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standardpostfix-java-synthetic_positional_item_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Position
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: position
-        Regexp: '[0-9]+'
-  standardpostfix-java-synthetic_choice_variant_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Variant
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: position
-        Regexp: '[0-9]+'
-  standardpostfix-java-synthetic_group_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Group
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standardpostfix-java-string_enum_item_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: ''
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standardpostfix-java-non_string_enum_item_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Value
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
+  NameComposition:
+    - name: standardpostfix-java-synthetic_property_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Property
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-java-synthetic_inline_enum_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-java-synthetic_list_item_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Item
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-java-synthetic_map_value_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Value
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-java-synthetic_positional_item_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Position
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: position
+                Regexp: '[0-9]+'
+    - name: standardpostfix-java-synthetic_choice_variant_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Variant
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: position
+                Regexp: '[0-9]+'
+    - name: standardpostfix-java-synthetic_group_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Group
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-java-string_enum_item_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: ''
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-java-non_string_enum_item_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Value
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
 DefsCodegenNameConventions:
   NameConventions:
-    standardpostfix-java-defscodegen-standard_1:
-      CommonNamingConvention: standardpostfix-java-codegen-common_1
-      StructureNaming:
-        synthetic_property_type: standardpostfix-java-synthetic_property_type_1
-        synthetic_list_item_type: standardpostfix-java-synthetic_list_item_type_1
-        synthetic_map_value_type: standardpostfix-java-synthetic_map_value_type_1
-        synthetic_positional_item_type: standardpostfix-java-synthetic_positional_item_type_1
-        synthetic_choice_variant_type: standardpostfix-java-synthetic_choice_variant_type_1
-        synthetic_group_type: standardpostfix-java-synthetic_group_type_1
-        string_enum_item: standardpostfix-java-string_enum_item_1
-        non_string_enum_item: standardpostfix-java-non_string_enum_item_1
+    NameConvention:
+      - name: standardpostfix-java-defscodegen-standard_1
+        CommonNamingConvention: standardpostfix-java-codegen-common_1
+        StructureNaming:
+          Rule:
+            - kind: synthetic_property_type
+              Value: standardpostfix-java-synthetic_property_type_1
+            - kind: synthetic_inline_enum_type
+              Value: standardpostfix-java-synthetic_inline_enum_type_1
+            - kind: synthetic_list_item_type
+              Value: standardpostfix-java-synthetic_list_item_type_1
+            - kind: synthetic_map_value_type
+              Value: standardpostfix-java-synthetic_map_value_type_1
+            - kind: synthetic_positional_item_type
+              Value: standardpostfix-java-synthetic_positional_item_type_1
+            - kind: synthetic_choice_variant_type
+              Value: standardpostfix-java-synthetic_choice_variant_type_1
+            - kind: synthetic_group_type
+              Value: standardpostfix-java-synthetic_group_type_1
+            - kind: string_enum_item
+              Value: standardpostfix-java-string_enum_item_1
+            - kind: non_string_enum_item
+              Value: standardpostfix-java-non_string_enum_item_1

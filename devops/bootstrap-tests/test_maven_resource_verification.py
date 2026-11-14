@@ -150,12 +150,18 @@ def test_real_common_artifact_is_valid_as_resource_only_jar(tmp_path: Path):
     repository = Path(__file__).resolve().parents[2]
     source = repository / 'generators/code/common'
     if not source.is_dir():
-        import pytest
         pytest.skip('This repository has no generators/code/common artifact')
     resources = module.expected_java_resources(source)
     assert resources
     assert {path.suffix for path in resources.values()} == {'.json', '.yml', '.xsd'}
-    assert not list((source / 'src/product/java').rglob('*.java'))
+    java_sources = list((source / 'src/product/java').rglob('*.java'))
     jar = tmp_path / 'common.jar'
     _write_jar(jar, {entry: path.read_bytes() for entry, path in resources.items()})
+    if java_sources:
+        # The common artifact now owns Java resolver sources as well as schema
+        # resources. A resource-only publication must be rejected in this case.
+        with pytest.raises(ValueError, match='missing compiled Java classes'):
+            module.verify_java_jar(jar, source)
+        _write_jar(jar, {**{entry: path.read_bytes() for entry, path in resources.items()},
+                         'eu/algites/tool/codegen/common/Marker.class': b'compiled'})
     module.verify_java_jar(jar, source)

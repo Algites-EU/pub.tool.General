@@ -98,7 +98,7 @@ public final class AItcGeneratorImplementationParityTest {
                         : AItcConfiguredNamingProfiles.javaProfile();
                 for (String locStem : new String[] {
                         "parity-supported", "parity-child", "parity-leaf", "parity-status", "parity-supported-builtins"}) {
-                    Path locSchema = aArtifact.resolve("src/develop")
+                    Path locSchema = aArtifact.resolve("src/develop/examples")
                             .resolve(locKindName).resolve(locStem + "_1." + locExtension);
                     var locDefinition = new AIcDefaultDefsCodegenService().load(
                             AItcConfiguredNamingProfiles.load(locSchema, locKind, locProfile));

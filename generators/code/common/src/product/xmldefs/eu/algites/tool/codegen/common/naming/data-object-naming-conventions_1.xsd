@@ -1,90 +1,81 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:common="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"
-           xmlns:kind="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-structure-kind_1.xsd"
-           xmlns:metadata="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-schema-metadata-kind_1.xsd"
-           targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.xsd" version="1">
-	<xs:annotation>
-		<xs:documentation>Generated DataObject profiles define a typed method-role map and a separate typed schema-metadata-role map. Each
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:common="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd" xmlns:kind="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-structure-kind_1.xsd" xmlns:metadata="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-schema-metadata-kind_1.xsd" xmlns:tns="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.xsd" targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.xsd" version="1">
+  <xs:annotation>
+    <xs:documentation>Generated DataObject profiles define a typed method-role map and a separate typed schema-metadata-role map. Each
 			map has unique enum keys; standard getter and setter are required by JSON/YAML schemas and the loader.
 		</xs:documentation>
-	</xs:annotation>
-	<xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"
-	           schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"/>
-	<xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-structure-kind_1.xsd"
-	           schemaLocation="generated-dataobject-structure-kind_1.xsd"/>
-	<xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-schema-metadata-kind_1.xsd"
-	           schemaLocation="generated-dataobject-schema-metadata-kind_1.xsd"/>
-	<xs:complexType name="DataObjectNamingConventions">
-		<xs:complexContent>
-			<xs:extension base="common:CommonNamingConventions">
-				<xs:sequence>
-					<xs:element name="GeneratedDataObjectMethodNameConventions">
-						<xs:complexType>
-							<xs:sequence>
-								<xs:element name="NameConventions">
-									<xs:complexType>
-										<xs:sequence>
-											<xs:element name="NameConvention" minOccurs="0" maxOccurs="unbounded">
-												<xs:complexType>
-													<xs:sequence>
-														<xs:element name="StructureNaming">
-															<xs:complexType>
-																<xs:sequence>
-																	<xs:element name="Rule" minOccurs="0" maxOccurs="unbounded">
-																		<xs:complexType>
-																			<xs:simpleContent>
-																				<xs:extension base="xs:string">
-																					<xs:attribute name="kind"
-																					              type="kind:GeneratedDataobjectStructureKind"
-																					              use="required"/>
-																				</xs:extension>
-																			</xs:simpleContent>
-																		</xs:complexType>
-																	</xs:element>
-																</xs:sequence>
-															</xs:complexType>
-															<xs:key name="UniqueMethodKinds">
-																<xs:selector xpath="Rule"/>
-																<xs:field xpath="@kind"/>
-															</xs:key>
-														</xs:element>
-														<xs:element name="SchemaMetadataNaming">
-															<xs:complexType>
-																<xs:sequence>
-																	<xs:element name="Rule" minOccurs="0" maxOccurs="unbounded">
-																		<xs:complexType>
-																			<xs:simpleContent>
-																				<xs:extension base="xs:string">
-																					<xs:attribute name="kind"
-																					              type="metadata:GeneratedDataobjectSchemaMetadataKind"
-																					              use="required"/>
-																				</xs:extension>
-																			</xs:simpleContent>
-																		</xs:complexType>
-																	</xs:element>
-																</xs:sequence>
-															</xs:complexType>
-															<xs:key name="UniqueSchemaMetadataKinds">
-																<xs:selector xpath="Rule"/>
-																<xs:field xpath="@kind"/>
-															</xs:key>
-														</xs:element>
-													</xs:sequence>
-													<xs:attribute name="name" type="xs:string" use="required"/>
-												</xs:complexType>
-											</xs:element>
-										</xs:sequence>
-									</xs:complexType>
-									<xs:key name="UniqueMethodNamingProfiles">
-										<xs:selector xpath="NameConvention"/>
-										<xs:field xpath="@name"/>
-									</xs:key>
-								</xs:element>
-							</xs:sequence>
-						</xs:complexType>
-					</xs:element>
-				</xs:sequence>
-			</xs:extension>
-		</xs:complexContent>
-	</xs:complexType>
+  </xs:annotation>
+  <xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd" schemaLocation="https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.xsd"/>
+  <xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-structure-kind_1.xsd" schemaLocation="generated-dataobject-structure-kind_1.xsd"/>
+  <xs:import namespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-schema-metadata-kind_1.xsd" schemaLocation="generated-dataobject-schema-metadata-kind_1.xsd"/>
+  <xs:complexType name="DataObjectNamingConventions">
+    <xs:complexContent>
+      <xs:extension base="common:CommonNamingConventions">
+        <xs:sequence>
+          <xs:element name="GeneratedDataObjectMethodNameConventions">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="NameConventions">
+                  <xs:complexType>
+                    <xs:sequence>
+                      <xs:element name="NameConvention" minOccurs="0" maxOccurs="unbounded" type="tns:GeneratedDataObjectMethodNameConvention"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                  <xs:key name="UniqueMethodNamingProfiles">
+                    <xs:selector xpath="NameConvention"/>
+                    <xs:field xpath="@name"/>
+                  </xs:key>
+                </xs:element>
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="GeneratedDataObjectMethodNameConvention">
+    <xs:sequence>
+      <xs:element name="StructureNaming">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Rule" minOccurs="0" maxOccurs="unbounded" type="tns:GeneratedDataObjectMethodStructureNamingRule"/>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:key name="UniqueMethodKinds">
+          <xs:selector xpath="Rule"/>
+          <xs:field xpath="@kind"/>
+        </xs:key>
+      </xs:element>
+      <xs:element name="SchemaMetadataNaming">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Rule" minOccurs="0" maxOccurs="unbounded" type="tns:GeneratedDataObjectMethodSchemaMetadataNamingRule"/>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:key name="UniqueSchemaMetadataKinds">
+          <xs:selector xpath="Rule"/>
+          <xs:field xpath="@kind"/>
+        </xs:key>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="name" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:minLength value="1"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+  <xs:complexType name="GeneratedDataObjectMethodStructureNamingRule">
+    <xs:sequence>
+      <xs:element name="Value" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="kind" type="kind:GeneratedDataobjectStructureKind" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="GeneratedDataObjectMethodSchemaMetadataNamingRule">
+    <xs:sequence>
+      <xs:element name="Value" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="kind" type="metadata:GeneratedDataobjectSchemaMetadataKind" use="required"/>
+  </xs:complexType>
 </xs:schema>

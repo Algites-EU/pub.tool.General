@@ -8,6 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
 import xml.etree.ElementTree as ET
+import warnings
 
 from eu.algites.tool.codegen.defs.old.impl.standard.aic_definition_identity_resolver import AIcDefinitionIdentityResolver
 from eu.algites.tool.codegen.defs.old.aicd_canonical_definition import AIcdCanonicalDefinition
@@ -82,6 +83,16 @@ class AIcXmlDefsFrontend:
         typ = self._root_type(root)
         values = self._enum_values(typ)
         description = self._documentation(typ) or self._documentation(root)
+        # These XSD declarations cannot be faithfully represented as DataObject
+        # fields. Keep the original element fragment on the generated contract.
+        if typ is not None:
+            wildcard_notes = [
+                'Ignored optional XML wildcard: ' + ET.tostring(node, encoding='unicode')
+                for node in typ.iter()
+                if node.tag in (self._xs + 'any', self._xs + 'anyAttribute')
+            ]
+            if wildcard_notes:
+                description = '\n'.join(filter(None, (description, *wildcard_notes)))
         title = self._title(typ) or self._title(root)
         if values:
             return AIcdCanonicalDefinition(identity, parsed.version, parsed.logical_name, self.source_kind, str(request.path), description, AIcdDataType(AInDataTypeKind.ENUM), values, title)
@@ -436,7 +447,7 @@ class AIcXmlDefsFrontend:
         support only attribute-only bases and explicit presence tightening; arbitrary
         particle restriction needs an XSD content-model validator, not field merging.
         """
-        if self._child(typ, 'anyAttribute', 'simpleContent') is not None:
+        if self._child(typ, 'simpleContent') is not None:
             raise AIxCodegenValidationException(f'Unsupported XSD attribute group/wildcard/simple content in {request.path}', 'Check the XSD compositor and group declarations. Use a named XML type for a repeated choice and avoid overlapping or unsupported nested groups.')
         content = self._child(typ, 'complexContent')
         if content is None:
@@ -484,7 +495,7 @@ class AIcXmlDefsFrontend:
         if identity in visited:
             raise AIxCodegenValidationException(f'Circular XSD complexContent derivation at {identity!r} in {request.path}', 'Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.')
         inherited = self._complex_properties(base, base_request, base_resource, visited | {identity})
-        if self._child(branch, 'anyAttribute', 'simpleContent', 'complexContent') is not None:
+        if self._child(branch, 'simpleContent', 'complexContent') is not None:
             raise AIxCodegenValidationException(f'Unsupported XSD derivation child in {request.path}', 'Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.')
         local_fields = tuple(self._elements(branch, False, request, resource)) + tuple(self._attributes(branch, request, resource))
         by_name = {field.source_name: field for field in inherited}
@@ -1072,19 +1083,30 @@ class AIcXmlDefsFrontend:
                     raise AIxCodegenValidationException(f'Invalid xs:any processContents in {request.path}', 'Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.')
                 if not namespace_constraint.strip():
                     raise AIxCodegenValidationException(f'Invalid xs:any namespace constraint in {request.path}', 'Check the XSD targetNamespace, imported namespaces and QName/XPath prefixes. Ensure the referenced declaration exists and uses the expected namespace.')
-                name = f'AnyXmlElement{xml_order + 1}'
-                repeated = maximum is None or maximum > 1
-                primitive = AIcdDataType(AInDataTypeKind.ANY)
-                data_type = (AIcdDataType(AInDataTypeKind.ARRAY, element_type=primitive,
-                    constraints=AIcdValueConstraints(min_items=minimum, max_items=maximum))
-                    if repeated else primitive)
-                yield AIcdPropertyDefinition(name, data_type,
-                    AInFieldPresenceKind.FORBIDDEN if maximum == 0 else
-                    AInFieldPresenceKind.REQUIRED if not optional and minimum > 0 else AInFieldPresenceKind.ALLOWED,
-                    False, 'Complete XML subtrees accepted by xs:any.', 'XML extension elements',
-                    AIcdXmlFieldRepresentation(resource[0].get('targetNamespace', ''), name,
-                        AInXmlValueKind.ELEMENT, minimum, -1 if maximum is None else maximum,
-                        namespace_constraint, process_contents))
+                # A wildcard inside an optional sequence/all is optional even
+                # when its own minOccurs is one. Do not propagate that flag to
+                # unrelated element fields; the compositor handles their counts.
+                parent_by_node = {id(child): parent for parent in resource[0].iter()
+                    for child in parent}
+                ancestor = parent_by_node.get(id(node))
+                optional_ancestor = False
+                while ancestor is not None and ancestor.tag not in (
+                        self._xs + 'complexType', self._xs + 'schema'):
+                    if ancestor.tag in (self._xs + 'sequence', self._xs + 'all',
+                            self._xs + 'choice') and ancestor.get('minOccurs') == '0':
+                        optional_ancestor = True
+                        break
+                    ancestor = parent_by_node.get(id(ancestor))
+                if minimum > 0 and not optional and not optional_ancestor:
+                    raise AIxCodegenValidationException(
+                        f'Required XML wildcard xs:any cannot be projected in {request.path}',
+                        'Replace it with a named typed xs:element, e.g. <xs:element name="Extra" type="xs:string"/>; arbitrary wildcards cannot become DataObject fields.')
+                warnings.warn(f'Ignoring optional XML wildcard xs:any in {request.path}: ' +
+                    'untyped content is ignored and can be lost on roundtrip. Hint: declare ' +
+                    '<xs:element name="Extra" type="xs:string" minOccurs="0"/> instead.',
+                    UserWarning, stacklevel=2)
+                # Wildcard declarations are documented on the type, not emitted
+                # as synthetic getter fields.
             elif kind == 'annotation':
                 continue
             elif kind in ('attribute', 'attributeGroup', 'anyAttribute',
@@ -1100,7 +1122,12 @@ class AIcXmlDefsFrontend:
     def _attributes(self, typ, request, resource, groups=frozenset()):
         """Resolve local named attribute groups while preserving each member's QName."""
         if self._child(typ, 'anyAttribute') is not None:
-            raise AIxCodegenValidationException(f'Unsupported XSD attribute wildcard in {request.path}', 'Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.')
+            # xs:anyAttribute has no minOccurs, so it never represents a
+            # required DataObject field. Its source XML remains in the type docs.
+            warnings.warn(f'Ignoring optional XML wildcard xs:anyAttribute in {request.path}: ' +
+                'untyped attributes are ignored and can be lost on roundtrip. Hint: declare ' +
+                '<xs:attribute name="Extra" type="xs:string"/> instead.',
+                UserWarning, stacklevel=2)
         for attribute in self._children(typ, 'attribute', 'attributeGroup'):
             if attribute.tag == self._xs + 'attributeGroup':
                 reference = attribute.get('ref', '')

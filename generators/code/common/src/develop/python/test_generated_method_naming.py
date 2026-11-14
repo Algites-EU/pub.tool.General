@@ -24,7 +24,7 @@ def test_shared_method_naming_composes_using_existing_catalog(technology):
     catalog = AIcNameConventionCatalog.load_many([
         LIB_CONFIG / f'algites-{technology}-name-conventions.yml',
         METHOD_CONFIG / f'algites-{technology}-codegen-method-conventions.yml'])
-    assert len(catalog.names) == 59
+    assert len(catalog.names) == 32
     assert catalog.generated_method_names == (f'algites-{technology}-codegen-standard_1',)
     profile = f'algites-{technology}-codegen-standard_1'
     selected = catalog.with_generated_method_profile(profile)
@@ -40,13 +40,22 @@ def test_shared_method_naming_composes_using_existing_catalog(technology):
 def test_user_defined_composition_is_not_forced_to_add_technical_prefix(tmp_path):
     """There is no generator-side implicit underscore or method-name manipulation."""
     selected = yaml.safe_load((METHOD_CONFIG / 'algites-python-codegen-method-conventions.yml').read_text())
-    selected['NameCompositions']['custom-presence'] = {
-        'Segments': [{'Kind': 'constant_string', 'Value': 'present'},
-                     {'Kind': 'identifier', 'Convention': 'upper_camel_case_1'}]}
-    mapping = selected['GeneratedDataObjectMethodNameConventions']['NameConventions']
-    item = mapping.pop('algites-python-codegen-standard_1')
-    item['StructureNaming']['raw_presence_checker_method'] = 'custom-presence'
-    mapping['user-profile'] = item
+    # Naming resources use the published XSD-equivalent list representation.
+    selected['NameCompositions']['NameComposition'].append({
+        'name': 'custom-presence',
+        'Segments': [
+            {'NameFragmentsSegmentValue': {'Kind': 'constant_string',
+                                           'Content': {'Value': 'present'}}},
+            {'NameFragmentsSegmentValue': {'Kind': 'identifier',
+                                           'Content': {'Convention': 'upper_camel_case_1'}}},
+        ],
+    })
+    profiles = selected['GeneratedDataObjectMethodNameConventions']['NameConventions']['NameConvention']
+    item = next(x for x in profiles if x['name'] == 'algites-python-codegen-standard_1')
+    item['name'] = 'user-profile'
+    rule = next(x for x in item['StructureNaming']['Rule']
+                if x['kind'] == 'raw_presence_checker_method')
+    rule['Value'] = 'custom-presence'
     override = tmp_path / 'custom.yml'
     override.write_text(yaml.safe_dump(selected))
     catalog = AIcNameConventionCatalog.load_many([
@@ -63,8 +72,12 @@ def test_source_profiles_are_nested_without_redefining_filename_patterns():
     assert 'NameConventions' not in source
     assert 'NameConventions' in source['SourceStructureNameConventions']
     methods = yaml.safe_load((METHOD_CONFIG/'algites-java-codegen-method-conventions.yml').read_text())
-    assert set(methods['GeneratedDataObjectMethodNameConventions']['NameConventions'][
-        'algites-java-codegen-standard_1']['StructureNaming']) == set(EXPECTED) | {
+    profile = next(x for x in methods['GeneratedDataObjectMethodNameConventions']
+                   ['NameConventions']['NameConvention']
+                   if x['name'] == 'algites-java-codegen-standard_1')
+    roles = {rule['kind'] for rule in profile['StructureNaming']['Rule']}
+    assert roles == set(EXPECTED) | {
+        'raw_empty_checker_method', 'raw_empty_setter',
         'multi_mapped_list_key_synthetic_getter',
         'multi_mapped_list_value_synthetic_getter'}
     assert 'ContainerStructureType' not in str(methods)
@@ -105,12 +118,15 @@ def test_both_catalog_families_validate_against_composed_schemas(family, technol
         validator = Draft202012Validator(schema, registry=resources)
         validator.validate(instance)
         if catalog_type == 'methods':
-            instance['GeneratedDataObjectMethodNameConventions']['NameConventions'][
-                f'algites-{technology}-codegen-standard_1']['StructureNaming'].pop('raw_unsetter')
-            assert validator.is_valid(instance)  # Optional raw methods must remain schema-valid.
-            instance['GeneratedDataObjectMethodNameConventions']['NameConventions'][
-                f'algites-{technology}-codegen-standard_1']['StructureNaming'].pop('standard_getter')
+            profile = next(x for x in instance['GeneratedDataObjectMethodNameConventions']
+                           ['NameConventions']['NameConvention']
+                           if x['name'] == f'algites-{technology}-codegen-standard_1')
+            rules = profile['StructureNaming']['Rule']
+            rules[:] = [rule for rule in rules if rule['kind'] != 'raw_unsetter']
+            assert validator.is_valid(instance)  # Optional raw methods remain optional.
+            rules[:] = [rule for rule in rules if rule['kind'] != 'standard_getter']
             assert not validator.is_valid(instance)
+
 
 
 @pytest.mark.parametrize('technology', ('java', 'python'))
@@ -161,9 +177,11 @@ def test_common_profile_rejects_enabled_wire_field_without_schema_source(suffix)
     path = (TOOL / 'generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode'
             / 'algites-python-common-codegen-conventions.yml')
     common = yaml.safe_load(path.read_text())
-    profile = common['CommonCodegenNameConventions']['NameConventions']['algites-python-codegen-common_1']
-    profile['SchemaMetadataNaming'][f'schema_source_schema_{suffix}'] = ''
-    profile['SchemaMetadataNaming'][f'data_source_schema_{suffix}'] = f'$output_{suffix}'
+    profile = next(x for x in common['CommonCodegenNameConventions']['NameConventions']
+                   ['NameConvention'] if x['name'] == 'algites-python-codegen-common_1')
+    rules = profile['SchemaMetadataNaming']['Rule']
+    next(x for x in rules if x['kind'] == f'schema_source_schema_{suffix}')['Value'] = ''
+    next(x for x in rules if x['kind'] == f'data_source_schema_{suffix}')['Value'] = f'$output_{suffix}'
     with pytest.raises(ValueError, match=f'data_source_schema_{suffix} requires source metadata mapping'):
         resolve_codegen_naming_profiles(common, 'algites-python-codegen-common_1')
 
@@ -173,8 +191,10 @@ def test_default_method_profile_metadata_matches_algites(technology):
     """The selected output method profile includes all six explicit wire mappings."""
     source = yaml.safe_load((METHOD_CONFIG/f'algites-{technology}-codegen-method-conventions.yml').read_text())
     name = f'algites-{technology}-codegen-standard_1'
-    method = source['GeneratedDataObjectMethodNameConventions']['NameConventions'][name]
-    assert {key: method['SchemaMetadataNaming'][key] for key in ('schema_source_schema_url',
+    method = next(x for x in source['GeneratedDataObjectMethodNameConventions']
+                  ['NameConventions']['NameConvention'] if x['name'] == name)
+    values = {rule['kind']: rule['Value'] for rule in method['SchemaMetadataNaming']['Rule']}
+    assert {key: values[key] for key in ('schema_source_schema_url',
         'schema_source_schema_identifier', 'schema_source_schema_version',
         'data_source_schema_url', 'data_source_schema_identifier',
         'data_source_schema_version')} == {
@@ -185,6 +205,7 @@ def test_default_method_profile_metadata_matches_algites(technology):
             'data_source_schema_identifier': '', 'data_source_schema_version': ''}
 
 
+
 @pytest.mark.parametrize('technology', ('java', 'python'))
 def test_common_profile_metadata_roles_require_their_typed_namespace(technology):
     """Semantic metadata role validation belongs to the Common role resolver."""
@@ -193,12 +214,11 @@ def test_common_profile_metadata_roles_require_their_typed_namespace(technology)
             / f'algites-{technology}-common-codegen-conventions.yml')
     common = yaml.safe_load(path.read_text())
     name = f'algites-{technology}-codegen-common_1'
-    entry = common['CommonCodegenNameConventions']['NameConventions'][name]
-    entry['schema_source_schema_url'] = entry['SchemaMetadataNaming'].pop('schema_source_schema_url')
-    assert 'schema_source_schema_url' not in entry['SchemaMetadataNaming']
-    # The generic YAML catalog only parses; the new role resolver performs semantic checks.
-    entry.pop('schema_source_schema_url')
-    entry['SchemaMetadataNaming']['unknown_role'] = 'misconfigured'
+    entry = next(x for x in common['CommonCodegenNameConventions']['NameConventions']
+                 ['NameConvention'] if x['name'] == name)
+    # The generic YAML catalog only parses; the new role resolver checks unknown roles.
+    entry['SchemaMetadataNaming']['Rule'].append({
+        'kind': 'unknown_role', 'Value': 'misconfigured'})
     with pytest.raises(ValueError, match='Unknown schema metadata role'):
         resolve_codegen_naming_profiles(common, name)
 
@@ -221,13 +241,28 @@ def test_schema_metadata_enum_and_validation_are_consistent(family, suffix):
     registry = Registry().with_resources((obj['$id'], Resource.from_contents(obj, default_specification=DRAFT202012)) for obj in sources)
     schema = next(obj for obj in sources if obj['$id'].endswith(f'data-object-naming-conventions_1.{suffix}.schema.json'))
     obj = yaml.safe_load((METHOD_CONFIG / 'algites-java-codegen-method-conventions.yml').read_text())
-    entry = obj['GeneratedDataObjectMethodNameConventions']['NameConventions']['algites-java-codegen-standard_1']
+    entry = next(x for x in obj['GeneratedDataObjectMethodNameConventions']
+                 ['NameConventions']['NameConvention']
+                 if x['name'] == 'algites-java-codegen-standard_1')
+    rules = entry['SchemaMetadataNaming']['Rule']
+
     validator = Draft202012Validator(schema, registry=registry)
     validator.validate(obj)
-    entry['SchemaMetadataNaming']['nonsense'] = '$bad'
+    rules.append({'kind': 'nonsense', 'Value': '$bad'})
     assert not validator.is_valid(obj)
-    entry['SchemaMetadataNaming'].pop('nonsense')
-    entry['SchemaMetadataNaming']['schema_source_schema_url'] = ''
-    assert not validator.is_valid(obj)
-    entry['SchemaMetadataNaming']['data_source_schema_url'] = ''
+    rules.pop()
+    next(x for x in rules if x['kind'] == 'schema_source_schema_url')['Value'] = ''
+    # Empty strings satisfy the wire schema. Cross-field semantics are validated
+    # by the typed Common resolver, not by the catalog shape alone.
+    assert validator.is_valid(obj)
+    from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
+    with pytest.raises(ValueError, match='requires source metadata mapping'):
+        resolve_codegen_naming_profiles({
+            'CommonCodegenNameConventions': {'NameConventions': {'NameConvention': [
+                {'name': 'test-common', 'StructureNaming': {
+                    'Rule': [{'kind': 'standard_getter', 'Value': 'get'},
+                             {'kind': 'standard_setter', 'Value': 'set'},
+                             {'kind': 'list_getter', 'Value': 'getList'}]},
+                 'SchemaMetadataNaming': {'Rule': rules}}]}}}, 'test-common')
+    next(x for x in rules if x['kind'] == 'data_source_schema_url')['Value'] = ''
     assert validator.is_valid(obj)

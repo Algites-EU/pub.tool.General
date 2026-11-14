@@ -2,112 +2,169 @@
 # New shared/specialized codegen naming profile. Legacy .old profiles are unchanged.
 $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.yamldef.schema.json
 NameCompositions:
-  algites-java-synthetic_property_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Property
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  algites-java-synthetic_list_item_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Item
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  algites-java-synthetic_map_value_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Value
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  algites-java-synthetic_positional_item_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Position
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: position
-        Regexp: '[0-9]+'
-  algites-java-synthetic_choice_variant_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Variant
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: position
-        Regexp: '[0-9]+'
-  algites-java-synthetic_group_type_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: variable
-        Name: owner_type
-        Regexp: .+
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Group
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  algites-java-string_enum_item_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: ''
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  algites-java-non_string_enum_item_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: Value
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
+  NameComposition:
+    - name: algites-java-synthetic_property_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Property
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: algites-java-synthetic_inline_enum_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: algites-java-synthetic_list_item_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Item
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: algites-java-synthetic_map_value_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Value
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: algites-java-synthetic_positional_item_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Position
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: position
+                Regexp: '[0-9]+'
+    - name: algites-java-synthetic_choice_variant_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Variant
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: position
+                Regexp: '[0-9]+'
+    - name: algites-java-synthetic_group_type_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: variable
+            Content:
+              NameRegexp:
+                Name: owner_type
+                Regexp: .+
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Group
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: algites-java-string_enum_item_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: ''
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_snake_case_1
+    - name: algites-java-non_string_enum_item_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: Value
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
 DefsCodegenNameConventions:
   NameConventions:
-    algites-java-defscodegen-standard_1:
-      CommonNamingConvention: algites-java-codegen-common_1
-      StructureNaming:
-        synthetic_property_type: algites-java-synthetic_property_type_1
-        synthetic_list_item_type: algites-java-synthetic_list_item_type_1
-        synthetic_map_value_type: algites-java-synthetic_map_value_type_1
-        synthetic_positional_item_type: algites-java-synthetic_positional_item_type_1
-        synthetic_choice_variant_type: algites-java-synthetic_choice_variant_type_1
-        synthetic_group_type: algites-java-synthetic_group_type_1
-        string_enum_item: algites-java-string_enum_item_1
-        non_string_enum_item: algites-java-non_string_enum_item_1
+    NameConvention:
+      - name: algites-java-defscodegen-standard_1
+        CommonNamingConvention: algites-java-codegen-common_1
+        StructureNaming:
+          Rule:
+            - kind: synthetic_property_type
+              Value: algites-java-synthetic_property_type_1
+            - kind: synthetic_inline_enum_type
+              Value: algites-java-synthetic_inline_enum_type_1
+            - kind: synthetic_list_item_type
+              Value: algites-java-synthetic_list_item_type_1
+            - kind: synthetic_map_value_type
+              Value: algites-java-synthetic_map_value_type_1
+            - kind: synthetic_positional_item_type
+              Value: algites-java-synthetic_positional_item_type_1
+            - kind: synthetic_choice_variant_type
+              Value: algites-java-synthetic_choice_variant_type_1
+            - kind: synthetic_group_type
+              Value: algites-java-synthetic_group_type_1
+            - kind: string_enum_item
+              Value: algites-java-string_enum_item_1
+            - kind: non_string_enum_item
+              Value: algites-java-non_string_enum_item_1

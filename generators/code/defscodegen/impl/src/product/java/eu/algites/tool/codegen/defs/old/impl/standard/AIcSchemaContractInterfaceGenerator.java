@@ -127,7 +127,7 @@ public final class AIcSchemaContractInterfaceGenerator {
                 for (var locKey : property.dataType().keyDefinitions()) {
                     String locFields = locKey.fields().stream()
                             .map(AIcScalarGeneration::jquote).reduce((a, b) -> a + ", " + b).orElseThrow();
-                    rows.add("    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition(name = "
+                    rows.add("    @eu.algites.lib.data.dataobject.AIaKeyDefinition(name = "
                             + AIcScalarGeneration.jquote(locKey.name()) + ", fields = {" + locFields + "}, required = " + locKey.required() + ")");
                 }
             }
@@ -135,6 +135,8 @@ public final class AIcSchemaContractInterfaceGenerator {
                     + AIcScalarGeneration.jquote(property.sourceName())
                     + ", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind." + property.presence().name()
                     + ", allowsNull = " + property.nullable()
+                    + ", minItemCount = " + (property.xmlField() == null ? -1 : property.xmlField().minOccurs())
+                    + ", maxItemCount = " + (property.xmlField() == null ? -1 : property.xmlField().maxOccurs())
                     + ", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy."
                     + AIcSetterInheritancePolicyConfiguration.effectiveDefault().name() + ")");
             if (property.xmlField() != null) {
@@ -144,8 +146,6 @@ public final class AIcSchemaContractInterfaceGenerator {
                         + AIcScalarGeneration.jquote(locXml.namespaceLocalName())
                         + ", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind."
                          + locXml.valueKind().name() + ", order = " + locXmlOrder
-                        + ", minOccurs = " + locXml.minOccurs()
-                        + ", maxOccurs = " + locXml.maxOccurs()
                         + ", wildcardNamespace = " + AIcScalarGeneration.jquote(locXml.wildcardNamespace())
                         + ", wildcardProcessContents = " + AIcScalarGeneration.jquote(locXml.wildcardProcessContents()) + ")");
             }

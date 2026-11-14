@@ -60,7 +60,27 @@ final class AIcSdoContractSourceLoader implements AutoCloseable {
             if (!locRuntimePath.isBlank()) locClasspath.add(locRuntimePath);
             var locUrls = new ArrayList<URL>();
             for (Path locDependency : aDependencyPaths) {
-                Path locPath = locDependency.toRealPath();
+                // Gradle may expose unmaterialized output directories on its
+                // classpath. The bootstrap filters those, while explicit CLI
+                // users get a precise diagnostic if they supply such a path.
+                if (!Files.exists(locDependency))
+                    throw new AIxCodegenValidationException(
+                            "Missing Java SDO dependency classpath entry: " + locDependency,
+                            "Supply an existing JAR or compiled class/resource directory "
+                            + "with --sdo-dependency-paths:java; remove optional build "
+                            + "output directories that have not been created.",
+                            locDependency.toString(), null);
+                Path locPath;
+                try {
+                    locPath = locDependency.toRealPath();
+                } catch (IOException locError) {
+                    throw new AIxCodegenValidationException(
+                            "Cannot resolve Java SDO dependency classpath entry: " + locDependency
+                            + " (" + locError.getMessage() + ")",
+                            "Verify the dependency path and access permissions before "
+                            + "invoking SDO Codegen.",
+                            locDependency.toString(), null, locError);
+                }
                 locClasspath.add(locPath.toString());
                 locUrls.add(locPath.toUri().toURL());
             }
@@ -101,7 +121,12 @@ final class AIcSdoContractSourceLoader implements AutoCloseable {
             };
             return new AIcSdoContractSourceLoader(locRoot, locDependencies, locLoader);
         } catch (IOException locError) {
-            throw new AIxCodegenValidationException("Cannot read Java source tree or dependencies: " + aSourceRoot, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.", null, null, locError);
+            throw new AIxCodegenValidationException(
+                    "Cannot read Java source tree or dependencies: " + aSourceRoot
+                    + " (" + locError.getMessage() + ")",
+                    "Check the configured source root, dependency paths, access permissions "
+                    + "and generated-source locations.",
+                    aSourceRoot.toString(), null, locError);
         }
     }
 

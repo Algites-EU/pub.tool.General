@@ -1,11 +1,13 @@
 """An annotated empty read-only schema is a valid SmartDataObject contract."""
+from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from explicit_sdo_fixture import configured_service, explicit_generic_manifest
 
 
 class AIigEmpty(AIiDataObject):
-    __data_object__ = AIcdDataObject(schema_id='unit.empty', schema_version=1)
+    __data_object__ = AIcdDataObject()
+    __json_schema__ = AIaDataObjectJsonSchema(schema_id='unit.empty', schema_version=1)
     __data_object_fields__ = ()
 
 

@@ -12,7 +12,7 @@ for entry in ('generators/code/common/src/product/python',
     sys.path.insert(0, str(TOOL / entry))
 
 from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
-from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import AIigSourceInputKind_1 as Kind
+from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import AIngSourceInputKind_1 as Kind
 from eu.algites.tool.codegen.defs.impl.standard.canonical_pipeline import (
     AIcDefsCodegenCanonicalPipeline, AIcdDefsCodegenSourceDocument,
 )
@@ -40,7 +40,7 @@ def test_root_version_and_field_documentation_survive(kind):
     assert record.structure.children[0].description == 'External identifier.'
     wire = value.payload['types'][0]
     assert (wire['schema_version'], wire['description']) == ('2.1', 'Order details.')
-    assert (wire['structure']['ElementList']['children'][0]['Element']['description']
+    assert (wire['content']['structure']['ElementList']['children'][0]['Element']['description']
             == 'External identifier.')
 
 
@@ -95,15 +95,15 @@ def test_allof_reference_is_explicit_inheritance_not_lost_properties():
     root, inherited = result.types
     assert root.inherited_from_types == (inherited.identity,)
     assert inherited.structure.children[0].name == 'Name'
-    assert inherited.structure.children[0].min_occurs == 1
+    assert inherited.structure.children[0].min_item_count == 1
 
 
 def test_oneof_enum_list_preserves_all_branch_literals():
     """Equivalent replacement for the retired enum-alternative merger assertion."""
-    source = {'title': 'Languages', 'type': 'array', 'items': {'oneOf': [
-        {'type': 'string', 'enum': ['java']},
-        {'type': 'string', 'enum': ['python']},
-    ]}}
+    source = {'title': 'Languages', 'type': 'array', 'items': {'type': 'object', 'x-algites-defscodegen-choice': True,
+        'properties': {'java': {'type': 'string', 'enum': ['java']},
+                       'python': {'type': 'string', 'enum': ['python']}},
+        'minProperties': 1, 'maxProperties': 1, 'additionalProperties': False}}
     result = pipeline().process([AIcdDefsCodegenSourceDocument(Kind.JSONDEFS, 'lang.json', source)])
     list_item = result.types[0].structure.item
     assert list_item.origin.value == 'SYNTHETIC'

@@ -1,42 +1,113 @@
-"""Independent SDO Codegen inputs are DataObject interfaces, never Defs schemas.
+"""Standalone independent SDO CLI regressions using only current contracts.
 
-The same manually authored interfaces must work under the promoted implementation
-without requiring either Defs Codegen or its canonical schema representation.
+No archived Defs/SDO implementation is imported. Naming roles are the same
+format-neutral input, mutable interface and implementation roles in Java/Python.
 """
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
 from eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli import main
-import test_handwritten_naming_cli as original
+from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 
 
-def test_handwritten_interface_produces_writable_interface_and_implementation(tmp_path, monkeypatch):
-    """An annotated hand-written Python class is a complete SDO input."""
-    monkeypatch.setattr(original, 'main', main)
-    original.test_handwritten_contract_uses_annotated_convention_not_filename(tmp_path)
-    files = list((tmp_path / 'generated').rglob('*.py'))
-    assert len(files) == 2
-    assert any('class AIi' in p.read_text() or 'class AIig' in p.read_text() for p in files)
-    assert any('class AIc' in p.read_text() for p in files)
+TOOL = next(parent for parent in Path(__file__).resolve().parents
+            if parent.name == 'pub.tool.General')
+LIB = TOOL.parent / 'pub.lib.General'
 
 
-def test_same_package_for_writable_and_concrete(tmp_path, monkeypatch):
-    """Writable and implementation outputs can coexist without extra schema input."""
-    monkeypatch.setattr(original, 'main', main)
-    original.test_shared_package_is_allowed_for_distinct_names(tmp_path)
+def _fixture(tmp_path: Path, *, shared_package: bool = False) -> Path:
+    """Create handwritten DO inputs and explicit current Algites profile settings."""
+    root = tmp_path / 'repository'
+    source = root / 'intf/src/product/python/exampleinvoice'
+    source.mkdir(parents=True)
+    (source / '__init__.py').touch()
+    (source / 'invoice_models.py').write_text('''
+from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
+from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
+from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField
+
+class AIigInvoice_1(AIiDataObject):
+    __data_object__ = AIcdDataObject()
+    @AIaDataObjectField(dataFieldName='invoice_code')
+    def getCode(self) -> str:
+        raise NotImplementedError
+''', encoding='utf-8')
+    (source / 'other_models.py').write_text('''
+from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
+from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
+from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField
+
+class AIigOther_1(AIiDataObject):
+    __data_object__ = AIcdDataObject()
+    @AIaDataObjectField(dataFieldName='other_value')
+    def getValue(self) -> str:
+        raise NotImplementedError
+''', encoding='utf-8')
+    naming = LIB / ('naming/convention/profile/algites/src/product/config/'
+                    'eu/algites/lib/naming/convention/sourcecode')
+    codegen = TOOL / ('generators/code/profile/algites/src/product/config/'
+                      'eu/algites/lib/naming/convention/sourcecode')
+    args = [
+        f'--repository-root={root}',
+        '--sdo-input-paths:python=intf/src/product/python',
+        '--technology-sdointf-output-dir:python=intf/src/product/python.gen',
+        '--technology-sdoimpl-output-dir:python=intf/src/product/python.gen',
+        '--dointf-naming-convention:python=algites-python-gen-intf-versioned_1',
+        '--sdointf-naming-convention:python=algites-python-gen-data-intf-versioned_1',
+        '--sdoimpl-naming-convention:python=algites-python-gen-data-class-versioned_1',
+        f'--naming-conventions-file:python={naming / "algites-python-name-conventions.yml"}',
+        f'--naming-conventions-file:codegen_common={codegen / "algites-python-common-codegen-conventions.yml"}',
+        f'--naming-conventions-file:codegen_sdo={codegen / "algites-python-sdo-codegen-conventions.yml"}',
+        '--common-codegen-naming-convention:python=algites-python-codegen-common_1',
+        '--sdo-codegen-naming-convention:python=algites-python-sdocodegen-standard_1',
+    ]
+    if not shared_package:
+        args += ['--sdointf-subpackage=impl.intf', '--sdoclass-subpackage=impl']
+    settings = tmp_path / 'current-sdo.settings'
+    settings.write_text('\n'.join(args) + '\n', encoding='utf-8')
+    return settings
 
 
-def test_explicit_handwritten_class_selector(tmp_path, monkeypatch):
-    """Explicit class selectors can target names unrelated to Defs naming rules."""
-    monkeypatch.setattr(original, 'main', main)
-    original.test_explicit_python_input_class(tmp_path)
+def _generated(tmp_path: Path) -> list[Path]:
+    return sorted((tmp_path / 'repository/intf/src/product/python.gen').rglob('*.py'))
 
 
-def test_unresolved_handwritten_class_is_not_silently_ignored(tmp_path, monkeypatch):
-    """Missing explicit interface input must fail before publication."""
-    monkeypatch.setattr(original, 'main', main)
-    original.test_missing_explicit_python_input_class_fails(tmp_path)
+def test_handwritten_interface_produces_writable_interface_and_implementation(tmp_path):
+    """An independently handwritten contract generates both SDO roles."""
+    settings = _fixture(tmp_path)
+    assert main([f'--settings-file={settings}']) == 0
+    generated = _generated(tmp_path)
+    assert len(generated) == 4
+    assert any('class AIigdInvoice_1(' in p.read_text() for p in generated)
+    assert any('class AIcgdInvoice_1(' in p.read_text() for p in generated)
+    # Canonical wire names stay on the authoritative read-only getter.
+    assert any('def getCode(self)' in p.read_text() for p in generated)
+
+
+def test_same_package_for_writable_and_concrete(tmp_path):
+    """Current naming roles can coexist in one package without filename collisions."""
+    settings = _fixture(tmp_path, shared_package=True)
+    assert main([f'--settings-file={settings}']) == 0
+    assert len(_generated(tmp_path)) == 4
+
+
+def test_explicit_handwritten_class_selector(tmp_path):
+    """Explicit class selection filters independent handwritten DO inputs."""
+    settings = _fixture(tmp_path)
+    assert main([f'--settings-file={settings}',
+                 '--dointf-input-classes:python=exampleinvoice.invoice_models:AIigInvoice_1']) == 0
+    assert len(_generated(tmp_path)) == 2
+
+
+def test_unresolved_handwritten_class_is_not_silently_ignored(tmp_path):
+    """A nonexistent selected interface must yield a validation error."""
+    settings = _fixture(tmp_path)
+    with pytest.raises((ValueError, AIxCodegenValidationException, ImportError)):
+        main([f'--settings-file={settings}',
+              '--dointf-input-classes:python=exampleinvoice.invoice_models:AIigMissing_1'])
 
 
 @pytest.mark.parametrize('argument', [
@@ -47,6 +118,9 @@ def test_unresolved_handwritten_class_is_not_silently_ignored(tmp_path, monkeypa
     '--mutable-sdo-python=manifest.json',
 ])
 def test_sdo_cli_does_not_accept_defs_schema_or_canonical_options(argument):
-    """The independent SDO CLI has no schema-reading or canonical-model options."""
+    """The standalone SDO CLI must reject Defs schema and canonical-model options."""
+    algites = (TOOL / 'generators/code/profile/algites/src/product/config'
+               / 'eu/algites/tool/codegen/sdo/sdocodegen-python.settings')
+    assert algites.is_file()
     with pytest.raises(ValueError, match='Unknown|unqualified|Invalid'):
-        main([argument])
+        main([f'--settings-file={algites}', argument])

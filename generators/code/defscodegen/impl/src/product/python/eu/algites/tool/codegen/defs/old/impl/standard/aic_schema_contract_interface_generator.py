@@ -190,7 +190,6 @@ class AIcSchemaContractInterfaceGenerator:
                 xml_field_rows.append(f'        {prop.source_name!r}: AIaXmlDataObjectField('
                     f'namespace={wire.namespace!r}, namespace_local_name={wire.namespace_local_name!r}, '
                     f'value_kind=AInXmlValueKind.{wire.value_kind.name}, order={field_order}, '
-                    f'min_occurs={wire.min_occurs}, max_occurs={wire.max_occurs}, '
                     f'wildcard_namespace={wire.wildcard_namespace!r}, '
                     f'wildcard_process_contents={wire.wildcard_process_contents!r}),')
             label_rows.append(f'        {prop.source_name!r}: AIaFieldLabel(label={title!r}, labels={entries}),')
@@ -206,6 +205,8 @@ class AIcSchemaContractInterfaceGenerator:
             field_decorator = ('    @AIaDataObjectField(field_name=' + repr(prop.source_name)
                 + ', presence=AInFieldPresenceKind.' + prop.presence.name
                 + ', allows_null=' + str(bool(prop.nullable))
+                + ', min_item_count=' + str(prop.xml_field.min_occurs if prop.xml_field else -1)
+                + ', max_item_count=' + str(prop.xml_field.max_occurs if prop.xml_field else -1)
                 + (', expected_type=' + expected_type if expected_type else '')
                 + ', setter_inheritance_policy=AInFieldSetterInheritancePolicy.' + effective_default().name + ')')
             if expected_type == 'AIiMultiMappedList':
@@ -269,7 +270,7 @@ class AIcSchemaContractInterfaceGenerator:
                 f'definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace={namespace!r}, '
                 f'namespace_local_name={local!r})\n')
         if xml_key_rows:
-            xml_metadata += ('    __xml_key_definitions__ = {\n'
+            xml_metadata += ('    __key_definitions__ = {\n'
                 + '\n'.join(xml_key_rows) + '\n    }\n')
         if xml_field_rows:
             xml_imports += ('from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField\n'
@@ -289,9 +290,9 @@ class AIcSchemaContractInterfaceGenerator:
             + f'class {interface}({parent_name}):\n'
             + f'    """Read-only generated contract for {model.logical_name}.\n\n    Author: linhart1.\n    """\n'
             + '    __data_object__ = AIcdDataObject('
-            + (f'schema_id={model.identity!r}, ' if model.schema_source_schema_identifier_field != '' else '')
-            + (f'schema_version={model.version if model.version is not None else -1}, ' if model.schema_source_schema_version_field != '' else '')
-            + (f'schema_url={model.schema_url!r}, ' if model.schema_source_schema_url_field != '' else '')
+            + (f'schema_id={model.identity!r}, ' if request.contract_role != 'common' and model.schema_source_schema_identifier_field != '' else '')
+            + (f'schema_version={model.version if model.version is not None else -1}, ' if request.contract_role != 'common' and model.schema_source_schema_version_field != '' else '')
+            + (f'schema_url={model.schema_url!r}, ' if request.contract_role != 'common' and model.schema_source_schema_url_field != '' else '')
             + f'title={_visible_title(model.title, model.logical_name)!r}'
             + (f', data_source_schema_url_field={model.data_source_schema_url_field!r}' if model.data_source_schema_url_field else '')
             + (f', data_source_schema_identifier_field={model.data_source_schema_identifier_field!r}' if model.data_source_schema_identifier_field else '')
@@ -327,9 +328,9 @@ class AIcSchemaContractInterfaceGenerator:
         rows = [f'package {request.package_name};', '',
             '/**\n * Generated schema contract. Do not edit manually.\n *\n * @author linhart1\n */',
             '@eu.algites.lib.data.dataobject.AIaDataObject('
-            + ('schemaId = ' + _java_quote(model.identity) + ', ' if model.schema_source_schema_identifier_field != '' else '')
-            + ('schemaVersion = ' + str(model.version if model.version is not None else -1) + ', ' if model.schema_source_schema_version_field != '' else '')
-            + ('schemaUrl = ' + _java_quote(model.schema_url) + ', ' if model.schema_source_schema_url_field != '' else '')
+            + ('schemaId = ' + _java_quote(model.identity) + ', ' if request.contract_role != 'common' and model.schema_source_schema_identifier_field != '' else '')
+            + ('schemaVersion = ' + str(model.version if model.version is not None else -1) + ', ' if request.contract_role != 'common' and model.schema_source_schema_version_field != '' else '')
+            + ('schemaUrl = ' + _java_quote(model.schema_url) + ', ' if request.contract_role != 'common' and model.schema_source_schema_url_field != '' else '')
             + 'title = ' + _java_quote(_visible_title(model.title, model.logical_name))
             + (', dataSourceSchemaUrlField = ' + _java_quote(model.data_source_schema_url_field) if model.data_source_schema_url_field else '')
             + (', dataSourceSchemaIdentifierField = ' + _java_quote(model.data_source_schema_identifier_field) if model.data_source_schema_identifier_field else '')
@@ -378,7 +379,7 @@ class AIcSchemaContractInterfaceGenerator:
             if prop.data_type.kind is AInDataTypeKind.ARRAY:
                 for key in prop.data_type.key_definitions:
                     fields = ', '.join(_java_quote(field) for field in key.fields)
-                    rows.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition('
+                    rows.append('    @eu.algites.lib.data.dataobject.AIaKeyDefinition('
                                 + 'name = ' + _java_quote(key.name) + ', fields = {' + fields + '}, required = ' + str(bool(key.required)).lower() + ')')
             if prop.xml_field is not None:
                 wire = prop.xml_field

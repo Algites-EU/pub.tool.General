@@ -5,6 +5,7 @@
   "type": "string",
   "enum": [
     "standard_getter",
+    "list_getter",
     "standard_setter",
     "multi_mapped_list_key_synthetic_getter",
     "multi_mapped_list_value_synthetic_getter",

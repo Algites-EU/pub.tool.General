@@ -241,7 +241,10 @@ class AIcJsonSchemaReader:
                 and {self._wire_value(branch['const']) for branch in branches}
                     == {self._wire_value(value) for value in values}):
             kind = _value_kind(schema['type'])
-            return AIcdDataType(kind, constraints=from_json(schema, kind))
+            # A complete typed enum is emitted as its own named contract by the
+            # repository collector. Retain that nominal identity when nested in
+            # an array or object, instead of widening the getter to a scalar.
+            return AIcdDataType(AInDataTypeKind.ENUM, constraints=from_json(schema, kind))
         if 'x-algites-defscodegen-choice' in schema:
             self._validate_choice_shape(schema)
             # Every branch is a one-property object: the property name is the
@@ -348,7 +351,27 @@ class AIcJsonSchemaReader:
                                  'compatible value schemas; current KEYED_VALUES supports additionalProperties', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
             keyed_type = (self._recursive_type(dynamic, request, visited)
                           if isinstance(dynamic, Mapping) else None)
-            keys = (AIcdKeyDefinition('json-property-name', ('_getKey',), unique=True, virtual=True),)
+            # An explicit map-key declaration shares the same index identity and
+            # logical key-field name as the corresponding XML xs:key. Without it,
+            # keep the historic synthetic-key naming policy.
+            key_metadata = schema.get('x-algites-defscodegen-key')
+            if key_metadata is not None:
+                if (not isinstance(key_metadata, Mapping)
+                        or set(key_metadata) != {'id', 'field-name'}
+                        or any(not isinstance(key_metadata[item], str)
+                               or not key_metadata[item].strip()
+                               for item in ('id', 'field-name'))
+                        or keyed_type is None):
+                    raise AIxCodegenValidationException(
+                        'Invalid x-algites-defscodegen-key: expected id and field-name '
+                        'on an additionalProperties map',
+                        'The key metadata belongs to the owning map object and both '
+                        'identifiers must be nonempty strings.')
+                keys = (AIcdKeyDefinition(key_metadata['id'],
+                        (key_metadata['field-name'],), unique=True, virtual=True),)
+            else:
+                keys = (AIcdKeyDefinition('json-property-name',
+                        ('_getKey',), unique=True, virtual=True),)
             return AIcdDataType(AInDataTypeKind.OBJECT,
                 properties=tuple(self._property(name, node, name in required, request, visited)
                                  for name, node in (fields if isinstance(fields, Mapping) else {}).items()),
@@ -357,7 +380,11 @@ class AIcJsonSchemaReader:
                 constraints=from_json(schema, AInDataTypeKind.OBJECT))
         if 'enum' in schema or 'const' in schema:
             value_kind = _value_kind(raw) if raw else _non_null_kind(schema)
-            return AIcdDataType(value_kind, constraints=from_json(schema, _non_null_kind(schema)))
+            # Inline nonempty enumerations are discoverable named units. A
+            # solitary const is only a value constraint, not a generated enum.
+            resolved_kind = (AInDataTypeKind.ENUM if isinstance(schema.get('enum'), list)
+                             and bool(schema['enum']) else value_kind)
+            return AIcdDataType(resolved_kind, constraints=from_json(schema, _non_null_kind(schema)))
         kind = _value_kind(raw)
         name = kind.value if kind.value in AInDataTypeKind.__members__ else 'ANY'
         return AIcdDataType(AInDataTypeKind[name], constraints=from_json(schema, kind))

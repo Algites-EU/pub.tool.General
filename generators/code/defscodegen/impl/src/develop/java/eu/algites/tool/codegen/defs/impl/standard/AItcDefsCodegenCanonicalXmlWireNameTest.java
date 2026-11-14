@@ -1,12 +1,14 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElement;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElementList;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenList;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenXmlWireName;
-import eu.algites.tool.codegen.defs.AInDefsCodegenXmlValueKind;
-import eu.algites.tool.codegen.defs.AInDefsCodegenSourceInputKind;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalList;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalXmlWireName;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngXmlWireNameValueKind_1;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
 import java.util.List;
 import java.util.Map;
 import org.testng.Assert;
@@ -50,23 +52,23 @@ public final class AItcDefsCodegenCanonicalXmlWireNameTest {
                 """;
         var processor = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> {});
         var declaration = processor.process(List.of(new AIcdDefsCodegenSourceDocument(
-                AInDefsCodegenSourceInputKind.XMLDEFS, "doc.xsd", xsd))).types().get(0);
-        var fields = ((AIcdDefsCodegenElementList) declaration.structure()).children();
+                AIngSourceInputKind_1.XMLDEFS, "doc.xsd", xsd))).types().get(0);
+        var fields = ((AIcDefsCanonicalElementList) declaration.structure()).children();
         Assert.assertEquals(fields.size(), 5);
-        Assert.assertEquals(((AIcdDefsCodegenElement) fields.get(0)).xmlWire(),
-                new AIcdDefsCodegenXmlWireName("urn:doc", "Name", AInDefsCodegenXmlValueKind.ELEMENT));
-        Assert.assertEquals(((AIcdDefsCodegenList) fields.get(1)).xmlWire(),
-                new AIcdDefsCodegenXmlWireName("urn:doc", "Line", AInDefsCodegenXmlValueKind.ELEMENT));
-        Assert.assertEquals(((AIcdDefsCodegenElement) fields.get(2)).xmlWire(),
-                new AIcdDefsCodegenXmlWireName("", "Unqualified", AInDefsCodegenXmlValueKind.ELEMENT));
-        Assert.assertEquals(((AIcdDefsCodegenElement) fields.get(3)).xmlWire(),
-                new AIcdDefsCodegenXmlWireName("", "code", AInDefsCodegenXmlValueKind.ATTRIBUTE));
-        Assert.assertEquals(((AIcdDefsCodegenElement) fields.get(4)).xmlWire(),
-                new AIcdDefsCodegenXmlWireName("urn:doc", "flag", AInDefsCodegenXmlValueKind.ATTRIBUTE));
+        Assert.assertEquals(((AIcDefsCanonicalElement) fields.get(0)).xmlWire(),
+                new AIcDefsCanonicalXmlWireName("urn:doc", "Name", AIngXmlWireNameValueKind_1.ELEMENT));
+        Assert.assertEquals(((AIcDefsCanonicalList) fields.get(1)).xmlWire(),
+                new AIcDefsCanonicalXmlWireName("urn:doc", "Line", AIngXmlWireNameValueKind_1.ELEMENT));
+        Assert.assertEquals(((AIcDefsCanonicalElement) fields.get(2)).xmlWire(),
+                new AIcDefsCanonicalXmlWireName("", "Unqualified", AIngXmlWireNameValueKind_1.ELEMENT));
+        Assert.assertEquals(((AIcDefsCanonicalElement) fields.get(3)).xmlWire(),
+                new AIcDefsCanonicalXmlWireName("", "code", AIngXmlWireNameValueKind_1.ATTRIBUTE));
+        Assert.assertEquals(((AIcDefsCanonicalElement) fields.get(4)).xmlWire(),
+                new AIcDefsCanonicalXmlWireName("urn:doc", "flag", AIngXmlWireNameValueKind_1.ATTRIBUTE));
         var merged = AIcDefsCodegenCanonicalModelMerger.merge(List.of(declaration, declaration));
-        var again = ((AIcdDefsCodegenElementList) merged.get(0).structure()).children();
-        Assert.assertEquals(((AIcdDefsCodegenElement) again.get(3)).xmlWire(),
-                ((AIcdDefsCodegenElement) fields.get(3)).xmlWire());
+        var again = ((AIcDefsCanonicalElementList) merged.get(0).structure()).children();
+        Assert.assertEquals(((AIcDefsCanonicalElement) again.get(3)).xmlWire(),
+                ((AIcDefsCanonicalElement) fields.get(3)).xmlWire());
         var payload = AIcDefsCodegenCanonicalContractPayload.emit(merged).toString();
         Assert.assertTrue(payload.contains("xml_wire"));
         Assert.assertTrue(payload.contains("ATTRIBUTE"));
@@ -100,22 +102,22 @@ public final class AItcDefsCodegenCanonicalXmlWireNameTest {
 
     @Test
     public void AIcCanonicalXmlWireConflictsAreRejected() {
-        var scalar = new eu.algites.tool.codegen.defs.AIcdDefsCodegenScalar(
-                eu.algites.tool.codegen.defs.AInDefsCodegenScalarKind.STRING, "");
-        var left = new AIcdDefsCodegenElement("code", scalar, List.of(), Map.of(),
-                0, 1, "", new AIcdDefsCodegenXmlWireName("", "code", AInDefsCodegenXmlValueKind.ATTRIBUTE));
-        var right = new AIcdDefsCodegenElement("code", scalar, List.of(), Map.of(),
-                0, 1, "", new AIcdDefsCodegenXmlWireName("urn:doc", "code", AInDefsCodegenXmlValueKind.ATTRIBUTE));
-        var typeA = new eu.algites.tool.codegen.defs.AIcdDefsCodegenType("urn:Doc", "Doc",
-                eu.algites.tool.codegen.defs.AInDefsCodegenTypeOrigin.DECLARED, List.of("Doc"), List.of(),
-                new AIcdDefsCodegenElementList(
-                        eu.algites.tool.codegen.defs.AInDefsCodegenComposition.SEQUENCE, List.of(left)),
-                eu.algites.tool.codegen.defs.AInDefsCodegenResolutionState.RESOLVED, Map.of());
-        var typeB = new eu.algites.tool.codegen.defs.AIcdDefsCodegenType("urn:Doc", "Doc",
-                eu.algites.tool.codegen.defs.AInDefsCodegenTypeOrigin.DECLARED, List.of("Doc"), List.of(),
-                new AIcdDefsCodegenElementList(
-                        eu.algites.tool.codegen.defs.AInDefsCodegenComposition.SEQUENCE, List.of(right)),
-                eu.algites.tool.codegen.defs.AInDefsCodegenResolutionState.RESOLVED, Map.of());
+        var scalar = new eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalScalar(
+                eu.algites.tool.codegen.defs.bootstrap.model.AIngScalarKind_1.STRING, "");
+        var left = new AIcDefsCanonicalElement("code", scalar, List.of(), Map.of(),
+                0, 1, "", new AIcDefsCanonicalXmlWireName("", "code", AIngXmlWireNameValueKind_1.ATTRIBUTE));
+        var right = new AIcDefsCanonicalElement("code", scalar, List.of(), Map.of(),
+                0, 1, "", new AIcDefsCanonicalXmlWireName("urn:doc", "code", AIngXmlWireNameValueKind_1.ATTRIBUTE));
+        var typeA = new eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType("urn:Doc", "Doc",
+                eu.algites.tool.codegen.defs.bootstrap.model.AIngTypeOrigin_1.DECLARED, List.of("Doc"), List.of(),
+                new AIcDefsCanonicalElementList(
+                        eu.algites.tool.codegen.defs.bootstrap.model.AIngComposition_1.SEQUENCE, List.of(left)),
+                eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1.RESOLVED, Map.of());
+        var typeB = new eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType("urn:Doc", "Doc",
+                eu.algites.tool.codegen.defs.bootstrap.model.AIngTypeOrigin_1.DECLARED, List.of("Doc"), List.of(),
+                new AIcDefsCanonicalElementList(
+                        eu.algites.tool.codegen.defs.bootstrap.model.AIngComposition_1.SEQUENCE, List.of(right)),
+                eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1.RESOLVED, Map.of());
         boolean rejected = false;
         try {
             AIcDefsCodegenCanonicalModelMerger.merge(List.of(typeA, typeB));

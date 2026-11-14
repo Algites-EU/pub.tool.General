@@ -48,7 +48,7 @@ def _xml_schema(keys):
     return '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
         xmlns:tns="urn:contract" targetNamespace="urn:contract"
         elementFormDefault="qualified" version="1">
-      <xs:complexType name="employees"><xs:sequence>
+      <xs:complexType name="Employees"><xs:sequence>
         <xs:element name="Employees"><xs:complexType><xs:sequence>
           <xs:element name="Employee" minOccurs="0" maxOccurs="unbounded">
             <xs:complexType><xs:sequence>
@@ -72,12 +72,12 @@ def test_xml_composite_key_and_second_index_are_preserved(tmp_path):
     frontend = AIcXmlDefsFrontend()
     request = _load(source, AInDefinitionSourceKind.XMLDEFS)
     frontend.load(request)
-    owner = frontend.load_named_type(request, 'employeesEmployees')
+    owner = frontend.load_named_type(request, 'EmployeesEmployees')
     mapped = owner.data_type.properties[0].data_type
     assert mapped.kind is AInDataTypeKind.ARRAY
     assert [key.fields for key in mapped.key_definitions] == [('Region', 'Id'), ('Id',)]
     assert all(key.unique for key in mapped.key_definitions)
-    employee = frontend.load_named_type(request, 'employeesEmployeesEmployee')
+    employee = frontend.load_named_type(request, 'EmployeesEmployeesEmployee')
     assert {field.source_name for field in employee.data_type.properties} == {'Id', 'Region', 'Label'}
 
 
@@ -88,7 +88,7 @@ def test_xml_key_selector_with_missing_namespace_is_rejected(tmp_path):
         <xs:field xpath="@Id"/></xs:key>'''))
     frontend = AIcXmlDefsFrontend()
     with pytest.raises(ValueError, match='Unqualified XSD XPath'):
-        frontend.load_named_type(_load(source, AInDefinitionSourceKind.XMLDEFS), 'employeesEmployees')
+        frontend.load_named_type(_load(source, AInDefinitionSourceKind.XMLDEFS), 'EmployeesEmployees')
 
 
 def test_non_type_preserving_pattern_properties_fails_loudly(tmp_path):
@@ -150,7 +150,7 @@ def test_nested_xml_key_field_preserves_typed_nullable_path(tmp_path):
     frontend = AIcXmlDefsFrontend()
     request = _load(source, AInDefinitionSourceKind.XMLDEFS)
     frontend.load(request)
-    owner = frontend.load_named_type(request, 'employeesEmployees')
+    owner = frontend.load_named_type(request, 'EmployeesEmployees')
     assert owner.data_type.properties[0].data_type.key_definitions[0].fields == (
         'Properties.Identity.Code',)
 
@@ -167,11 +167,11 @@ def test_nested_xml_key_rejects_unknown_and_repeating_intermediate(tmp_path):
     source.write_text(schema)
     with pytest.raises(ValueError, match='Repeated intermediate'):
         AIcXmlDefsFrontend().load_named_type(_load(source, AInDefinitionSourceKind.XMLDEFS),
-                                               'employeesEmployees')
+                                               'EmployeesEmployees')
     source.write_text(schema.replace('name="Properties" maxOccurs="unbounded"', 'name="Properties" maxOccurs="1"').replace('tns:Code', 'tns:Absent'))
     with pytest.raises(ValueError, match='Unresolved or ambiguous'):
         AIcXmlDefsFrontend().load_named_type(_load(source, AInDefinitionSourceKind.XMLDEFS),
-                                               'employeesEmployees')
+                                               'EmployeesEmployees')
 
 
 @pytest.mark.parametrize('target', ['java', 'python'])
@@ -247,16 +247,18 @@ def test_synthetic_value_getter_retains_object_array_item_contract(tmp_path, tar
     assert 'def _getValue(self) -> Any:' not in result.source
 
 
-def test_xml_unique_identity_constraint_remains_explicitly_unsupported(tmp_path):
-    """The optional-key structure of xs:unique is not yet implemented."""
+def test_xml_unique_identity_constraint_preserves_optional_index(tmp_path):
+    """xs:unique defines an optional key index, unlike mandatory xs:key."""
     source = tmp_path / 'employees_1.xsd'
     identity = ('<xs:unique name="ByRegion">'
                 '<xs:selector xpath="tns:Employee"/>'
                 '<xs:field xpath="@Region"/></xs:unique>')
     source.write_text(_xml_schema(identity))
-    with pytest.raises(ValueError, match='Unsupported xs:unique'):
-        AIcXmlDefsFrontend().load_named_type(
-            _load(source, AInDefinitionSourceKind.XMLDEFS), 'employeesEmployees')
+    owner = AIcXmlDefsFrontend().load_named_type(
+        _load(source, AInDefinitionSourceKind.XMLDEFS), 'EmployeesEmployees')
+    keys = owner.data_type.properties[0].data_type.key_definitions
+    assert [(key.name, key.fields, key.required) for key in keys] == [
+        ('ByRegion', ('Region',), False)]
 
 
 def test_xml_keyref_does_not_affect_structural_indexes(tmp_path):
@@ -269,11 +271,11 @@ def test_xml_keyref_does_not_affect_structural_indexes(tmp_path):
         <xs:selector xpath="tns:Employee"/>
         <xs:field xpath="@Region"/></xs:keyref>'''))
     mapped = AIcXmlDefsFrontend().load_named_type(
-        _load(source, AInDefinitionSourceKind.XMLDEFS), 'employeesEmployees'
+        _load(source, AInDefinitionSourceKind.XMLDEFS), 'EmployeesEmployees'
     ).data_type.properties[0].data_type
     assert [key.name for key in mapped.key_definitions] == ['ById']
     employee = AIcXmlDefsFrontend().load_named_type(
-        _load(source, AInDefinitionSourceKind.XMLDEFS), 'employeesEmployeesEmployee')
+        _load(source, AInDefinitionSourceKind.XMLDEFS), 'EmployeesEmployeesEmployee')
     assert {field.source_name for field in employee.data_type.properties} == {'Id', 'Region', 'Label'}
 
 
@@ -286,3 +288,49 @@ def test_xml_keyref_alone_creates_no_index(tmp_path):
         <xs:field xpath="@Id"/></xs:keyref>'''))
     contract = AIcXmlDefsFrontend().load(_load(source, AInDefinitionSourceKind.XMLDEFS))
     assert not contract.data_type.properties[0].data_type.key_definitions
+
+@pytest.mark.parametrize('source_kind,suffix', [
+    (AInDefinitionSourceKind.JSONDEFS, '.jsondef.schema.json'),
+    (AInDefinitionSourceKind.YAMLDEFS, '.yamldef.schema.json'),
+])
+def test_explicit_json_yaml_map_key_reuses_xml_identity(tmp_path, source_kind, suffix):
+    """Explicit map metadata overrides the default virtual key in both JSON dialects."""
+    source = tmp_path / ('naming_1' + suffix)
+    source.write_text(json.dumps({'type': 'object', 'properties': {
+        'StructureNaming': {'type': 'object',
+            'x-algites-defscodegen-key': {
+                'id': 'UniqueStructureRoles', 'field-name': 'kind'},
+            'propertyNames': {'type': 'string', 'enum': ['getter', 'setter']},
+            'additionalProperties': {'type': 'string'}}}}))
+    contract = AIcJsonDefsFrontend().load(_load(source, source_kind))
+    mapped = contract.data_type.properties[0].data_type
+    assert mapped.kind is AInDataTypeKind.OBJECT
+    assert mapped.keyed_value_type.kind is AInDataTypeKind.STRING
+    assert len(mapped.key_definitions) == 1
+    assert mapped.key_definitions[0].name == 'UniqueStructureRoles'
+    assert mapped.key_definitions[0].fields == ('kind',)
+    assert mapped.key_definitions[0].virtual
+    assert mapped.key_definitions[0].required
+
+
+def test_implicit_json_map_key_retains_previous_default(tmp_path):
+    """Schemas without an explicit key keep their original synthetic index metadata."""
+    source = tmp_path / 'naming_1.jsondef.schema.json'
+    source.write_text(json.dumps({'type': 'object', 'properties': {
+        'StructureNaming': {'type': 'object',
+            'additionalProperties': {'type': 'string'}}}}))
+    contract = AIcJsonDefsFrontend().load(_load(source, AInDefinitionSourceKind.JSONDEFS))
+    (key,) = contract.data_type.properties[0].data_type.key_definitions
+    assert (key.name, key.fields, key.virtual) == (
+        'json-property-name', ('_getKey',), True)
+
+
+def test_invalid_explicit_map_key_is_rejected(tmp_path):
+    """Do not silently accept missing logical fields or nonmap declarations."""
+    source = tmp_path / 'invalid_1.jsondef.schema.json'
+    source.write_text(json.dumps({'type': 'object', 'properties': {
+        'StructureNaming': {'type': 'object',
+            'x-algites-defscodegen-key': {'id': 'MissingField'},
+            'additionalProperties': {'type': 'string'}}}}))
+    with pytest.raises(Exception, match='x-algites-defscodegen-key'):
+        AIcJsonDefsFrontend().load(_load(source, AInDefinitionSourceKind.JSONDEFS))

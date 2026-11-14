@@ -1,5 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
 import eu.algites.tool.codegen.defs.*;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,7 +29,7 @@ public final class AIcDefsCodegenCanonicalContractPayload {
      * @throws NullPointerException when a declaration or its required element is null
      * @throws IllegalArgumentException for duplicate IDs or unresolved references
      */
-    public static Map<String, Object> emit(List<AIcdDefsCodegenType> types) {
+    public static Map<String, Object> emit(List<AIcDefsCanonicalType> types) {
         Objects.requireNonNull(types, "types");
         List<Object> result = new ArrayList<>();
         var identities = new java.util.HashSet<String>();
@@ -48,8 +50,8 @@ public final class AIcDefsCodegenCanonicalContractPayload {
      * @return source-preserving ordered map
      * @throws IllegalArgumentException when the TYPE is not resolved
      */
-    private static Map<String, Object> typeFields(AIcdDefsCodegenType type) {
-        if (type.resolutionState() != AInDefsCodegenResolutionState.RESOLVED) {
+    private static Map<String, Object> typeFields(AIcDefsCanonicalType type) {
+        if (type.resolutionState() != AIngResolutionState_1.RESOLVED) {
             throw new IllegalArgumentException("Unresolved canonical TYPE at " + type.identity()
                     + ": " + type.resolutionState() + "; resolve references before contract emission");
         }
@@ -62,9 +64,9 @@ public final class AIcDefsCodegenCanonicalContractPayload {
         fields.put("path_segments", type.pathSegments());
         fields.put("inherited_from_types", type.inheritedFromTypes());
         if (!type.targetIdentity().isEmpty()) {
-            fields.put("target_identity", type.targetIdentity());
+            fields.put("content", Map.of("target_identity", type.targetIdentity()));
         } else if (type.structure() != null) {
-            fields.put("structure", structure(type.structure()));
+            fields.put("content", Map.of("structure", structure(type.structure())));
         } else {
             throw new IllegalArgumentException("Resolved canonical TYPE has neither nested structure nor target: "
                     + type.identity());
@@ -86,7 +88,7 @@ public final class AIcDefsCodegenCanonicalContractPayload {
      * @param definition original unnormalized key definition
      * @return structured generated-contract payload for a single key
      */
-    private static Map<String, Object> key(AIcdDefsCodegenKeyDefinition definition) {
+    private static Map<String, Object> key(AIcDefsCanonicalKeyDefinition definition) {
         return Map.of("identifier", definition.identifier(), "selector", definition.selector(),
                 "source_pointer", definition.sourcePointer(), "fields", definition.fields(),
                 "required", definition.required());
@@ -97,19 +99,20 @@ public final class AIcDefsCodegenCanonicalContractPayload {
      * @param xml exact source metadata
      * @return schema-compatible wire data
      */
-    private static Map<String, Object> xmlWire(AIcdDefsCodegenXmlWireName xml) {
+    private static Map<String, Object> xmlWire(AIcDefsCanonicalXmlWireName xml) {
         return Map.of("namespace_uri", xml.namespaceUri(), "local_name", xml.localName(),
                 "value_kind", xml.valueKind().name());
     }
 
-    private static Map<String, Object> structure(AIiDefsCodegenStructure node) {
-        if (node instanceof AIcdDefsCodegenType type) return Map.of("Type", typeFields(type));
-        if (node instanceof AIcdDefsCodegenElementList list) {
+    private static Map<String, Object> structure(AIiDefsCanonicalStructure node) {
+        if (node instanceof AIcDefsCanonicalType type) return Map.of("Type", typeFields(type));
+        if (node instanceof AIcDefsCanonicalElementList list) {
             return Map.of("ElementList", Map.of("composition", list.composition().name(),
                     "children", list.children().stream().map(AIcDefsCodegenCanonicalContractPayload::structure).toList(),
-                    "min_occurs", list.minOccurs(), "max_occurs", list.maxOccurs()));
+                    "min_item_count", list.minItemCount(), "max_item_count", list.maxItemCount(),
+                    "min_properties", list.minProperties(), "max_properties", list.maxProperties()));
         }
-        if (node instanceof AIcdDefsCodegenElement element) {
+        if (node instanceof AIcDefsCanonicalElement element) {
             var keys = element.keyDefinitions().stream().map(
                     AIcDefsCodegenCanonicalContractPayload::key).toList();
             Map<String, Object> fields = new LinkedHashMap<>();
@@ -117,32 +120,49 @@ public final class AIcDefsCodegenCanonicalContractPayload {
             fields.put("structure", structure(element.structure()));
             fields.put("key_definitions", keys);
             fields.put("source_bindings", bindings(element.sourceBindings()));
-            fields.put("min_occurs", element.minOccurs());
-            fields.put("max_occurs", element.maxOccurs());
+            fields.put("min_item_count", element.minItemCount());
+            fields.put("max_item_count", element.maxItemCount());
             fields.put("description", element.description());
             if (element.xmlWire() != null) fields.put("xml_wire", xmlWire(element.xmlWire()));
+            // The canonical schema owns these fields; the projection must never
+            // silently discard the default/fixed contract before validation.
+            fields.put("default_kind", element.defaultKind());
+            fields.put("default_value", element.defaultValue());
+            fields.put("is_empty_allowed", element.isEmptyAllowed());
             return Map.of("Element", fields);
         }
-        if (node instanceof AIcdDefsCodegenList list) {
+        if (node instanceof AIcDefsCanonicalList list) {
             Map<String, Object> fields = new LinkedHashMap<>();
             fields.put("name", list.name());
             fields.put("item", structure(list.item()));
-            fields.put("min_occurs", list.minOccurs());
-            fields.put("max_occurs", list.maxOccurs());
+            fields.put("min_item_count", list.minItemCount());
+            fields.put("max_item_count", list.maxItemCount());
             fields.put("key_definitions", list.keyDefinitions().stream().map(
                     AIcDefsCodegenCanonicalContractPayload::key).toList());
+            fields.put("unique_items", list.uniqueItems());
             if (list.xmlWire() != null) fields.put("xml_wire", xmlWire(list.xmlWire()));
             return Map.of("List", fields);
         }
-        if (node instanceof AIcdDefsCodegenMap map) {
+        if (node instanceof AIcDefsCanonicalMap map) {
             return Map.of("Map", Map.of("name", map.name(), "map_kind", map.mapKind().name(),
                     "key_type", structure(map.keyType()), "value_type", structure(map.valueType()),
                     "source_bindings", bindings(map.sourceBindings())));
         }
-        if (node instanceof AIcdDefsCodegenScalar scalar) {
-            return Map.of("Scalar", Map.of("scalar_kind", scalar.scalarKind().name(), "format", scalar.format()));
+        if (node instanceof AIcDefsCanonicalScalar scalar) {
+            Map<String, Object> facets = new LinkedHashMap<>();
+            facets.put("scalar_kind", scalar.scalarKind().name());
+            facets.put("format", scalar.format());
+            facets.put("min_length", scalar.minLength());
+            facets.put("max_length", scalar.maxLength());
+            facets.put("pattern", scalar.pattern());
+            facets.put("minimum", scalar.minimum());
+            facets.put("maximum", scalar.maximum());
+            facets.put("exclusive_minimum", scalar.exclusiveMinimum());
+            facets.put("exclusive_maximum", scalar.exclusiveMaximum());
+            facets.put("multiple_of", scalar.multipleOf());
+            return Map.of("Scalar", facets);
         }
-        if (node instanceof AIcdDefsCodegenEnum values) {
+        if (node instanceof AIcDefsCanonicalEnum values) {
             return Map.of("Enum", Map.of("base_scalar_type", values.baseScalarType().name(),
                     "values", values.values().stream().map(item -> Map.of(
                             "wire_value", item.wireValue(), "display_name", item.displayName())).toList()));
@@ -157,7 +177,7 @@ public final class AIcDefsCodegenCanonicalContractPayload {
      * @return immutable per-technology source binding arrays
      */
     private static Map<String, Object> bindings(
-            Map<AInDefsCodegenSourceInputKind, List<AIcdDefsCodegenSourceBinding>> input) {
+            Map<AIngSourceInputKind_1, List<AIcDefsCanonicalSourceBinding>> input) {
         Map<String, Object> result = new LinkedHashMap<>();
         for (var entry : input.entrySet()) {
             result.put(entry.getKey().name(), entry.getValue().stream().map(binding -> Map.of(

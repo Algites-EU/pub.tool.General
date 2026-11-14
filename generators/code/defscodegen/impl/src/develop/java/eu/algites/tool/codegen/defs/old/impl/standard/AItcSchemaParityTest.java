@@ -32,7 +32,9 @@ public final class AItcSchemaParityTest {
     private static final List<AInDefinitionSourceKind> KINDS = List.of(AInDefinitionSourceKind.YAMLDEFS, AInDefinitionSourceKind.JSONDEFS, AInDefinitionSourceKind.XMLDEFS);
 
     private Path resource(String name) throws Exception {
-        return Path.of(getClass().getClassLoader().getResource(name).toURI());
+        String kind = name.endsWith(".xsd") ? "xmldefs/" :
+                name.endsWith(".jsondef.schema.json") ? "jsondefs/" : "yamldefs/";
+        return Path.of(getClass().getClassLoader().getResource(kind + name).toURI());
     }
 
     private AIcdCanonicalDefinition load(String stem, int format) throws Exception {

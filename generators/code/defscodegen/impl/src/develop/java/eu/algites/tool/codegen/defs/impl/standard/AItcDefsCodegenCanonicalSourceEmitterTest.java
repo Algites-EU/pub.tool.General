@@ -1,8 +1,10 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenType;
-import eu.algites.tool.codegen.defs.AInDefsCodegenSourceInputKind;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -43,7 +45,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
                 Map.of("NameFragmentsSegmentValue", Map.of("Kind", "constant_string", "Value", "CONST")),
                 Map.of("NameFragmentsSegmentValue", Map.of("Kind", "identifier", "Convention", "upper_camel_case_1"))));
         return new AIcCodegenNamingProfileResolver.Profile("test",
-                Map.of("standard_getter", "test-get", "standard_setter", "test-set",
+                Map.of("standard_getter", "test-get", "list_getter", "test-get", "standard_setter", "test-set",
                        "positional_item_synthetic_getter", "test-item",
                        "const_container_interface", "test-const"),
                 Map.of("synthetic_choice_variant_type", "test-choice",
@@ -58,7 +60,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
      *
      * @return linked canonical type graph
      */
-    private static List<AIcdDefsCodegenType> types() {
+    private static List<AIcDefsCanonicalType> types() {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("value", Map.of("type", "string"));
         fields.put("next", Map.of("$ref", "#/$defs/Node"));
@@ -70,7 +72,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
         source.put("$id", "urn:test");
         source.put("$defs", defs);
         return new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.JSONDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
                         "test.json", source))).types();
     }
 
@@ -103,11 +105,11 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
                     javaFiles.add(file.toString());
                 } else if (entry.relativePath().endsWith("aiig_node_1.py")) {
                     Assert.assertTrue(entry.sourceText().contains("def getNext(self) -> AIigNode_1"));
-                    Assert.assertTrue(entry.sourceText().contains("def setNext(self, value: AIigNode_1)"));
+                    Assert.assertTrue(!entry.sourceText().contains("def setNext(self, value: AIigNode_1)"));
                 }
             }
             var node = Files.readString(root.resolve("test/output/AIigNode_1.java"));
-            Assert.assertTrue(node.contains("java.util.List<AIigNode_1> getChildren()"));
+            Assert.assertTrue(node.contains("java.util.List<? extends AIigNode_1> getChildren()"));
             Assert.assertTrue(node.contains("AIigNode_1 getNext()"));
             javaFiles.add(0, "-d");
             javaFiles.add(1, root.resolve("classes").toString());
@@ -121,6 +123,125 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
                 });
             }
         }
+    }
+
+    /**
+     * Verify that the native Java emitter retains scalar and list restrictions
+     * on CHOICE alternative getters in both its Java and Python outputs.
+     *
+     * @throws Exception if the canonical pipeline cannot link the test schema
+     */
+    @Test
+    public void AIcNativeChoiceAlternativesKeepFieldFacetAnnotations() throws Exception {
+        Map<String, Object> alternatives = new LinkedHashMap<>();
+        alternatives.put("record", Map.of("type", "object", "properties", Map.of(
+                "items", Map.of("type", "array", "minItems", 2, "maxItems", 5,
+                        "items", Map.of("type", "string")),
+                "code", Map.of("type", "string", "minLength", 3))));
+        alternatives.put("text", Map.of("type", "string", "minLength", 2, "maxLength", 10));
+        Map<String, Object> source = Map.of("$id", "urn:choice-facets", "type", "object",
+                "x-algites-defscodegen-choice", true, "properties", alternatives,
+                "minProperties", 1, "maxProperties", 1, "additionalProperties", false);
+        var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
+                        "choice.json", source))).types();
+        Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> names = new LinkedHashMap<>();
+        int index = 0;
+        for (var type : AIcDefsCodegenCanonicalSourceEmitter.declarations(types)) {
+            int ordinal = index++;
+            names.put(type.identity(), new AIcDefsCodegenCanonicalSourceEmitter.Names(
+                    "AIigChoice" + ordinal, "AIigChoice" + ordinal,
+                    "aiig_choice" + ordinal));
+        }
+        var output = new AIcDefsCodegenCanonicalSourceEmitter(profile(), names, "choice.facets")
+                .render(types);
+        String javaText = output.stream().filter(item -> item.language().equals("java"))
+                .map(AIcDefsCodegenCanonicalSourceEmitter.Output::sourceText)
+                .collect(java.util.stream.Collectors.joining("\n"));
+        String pythonText = output.stream().filter(item -> item.language().equals("python"))
+                .map(AIcDefsCodegenCanonicalSourceEmitter.Output::sourceText)
+                .collect(java.util.stream.Collectors.joining("\n"));
+        Assert.assertTrue(javaText.contains("AIaDataObjectFieldListConstraints(minItems = 2, maxItems = 5)"));
+        Assert.assertTrue(javaText.contains("AIaDataObjectFieldStringConstraints(minLength = 3)"));
+        Assert.assertTrue(javaText.contains("AIaDataObjectFieldStringConstraints(minLength = 2, maxLength = 10)"));
+        Assert.assertTrue(pythonText.contains("AIaDataObjectFieldListConstraints(min_items = 2, max_items = 5)"));
+        Assert.assertTrue(pythonText.contains("AIaDataObjectFieldStringConstraints(min_length = 3)"));
+        Assert.assertTrue(pythonText.contains("AIaDataObjectFieldStringConstraints(min_length = 2, max_length = 10)"));
+    }
+
+    /**
+     * Verifies published document URLs independently from logical schema IDs.
+     * A referenced $defs type must not be indexed as the document root.
+     */
+    @Test
+    public void AIcNativePublishedSchemaUrlIsOnlyOnRoot() {
+        String url = "https://example.org/api/jsondefs/sample_1.jsondef.schema.json";
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("$id", url);
+        schema.put("x-algites-schema-id", "example.sample");
+        schema.put("x-algites-schema-version", 1);
+        schema.put("title", "Sample");
+        schema.put("type", "object");
+        schema.put("properties", Map.of("Value", Map.of("type", "string")));
+        schema.put("$defs", Map.of("Extra", Map.of("type", "object", "properties",
+                Map.of("Label", Map.of("type", "string")))));
+        var documents = List.of(new AIcdDefsCodegenSourceDocument(
+                AIngSourceInputKind_1.JSONDEFS, "sample.json", schema));
+        var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { })
+                .process(documents).types();
+        var declarations = AIcDefsCodegenCanonicalSourceEmitter.declarations(types);
+        Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> names = new LinkedHashMap<>();
+        for (var type : declarations) {
+            names.put(type.identity(), new AIcDefsCodegenCanonicalSourceEmitter.Names(
+                    "AIig" + type.name(), "AIig" + type.name(),
+                    "aiig_" + type.name().toLowerCase(java.util.Locale.ROOT)));
+        }
+        var output = new AIcDefsCodegenCanonicalSourceEmitter(profile(), names, "test.output",
+                Map.of(), Map.of("sample.json", url)).render(types);
+        for (var item : output) {
+            if (item.typeIdentity().equals("example.sample")) {
+                if (item.language().equals("java")) {
+                    Assert.assertTrue(item.sourceText().contains("schemaId = \"example.sample\""));
+                    Assert.assertTrue(item.sourceText().contains("schemaUrl = \"" + url + "\""));
+                } else {
+                    Assert.assertTrue(item.sourceText().contains("schema_id=\"example.sample\""));
+                    Assert.assertTrue(item.sourceText().contains("schema_url=\"" + url + "\""));
+                }
+            } else {
+                Assert.assertTrue(!item.sourceText().contains("schemaUrl = "));
+                Assert.assertTrue(!item.sourceText().contains("schema_url="));
+            }
+        }
+    }
+
+    /**
+     * Reject the former two-output interface mode rather than emitting a
+     * secondary nominal interface whose source format differs from the common
+     * DataObject. Independent wire metadata must remain on one contract.
+     */
+    @Test
+    public void AIcRejectsSeparateTechnologyContractOutput() {
+        Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> unified = new LinkedHashMap<>();
+        Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> alternate = new LinkedHashMap<>();
+        for (var type : types()) {
+            var simple = type.name();
+            unified.put(type.identity(), new AIcDefsCodegenCanonicalSourceEmitter.Names(
+                    "AIig" + simple + "_1", "AIig" + simple + "_1",
+                    "aiig_" + simple.toLowerCase(java.util.Locale.ROOT) + "_1"));
+            alternate.put(type.identity(), new AIcDefsCodegenCanonicalSourceEmitter.Names(
+                    "AIigAlternative" + simple + "_1", "AIigAlternative" + simple + "_1",
+                    "aiig_alternative_" + simple.toLowerCase(java.util.Locale.ROOT) + "_1"));
+        }
+        var common = AIcDefsCodegenCanonicalSourceEmitter.commonOnly(
+                profile(), unified, "test.output", Map.of(), Map.of());
+        var sources = common.render(types());
+        Assert.assertTrue(sources.stream().anyMatch(entry ->
+                entry.language().equals("java") && entry.relativePath().endsWith("AIigNode_1.java")));
+        Assert.assertTrue(sources.stream().anyMatch(entry ->
+                entry.language().equals("python") && entry.relativePath().endsWith("aiig_node_1.py")));
+        Assert.assertThrows(IllegalArgumentException.class, () ->
+                new AIcDefsCodegenCanonicalSourceEmitter(profile(), alternate,
+                        "test.output", Map.of(), Map.of(), unified));
     }
 
     /** The emitter rejects silently renamed or missing canonical contracts. */
@@ -143,19 +264,23 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
      */
     @Test
     public void AIcNativeJavaEmitterCompilesClosedScalarChoice() throws Exception {
-        var source = Map.<String, Object>of("$id", "urn:choices", "oneOf",
-                List.of(Map.of("type", "string"), Map.of("type", "integer")));
+        Map<String, Object> alternatives = new LinkedHashMap<>();
+        alternatives.put("text", Map.of("type", "string"));
+        alternatives.put("number", Map.of("type", "integer"));
+        var source = Map.<String, Object>of("$id", "urn:choices", "type", "object",
+                "x-algites-defscodegen-choice", true, "properties", alternatives,
+                "minProperties", 1, "maxProperties", 1, "additionalProperties", false);
         var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.JSONDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
                         "choice.json", source))).types();
         Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> symbols = new LinkedHashMap<>();
         symbols.put(types.get(0).identity(),
                 new AIcDefsCodegenCanonicalSourceEmitter.Names("AIigChoice", "AIigChoice", "aiig_choice"));
-        var group = (eu.algites.tool.codegen.defs.AIcdDefsCodegenElementList) types.get(0).structure();
+        var group = (eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList) types.get(0).structure();
         int index = 0;
         for (var child : group.children()) {
-            var variant = (eu.algites.tool.codegen.defs.AIcdDefsCodegenType)
-                    ((eu.algites.tool.codegen.defs.AIcdDefsCodegenElement) child).structure();
+            var variant = (eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType)
+                    ((eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement) child).structure();
             String symbol = "AIigVariant" + ++index;
             symbols.put(variant.identity(),
                     new AIcDefsCodegenCanonicalSourceEmitter.Names(symbol, symbol, "aiig_variant" + index));
@@ -191,7 +316,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
     }
 
     /**
-     * Verifies a structured {@code oneOf} branch becomes a nominal record with
+     * Verifies a structured explicit CHOICE branch becomes a nominal record with
      * ordered, typed fields, while its Python counterpart retains the getters.
      *
      * @throws Exception if source creation or compilation fails
@@ -201,11 +326,15 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("name", Map.of("type", "string"));
         fields.put("age", Map.of("type", "integer"));
-        var source = Map.<String, Object>of("$id", "urn:choices", "oneOf", List.of(
-                Map.of("type", "object", "properties", fields, "required", List.of("name")),
-                Map.of("type", "integer")));
+        Map<String, Object> alternatives = new LinkedHashMap<>();
+        alternatives.put("person", Map.of("type", "object", "properties", fields,
+                "required", List.of("name")));
+        alternatives.put("number", Map.of("type", "integer"));
+        var source = Map.<String, Object>of("$id", "urn:choices", "type", "object",
+                "x-algites-defscodegen-choice", true, "properties", alternatives,
+                "minProperties", 1, "maxProperties", 1, "additionalProperties", false);
         var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.JSONDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
                         "structured-choice.json", source))).types();
         var declarations = AIcDefsCodegenCanonicalSourceEmitter.declarations(types);
         Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> names = new LinkedHashMap<>();
@@ -254,17 +383,18 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
     }
 
     /**
-     * Unsupported bounded constraints inside a choice must fail before outputs
-     * can be published, rather than silently widening the generated API.
+     * JSON Schema oneOf alone is validation-only, not a structural CHOICE.
+     * A root without any independently declared object or enum structure must
+     * therefore not emit arbitrary sealed variants from the assertion branches.
      */
     @Test
-    public void AIcNativeJavaEmitterRejectsLossyStructuredChoice() {
+    public void AIcNativeJavaEmitterRejectsOneOfOnlyWithoutStructuralType() {
         var source = Map.<String, Object>of("$id", "urn:choices", "oneOf", List.of(
                 Map.of("type", "object", "properties", Map.of("items", Map.of(
                         "type", "array", "minItems", 2, "items", Map.of("type", "string")))),
                 Map.of("type", "integer")));
         var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.JSONDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
                         "structured-choice.json", source))).types();
         Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> names = new LinkedHashMap<>();
         int index = 0;
@@ -278,7 +408,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
         try {
             new AIcDefsCodegenCanonicalSourceEmitter(profile(), names, "test.output").render(types);
         } catch (UnsupportedOperationException expected) {
-            rejected = true;
+            rejected = expected.getMessage().contains("Only object and top-level enum supported");
         }
         Assert.assertTrue(rejected);
     }
@@ -301,7 +431,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
             for (int i = 0; i < sources.size(); i++) {
                 var declarations = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { })
                         .process(List.of(new AIcdDefsCodegenSourceDocument(
-                                AInDefsCodegenSourceInputKind.JSONDEFS, "enum" + i + ".json", sources.get(i)))).types();
+                                AIngSourceInputKind_1.JSONDEFS, "enum" + i + ".json", sources.get(i)))).types();
                 var names = Map.of(declarations.get(0).identity(),
                         new AIcDefsCodegenCanonicalSourceEmitter.Names(
                                 "AIigCodes" + i, "AIigCodes" + i, "aiig_codes" + i));
@@ -375,7 +505,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
                         "full-name", Map.of("type", "string"))),
                 "Status", Map.of("type", "string", "enum", List.of("ready", "closed"))));
         var outputs = compiler.compile(List.of(new AIcdDefsCodegenSourceDocument(
-                AInDefsCodegenSourceInputKind.JSONDEFS, "compiler.json", schema)));
+                AIngSourceInputKind_1.JSONDEFS, "compiler.json", schema)));
         Assert.assertEquals(validationCalls.get(), 2);
         Assert.assertEquals(outputs.size(), 4);
         Assert.assertTrue(outputs.stream().anyMatch(value -> value.language().equals("java")
@@ -430,7 +560,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
                 </xs:schema>
                 """;
         var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS,
                         "order.xsd", xsd))).types();
         Assert.assertEquals(types.size(), 1);
         var symbols = Map.of(types.get(0).identity(),
@@ -438,10 +568,10 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
         var outputs = new AIcDefsCodegenCanonicalSourceEmitter(profile(), symbols, "test.output").render(types);
         var javaOutput = outputs.stream().filter(item -> item.language().equals("java")).findFirst().orElseThrow();
         var python = outputs.stream().filter(item -> item.language().equals("python")).findFirst().orElseThrow();
-        Assert.assertTrue(javaOutput.sourceText().contains("java.util.List<String> getLine()"));
-        Assert.assertTrue(javaOutput.sourceText().contains("void setLine(java.util.List<String> aValue)"));
+        Assert.assertTrue(javaOutput.sourceText().contains("java.util.List<? extends String> getLine()"));
+        Assert.assertTrue(!javaOutput.sourceText().contains("void setLine(java.util.List<String> aValue)"));
         Assert.assertTrue(python.sourceText().contains("def getLine(self) -> list[str]"));
-        Assert.assertTrue(python.sourceText().contains("def setLine(self, value: list[str])"));
+        Assert.assertTrue(!python.sourceText().contains("def setLine(self, value: list[str])"));
         var folder = Files.createTempDirectory("canonical-repeated-list-");
         try {
             var file = folder.resolve(javaOutput.relativePath());
@@ -460,11 +590,11 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
     }
 
     /**
-     * Confirms that nontrivial XSD cardinalities are rejected, not downgraded
-     * to an unconstrained Java or Python collection by either native emitter.
+     * Nontrivial XSD collection bounds must be retained in both emitted languages.
+     * The property presence and the number of list items are separate metadata.
      */
     @Test
-    public void AIcNativeJavaEmitterRejectsBoundedXsdList() {
+    public void AIcNativeJavaEmitterPreservesBoundedXsdList() {
         String xsd = """
                 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
                   <xs:complexType name="Order"><xs:sequence>
@@ -473,17 +603,42 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
                 </xs:schema>
                 """;
         var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS,
                         "order.xsd", xsd))).types();
         var symbols = Map.of(types.get(0).identity(),
                 new AIcDefsCodegenCanonicalSourceEmitter.Names("AIigOrder", "AIigOrder", "aiig_order"));
-        boolean rejected = false;
-        try {
-            new AIcDefsCodegenCanonicalSourceEmitter(profile(), symbols, "test.output").render(types);
-        } catch (UnsupportedOperationException expected) {
-            rejected = expected.getMessage().contains("Bounded LIST");
-        }
-        Assert.assertTrue(rejected);
+        var output = new AIcDefsCodegenCanonicalSourceEmitter(profile(), symbols, "test.output").render(types);
+        String java = output.stream().filter(item -> item.language().equals("java"))
+                .findFirst().orElseThrow().sourceText();
+        String python = output.stream().filter(item -> item.language().equals("python"))
+                .findFirst().orElseThrow().sourceText();
+        Assert.assertTrue(java.contains("minItemCount = 1, maxItemCount = 5"), java);
+        Assert.assertTrue(java.contains("AIaDataObjectFieldListConstraints(minItems = 1, maxItems = 5)"), java);
+        Assert.assertTrue(python.contains("min_item_count=1, max_item_count=5"), python);
+        Assert.assertTrue(python.contains("AIaDataObjectFieldListConstraints(min_items = 1, max_items = 5)"), python);
+    }
+
+    /** Verify JSON array lengths without converting an optional property to required. */
+    @Test
+    public void AIcNativeJavaEmitterRetainsJsonItemBoundsAndOptionality() {
+        var array = Map.<String, Object>of("type", "array", "minItems", 2, "maxItems", 4,
+                "items", Map.of("type", "string"));
+        var schema = Map.<String, Object>of("$id", "urn:java-item-bounds", "title", "Bounded",
+                "type", "object", "properties", Map.of("items", array));
+        var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
+                        "bounds.json", schema))).types();
+        var symbols = Map.of(types.get(0).identity(),
+                new AIcDefsCodegenCanonicalSourceEmitter.Names("AIigBounded", "AIigBounded", "aiig_bounded"));
+        var output = new AIcDefsCodegenCanonicalSourceEmitter(profile(), symbols, "test.output").render(types);
+        String java = output.stream().filter(item -> item.language().equals("java"))
+                .findFirst().orElseThrow().sourceText();
+        String python = output.stream().filter(item -> item.language().equals("python"))
+                .findFirst().orElseThrow().sourceText();
+        Assert.assertTrue(java.contains("minItemCount = 2, maxItemCount = 4"), java);
+        Assert.assertTrue(python.contains("min_item_count=2, max_item_count=4"), python);
+        Assert.assertTrue(java.contains("presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED"), java);
+        Assert.assertTrue(python.contains("presence=AInFieldPresenceKind.ALLOWED"), python);
     }
 
     /**
@@ -497,7 +652,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
         var source = Map.<String, Object>of("$id", "urn:quoted", "type", "string",
                 "enum", List.of("a" + (char) 1 + "b", "literal" + (char) 92 + "u000a"));
         var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.JSONDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
                         "quoted.json", source))).types();
         var symbols = Map.of(types.get(0).identity(),
                 new AIcDefsCodegenCanonicalSourceEmitter.Names("AIigQuoted", "AIigQuoted", "aiig_quoted"));
@@ -540,20 +695,24 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
             boolean rejected = false;
             try {
                 new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                        new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS,
+                        new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS,
                                 "keys.xsd", xsd)));
-            } catch (UnsupportedOperationException expected) {
-                rejected = expected.getMessage().contains("identity constraints")
-                        || expected.getMessage().contains("keyref/identityConstraint");
+            } catch (IllegalArgumentException expected) {
+                Throwable cause = expected.getCause();
+                rejected = expected.getMessage().contains("keys.xsd") && cause != null
+                        && cause instanceof UnsupportedOperationException
+                        && (cause.getMessage().contains("identity constraints")
+                            || cause.getMessage().contains("keyref/identityConstraint"));
             }
             Assert.assertTrue(rejected);
         }
     }
 
     /**
-     * Verifies local composite xs:key / xs:unique are read into LIST, emitted
-     * as real indexed-list Java contracts and Python runtime key metadata,
-     * and compiled against the existing public multi-mapped-list interface.
+     * Verifies local composite xs:key / xs:unique remain contextual definitions
+     * on the owning element while the referenced LIST retains its original type.
+     * The scoped Java annotations and Python runtime metadata must agree, and
+     * the referenced list still implements the public multi-mapped-list API.
      *
      * @throws Exception when source staging or javac compilation fails
      */
@@ -583,7 +742,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
                 </xs:schema>
                 """;
         var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS,
                         "staff.xsd", xsd))).types();
         Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> symbols = new LinkedHashMap<>();
         int index = 0;
@@ -600,19 +759,21 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
         String allPython = sources.stream().filter(file -> file.language().equals("python"))
                 .map(AIcDefsCodegenCanonicalSourceEmitter.Output::sourceText)
                 .reduce("", String::concat);
-        Assert.assertTrue(allJava.contains("AIiMultiMappedList<AIigIndex"));
-        Assert.assertTrue(allJava.contains("String KEY_EMPLOYEE_BY_DEPARTMENT_AND_CODE = \"ByDepartmentAndCode\";"));
-        Assert.assertTrue(allJava.contains("name = CONSTOrganizationPropertyStaff.KEY_EMPLOYEE_BY_DEPARTMENT_AND_CODE"));
-        Assert.assertTrue(allJava.contains("name = CONSTOrganizationPropertyStaff.KEY_EMPLOYEE_UNIQUE_DEPARTMENT"));
-        Assert.assertTrue(allJava.contains("fields = {\"department\", \"identity.code\"}, required = true"));
-        Assert.assertTrue(allJava.contains("fields = {\"department\"}, required = false"));
-        Assert.assertTrue(allPython.contains("__xml_key_definitions__"));
-        Assert.assertTrue(allPython.contains("KEY_EMPLOYEE_BY_DEPARTMENT_AND_CODE = \"ByDepartmentAndCode\""));
-        Assert.assertTrue(allPython.contains("CONSTOrganizationPropertyStaff.KEY_EMPLOYEE_BY_DEPARTMENT_AND_CODE"));
+        Assert.assertTrue(allJava.contains("AIiMultiMappedList<? extends AIigIndex"));
+        Assert.assertTrue(allJava.contains("String KEY_ID__BY_DEPARTMENT_AND_CODE = \"ByDepartmentAndCode\";"));
+        Assert.assertTrue(allJava.contains("name = CONSTOrganization.KEY_ID__BY_DEPARTMENT_AND_CODE"));
+        Assert.assertTrue(allJava.contains("name = CONSTOrganization.KEY_ID__UNIQUE_DEPARTMENT"));
+        Assert.assertTrue(allJava.contains("selector = \"employee\""));
+        Assert.assertTrue(allJava.contains("fields = {CONSTOrganization.FIELD_NAME__DEPARTMENT, CONSTOrganization.FIELD_NAME__IDENTITY_CODE}, required = true"));
+        Assert.assertTrue(allJava.contains("fields = {CONSTOrganization.FIELD_NAME__DEPARTMENT}, required = false"));
+        Assert.assertTrue(allPython.contains("__scoped_key_definitions__"));
+        Assert.assertTrue(allPython.contains("KEY_ID__BY_DEPARTMENT_AND_CODE = \"ByDepartmentAndCode\""));
+        Assert.assertTrue(allPython.contains("(\"employee\", \"ByDepartmentAndCode\", (\"department\", \"identity.code\""));
+        Assert.assertTrue(allPython.contains("(\"employee\", \"UniqueDepartment\", (\"department\""));
         String colliding = xsd.replace("name=\"UniqueDepartment\"",
                 "name=\"By_DepartmentAndCode\"");
         var collisionTypes = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS,
                         "staff-collision.xsd", colliding))).types();
         Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> collidingSymbols = new LinkedHashMap<>();
         int collisionIndex = 0;
@@ -627,7 +788,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
             new AIcDefsCodegenCanonicalSourceEmitter(profile(), collidingSymbols,
                     "test.output").render(collisionTypes);
         } catch (IllegalArgumentException expected) {
-            keyCollisionRejected = expected.getMessage().contains("Conflicting XSD key constant");
+            keyCollisionRejected = expected.getMessage().contains("Conflicting key ID constant");
         }
         Assert.assertTrue(keyCollisionRejected);
         var folder = Files.createTempDirectory("canonical-indexed-list-");
@@ -646,8 +807,8 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
             for (var filename : List.of("AIiMultiMappedList.java", "AIiKeyDefinition.java")) {
                 command.add(common.resolve("eu/algites/lib/common/list/").resolve(filename).toString());
             }
-            for (var filename : List.of("AIaXmlKeyDefinition.java", "AIaXmlKeyDefinitions.java")) {
-                command.add(metadata.resolve("eu/algites/lib/data/dataobject/xmldefs/").resolve(filename).toString());
+            for (var filename : List.of("AIaKeyDefinition.java", "AIaKeyDefinitions.java")) {
+                command.add(metadata.resolve("eu/algites/lib/data/dataobject/").resolve(filename).toString());
             }
             Assert.assertEquals(ToolProvider.getSystemJavaCompiler().run(null, null, null,
                     command.toArray(String[]::new)), 0);
@@ -659,5 +820,45 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
                 });
             }
         }
+    }
+
+    /**
+     * A named keyed JSON map is a collection-valued field, not a second
+     * DataObject which directly inherits a Java collection interface.
+     */
+    @Test
+    public void AIcNamedIndexedMapUsesFieldCollectionInsteadOfTypeInheritance() {
+        var source = new LinkedHashMap<String, Object>();
+        source.put("$id", "https://example.org/named-map_1.json");
+        source.put("type", "object");
+        source.put("properties", Map.of("Entries", Map.of("$ref", "#/$defs/Entries")));
+        source.put("$defs", Map.of("Entries", Map.of(
+                "type", "object", "additionalProperties", Map.of("type", "string"),
+                "x-algites-defscodegen-key", Map.of("id", "ByName", "field-name", "name"))));
+        var types = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { })
+                .process(List.of(new AIcdDefsCodegenSourceDocument(
+                        AIngSourceInputKind_1.JSONDEFS, "indexed.json", source))).types();
+        var declarations = AIcDefsCodegenCanonicalSourceEmitter.declarations(types);
+        Map<String, AIcDefsCodegenCanonicalSourceEmitter.Names> names = new LinkedHashMap<>();
+        for (int n = 0; n < declarations.size(); n++) {
+            var type = declarations.get(n);
+            names.put(type.identity(), new AIcDefsCodegenCanonicalSourceEmitter.Names(
+                    "AIigIndex" + n, "AIigIndex" + n, "aiig_index" + n));
+        }
+        var output = new AIcDefsCodegenCanonicalSourceEmitter(profile(), names, "test.output")
+                .render(types);
+        var alias = declarations.stream().filter(type -> type.name().equals("Entries"))
+                .findFirst().orElseThrow();
+        Assert.assertTrue(output.stream().noneMatch(item -> item.typeIdentity().equals(alias.identity())));
+        var java = output.stream().filter(item -> item.language().equals("java")
+                && item.typeIdentity().equals(types.get(0).identity()))
+                .findFirst().orElseThrow().sourceText();
+        var python = output.stream().filter(item -> item.language().equals("python")
+                && item.typeIdentity().equals(types.get(0).identity()))
+                .findFirst().orElseThrow().sourceText();
+        Assert.assertTrue(java.contains("AIiMultiMappedList<? extends AIigIndex"));
+        Assert.assertTrue(java.contains("getEntries()"));
+        Assert.assertTrue(python.contains("AIiMultiMappedList[AIigIndex"));
+        Assert.assertTrue(python.contains("def getEntries("));
     }
 }

@@ -13,114 +13,237 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import is_dataclass, replace as _dataclass_replace
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 from importlib import import_module
 from types import MappingProxyType
+
+from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_symbols import (
+    generated_type, generated_selected_type, choice_variant_identity)
 from typing import Any
 
-_ROOT = 'eu.algites.tool.codegen.defs.model'
-_IMPL = _ROOT + '.impl'
+# Stable schema identity, not a generated class/module prefix. Concrete names
+# are produced by the selected naming catalog and discovered from the generated
+# classes' own metadata.
+# During the first self-hosting build, these schema-generated classes are
+# held in a stable, separate source package (not in any *.gen tree).
+_ROOT = 'eu.algites.tool.codegen.defs.bootstrap.model'
+_SCHEMA = 'eu.algites.tool.codegen.defs.model.canonical-model#/$defs/'
 
 
-def _load(module: str, typename: str):
-    """Load the precise generated type, never an inferred handwritten model."""
-    return getattr(import_module(module), typename)
+@lru_cache(maxsize=64)
+def _schema_identity(stem: str) -> str:
+    """Identify the schema declaration represented by a canonical model role."""
+    if stem == 'canonical_model':
+        return _SCHEMA.removesuffix('#/$defs/')
+    parts = stem.split('_')
+    if parts[0] == 'structure' and len(parts) > 1:
+        parent = 'Structure'
+        member = ''.join(part.title() for part in parts[1:])
+    elif parts[:3] == ['element', 'list', 'child'] and len(parts) > 3:
+        parent = 'ElementListChild'
+        member = ''.join(part.title() for part in parts[3:])
+    else:
+        return _SCHEMA + ''.join(part.title() for part in parts)
+    # The structural choice is declared by x-algites-defscodegen-choice:
+    # variants originate from properties, not from JSON Schema validation oneOf.
+    # A first-stage bootstrap may still contain the old, manifest-verified
+    # generated contracts; accept their IDs until the next complete refresh.
+    try:
+        return choice_variant_identity(_ROOT, schema_prefix=_SCHEMA + parent + '#/properties/',
+                                       field_name=member)
+    except ValueError:
+        return choice_variant_identity(_ROOT, schema_prefix=_SCHEMA + parent + '#/oneOf/',
+                                       field_name=member)
 
 
 def _impl(stem: str):
-    return _load(f'{_IMPL}.aicgd__j_{stem}_1',
-                 'AIcgd_j' + ''.join(part.title() for part in stem.split('_')) + '_1')
+    """Resolve SDO by semantic schema identity, never by Algites prefix."""
+    try:
+        return generated_type(_ROOT, role='implementation', schema_id=_schema_identity(stem))
+    except ImportError as error:
+        # The first compiler ABI snapshot is generated before SDO metadata is
+        # available. Its symbol names are fixed by the bootstrap naming role,
+        # and do not carry independent format-specific identities.
+        module = import_module(_ROOT + '.impl.aicgd_' + stem + '_1')
+        name = 'AIcgd' + ''.join(part.title() for part in stem.split('_')) + '_1'
+        try:
+            return getattr(module, name)
+        except AttributeError as missing:
+            raise ImportError('Missing unified bootstrap SDO ' + name) from missing
+
 
 
 def _enum(stem: str):
-    return _load(f'{_ROOT}.aiig_{stem}_1',
-                 'AIig' + ''.join(part.title() for part in stem.split('_')) + '_1')
+    """Resolve schema enum by provenance rather than a guessed symbol name."""
+    return generated_type(_ROOT, role='enum', schema_id=
+                          _SCHEMA + ''.join(part.title() for part in stem.split('_')))
 
 
-AIigStructureKind_1 = _enum('structure_kind')
-AIigComposition_1 = _enum('composition')
-AIigMapKind_1 = _enum('map_kind')
-AIigTypeOrigin_1 = _enum('type_origin')
-AIigResolutionState_1 = _enum('resolution_state')
-AIigScalarKind_1 = _enum('scalar_kind')
-AIigSourceInputKind_1 = _enum('source_input_kind')
+AIngStructureKind_1 = _enum('structure_kind')
+AIngElementKind_1 = _enum('element_kind')
+AIngComposition_1 = _enum('composition')
+AIngMapKind_1 = _enum('map_kind')
+AIngTypeOrigin_1 = _enum('type_origin')
+AIngResolutionState_1 = _enum('resolution_state')
+AIngScalarKind_1 = _enum('scalar_kind')
+AIngSourceInputKind_1 = _enum('source_input_kind')
 
 # These aliases point to actual generated SDO implementation classes. They do
 # not define a second canonical type or schema representation.
-AIcgd_jType_1 = _impl('type')
-AIcgd_jElementList_1 = _impl('element_list')
-AIcgd_jElement_1 = _impl('element')
-AIcgd_jList_1 = _impl('list')
-AIcgd_jMap_1 = _impl('map')
-AIcgd_jScalar_1 = _impl('scalar')
-AIcgd_jEnum_1 = _impl('enum')
-AIcgd_jEnumValue_1 = _impl('enum_value')
-AIcgd_jSourceBinding_1 = _impl('source_binding')
-AIcgd_jKeyDefinition_1 = _impl('key_definition')
-AIcgd_jXmlWireName_1 = _impl('xml_wire_name')
-AIcgd_jSourceBindings_1 = _impl('source_bindings')
-AIcgd_jSourceBindingsAdditionalProperties_1 = _impl('source_bindings_additional_properties')
-AIcgd_jCanonicalModel_1 = _impl('canonical_model')
+AIcgdType_1 = _impl('type')
+AIcgdElementList_1 = _impl('element_list')
+AIcgdElement_1 = _impl('element')
+AIcgdList_1 = _impl('list')
+AIcgdMap_1 = _impl('map')
+AIcgdScalar_1 = _impl('scalar')
+AIcgdEnum_1 = _impl('enum')
+AIcgdEnumValue_1 = _impl('enum_value')
+AIcgdSourceBinding_1 = _impl('source_binding')
+AIcgdKeyDefinition_1 = _impl('key_definition')
+AIcgdXmlWireName_1 = _impl('xml_wire_name')
+AIcgdSourceBindings_1 = _impl('source_bindings')
+AIcgdSourceBindingGroup_1 = _impl('source_binding_group')
+AIcgdCanonicalModel_1 = _impl('canonical_model')
 
-_NODES = (AIcgd_jType_1, AIcgd_jElementList_1, AIcgd_jElement_1,
-          AIcgd_jList_1, AIcgd_jMap_1, AIcgd_jScalar_1,
-          AIcgd_jEnum_1)
+_NODES = (AIcgdType_1, AIcgdElementList_1, AIcgdElement_1,
+          AIcgdList_1, AIcgdMap_1, AIcgdScalar_1,
+          AIcgdEnum_1)
 GENERATED_STRUCTURE_NODES = _NODES
 
 _FIELDS = {
-    AIcgd_jType_1: (
+    AIcgdType_1: (
         ('identity', 'name', 'origin', 'path_segments', 'inherited_from_types',
          'structure', 'resolution_state', 'source_bindings', 'target_identity',
          'schema_version', 'description'),
         {'path_segments': (), 'inherited_from_types': (), 'structure': None,
-         'resolution_state': AIigResolutionState_1.RESOLVED,
+         'resolution_state': AIngResolutionState_1.RESOLVED,
          'source_bindings': {}, 'target_identity': '', 'schema_version': '', 'description': ''}),
-    AIcgd_jElementList_1: (
-        ('composition', 'children', 'min_occurs', 'max_occurs'),
-        {'min_occurs': 1, 'max_occurs': 1}),
-    AIcgd_jElement_1: (
-        ('name', 'structure', 'key_definitions', 'source_bindings', 'min_occurs',
-         'max_occurs', 'description', 'xml_wire'),
-        {'key_definitions': (), 'source_bindings': {}, 'min_occurs': 0,
-         'max_occurs': 1, 'description': '', 'xml_wire': None}),
-    AIcgd_jList_1: (
-        ('name', 'item', 'min_occurs', 'max_occurs', 'key_definitions', 'xml_wire'),
-        {'min_occurs': 0, 'max_occurs': -1, 'key_definitions': (), 'xml_wire': None}),
-    AIcgd_jMap_1: (
+    AIcgdElementList_1: (
+        ('composition', 'children', 'min_item_count', 'max_item_count', 'min_properties', 'max_properties'),
+        {'min_item_count': 1, 'max_item_count': 1, 'min_properties': -1, 'max_properties': -1}),
+    AIcgdElement_1: (
+        ('name', 'structure', 'key_definitions', 'source_bindings', 'min_item_count',
+         'max_item_count', 'description', 'xml_wire', 'default_kind', 'default_value',
+         'is_empty_allowed', 'element_kind'),
+        {'key_definitions': (), 'source_bindings': {}, 'min_item_count': 0,
+         'max_item_count': 1, 'description': '', 'xml_wire': None,
+         'default_kind': '', 'default_value': '', 'is_empty_allowed': False,
+         'element_kind': AIngElementKind_1.REFERENCED}),
+    AIcgdList_1: (
+        ('name', 'item', 'min_item_count', 'max_item_count', 'key_definitions', 'xml_wire', 'unique_items'),
+        {'min_item_count': 0, 'max_item_count': -1, 'key_definitions': (), 'xml_wire': None, 'unique_items': False}),
+    AIcgdMap_1: (
         ('name', 'map_kind', 'key_type', 'value_type', 'source_bindings'),
         {'source_bindings': {}}),
-    AIcgd_jScalar_1: (('scalar_kind', 'format'), {'format': ''}),
-    AIcgd_jEnum_1: (('base_scalar_type', 'values'), {}),
-    AIcgd_jEnumValue_1: (('wire_value', 'display_name'), {'display_name': ''}),
-    AIcgd_jSourceBinding_1: (('source_resource', 'source_pointer', 'representation_kind'), {}),
-    AIcgd_jKeyDefinition_1: (('identifier', 'selector', 'source_pointer', 'fields', 'required'),
+    AIcgdScalar_1: (('scalar_kind', 'format', 'min_length', 'max_length', 'pattern',
+                             'minimum', 'maximum', 'exclusive_minimum', 'exclusive_maximum', 'multiple_of'),
+                            {'format': '', 'min_length': -1, 'max_length': -1, 'pattern': '',
+                             'minimum': '', 'maximum': '', 'exclusive_minimum': False,
+                             'exclusive_maximum': False, 'multiple_of': ''}),
+    AIcgdEnum_1: (('base_scalar_type', 'values'), {}),
+    AIcgdEnumValue_1: (('wire_value', 'display_name'), {'display_name': ''}),
+    AIcgdSourceBinding_1: (('source_resource', 'source_pointer', 'representation_kind'), {}),
+    AIcgdKeyDefinition_1: (('identifier', 'selector', 'source_pointer', 'fields', 'required'),
                                   {'fields': (), 'required': True}),
-    AIcgd_jXmlWireName_1: (('namespace_uri', 'local_name', 'value_kind'),
+    AIcgdXmlWireName_1: (('namespace_uri', 'local_name', 'value_kind'),
                                  {'value_kind': 'ELEMENT'}),
 }
 
 _KIND_TO_STEM = {
-    AIcgd_jType_1: 'Type',
-    AIcgd_jElementList_1: 'ElementList',
-    AIcgd_jElement_1: 'Element',
-    AIcgd_jList_1: 'List',
-    AIcgd_jMap_1: 'Map',
-    AIcgd_jScalar_1: 'Scalar',
-    AIcgd_jEnum_1: 'Enum',
+    AIcgdType_1: 'Type',
+    AIcgdElementList_1: 'ElementList',
+    AIcgdElement_1: 'Element',
+    AIcgdList_1: 'List',
+    AIcgdMap_1: 'Map',
+    AIcgdScalar_1: 'Scalar',
+    AIcgdEnum_1: 'Enum',
 }
 
 
+def _schema_choice_from_field(schema_identity: str, getter_name: str):
+    """Find a generated CHOICE contract from a generated field return type.
+
+    Generated CHOICE contracts and their frozen variants are structural types,
+    not ordinary SDO classes with ``__json_schema__`` identities. Resolve the
+    declared getter type instead of trying to create a nonexistent SDO variant.
+
+    :param schema_identity: Schema identity of the owning generated contract.
+    :param getter_name: Getter exposing the choice or a list of choice items.
+    :return: The generated CHOICE interface with registered variant imports.
+    :raises LookupError: If the getter does not unambiguously specify a choice.
+    """
+    import ast
+    from importlib import import_module
+    from inspect import getsourcefile
+    from pathlib import Path
+
+    try:
+        owner = generated_type(_ROOT, role='contract', schema_id=_SCHEMA + schema_identity)
+    except ImportError:
+        # The temporary compiler seed can be generated before the new
+        # schema-level annotations exist. Its fixed, unified ABI naming role
+        # provides the read contract until the full Defs stage completes.
+        import re
+        snake = re.sub(r'(?<!^)(?=[A-Z])', '_', schema_identity).lower()
+        module = import_module(_ROOT + '.aiig_' + snake + '_1')
+        owner = getattr(module, 'AIig' + schema_identity + '_1')
+
+    getter = getattr(owner, getter_name)
+    source = getter.__annotations__.get('return')
+    if not isinstance(source, str):
+        raise LookupError(f'No generated return annotation for {schema_identity}.{getter_name}')
+    tree = ast.parse(source, mode='eval')
+    names = [node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
+             and node.id not in ('list', 'List', 'Optional', 'Union')]
+    if len(names) != 1:
+        raise LookupError(f'Expected one CHOICE type for {schema_identity}.{getter_name}: {source}')
+    symbol = names[0]
+    package = owner.__module__.rsplit('.', 1)[0]
+    python_file = getsourcefile(owner)
+    if not python_file:
+        raise LookupError(f'Generated contract source missing for {owner}')
+    for declaration in ast.walk(ast.parse(Path(python_file).read_text(encoding='utf-8'))):
+        if not isinstance(declaration, ast.ImportFrom):
+            continue
+        if symbol not in [item.asname or item.name for item in declaration.names]:
+            continue
+        module_name = ('.' * declaration.level) + (declaration.module or '')
+        contract = getattr(import_module(module_name, package), symbol)
+        if getattr(contract, '__xml_choice_variant_imports__', None):
+            return contract
+    raise LookupError(f'Generated CHOICE import not found: {schema_identity}.{getter_name}: {symbol}')
+
+
+def _choice_variant(choice_contract: type, field: str, value: Any):
+    """Create the unique generated sealed variant selected by schema field.
+
+    :param choice_contract: Generated read-only CHOICE interface.
+    :param field: Source schema field name of the selected alternative.
+    :param value: Payload represented by that alternative.
+    :return: Generated immutable read-only variant with its typed SDO payload.
+    :raises LookupError: If no unique matching variant exists.
+    """
+    from importlib import import_module
+    matches = []
+    for entry in getattr(choice_contract, '__xml_choice_variant_imports__', ()):
+        module, symbol = entry.split(':', 1)
+        variant = getattr(import_module(module), symbol)
+        if getattr(variant, '__xml_choice_component_names__', ()) == (field,):
+            matches.append(variant)
+    if len(matches) != 1:
+        raise LookupError(f'Expected one generated choice variant {field!r} '
+                          f'for {choice_contract.__name__}, got {len(matches)}')
+    return matches[0](value)
+
+
 def _selected(node: Any, *, child: bool = False):
-    """Represent one closed schema choice using its generated selected record."""
+    """Wrap a concrete generated SDO node in its read-only CHOICE alternative."""
     stem = _KIND_TO_STEM.get(type(node))
     if stem is None or (child and stem == 'Type'):
         raise TypeError(f'Unsupported canonical choice type: {type(node).__qualname__}')
-    choice = 'ElementListChild' if child else 'Structure'
-    wrapper = _impl('element_list_child_' + _snake(stem)) if child else _impl('structure_' + _snake(stem))
-    content = wrapper()
-    getattr(content, f'set{stem}')(node)
-    selected = _load(f'{_ROOT}.aiig_{_snake(choice)}_selected_{_snake(stem)}_1',
-                     f'AIig{choice}Selected{stem}_1')
-    return selected(content)
+    choice = (_schema_choice_from_field('ElementList', 'getChildrenList')
+              if child else _schema_choice_from_field('Element', 'getStructure'))
+    return _choice_variant(choice, stem, node)
 
 
 def _snake(word: str):
@@ -128,35 +251,156 @@ def _snake(word: str):
     return re.sub(r'(?<!^)(?=[A-Z])', '_', word).lower()
 
 
+def _type_content_variant(kind: str, value: Any) -> Any:
+    """Construct the generated TypeContent alternative for a resolved TYPE.
+
+    :param kind: ``structure`` or ``target_identity``.
+    :param value: Generated Structure variant or nonempty target identity.
+    :return: Generated immutable TypeContent variant.
+    """
+    contract = _schema_choice_from_field('Type', 'getContent')
+    return _choice_variant(contract, kind, value)
+
+
 def _unselected(value: Any):
-    """Recover the concrete SDO type carried by a generated sealed alternative."""
+    """Recover the concrete SDO node held by a generated CHOICE alternative."""
     if value is None:
         return None
     if isinstance(value, _NODES):
         return value
+    components = getattr(type(value), '__xml_choice_component_names__', ())
+    if len(components) == 1:
+        name = components[0]
+        getter = getattr(value, 'get' + ''.join(p[:1].upper() + p[1:] for p in name.split('_')), None)
+        if not callable(getter):
+            raise TypeError(f'Generated CHOICE {type(value).__name__} lacks getter for {name}')
+        return getter()
     if hasattr(value, 'value'):
         selected = value.value
-        stem = type(selected).__name__.removeprefix('AIcgd_j').removesuffix('_1').removeprefix('Structure').removeprefix('ElementListChild')
-        getter = getattr(selected, 'get' + stem)
-        return getter()
+        getters = {}
+        for contract in type(selected).__mro__:
+            for method in vars(contract).values():
+                metadata = getattr(method, '__data_object_field__', None)
+                if metadata is not None:
+                    getters[metadata.field_name] = method
+        if len(getters) == 1:
+            return getattr(selected, next(iter(getters.values())).__name__)()
     raise TypeError(f'Expected a generated canonical choice, got {type(value)!r}')
 
 
+def _collection(obj: Any, stem: str, *, ensure_live: bool = False):
+    """Resolve the schema-generated list field and optionally initialise it.
+
+    The generated Python SDO getter is allowed to return ``None`` until a
+    field is assigned. Lists have both ``getXList`` and ``setXList`` methods
+    with the current naming profile; older bootstrap contracts may use
+    unsuffixed ``getX`` / ``setX`` methods. Match the corresponding setter
+    rather than guessing one from the semantic field name.
+
+    :param obj: Generated SmartDataObject instance.
+    :param stem: CamelCase semantic field stem without ``List``.
+    :param ensure_live: Initialise an absent collection to an empty list for
+        a subsequent write; do not change absent fields when reading.
+    :return: A live mutable collection, or ``None`` for an unset field when
+        ``ensure_live`` is false.
+    :raises AttributeError: If no generated collection getter exists.
+    :raises TypeError: If the generated setter is missing, or the resolved
+        field does not expose a live mutable list.
+    """
+    for suffix in ('List', ''):
+        getter = getattr(obj, 'get' + stem + suffix, None)
+        if not callable(getter):
+            continue
+        try:
+            collection = getter()
+        except ValueError as error:
+            if not ensure_live or not str(error).startswith('Required property is absent: '):
+                raise
+            collection = None
+        if collection is None and ensure_live:
+            setter = getattr(obj, 'set' + stem + suffix, None)
+            if not callable(setter):
+                raise TypeError(f'Non-live canonical collection {stem!r}: '
+                                f'missing set{stem}{suffix} in {type(obj).__name__}')
+            setter([])
+            collection = getter()
+        if collection is not None and not hasattr(collection, 'extend'):
+            raise TypeError(f'Non-live canonical collection {stem!r}: '
+                            f'{type(obj).__name__} returned {type(collection).__name__}')
+        if ensure_live and collection is None:
+            raise TypeError(f'Non-live canonical collection {stem!r}: '
+                            f'{type(obj).__name__} did not initialise its list')
+        return collection
+    raise AttributeError(f'No generated collection getter for {type(obj).__name__}.{stem}')
+
+
+def _set_collection(obj: Any, stem: str, values: Any):
+    """Assign a complete schema-generated list using its matching setter.
+
+    Do not initialize mandatory nonempty SDO collections by writing ``[]``
+    and then appending: the SDO runtime correctly enforces minItems at each
+    setter call, so the intermediate empty assignment is invalid. This helper
+    preserves list cardinality and uses generated accessor names, without
+    materializing a parallel canonical collection model.
+
+    :param obj: Generated mutable SDO owner.
+    :param stem: CamelCase semantic field stem without ``List``.
+    :param values: Complete list to assign, in source order.
+    :raises AttributeError: If no generated collection accessor is available.
+    :raises TypeError: If a getter-only field does not expose a live collection.
+    :raises ValueError: If the SDO schema rejects the full list.
+    """
+    values = list(values)
+    for suffix in ('List', ''):
+        setter = getattr(obj, 'set' + stem + suffix, None)
+        if callable(setter):
+            setter(values)
+            return
+        getter = getattr(obj, 'get' + stem + suffix, None)
+        if callable(getter):
+            collection = getter()
+            if collection is None or not hasattr(collection, 'extend'):
+                raise TypeError(f'Generated getter {stem}{suffix} is not a live mutable list')
+            collection.extend(values)
+            return
+    raise AttributeError(f'No generated list accessor for {type(obj).__name__}.{stem}')
+
+
 def _bindings_object(source: Mapping | None):
-    result = AIcgd_jSourceBindings_1()
+    """Build the schema-defined SourceBindings / SourceBindingGroup graph.
+
+    All technologies have the same semantic representation; JSON/YAML no
+    longer relies on synthetic ``additionalProperties`` map entries.
+    """
+    result = AIcgdSourceBindings_1()
+    groups = []
     for kind, values in (source or {}).items():
-        if not isinstance(kind, AIigSourceInputKind_1):
+        if not isinstance(kind, AIngSourceInputKind_1):
             raise TypeError(f'Expected generated source input kind, got {kind!r}')
-        result.append(AIcgd_jSourceBindingsAdditionalProperties_1(
-            parent_property_key=kind.value, parent_property_value=list(values)))
+        group = AIcgdSourceBindingGroup_1()
+        group.setInputKind(kind)
+        _set_collection(group, 'Binding', values)
+        groups.append(group)
+    if groups:
+        _set_collection(result, 'SourceBindingGroup', groups)
     return result
 
 
 def _bindings_mapping(source: Any):
+    """Decode grouped provenance without losing input order or repeated entries."""
     if source is None:
         return MappingProxyType({})
-    return MappingProxyType({AIigSourceInputKind_1(entry._getKey()):
-                             tuple(entry._getValue()) for entry in source})
+    result = {}
+    for group in _collection(source, 'SourceBindingGroup') or ():
+        kind = group.getInputKind()
+        if not isinstance(kind, AIngSourceInputKind_1):
+            kind = AIngSourceInputKind_1(kind)
+        if kind in result:
+            # The canonical mapping model stores exactly one group per kind.
+            # Silently overwriting an existing group would lose provenance.
+            raise ValueError(f'Repeated provenance kind {kind.value}')
+        result[kind] = tuple(_collection(group, 'Binding') or ())
+    return MappingProxyType(result)
 
 
 def freeze_bindings(source: Mapping | None = None):
@@ -165,10 +409,10 @@ def freeze_bindings(source: Mapping | None = None):
         return MappingProxyType({})
     result = {}
     for kind, values in source.items():
-        if not isinstance(kind, AIigSourceInputKind_1):
+        if not isinstance(kind, AIngSourceInputKind_1):
             raise TypeError(f'Expected generated source input kind, got {kind!r}')
         entries = tuple(values)
-        if any(not isinstance(entry, AIcgd_jSourceBinding_1) for entry in entries):
+        if any(not isinstance(entry, AIcgdSourceBinding_1) for entry in entries):
             raise TypeError('Every source binding must use the generated SourceBinding SDO')
         result[kind] = entries
     return MappingProxyType(result)
@@ -183,40 +427,63 @@ def merge_bindings(*maps: Mapping):
     return freeze_bindings(collected)
 
 
-def _check_occurrences(minimum, maximum):
+def _check_item_count_bounds(minimum, maximum):
     if (type(minimum) is not int or type(maximum) is not int or minimum < 0
             or maximum < -1 or (maximum != -1 and maximum < minimum)):
         raise ValueError(f'Invalid occurrence bounds: {minimum}..{maximum}')
 
 
 def _validate(cls, values):
-    if cls in (AIcgd_jElementList_1, AIcgd_jElement_1, AIcgd_jList_1):
-        _check_occurrences(values['min_occurs'], values['max_occurs'])
-    if cls == AIcgd_jType_1:
+    if cls in (AIcgdElementList_1, AIcgdElement_1, AIcgdList_1):
+        _check_item_count_bounds(values['min_item_count'], values['max_item_count'])
+    if cls == AIcgdElement_1:
+        if not isinstance(values['element_kind'], AIngElementKind_1):
+            raise TypeError('ELEMENT element_kind must be the generated ElementKind enum')
+        if values['element_kind'] is AIngElementKind_1.EMBEDDED:
+            if values['xml_wire'] is not None or values['default_kind'] or values['default_value']:
+                raise ValueError('EMBEDDED ELEMENT has no serialized wire name or scalar default')
+            if not isinstance(values['structure'], (AIcgdType_1, AIcgdList_1)):
+                raise ValueError('EMBEDDED ELEMENT must reference a TYPE or a LIST of TYPE')
+            if not values['name']:
+                raise ValueError('EMBEDDED ELEMENT requires a logical getter name')
+    if cls == AIcgdType_1:
         if not values['identity']:
             raise ValueError('Type identity must not be empty')
-        if values['resolution_state'] == AIigResolutionState_1.RESOLVED:
+        if values['resolution_state'] == AIngResolutionState_1.RESOLVED:
             if (values['structure'] is None) == (not values['target_identity']):
                 raise ValueError('Resolved TYPE requires exactly one nested structure or a linked target identity')
         elif values['target_identity']:
             raise ValueError('Pending TYPE reference cannot already have a linked target')
-        if values['origin'] == AIigTypeOrigin_1.SYNTHETIC and not values['path_segments']:
+        if values['origin'] == AIngTypeOrigin_1.SYNTHETIC and not values['path_segments']:
             raise ValueError('Synthetic TYPE must preserve its semantic path')
-    elif cls == AIcgd_jElementList_1:
-        allowed = (AIcgd_jElementList_1, AIcgd_jElement_1,
-                   AIcgd_jList_1, AIcgd_jMap_1)
+    elif cls == AIcgdElementList_1:
+        if (values['min_properties'] < -1 or values['max_properties'] < -1
+                or (values['max_properties'] != -1 and values['min_properties'] > values['max_properties'])):
+            raise ValueError('Invalid object property bounds')
+        allowed = (AIcgdElementList_1, AIcgdElement_1,
+                   AIcgdList_1, AIcgdMap_1)
         if any(not isinstance(child, allowed) for child in values['children']):
             raise ValueError('ELEMENTLIST children must be ELEMENT, ELEMENTLIST, LIST, or MAP')
-    elif cls == AIcgd_jElement_1:
+    elif cls == AIcgdElement_1:
         if not values['name'] or not isinstance(values['structure'], GENERATED_STRUCTURE_NODES):
             raise ValueError('ELEMENT requires a name and nested structure')
         if not isinstance(values['description'], str):
             raise TypeError('ELEMENT description must be a string')
+        kinds = ('', 'DECLARATION_ONLY', 'IF_FIELD_VALUE_NOT_PRESENT',
+                 'IF_FIELD_VALUE_EMPTY', 'CONSTRAINT_DEFAULT')
+        if values['default_kind'] not in kinds:
+            raise ValueError('Unknown default kind in canonical ELEMENT: ' + repr(values['default_kind']))
+        if values['default_kind'] == '' and values['default_value'] != '':
+            raise ValueError('Canonical default value requires a declared default kind')
+        if not isinstance(values['is_empty_allowed'], bool):
+            raise TypeError('Canonical is_empty_allowed must be boolean')
         wire = values['xml_wire']
         if wire is not None and wire.value_kind == 'ATTRIBUTE' and (
-                values['min_occurs'] > 1 or values['max_occurs'] != 1):
+                values['min_item_count'] > 1 or values['max_item_count'] != 1):
             raise ValueError('XML attributes can occur only zero or one time')
-    elif cls == AIcgd_jList_1:
+    elif cls == AIcgdList_1:
+        if type(values['unique_items']) is not bool:
+            raise TypeError('unique_items must be boolean')
         if not isinstance(values['item'], GENERATED_STRUCTURE_NODES):
             raise ValueError('LIST item must be a canonical structure')
         if values['key_definitions'] and not values['name']:
@@ -226,11 +493,11 @@ def _validate(cls, values):
         keys = values['key_definitions']
         if len({key.identifier for key in keys}) != len(keys):
             raise ValueError('Repeated LIST key definition identifier')
-    elif cls == AIcgd_jMap_1:
+    elif cls == AIcgdMap_1:
         if not isinstance(values['key_type'], GENERATED_STRUCTURE_NODES) or not isinstance(
                 values['value_type'], GENERATED_STRUCTURE_NODES):
             raise ValueError('MAP key/value must be canonical structures')
-    elif cls == AIcgd_jEnum_1:
+    elif cls == AIcgdEnum_1:
         entries = values['values']
         if not entries:
             raise ValueError('ENUM requires at least one value')
@@ -238,11 +505,11 @@ def _validate(cls, values):
         for value in entries:
             lexical = value.wire_value
             scalar = values['base_scalar_type']
-            if scalar == AIigScalarKind_1.INTEGER:
+            if scalar == AIngScalarKind_1.INTEGER:
                 if not lexical or not lexical.lstrip('+-').isdigit():
                     raise ValueError(f'Invalid integer ENUM wire value: {lexical!r}')
                 semantic = int(lexical)
-            elif scalar == AIigScalarKind_1.NUMBER:
+            elif scalar == AIngScalarKind_1.NUMBER:
                 try:
                     decimal = Decimal(lexical)
                 except InvalidOperation as error:
@@ -250,7 +517,7 @@ def _validate(cls, values):
                 if not decimal.is_finite():
                     raise ValueError(f'Non-finite numeric ENUM wire value: {lexical!r}')
                 semantic = decimal.normalize()
-            elif scalar == AIigScalarKind_1.BOOLEAN:
+            elif scalar == AIngScalarKind_1.BOOLEAN:
                 if lexical not in ('true', 'false', '1', '0'):
                     raise ValueError(f'Invalid boolean ENUM wire value: {lexical!r}')
                 semantic = lexical in ('true', '1')
@@ -259,10 +526,30 @@ def _validate(cls, values):
             if semantic in observed:
                 raise ValueError(f'Duplicate ENUM wire value: {lexical!r}')
             observed.add(semantic)
-    elif cls == AIcgd_jSourceBinding_1:
+    elif cls == AIcgdScalar_1:
+        for name in ('min_length', 'max_length'):
+            if type(values[name]) is not int or values[name] < -1:
+                raise ValueError(f'Invalid scalar {name} bound')
+        if values['max_length'] != -1 and values['min_length'] > values['max_length']:
+            raise ValueError('Invalid scalar length range')
+        for name in ('minimum', 'maximum', 'multiple_of'):
+            if values[name]:
+                numeric = Decimal(values[name])
+                if not numeric.is_finite() or (name == 'multiple_of' and numeric <= 0):
+                    raise ValueError(f'Invalid decimal {name}')
+        if (values['minimum'] and values['maximum']
+                and Decimal(values['minimum']) > Decimal(values['maximum'])):
+            raise ValueError('Invalid scalar numeric range')
+        if values['scalar_kind'] not in (AIngScalarKind_1.STRING, AIngScalarKind_1.ANY) and (
+                values['min_length'] != -1 or values['max_length'] != -1 or values['pattern']):
+            raise ValueError('String facets require string scalar')
+        if values['scalar_kind'] not in (AIngScalarKind_1.INTEGER, AIngScalarKind_1.NUMBER) and any(
+                values[name] for name in ('minimum', 'maximum', 'multiple_of')):
+            raise ValueError('Numeric facets require numeric scalar')
+    elif cls == AIcgdSourceBinding_1:
         if not values['source_resource']:
             raise ValueError('source_resource must not be empty')
-    elif cls == AIcgd_jXmlWireName_1:
+    elif cls == AIcgdXmlWireName_1:
         if (not isinstance(values['namespace_uri'], str) or
                 not isinstance(values['local_name'], str)):
             raise TypeError('XML QName namespace and local name must be strings')
@@ -271,7 +558,7 @@ def _validate(cls, values):
             raise ValueError('XML QName requires a nonempty unqualified local name')
         if values['value_kind'] not in ('ELEMENT', 'ATTRIBUTE'):
             raise ValueError('XML wire value kind must be ELEMENT or ATTRIBUTE')
-    elif cls == AIcgd_jKeyDefinition_1:
+    elif cls == AIcgdKeyDefinition_1:
         if not values['identifier'] or not values['selector'] or not values['source_pointer']:
             raise ValueError('Key definition identifier, selector and source pointer are required')
         if len(set(values['fields'])) != len(values['fields']):
@@ -298,8 +585,12 @@ def _install(cls, fields, defaults):
             raise TypeError(f'Missing mandatory canonical fields: {missing}')
         _validate(cls, values)
         original_init(self)
+        content_contract = cls is AIcgdType_1 and callable(getattr(self, 'setContent', None))
         for field in fields:
             value = values[field]
+            if content_contract and field in ('structure', 'target_identity'):
+                # New generated TYPE persists these exclusively in ``content``.
+                continue
             if value is None or (field == 'target_identity' and value == ''):
                 continue
             if field == 'source_bindings':
@@ -310,7 +601,20 @@ def _install(cls, fields, defaults):
                 value = [_selected(node, child=True) for node in value]
             elif field in ('path_segments', 'inherited_from_types', 'values', 'fields', 'key_definitions'):
                 value = list(value)
-            getattr(self, 'set' + ''.join(p.title() for p in field.split('_')))(value)
+            method_suffix = ''.join(p.title() for p in field.split('_'))
+            if field in ('children', 'values', 'fields', 'path_segments',
+                         'inherited_from_types', 'key_definitions'):
+                _set_collection(self, method_suffix, value)
+            else:
+                # SourceBindings is a nominal SDO value, not a list. Its
+                # generated setter must be used directly.
+                getattr(self, 'set' + method_suffix)(value)
+        if content_contract:
+            if values['structure'] is not None:
+                self.setContent(_type_content_variant('structure', _selected(values['structure'])))
+            elif values['target_identity']:
+                self.setContent(_type_content_variant('target_identity', values['target_identity']))
+
 
     cls.__init__ = init
     def equal(self, other):
@@ -319,7 +623,30 @@ def _install(cls, fields, defaults):
     cls.__hash__ = None
     for field in fields:
         def getter(self, field=field):
-            raw = getattr(self, 'get' + ''.join(p.title() for p in field.split('_')))()
+            if (cls is AIcgdType_1 and field in ('structure', 'target_identity')
+                    and callable(getattr(self, 'getContent', None))):
+                # The frontend may hold an unresolved symbolic TYPE with
+                # no selected content until the linker resolves its target.
+                # The generated SDO rightly rejects reading an absent required
+                # Content field, so inspect presence before accessing it.
+                present = getattr(self, '_isPresent_Content', None)
+                if callable(present) and not present():
+                    if self.getResolutionState() == AIngResolutionState_1.RESOLVED:
+                        raise ValueError('Resolved canonical TYPE is missing required Content')
+                    return defaults.get(field)
+                selected = self.getContent()
+                if selected is None:
+                    return defaults.get(field)
+                if field == 'structure':
+                    method = getattr(selected, 'getStructure', None)
+                    return _unselected(method()) if callable(method) else None
+                method = getattr(selected, 'getTargetIdentity', None)
+                return method() if callable(method) else ''
+            stem = ''.join(p.title() for p in field.split('_'))
+            raw = (_collection(self, stem) if field in
+                   ('children', 'values', 'fields', 'path_segments',
+                    'inherited_from_types', 'key_definitions') else
+                   getattr(self, 'get' + stem)())
             if field == 'source_bindings':
                 return _bindings_mapping(raw)
             if field in ('structure', 'item', 'key_type', 'value_type'):
@@ -334,7 +661,7 @@ def _install(cls, fields, defaults):
         setattr(cls, field, property(getter))
     if cls in _KIND_TO_STEM:
         stem = _KIND_TO_STEM[cls]
-        cls.kind = property(lambda self, stem=stem: AIigStructureKind_1[stem.upper()])
+        cls.kind = property(lambda self, stem=stem: AIngStructureKind_1[stem.upper()])
 
 
 for _type, (_fields, _defaults) in _FIELDS.items():
@@ -356,29 +683,30 @@ def replace(node: Any, **changes):
 
 def normalize_structure(node: Any):
     """Flatten compatible groups only after linking and graph validation."""
-    if isinstance(node, AIcgd_jType_1):
-        if node.resolution_state != AIigResolutionState_1.RESOLVED or node.target_identity:
+    if isinstance(node, AIcgdType_1):
+        if node.resolution_state != AIngResolutionState_1.RESOLVED or node.target_identity:
             return node
         return replace(node, structure=normalize_structure(node.structure))
-    if isinstance(node, AIcgd_jElementList_1):
+    if isinstance(node, AIcgdElementList_1):
         children = []
         for child in node.children:
             normalized = normalize_structure(child)
-            if (isinstance(normalized, AIcgd_jElementList_1)
+            if (isinstance(normalized, AIcgdElementList_1)
                     and normalized.composition == node.composition
-                    and node.composition != AIigComposition_1.CHOICE
-                    and normalized.min_occurs == 1 and normalized.max_occurs == 1):
+                    and node.composition != AIngComposition_1.CHOICE
+                    and normalized.min_item_count == 1 and normalized.max_item_count == 1
+                    and normalized.min_properties == -1 and normalized.max_properties == -1):
                 children.extend(normalized.children)
             else:
                 children.append(normalized)
         return replace(node, children=tuple(children))
-    if isinstance(node, AIcgd_jElement_1):
+    if isinstance(node, AIcgdElement_1):
         return replace(node, structure=normalize_structure(node.structure))
-    if isinstance(node, AIcgd_jList_1):
+    if isinstance(node, AIcgdList_1):
         return replace(node, item=normalize_structure(node.item))
-    if isinstance(node, AIcgd_jMap_1):
+    if isinstance(node, AIcgdMap_1):
         return replace(node, key_type=normalize_structure(node.key_type),
                        value_type=normalize_structure(node.value_type))
-    if isinstance(node, (AIcgd_jScalar_1, AIcgd_jEnum_1)):
+    if isinstance(node, (AIcgdScalar_1, AIcgdEnum_1)):
         return node
     raise TypeError(f'Unknown canonical structure: {type(node)!r}')

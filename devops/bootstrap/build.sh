@@ -12,14 +12,30 @@ locRepo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 locBootstrap="$locRepo/devops/bootstrap"
 locHelper="$locBootstrap/prepare.py"
 locPython="${ALGITES_PYTHON_EXECUTABLE:-python3}"
-locConfig="$(mktemp)"
+# Configuration staging belongs to this invocation and must not be placed in
+# build/run/bootstrap, which is erased before preparing the module project.
+locConfigWork="$locRepo/build/run/bootstrap-invocations"
+[[ ! -L "$locRepo/build" && ! -L "$locRepo/build/run" && ! -L "$locConfigWork" ]] || {
+    echo 'Refusing symlinked bootstrap configuration work root' >&2; exit 2;
+}
+mkdir -p -- "$locConfigWork"
+locConfig="$(mktemp "$locConfigWork/config-XXXXXXXX")"
 trap 'rm -f -- "$locConfig"' EXIT
 "$locPython" "$locBootstrap/bootstrap-config.py" --repository "$locRepo" --nul > "$locConfig"
 mapfile -d '' -t locSettings < "$locConfig"
 # Technology defaults until Modustro Builder provides their metadata.
 # These defaults are identical in every repository; explicit environment
 # overrides remain available to test another toolchain.
-locBuildRoot="$locRepo/build/run/bootstrap"
+# A top-level bootstrap receives a UUID, so no Gradle or Maven stage is
+# reused from another run. Direct build.sh callers retain the legacy path.
+if [[ -n "${MODUSTRO_BOOTSTRAP_RUN_ID:-}" ]]; then
+    [[ "$MODUSTRO_BOOTSTRAP_RUN_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || {
+        echo 'Invalid bootstrap run ID' >&2; exit 2;
+    }
+    locBuildRoot="$locRepo/build/run/bootstrap/$MODUSTRO_BOOTSTRAP_RUN_ID"
+else
+    locBuildRoot="$locRepo/build/run/bootstrap"
+fi
 export MODUSTRO_BOOTSTRAP_JAVA_RELEASE="${MODUSTRO_BOOTSTRAP_JAVA_RELEASE:-17}"
 export MODUSTRO_BOOTSTRAP_PYTHON_REQUIRES="${MODUSTRO_BOOTSTRAP_PYTHON_REQUIRES:->=3.11}"
 locJavaRepo="${MODUSTRO_BOOTSTRAP_JAVA_CLOUDSMITH_REPO:-${locSettings[0]}}"
@@ -148,6 +164,12 @@ MODUSTRO_BOOTSTRAP_NATIVE_OUTPUT="$locBuildRoot" MODUSTRO_BOOTSTRAP_NATIVE_VERSI
 locJavaCount="$(wc -l < "$locBuildRoot/packages.tsv")"
 locPythonCount="$(wc -l < "$locBuildRoot/python-packages.tsv")"
 
+
+# Refresh configured compiler ABI snapshots only after the source artifact's
+# Gradle/Python generation and verification have completed successfully.
+"$locPython" "$locBootstrap/selfhosting.py" phase \
+    --repository "$locRepo" --root "${MODUSTRO_BOOTSTRAP_ROOT:-$locRepo}" \
+    --phase after-build
 
 # Promote the entire verified staging publication set to Maven Local only after
 # Python distributions are also ready. The upload reads Maven Local bytes.

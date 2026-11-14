@@ -22,7 +22,8 @@ import org.testng.annotations.Test;
 /** Regression coverage for shared YAML/JSON types and local schema references. */
 public final class AItcCanonicalRepresentationsTest {
     private AIcdCanonicalDefinition AIcLoad(String aFile, AInDefinitionSourceKind aKind) throws Exception {
-        Path locPath = Path.of(getClass().getClassLoader().getResource(aFile).toURI());
+        Path locPath = Path.of(getClass().getClassLoader().getResource((aKind == AInDefinitionSourceKind.YAMLDEFS ? "yamldefs/" :
+                aKind == AInDefinitionSourceKind.JSONDEFS ? "jsondefs/" : "xmldefs/") + aFile).toURI());
         return new AIcDefaultDefsCodegenService().load(AItcConfiguredNamingProfiles.load(
                 locPath, aKind, AItcConfiguredNamingProfiles.javaProfile()));
     }

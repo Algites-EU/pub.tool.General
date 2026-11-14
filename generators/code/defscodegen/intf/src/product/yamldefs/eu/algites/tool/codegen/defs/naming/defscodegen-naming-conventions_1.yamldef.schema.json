@@ -16,72 +16,21 @@
       "properties": {
         "NameConventions": {
           "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "StructureNaming": {
-                "type": "object",
-                "propertyNames": {
-                  "$ref": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/naming/defscodegen-structure-kind_1.yamldef.schema.json"
-                },
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "properties": {
-                  "synthetic_property_type": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Naming composition for a synthetic type representing an inline property."
-                  },
-                  "synthetic_list_item_type": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Naming composition for a synthetic list item type."
-                  },
-                  "synthetic_map_value_type": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Naming composition for an additionalProperties/map value type."
-                  },
-                  "synthetic_positional_item_type": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Naming composition for a prefixItems tuple position type."
-                  },
-                  "synthetic_choice_variant_type": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Naming composition for an alternative of a choice."
-                  },
-                  "synthetic_group_type": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Naming composition for a required separately generated group type."
-                  },
-                  "string_enum_item": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Naming composition for string-valued enumeration constant."
-                  },
-                  "non_string_enum_item": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Naming composition for non-string enumeration constant."
-                  }
-                },
-                "description": "Role names are restricted to the defs domain. Values reference naming compositions except the two literal key/value getters."
+          "title": "NameConvention collection",
+          "description": "",
+          "additionalProperties": false,
+          "properties": {
+            "NameConvention": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/DefsCodegenNameConvention"
               },
-              "CommonNamingConvention": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Required ID of the common naming profile providing shared methods and metadata. Resolved across supplied profile documents."
+              "description": "Ordered XSD NameConvention elements; name is an identity attribute.",
+              "x-algites-defscodegen-key": {
+                "id": "UniqueProfileIds",
+                "field-name": "name"
               }
-            },
-            "required": [
-              "CommonNamingConvention",
-              "StructureNaming"
-            ]
+            }
           }
         }
       },
@@ -97,5 +46,253 @@
     "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
   ],
   "x-algites-schema-id": "eu.algites.tool.codegen.defs.naming.defscodegen-naming-conventions",
-  "x-algites-schema-version": 1
+  "x-algites-schema-version": 1,
+  "$defs": {
+    "DefsCodegenNameConvention": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required XSD identity attribute."
+        },
+        "StructureNaming": {
+          "type": "object",
+          "title": "Naming rules",
+          "description": "Role names are restricted to the defs domain. Values reference naming compositions except the two literal key/value getters.",
+          "additionalProperties": false,
+          "properties": {
+            "Rule": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/DefsCodegenStructureNamingRule"
+              },
+              "x-algites-defscodegen-key": {
+                "id": "UniqueStructureRoles",
+                "field-name": "kind"
+              }
+            }
+          }
+        },
+        "CommonNamingConvention": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required ID of the common naming profile providing shared methods and metadata. Resolved across supplied profile documents."
+        }
+      },
+      "required": [
+        "name",
+        "CommonNamingConvention",
+        "StructureNaming"
+      ]
+    },
+    "DefsCodegenStructureNamingRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/naming/defscodegen-structure-kind_1.yamldef.schema.json"
+        },
+        "Value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "Value"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "synthetic_property_type"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for a synthetic type representing an inline property."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "synthetic_inline_enum_type"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for a separate enum declared inline on an XSD element or attribute; owning type plus field name."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "synthetic_list_item_type"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for a synthetic list item type."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "synthetic_map_value_type"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for an additionalProperties/map value type."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "synthetic_positional_item_type"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for a prefixItems tuple position type."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "synthetic_choice_variant_type"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for an alternative of a choice."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "synthetic_group_type"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for a required separately generated group type."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "string_enum_item"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for string-valued enumeration constant."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "non_string_enum_item"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for non-string enumeration constant."
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
 }

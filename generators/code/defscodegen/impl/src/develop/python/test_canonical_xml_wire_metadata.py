@@ -18,10 +18,10 @@ for rel in ('generators/code/common/src/product/python',
     sys.path.insert(0, str(TOOL / rel))
 
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIcgd_jElement_1 as Element,
-    AIcgd_jList_1 as ListNode,
-    AIcgd_jXmlWireName_1 as Wire,
-    AIigSourceInputKind_1 as Kind,
+    AIcgdElement_1 as Element,
+    AIcgdList_1 as ListNode,
+    AIcgdXmlWireName_1 as Wire,
+    AIngSourceInputKind_1 as Kind,
 )
 from eu.algites.tool.codegen.defs.impl.standard.canonical_pipeline import (
     AIcdDefsCodegenSourceDocument as Document,
@@ -73,7 +73,7 @@ def test_xml_qname_and_attribute_forms_survive_canonical_contract_and_normalizat
     schema = (TOOL / 'generators/code/defscodegen/intf/src/product/jsondefs/eu/algites/tool'
               '/codegen/defs/model/canonical-model_1.jsondef.schema.json')
     jsonschema.Draft202012Validator(json.loads(schema.read_text())).validate(payload)
-    members = payload['types'][0]['structure']['ElementList']['children']
+    members = payload['types'][0]['content']['structure']['ElementList']['children']
     assert members[1]['List']['xml_wire']['namespace_uri'] == 'urn:doc'
     assert members[3]['Element']['xml_wire']['value_kind'] == 'ATTRIBUTE'
     merged = Merger.merge((result.types[0], result.types[0]))[0].structure.children
@@ -88,7 +88,7 @@ def test_generated_java_and_python_xml_field_metadata_matches_real_runtime(tmp_p
     python = next(item.content for item in output if item.language == 'python')
     assert 'namespace = "urn:doc", namespaceLocalName = "Name"' in java
     assert 'namespaceLocalName = "code", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ATTRIBUTE' in java
-    assert 'minOccurs = 0, maxOccurs = -1' in java
+    assert 'minItemCount = 0, maxItemCount = -1' in java
     assert "'Unqualified': AIaXmlDataObjectField(namespace=''" in python
     assert "'flag': AIaXmlDataObjectField(namespace='urn:doc'" in python
     assert "__xml_repeated_fields__ = ('Line',)" in python
@@ -137,17 +137,46 @@ def test_invalid_xml_form_defaults_fail_even_without_fields():
 
 
 def test_unsupported_xml_forms_fail_instead_of_losing_qnames():
-    """Bad XSD forms, unsupported attribute defaults and invalid cardinality fail closed."""
+    """Invalid XSD forms/cardinality fail; attribute defaults survive as metadata."""
     with pytest.raises(ValueError, match='form default'):
         _compiled(XSD.replace('elementFormDefault="qualified"', 'elementFormDefault="unknown"'))
     with pytest.raises(ValueError, match='form'):
         _compiled(XSD.replace('form="qualified"', 'form="maybe"'))
-    with pytest.raises(NotImplementedError, match='defaulted'):
-        _compiled(XSD.replace('name="code" type="xs:string"',
-                              'name="code" default="abc" type="xs:string"'))
+    # XML attributes default on absence (not on explicit empty content).
+    # This was once unsupported, but is now part of the agreed DataObject
+    # default contract and must survive the canonical model and emitters.
+    result, emitted = _compiled(XSD.replace('name="code" type="xs:string"',
+                                            'name="code" default="abc" type="xs:string"'))
+    code = result.types[0].structure.children[3]
+    assert code.default_kind == 'IF_FIELD_VALUE_NOT_PRESENT'
+    assert code.default_value == 'abc'
+    assert any('IF_FIELD_VALUE_NOT_PRESENT' in item.content
+               and 'abc' in item.content for item in emitted)
     with pytest.raises(ValueError, match='attributes'):
         Wire('urn:doc', 'attr', 'ATTRIBUTE') and replace(
-            _compiled()[0].types[0].structure.children[3], max_occurs=2)
+            _compiled()[0].types[0].structure.children[3], max_item_count=2)
+
+
+
+def test_numeric_xsd_fixed_is_emitted_as_typed_constraint_in_both_languages():
+    """XSD fixed constrains assignments, not the effective value of an absent field."""
+    xsd = '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+      <xs:complexType name="Doc"><xs:sequence>
+        <xs:element name="Count" type="xs:integer" fixed="1"/>
+      </xs:sequence></xs:complexType>
+    </xs:schema>'''
+    result, emitted = _compiled(xsd)
+    field = result.types[0].structure.children[0]
+    assert field.default_kind == 'CONSTRAINT_DEFAULT'
+    assert field.default_value == '1'
+    assert not field.is_empty_allowed
+    java = next(item.content for item in emitted if item.language == 'java')
+    python = next(item.content for item in emitted if item.language == 'python')
+    assert 'AInDataObjectFieldDefaultKind.CONSTRAINT_DEFAULT' in java
+    assert 'value = "1"' in java
+    assert 'AInDataObjectFieldDefaultKind.CONSTRAINT_DEFAULT' in python
+    assert "value='1'" in python
+    assert 'expected_type=int' in python
 
 
 def test_attribute_only_xsd_type_is_emittable():

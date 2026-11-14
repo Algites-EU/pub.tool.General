@@ -23,11 +23,16 @@ Dependencies:
       # read-only contracts; they require the SmartDataObject runtime until
       # the agreed model.schema/do/sdo artifact split is available.
       - GroupId: eu.algites.lib.data
-        ArtifactId: pub.lib.General_data.smartdataobject.impl
+        ArtifactId: pub.lib.General_data.smartdataobject.impl.common
         Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.naming
         ArtifactId: pub.lib.General_naming.convention.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      # Legacy public Python request contracts expose AIcNameConventionCatalog.
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.convention.impl
         Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.data

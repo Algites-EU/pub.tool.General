@@ -1,4 +1,4 @@
-"""XML xs:any is typed by namespace-specific interfaces, never a scalar fragment."""
+"""XML wildcard policy and XML namespace interfaces remain independent."""
 from __future__ import annotations
 import importlib
 import json
@@ -36,16 +36,21 @@ def _build(tmp_path: Path, constraint: str):
     ('##other', 'AIiXmlDataObject'),
     ('##local', 'AIiXmlDataObject'),
 ])
-def test_xsd_any_contract_signatures_and_xml_marker_inheritance(tmp_path, monkeypatch, constraint, namespace_interface):
+def test_xsd_optional_wildcard_documented_without_generated_getter(tmp_path, monkeypatch, constraint, namespace_interface):
+    """Every allowed namespace policy keeps its original declaration in metadata.
+
+    Namespace marker inheritance describes the *containing* XML type, not
+    the ignored wildcard (which has no DataObject field of its own).
+    """
     generated, java, python = _build(tmp_path, constraint)
     java_contract = (java / 'AIigExtensions_1.java').read_text()
     python_contract = (python / 'aiig_extensions_1.py').read_text()
-    expected = 'java.util.List<? extends ' + (
-        'eu.algites.lib.data.dataobject.xmldefs.' if namespace_interface == 'AIiXmlDataObject'
-        else 'example.contracts.') + namespace_interface + '>'
-    assert expected in java_contract
-    assert 'java.util.List<String>' not in java_contract
-    assert 'tuple[' + namespace_interface + ', ...]' in python_contract
+    assert 'Ignored optional XML wildcard' in java_contract
+    assert 'Ignored optional XML wildcard' in python_contract
+    assert constraint in java_contract and constraint in python_contract
+    assert 'java.util.List<? extends ' not in java_contract
+    assert 'tuple[' not in python_contract
+    assert 'getAnyXmlElement' not in java_contract
     java_marker = java / 'AIig_xnXmlDataObjectUrnBuilderTechnology.java'
     assert java_marker.exists()
     assert 'extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObjectNamespace' in java_marker.read_text()
@@ -54,13 +59,14 @@ def test_xsd_any_contract_signatures_and_xml_marker_inheritance(tmp_path, monkey
     assert 'AIig_xnXmlDataObjectUrnBuilderTechnology' in (
         java / 'AIig_xeExtensions_1.java').read_text()
     assert (python / 'aiig__xn_xml_data_object_urn_builder_technology.py').is_file()
+    assert not (java / 'AIig_xnXmlDataObjectUrnExternalPlugin.java').exists()
     monkeypatch.syspath_prepend(str(tmp_path / 'src/product/python.gen'))
     module = importlib.import_module('example.contracts.aiig_extensions_1')
     assert issubclass(module.AIigExtensions_1,
         importlib.import_module('example.contracts.aiig__xn_xml_data_object_urn_builder_technology')
             .AIig_xnXmlDataObjectUrnBuilderTechnology)
-    assert len([r for r in generated if r['pointer'].startswith('@namespace/')]) == (
-        4 if constraint == 'urn:external:plugin' else 2)
+    assert len([r for r in generated if r['pointer'].startswith('@namespace/')]) == 2
+
 
 @pytest.mark.parametrize('language', ['java', 'python'])
 def test_namespace_naming_role_is_independent_from_xml_element_naming(language, tmp_path):

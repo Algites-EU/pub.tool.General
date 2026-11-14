@@ -74,6 +74,9 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
         String locTitle = title(locType);
         if (locDescription == null) locDescription = documentation(locSchema);
         if (locTitle == null) locTitle = title(locSchema);
+        String locWildcardDocumentation = wildcardDocumentation(locType);
+        if (!locWildcardDocumentation.isEmpty())
+            locDescription = (locDescription == null ? "" : locDescription + "\n") + locWildcardDocumentation;
         if (!locValues.isEmpty()) return new AIcdCanonicalDefinition(locIdentity, locParsed.version(), locParsed.logicalName(), sourceKind(), aRequest.path().toString(), locDescription, AIcdDataType.atom(AInDataTypeKind.ENUM, null), locValues, locTitle);
         List<AIcdPropertyDefinition> locProperties = new ArrayList<>();
         if (locType != null && "complexType".equals(locType.getLocalName())) {
@@ -533,7 +536,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
     /** Project conservative, same-schema complexContent extensions and attribute restrictions. */
     private List<AIcdPropertyDefinition> complexProperties(Element aType, AIcdDefinitionLoadRequest aRequest,
             Element aSchema, Set<String> aVisited) throws IOException {
-        if (child(aType, "anyAttribute", "simpleContent") != null)
+        if (child(aType, "simpleContent") != null)
             throw new IOException("Unsupported XSD attribute group/wildcard/simple content in " + aRequest.path());
         Element locContent = child(aType, "complexContent");
         List<AIcdPropertyDefinition> locResult = new ArrayList<>();
@@ -590,7 +593,7 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
             throw new IOException("Circular XSD complexContent derivation at '" + locIdentity + "' in " + aRequest.path());
         locResult.addAll(complexProperties(locBase, locBaseRequest, locBaseSchema, aVisited));
         aVisited.remove(locIdentity);
-        if (child(locBranch, "anyAttribute", "simpleContent", "complexContent") != null)
+        if (child(locBranch, "simpleContent", "complexContent") != null)
             throw new IOException("Unsupported XSD derivation child in " + aRequest.path());
         List<AIcdPropertyDefinition> locLocal = new ArrayList<>();
         elements(locBranch, false, aRequest, aSchema, locLocal);
@@ -1031,18 +1034,20 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
                         ? locElement.getAttribute("processContents") : "strict";
                 if (locNamespace.isBlank() || !Set.of("skip", "lax", "strict").contains(locProcess))
                     throw new IOException("Invalid xs:any wildcard constraint in " + aRequest.path());
-                String locName = "AnyXmlElement" + (aProperties.size() + 1);
-                boolean locRepeated = locMaximum == null || locMaximum > 1;
-                AIcdDataType locValueType = AIcdDataType.atom(AInDataTypeKind.ANY, null);
-                AIcdDataType locDataType = locRepeated
-                        ? AIcdDataType.array(locValueType, locMinimum, locMaximum) : locValueType;
-                aProperties.add(new AIcdPropertyDefinition(locName, locDataType,
-                        locMaximum != null && locMaximum == 0 ? AInFieldPresenceKind.FORBIDDEN
-                        : !aOptional && locMinimum > 0 ? AInFieldPresenceKind.REQUIRED : AInFieldPresenceKind.ALLOWED,
-                        false, "Complete XML subtrees accepted by xs:any.", "XML extension elements",
-                        new AIcdXmlFieldRepresentation(aSchema.getAttribute("targetNamespace"), locName,
-                                AInXmlValueKind.ELEMENT, locMinimum,
-                                locMaximum == null ? -1 : locMaximum, locNamespace, locProcess)));
+                boolean locOptionalAncestor = false;
+                for (Node locParent = locElement.getParentNode(); locParent instanceof Element locAncestor;
+                        locParent = locParent.getParentNode()) {
+                    if (Set.of("sequence", "all", "choice").contains(locAncestor.getLocalName())
+                            && "0".equals(locAncestor.getAttribute("minOccurs"))) {
+                        locOptionalAncestor = true;
+                        break;
+                    }
+                    if (Set.of("complexType", "schema").contains(locAncestor.getLocalName())) break;
+                }
+                if (locMinimum > 0 && !aOptional && !locOptionalAncestor)
+                    throw new IOException("Required XML wildcard xs:any cannot be projected in " + aRequest.path() + ". Hint: declare a named typed xs:element instead.");
+                System.err.println("WARNING: Ignoring optional XML wildcard xs:any in " + aRequest.path() + "; values may be lost on roundtrip. Hint: use <xs:element name=\"Extra\" type=\"xs:string\" minOccurs=\"0\"/> instead.");
+                // Preserve the XML declaration in type documentation; do not emit a getter.
             } else if ("annotation".equals(locKind)) {
                 continue;
             } else if (Set.of("attribute", "attributeGroup", "anyAttribute", "simpleContent",
@@ -1067,7 +1072,8 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
     private void attributes(Element aType, AIcdDefinitionLoadRequest aRequest, Element aSchema,
             List<AIcdPropertyDefinition> aProperties, Set<String> aActiveGroups) throws IOException {
         if (child(aType, "anyAttribute") != null)
-            throw new IOException("Unsupported XSD attribute wildcard in " + aRequest.path());
+            // xs:anyAttribute has no minOccurs: it is optional, not a generated field.
+            System.err.println("WARNING: Ignoring optional XML wildcard xs:anyAttribute in " + aRequest.path() + "; attributes may be lost on roundtrip. Hint: use <xs:attribute name=\"Extra\" type=\"xs:string\"/> instead.");
         for (Element locAttribute : children(aType, "attribute", "attributeGroup")) {
             if ("attributeGroup".equals(locAttribute.getLocalName())) {
                 String locReference = locAttribute.getAttribute("ref");
@@ -1518,6 +1524,31 @@ public final class AIcXmlDefsFrontend implements AIiDefinitionFrontend {
     private static Integer integer(String aValue) {
         try { return aValue.isBlank() ? null : Integer.valueOf(aValue); } catch (NumberFormatException locFailure) { return null; }
     }
+    /** Preserve ignored XML wildcard declarations in the generated contract's documentation.
+     * @param aType selected XSD type, or null
+     * @return original-equivalent XSD snippets for wildcard declarations, or the empty string
+     */
+    private static String wildcardDocumentation(Element aType) {
+        if (aType == null) return "";
+        List<String> locFragments = new ArrayList<>();
+        for (String locName : List.of("any", "anyAttribute")) {
+            var locNodes = aType.getElementsByTagNameNS(XS, locName);
+            for (int locIndex = 0; locIndex < locNodes.getLength(); locIndex++) {
+                var locNode = (Element) locNodes.item(locIndex);
+                var locXml = new StringBuilder("<xs:").append(locName);
+                var locAttributes = locNode.getAttributes();
+                for (int locAttributeIndex = 0; locAttributeIndex < locAttributes.getLength(); locAttributeIndex++) {
+                    var locAttribute = locAttributes.item(locAttributeIndex);
+                    locXml.append(' ').append(locAttribute.getNodeName()).append("=\"")
+                        .append(locAttribute.getNodeValue().replace("&", "&amp;")
+                                .replace("\"", "&quot;")).append('"');
+                }
+                locFragments.add("Ignored optional XML wildcard: " + locXml.append("/>").toString());
+            }
+        }
+        return String.join("\n", locFragments);
+    }
+
     private static String documentation(Element aElement) {
         Element locAnnotation = child(aElement, "annotation");
         Element locDocumentation = child(locAnnotation, "documentation");

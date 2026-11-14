@@ -71,7 +71,10 @@ def test_schema_field_bindings_multi_format_merges_without_leaking_source_schema
                for definition in definitions[:2])
     # Ordinary schema constraints, such as the language enumeration, remain intact.
     languages = next(field for field in merged.data_type.properties if field.source_name == 'languages')
-    assert tuple(part.constraints.enum_values[0] for part in languages.data_type.element_type.alternatives) == ('java', 'python')
+    # A homogeneous enum is represented directly by the element's constraint,
+    # not as a tuple of UNION alternatives. Merging must preserve its values.
+    assert languages.data_type.element_type.constraints.enum_values == ('java', 'python')
+    assert languages.data_type.element_type.alternatives == ()
 
 
 def test_named_xml_reference_requires_explicit_naming_catalog():

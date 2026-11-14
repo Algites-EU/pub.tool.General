@@ -1,37 +1,52 @@
 # yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/sourcecode/smartdataobject/smartdataobject-naming-conventions_1.yamldef.schema.json
 # $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/sourcecode/smartdataobject/smartdataobject-naming-conventions_1.yamldef.schema.json
-$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/sourcecode/smartdataobject/smartdataobject-naming-conventions_1.yamldef.schema.json
+$schema: 
+  https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/sourcecode/smartdataobject/smartdataobject-naming-conventions_1.yamldef.schema.json
 NameCompositions:
-  standard-postfix-python-sdo-raw-getter_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _getRaw_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standard-postfix-python-sdo-presence_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _isPresent_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standard-postfix-python-sdo-unsetter_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _unset_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
+  NameComposition:
+    - name: standard-postfix-python-sdo-raw-getter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _getRaw_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standard-postfix-python-sdo-presence_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _isPresent_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standard-postfix-python-sdo-unsetter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _unset_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
 SmartDataObjectNameConventions:
   NameConventions:
-    standardpostfix-python-sdocodegen-standard_1:
-      StructureNaming:
-        standard_getter: python-getter-method-name_1
-        standard_setter: python-setter-method-name_1
-        raw_getter: standard-postfix-python-sdo-raw-getter_1
-        raw_presence_checker_method: standard-postfix-python-sdo-presence_1
-        raw_unsetter: standard-postfix-python-sdo-unsetter_1
+    NameConvention:
+      - name: standardpostfix-python-sdocodegen-standard_1
+        StructureNaming:
+          Rule:
+            - kind: standard_getter
+              Value: python-getter-method-name_1
+            - kind: standard_setter
+              Value: python-setter-method-name_1
+            - kind: raw_getter
+              Value: standard-postfix-python-sdo-raw-getter_1
+            - kind: raw_presence_checker_method
+              Value: standard-postfix-python-sdo-presence_1
+            - kind: raw_unsetter
+              Value: standard-postfix-python-sdo-unsetter_1

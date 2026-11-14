@@ -2,7 +2,7 @@
 from pathlib import Path
 import pytest
 
-from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
+from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import AIcNameConventionCatalog
 from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
@@ -10,7 +10,8 @@ from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import
 
 def _request(path):
     return AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-        AIcAlgitesNamingProfiles.python_profile())
+        AIcNameConventionCatalog.load_resource('algites-xmldef-name-conventions.yml'),
+        'algites-xmldef-schema-versioned_1')
 
 
 def test_external_complex_extension_retains_namespaces_and_base_qname(tmp_path):

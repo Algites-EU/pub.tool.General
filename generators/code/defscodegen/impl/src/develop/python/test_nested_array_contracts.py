@@ -32,7 +32,9 @@ def test_nested_array_is_preserved_in_python_and_java_contracts(tmp_path):
 
 
 def test_nested_choice_has_a_named_type_in_both_contracts(tmp_path):
-    model = _request(tmp_path, {'oneOf': [{'type': 'integer'}, {'type': 'string'}]})
+    model = _request(tmp_path, {'type': 'object', 'x-algites-defscodegen-choice': True,
+         'minProperties': 1, 'maxProperties': 1, 'additionalProperties': False,
+         'properties': {'Integer': {'type': 'integer'}, 'Text': {'type': 'string'}}})
     generator = AIcSchemaContractInterfaceGenerator()
     java = generator.generate(AIcdCodeGenerationRequest(model, AInCodeGenerationTarget.JAVA,
         'example.matrix', AIcAlgitesNamingProfiles.java_profile())).source
@@ -88,7 +90,9 @@ def test_batch_emits_recursive_objects_choices_and_importable_sdo(tmp_path, monk
     source = {'type': 'object', 'properties': {'lines': {'type': 'array', 'items':
         {'type': 'array', 'items': {'type': 'object', 'properties': {
             'code': {'type': 'string'},
-            'selection': {'oneOf': [{'type': 'string'}, {'type': 'integer'}]}
+            'selection': {'type': 'object', 'x-algites-defscodegen-choice': True,
+                'minProperties': 1, 'maxProperties': 1, 'additionalProperties': False,
+                'properties': {'Text': {'type': 'string'}, 'Number': {'type': 'integer'}}}
         }}}}}}
     (folder / 'invoice_1.jsondef.schema.json').write_text(json.dumps(source))
     manifest = tmp_path / 'manifest.json'
@@ -102,7 +106,7 @@ def test_batch_emits_recursive_objects_choices_and_importable_sdo(tmp_path, monk
         java / 'AIigInvoiceLinesItemsItems_1.java').read_text()
     choice = (java / 'AIigInvoiceLinesItemsItemsSelection_1.java').read_text()
     assert 'sealed interface' in choice and 'permits' in choice
-    assert len(list(java.glob('AIigInvoiceLinesItemsItemsSelectionAlternative*.java'))) == 2
+    assert len(list(java.glob('AIigInvoiceLinesItemsItemsSelectionSelected*.java'))) == 2
     pyroot = tmp_path / 'intf/src/product/python.gen'
     monkeypatch.syspath_prepend(str(pyroot))
     package = 'example.recursive_contract'
@@ -129,22 +133,22 @@ def test_array_references_to_defs_use_identical_nominal_types(tmp_path, monkeypa
     folder = tmp_path / 'intf/src/product/jsondefs/example/reference_arrays'
     folder.mkdir(parents=True)
     (folder / 'example_1.jsondef.schema.json').write_text(json.dumps({
-        'type': 'object', '$defs': {'account': {'type': 'object', 'properties': {
+        'type': 'object', '$defs': {'Account': {'type': 'object', 'properties': {
             'id': {'type': 'string'}}}},
-        'properties': {'account': {'$ref': '#/$defs/account'},
+        'properties': {'account': {'$ref': '#/$defs/Account'},
                        'accounts': {'type': 'array', 'items': {'type': 'array',
-                                    'items': {'$ref': '#/$defs/account'}}}}}))
+                                    'items': {'$ref': '#/$defs/Account'}}}}}))
     manifest = tmp_path / 'manifest.json'
     manifest.write_text(json.dumps(explicit_legacy_generic_manifest({'artifact': 'intf', 'languages': ['java', 'python']})))
     AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, manifest)
     java = (tmp_path / 'intf/src/product/java.gen/example/reference_arrays/AIigExample_1.java').read_text()
-    assert 'AIigExampleDefinitionAccount_1 getAccount()' in java
-    assert 'java.util.List<? extends java.util.List<? extends AIigExampleDefinitionAccount_1>> getAccounts()' in java
+    assert 'AIigAccount_1 getAccount()' in java
+    assert 'java.util.List<? extends java.util.List<? extends AIigAccount_1>> getAccounts()' in java
     pyroot = tmp_path / 'intf/src/product/python.gen'
     monkeypatch.syspath_prepend(str(pyroot))
     module = importlib.import_module('example.reference_arrays.aiig_example_1')
-    assert module.AIigExample_1.__annotations__['account'] == 'AIigExampleDefinitionAccount_1'
-    assert 'AIigExampleDefinitionAccount_1' in module.AIigExample_1.__annotations__['accounts']
+    assert module.AIigExample_1.__annotations__['account'] == 'AIigAccount_1'
+    assert 'AIigAccount_1' in module.AIigExample_1.__annotations__['accounts']
 
 
 def test_inline_literal_choice_references_generated_enum(tmp_path):
@@ -154,7 +158,7 @@ def test_inline_literal_choice_references_generated_enum(tmp_path):
     root = tmp_path / 'intf/src/product/jsondefs/example/choices'
     root.mkdir(parents=True)
     schema = {'type': 'object', 'properties': {'languages': {'type': 'array',
-        'items': {'enum': ['java', 'python'], 'oneOf': [
+        'items': {'type': 'string', 'enum': ['java', 'python'], 'oneOf': [
             {'const': 'java', 'title': 'Java'}, {'const': 'python', 'title': 'Python'}]}}}}
     (root / 'schema_1.jsondef.schema.json').write_text(json.dumps(schema))
     selected = explicit_algites_manifest({'artifact': 'intf', 'languages': ['java', 'python']})

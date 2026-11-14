@@ -1,14 +1,16 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
-import eu.algites.tool.codegen.defs.AIcDefsCodegenStructureNormalizer;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElement;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElementList;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenList;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenMap;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenSourceBinding;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenType;
-import eu.algites.tool.codegen.defs.AIiDefsCodegenStructure;
-import eu.algites.tool.codegen.defs.AInDefsCodegenResolutionState;
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalStructureNormalizer;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalList;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalMap;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalSourceBinding;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIiDefsCanonicalStructure;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,7 +48,7 @@ public final class AIcDefsCodegenCanonicalModelLinker {
      * @throws IllegalArgumentException for duplicate declarations, invalid roots,
      *         ambiguous references, unresolved symbols, or cyclic inheritance
      */
-    public static List<AIcdDefsCodegenType> link(List<AIcdDefsCodegenType> declarations) {
+    public static List<AIcDefsCanonicalType> link(List<AIcDefsCanonicalType> declarations) {
         return link(declarations, ignored -> { });
     }
 
@@ -62,16 +64,51 @@ public final class AIcDefsCodegenCanonicalModelLinker {
      * @throws NullPointerException if an input or callback is null
      * @throws IllegalArgumentException for a malformed canonical graph
      */
-    public static List<AIcdDefsCodegenType> link(List<AIcdDefsCodegenType> declarations,
+    public static List<AIcDefsCanonicalType> link(List<AIcDefsCanonicalType> declarations,
             Consumer<Map<String, Object>> validateUnnormalizedContract) {
+        return link(declarations, validateUnnormalizedContract, Set.of());
+    }
+
+    /**
+     * Link canonical declarations with precisely declared external parent identities.
+     * Reference-only parents remain external: no source TYPE is fabricated or emitted.
+     * @param declarations current generator input declarations
+     * @param validateUnnormalizedContract required canonical-model validator
+     * @param externalParentIds verified, preexisting parent TYPE identities
+     * @return normalized graph with external parent references preserved
+     * @throws IllegalArgumentException on malformed or unresolved links
+     * @throws NullPointerException on null input
+     */
+    public static List<AIcDefsCanonicalType> link(List<AIcDefsCanonicalType> declarations,
+            Consumer<Map<String, Object>> validateUnnormalizedContract,
+            Set<String> externalParentIds) {
+        return link(declarations, validateUnnormalizedContract, externalParentIds, Map.of());
+    }
+
+    /**
+     * Links source TYPEs using both their logical identities and declared schema URLs.
+     *
+     * @param declarations complete input declarations
+     * @param validateUnnormalizedContract mandatory schema validator callback
+     * @param externalParentIds verified external parent identities
+     * @param documentUris mapping from source resource path to its original `$id` URI
+     * @return linked and normalized canonical types
+     * @throws IllegalArgumentException on invalid or ambiguous source references
+     * @throws NullPointerException on missing inputs
+     */
+    public static List<AIcDefsCanonicalType> link(List<AIcDefsCanonicalType> declarations,
+            Consumer<Map<String, Object>> validateUnnormalizedContract,
+            Set<String> externalParentIds, Map<String, String> documentUris) {
+        Objects.requireNonNull(documentUris, "documentUris");
         Objects.requireNonNull(declarations, "declarations");
         Objects.requireNonNull(validateUnnormalizedContract, "validateUnnormalizedContract");
-        Map<String, AIcdDefsCodegenType> types = new LinkedHashMap<>();
+        Objects.requireNonNull(externalParentIds, "externalParentIds");
+        Map<String, AIcDefsCanonicalType> types = new LinkedHashMap<>();
         Map<String, Set<String>> aliases = new LinkedHashMap<>();
         List<String> errors = new ArrayList<>();
-        for (AIcdDefsCodegenType type : declarations) {
+        for (AIcDefsCanonicalType type : declarations) {
             Objects.requireNonNull(type, "declaration");
-            if (type.resolutionState() != AInDefsCodegenResolutionState.RESOLVED
+            if (type.resolutionState() != AIngResolutionState_1.RESOLVED
                     || type.structure() == null || !type.targetIdentity().isEmpty()) {
                 errors.add("Invalid top-level TYPE declaration: " + type.identity());
                 continue;
@@ -83,11 +120,18 @@ public final class AIcDefsCodegenCanonicalModelLinker {
             alias(aliases, type.identity(), type.identity());
             alias(aliases, type.name(), type.identity());
             for (var entries : type.sourceBindings().entrySet()) {
-                for (AIcdDefsCodegenSourceBinding binding : entries.getValue()) {
+                for (AIcDefsCanonicalSourceBinding binding : entries.getValue()) {
                     String resource = binding.sourceResource();
                     alias(aliases, resource + "::" + type.name(), type.identity());
                     if (binding.sourcePointer().startsWith("#")) {
                         alias(aliases, resource + binding.sourcePointer(), type.identity());
+                        String declaredUri = documentUris.get(resource);
+                        if (declaredUri != null && !declaredUri.isBlank()) {
+                            String normalized = declaredUri.endsWith("#")
+                                    ? declaredUri.substring(0, declaredUri.length() - 1) : declaredUri;
+                            alias(aliases, normalized + ("#".equals(binding.sourcePointer())
+                                    ? "" : binding.sourcePointer()), type.identity());
+                        }
                         if ("#".equals(binding.sourcePointer())) {
                             alias(aliases, resource, type.identity());
                         }
@@ -95,13 +139,19 @@ public final class AIcDefsCodegenCanonicalModelLinker {
                 }
             }
         }
+        for (String parent : externalParentIds) {
+            if (types.containsKey(parent)) {
+                throw new IllegalArgumentException("External parent overlaps local declaration: " + parent);
+            }
+            alias(aliases, parent, parent);
+        }
         if (!errors.isEmpty()) {
             throw new IllegalArgumentException("Canonical declarations are invalid:\n"
                     + String.join("\n", errors));
         }
-        List<AIcdDefsCodegenType> linked = new ArrayList<>();
-        for (AIcdDefsCodegenType type : declarations) {
-            linked.add((AIcdDefsCodegenType) visit(type, types, aliases, errors));
+        List<AIcDefsCanonicalType> linked = new ArrayList<>();
+        for (AIcDefsCanonicalType type : declarations) {
+            linked.add((AIcDefsCanonicalType) visit(type, types, aliases, errors));
         }
         checkInheritance(linked, errors);
         if (!errors.isEmpty()) {
@@ -110,7 +160,7 @@ public final class AIcDefsCodegenCanonicalModelLinker {
         }
         validateUnnormalizedContract.accept(AIcDefsCodegenCanonicalContractPayload.emit(linked));
         return linked.stream().map(node ->
-                (AIcdDefsCodegenType) AIcDefsCodegenStructureNormalizer.normalize(node)).toList();
+                (AIcDefsCanonicalType) AIcDefsCanonicalStructureNormalizer.normalize(node)).toList();
     }
 
     /**
@@ -134,7 +184,7 @@ public final class AIcDefsCodegenCanonicalModelLinker {
      * @return resolved canonical target identifier, or the original reference on error
      */
     private static String lookup(String reference,
-            Map<?, List<AIcdDefsCodegenSourceBinding>> bindings,
+            Map<?, List<AIcDefsCanonicalSourceBinding>> bindings,
             Map<String, Set<String>> aliases, List<String> errors) {
         String resource = "";
         String location = "(no source location)";
@@ -182,20 +232,20 @@ public final class AIcDefsCodegenCanonicalModelLinker {
      * @param errors accumulated diagnostics with source locations
      * @return graph node containing resolved references
      */
-    private static AIiDefsCodegenStructure visit(AIiDefsCodegenStructure node,
-            Map<String, AIcdDefsCodegenType> declarations, Map<String, Set<String>> aliases,
+    private static AIiDefsCanonicalStructure visit(AIiDefsCanonicalStructure node,
+            Map<String, AIcDefsCanonicalType> declarations, Map<String, Set<String>> aliases,
             List<String> errors) {
-        if (node instanceof AIcdDefsCodegenType type) {
-            if (type.resolutionState() == AInDefsCodegenResolutionState.UNDEFINED) {
+        if (node instanceof AIcDefsCanonicalType type) {
+            if (type.resolutionState() == AIngResolutionState_1.UNDEFINED) {
                 errors.add("Undefined canonical TYPE: " + type.identity());
                 return type;
             }
-            if (type.resolutionState() == AInDefsCodegenResolutionState.REFERENCE) {
+            if (type.resolutionState() == AIngResolutionState_1.REFERENCE) {
                 String id = lookup(type.identity(), type.sourceBindings(), aliases, errors);
-                AIcdDefsCodegenType target = declarations.get(id);
+                AIcDefsCanonicalType target = declarations.get(id);
                 if (target == null) return type;
-                return new AIcdDefsCodegenType(target.identity(), target.name(), target.origin(),
-                        type.pathSegments(), List.of(), null, AInDefsCodegenResolutionState.RESOLVED,
+                return new AIcDefsCanonicalType(target.identity(), target.name(), target.origin(),
+                        type.pathSegments(), List.of(), null, AIngResolutionState_1.RESOLVED,
                         type.sourceBindings(), target.identity(),
                         target.schemaVersion(), target.description());
             }
@@ -210,29 +260,31 @@ public final class AIcDefsCodegenCanonicalModelLinker {
             for (String base : type.inheritedFromTypes()) {
                 inherited.add(lookup(base, type.sourceBindings(), aliases, errors));
             }
-            return new AIcdDefsCodegenType(type.identity(), type.name(), type.origin(),
+            return new AIcDefsCanonicalType(type.identity(), type.name(), type.origin(),
                     type.pathSegments(), inherited, visit(type.structure(), declarations, aliases, errors),
                     type.resolutionState(), type.sourceBindings(), "",
                     type.schemaVersion(), type.description());
         }
-        if (node instanceof AIcdDefsCodegenElementList list) {
-            return new AIcdDefsCodegenElementList(list.composition(), list.children().stream()
+        if (node instanceof AIcDefsCanonicalElementList list) {
+            return new AIcDefsCanonicalElementList(list.composition(), list.children().stream()
                     .map(child -> visit(child, declarations, aliases, errors)).toList(),
-                    list.minOccurs(), list.maxOccurs());
+                    list.minItemCount(), list.maxItemCount(), list.minProperties(), list.maxProperties());
         }
-        if (node instanceof AIcdDefsCodegenElement element) {
-            return new AIcdDefsCodegenElement(element.name(),
+        if (node instanceof AIcDefsCanonicalElement element) {
+            return new AIcDefsCanonicalElement(element.name(),
                     visit(element.structure(), declarations, aliases, errors),
                     element.keyDefinitions(), element.sourceBindings(),
-                    element.minOccurs(), element.maxOccurs(), element.description(), element.xmlWire());
+                    element.minItemCount(), element.maxItemCount(), element.description(), element.xmlWire(),
+                    element.defaultKind(), element.defaultValue(), element.isEmptyAllowed(),
+                    element.elementKind());
         }
-        if (node instanceof AIcdDefsCodegenList list) {
-            return new AIcdDefsCodegenList(list.name(),
+        if (node instanceof AIcDefsCanonicalList list) {
+            return new AIcDefsCanonicalList(list.name(),
                     visit(list.item(), declarations, aliases, errors),
-                    list.minOccurs(), list.maxOccurs(), list.keyDefinitions(), list.xmlWire());
+                    list.minItemCount(), list.maxItemCount(), list.keyDefinitions(), list.xmlWire(), list.uniqueItems());
         }
-        if (node instanceof AIcdDefsCodegenMap map) {
-            return new AIcdDefsCodegenMap(map.name(), map.mapKind(),
+        if (node instanceof AIcDefsCanonicalMap map) {
+            return new AIcDefsCanonicalMap(map.name(), map.mapKind(),
                     visit(map.keyType(), declarations, aliases, errors),
                     visit(map.valueType(), declarations, aliases, errors), map.sourceBindings());
         }
@@ -245,12 +297,12 @@ public final class AIcDefsCodegenCanonicalModelLinker {
      * @param linked reference-resolved top-level declarations
      * @param errors aggregated reference-resolution diagnostics
      */
-    private static void checkInheritance(List<AIcdDefsCodegenType> linked, List<String> errors) {
-        Map<String, AIcdDefsCodegenType> types = new HashMap<>();
-        for (AIcdDefsCodegenType type : linked) types.put(type.identity(), type);
+    private static void checkInheritance(List<AIcDefsCanonicalType> linked, List<String> errors) {
+        Map<String, AIcDefsCanonicalType> types = new HashMap<>();
+        for (AIcDefsCanonicalType type : linked) types.put(type.identity(), type);
         Set<String> completed = new HashSet<>();
         Set<String> active = new LinkedHashSet<>();
-        for (AIcdDefsCodegenType type : linked) {
+        for (AIcDefsCanonicalType type : linked) {
             checkInheritance(type.identity(), types, active, completed, errors);
         }
     }
@@ -264,14 +316,14 @@ public final class AIcDefsCodegenCanonicalModelLinker {
      * @param completed fully checked declarations
      * @param errors collected cycle diagnostics
      */
-    private static void checkInheritance(String id, Map<String, AIcdDefsCodegenType> types,
+    private static void checkInheritance(String id, Map<String, AIcDefsCanonicalType> types,
             Set<String> active, Set<String> completed, List<String> errors) {
         if (completed.contains(id)) return;
         if (!active.add(id)) {
             errors.add("Cyclic TYPE inheritance: " + String.join(" -> ", active) + " -> " + id);
             return;
         }
-        AIcdDefsCodegenType type = types.get(id);
+        AIcDefsCanonicalType type = types.get(id);
         if (type != null) {
             for (String base : type.inheritedFromTypes()) {
                 if (types.containsKey(base)) checkInheritance(base, types, active, completed, errors);

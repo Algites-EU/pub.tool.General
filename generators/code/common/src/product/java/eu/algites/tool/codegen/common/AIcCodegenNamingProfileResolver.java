@@ -18,15 +18,15 @@ import java.util.regex.Pattern;
  */
 public final class AIcCodegenNamingProfileResolver {
     /** All shared method naming roles, with no SDO-only or Defs-only entries. */
-    public static final Set<String> COMMON_ROLES = Set.of("standard_getter", "standard_setter",
+    public static final Set<String> COMMON_ROLES = Set.of("standard_getter", "standard_setter", "list_getter",
             "multi_mapped_list_key_synthetic_getter", "multi_mapped_list_value_synthetic_getter",
             "positional_item_synthetic_getter", "const_container_interface");
     /** Only Defs generation and synthetic type naming roles. */
-    public static final Set<String> DEFS_ROLES = Set.of("synthetic_property_type", "synthetic_list_item_type",
+    public static final Set<String> DEFS_ROLES = Set.of("synthetic_property_type", "synthetic_inline_enum_type", "synthetic_list_item_type",
             "synthetic_map_value_type", "synthetic_positional_item_type", "synthetic_choice_variant_type",
             "synthetic_group_type", "string_enum_item", "non_string_enum_item");
     /** Only SDO runtime-accessor naming roles. */
-    public static final Set<String> SDO_ROLES = Set.of("raw_getter", "raw_presence_checker_method", "raw_unsetter");
+    public static final Set<String> SDO_ROLES = Set.of("raw_getter", "raw_presence_checker_method", "raw_unsetter", "raw_empty_setter", "raw_empty_checker_method");
     /** Schema metadata names common to the Defs and SDO naming profiles. */
     public static final Set<String> METADATA_ROLES = Set.of("schema_source_schema_url", "schema_source_schema_identifier",
             "schema_source_schema_version", "data_source_schema_url", "data_source_schema_identifier",
@@ -154,6 +154,27 @@ public final class AIcCodegenNamingProfileResolver {
                     continue;
                 }
                 Map<String, Object> value = asMap(segment.get("NameFragmentsSegmentValue"), "segment value");
+                if (value.containsKey("Content")) {
+                    if (value.size() != 2 || !value.containsKey("Kind"))
+                        throw new IllegalArgumentException("Inline naming segment requires Kind and Content");
+                    Map<String, Object> content = asMap(value.get("Content"), "segment Content");
+                    if (content.size() != 1)
+                        throw new IllegalArgumentException("Inline naming Content requires exactly one alternative");
+                    var selected = content.entrySet().iterator().next();
+                    Map<String, Object> normalized = new HashMap<>();
+                    normalized.put("Kind", value.get("Kind"));
+                    if ("NameRegexp".equals(selected.getKey())) {
+                        Map<String, Object> pair = asMap(selected.getValue(), "NameRegexp");
+                        if (pair.size() != 2 || !pair.containsKey("Name") || !pair.containsKey("Regexp"))
+                            throw new IllegalArgumentException("NameRegexp must contain Name and Regexp");
+                        normalized.putAll(pair);
+                    } else if (Set.of("Value", "Convention", "CustomConventionRegexp").contains(selected.getKey())) {
+                        normalized.put(selected.getKey(), selected.getValue());
+                    } else {
+                        throw new IllegalArgumentException("Unsupported naming Content alternative " + selected.getKey());
+                    }
+                    value = normalized;
+                }
                 String kind = String.valueOf(value.get("Kind"));
                 switch (kind) {
                     case "constant_string" -> result.append(value.get("Value"));
@@ -197,10 +218,11 @@ public final class AIcCodegenNamingProfileResolver {
         Objects.requireNonNull(commonId, "commonId");
         var commonProfile = select(commonDoc, "CommonCodegenNameConventions", commonId);
         var commonRoles = roles(commonProfile, COMMON_ROLES, "Common");
-        if (!commonRoles.containsKey("standard_getter") || !commonRoles.containsKey("standard_setter")) {
-            throw new IllegalArgumentException("Common getter/setter required");
+        if (!commonRoles.containsKey("standard_getter") || !commonRoles.containsKey("standard_setter")
+                || !commonRoles.containsKey("list_getter")) {
+            throw new IllegalArgumentException("Common getter/setter/list getter compositions required");
         }
-        var metadata = asStringMap(commonProfile.getOrDefault("SchemaMetadataNaming", Map.of()));
+        var metadata = namingRules(commonProfile.getOrDefault("SchemaMetadataNaming", Map.of()), "SchemaMetadataNaming");
         if (!METADATA_ROLES.containsAll(metadata.keySet())) throw new IllegalArgumentException("Foreign metadata role");
         for (String suffix : List.of("url", "identifier", "version")) {
             if (!metadata.getOrDefault("data_source_schema_" + suffix, "").isBlank() &&
@@ -235,14 +257,51 @@ public final class AIcCodegenNamingProfileResolver {
         return new Profile(commonId, commonRoles, defs, sdo, metadata, index, compositions);
     }
 
+    /** Index the XSD-shaped named array used by JSONDEFS and YAMLDEFS. */
+    private static Map<String, Object> namedEntries(Object source, String label, String field, String path) {
+        Map<String, Object> envelope = asMap(source, path);
+        if (!envelope.containsKey(label)) return envelope; // Already indexed in-memory.
+        if (envelope.size() != 1 || !(envelope.get(label) instanceof List<?> list))
+            throw new IllegalArgumentException(path + "/" + label + ": expected an array");
+        Map<String, Object> result = new LinkedHashMap<>();
+        int index = 0;
+        for (Object raw : list) {
+            String location = path + "/" + label + "[" + index++ + "]";
+            Map<String, Object> entry = asMap(raw, location);
+            Object key = entry.get(field);
+            if (!(key instanceof String name) || name.isBlank())
+                throw new IllegalArgumentException(location + ": missing " + field);
+            Map<String, Object> body = new LinkedHashMap<>(entry);
+            body.remove(field);
+            if (result.putIfAbsent(name, body) != null)
+                throw new IllegalArgumentException(location + ": duplicate " + field + " " + name);
+        }
+        return result;
+    }
+
+    private static Map<String, String> namingRules(Object source, String path) {
+        Map<String, Object> entries = namedEntries(source, "Rule", "kind", path);
+        Map<String, String> result = new LinkedHashMap<>();
+        entries.forEach((kind, raw) -> {
+            if (raw instanceof String value) result.put(kind, value);
+            else {
+                Map<String, Object> item = asMap(raw, path + "/" + kind);
+                if (item.size() != 1 || !(item.get("Value") instanceof String value))
+                    throw new IllegalArgumentException(path + "/" + kind + ": expected string Value");
+                result.put(kind, value);
+            }
+        });
+        return result;
+    }
+
     private static Map<String, Object> select(Map<String, Object> doc, String root, String id) {
         Map<String, Object> container = asMap(doc.get(root), root);
-        Map<String, Object> profiles = asMap(container.get("NameConventions"), "NameConventions");
+        Map<String, Object> profiles = namedEntries(container.get("NameConventions"), "NameConvention", "name", "NameConventions");
         return asMap(profiles.get(id), "profile " + id);
     }
 
     private static Map<String, String> roles(Map<String, Object> profile, Set<String> allowed, String domain) {
-        var result = asStringMap(profile.get("StructureNaming"));
+        var result = namingRules(profile.get("StructureNaming"), domain + "/StructureNaming");
         if (!allowed.containsAll(result.keySet()) || result.values().stream().anyMatch(String::isBlank)) {
             throw new IllegalArgumentException("Unknown or empty naming role in " + domain);
         }
@@ -271,7 +330,7 @@ public final class AIcCodegenNamingProfileResolver {
     }
 
     private static void collectCompositions(Map<String, Object> doc, Map<String, Map<String, Object>> result) {
-        Map<String, Object> values = asMap(doc.getOrDefault("NameCompositions", Map.of()), "NameCompositions");
+        Map<String, Object> values = namedEntries(doc.getOrDefault("NameCompositions", Map.of()), "NameComposition", "name", "NameCompositions");
         for (var entry : values.entrySet()) {
             var value = asMap(entry.getValue(), entry.getKey());
             var old = result.putIfAbsent(entry.getKey(), value);
@@ -298,7 +357,8 @@ public final class AIcCodegenNamingProfileResolver {
         Objects.requireNonNull(sourceCatalog, "sourceCatalog");
         Map<String, Map<String, Object>> merged = new LinkedHashMap<>(profile.nameCompositions());
         for (String collection : List.of("NameFragments", "NameCompositions")) {
-            Map<String, Object> definitions = asMap(sourceCatalog.getOrDefault(collection, Map.of()), collection);
+            Map<String, Object> definitions = namedEntries(sourceCatalog.getOrDefault(collection, Map.of()),
+                    collection.equals("NameFragments") ? "NameFragment" : "NameComposition", "name", collection);
             for (var entry : definitions.entrySet()) {
                 Map<String, Object> definition = asMap(entry.getValue(), entry.getKey());
                 Object rawSegments = definition.get("Segments");

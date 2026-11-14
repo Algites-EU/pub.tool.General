@@ -1,9 +1,11 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElement;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElementList;
-import eu.algites.tool.codegen.defs.AInDefsCodegenSourceInputKind;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
 import java.util.List;
 import java.util.Map;
 import org.testng.Assert;
@@ -31,14 +33,14 @@ public final class AItcDefsCodegenCanonicalMetadataTest {
                 "type", "object", "x-algites-schema-version", "1.3",
                 "description", "Person record", "properties", Map.of("name",
                         Map.of("type", "string", "description", "Legal name")));
-        for (var kind : List.of(AInDefsCodegenSourceInputKind.JSONDEFS,
-                AInDefsCodegenSourceInputKind.YAMLDEFS)) {
+        for (var kind : List.of(AIngSourceInputKind_1.JSONDEFS,
+                AIngSourceInputKind_1.YAMLDEFS)) {
             var result = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
                     new AIcdDefsCodegenSourceDocument(kind, "person.schema", schema)));
             var type = result.types().get(0);
             Assert.assertEquals(type.schemaVersion(), "1.3");
             Assert.assertEquals(type.description(), "Person record");
-            var field = (AIcdDefsCodegenElement) ((AIcdDefsCodegenElementList) type.structure())
+            var field = (AIcDefsCanonicalElement) ((AIcDefsCanonicalElementList) type.structure())
                     .children().get(0);
             Assert.assertEquals(field.description(), "Legal name");
             @SuppressWarnings("unchecked")
@@ -62,11 +64,11 @@ public final class AItcDefsCodegenCanonicalMetadataTest {
                 </xs:schema>
                 """;
         var result = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS, "person.xsd", xml)));
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS, "person.xsd", xml)));
         var type = result.types().get(0);
         Assert.assertEquals(type.schemaVersion(), "2");
         Assert.assertEquals(type.description(), "Person record");
-        var field = (AIcdDefsCodegenElement) ((AIcdDefsCodegenElementList) type.structure())
+        var field = (AIcDefsCanonicalElement) ((AIcDefsCanonicalElementList) type.structure())
                 .children().get(0);
         Assert.assertEquals(field.description(), "Legal name");
     }
@@ -81,8 +83,8 @@ public final class AItcDefsCodegenCanonicalMetadataTest {
                 "description", "Person record", "x-algites-schema-version", "4",
                 "properties", properties);
         var result = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.JSONDEFS, "a.json", a),
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.YAMLDEFS, "b.yaml", b)));
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS, "a.json", a),
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.YAMLDEFS, "b.yaml", b)));
         Assert.assertEquals(result.types().get(0).schemaVersion(), "4");
         Assert.assertEquals(result.types().get(0).description(), "Person record");
         Assert.assertEquals(result.types().get(0).sourceBindings().size(), 2);

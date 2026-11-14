@@ -70,7 +70,7 @@ def test_xml_closed_choice_generates_namespace_contracts_per_language(tmp_path, 
     main = (java / 'AIigPayment_1.java').read_text()
     assert 'sealed interface AIigPayment_1 extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject, example.choice.AIig_xnXmlDataObjectUrnChoiceRegression permits' in main
     assert 'namespaceLocalName = "PaymentChoice"' in main
-    assert 'AIaXmlDataObjectField' in (java / 'AIigPaymentOneOf0_1.java').read_text()
+    assert 'AIaXmlDataObjectField' in (java / 'AIigPaymentCash_1.java').read_text()
     element_contract = (java / 'AIig_xePayment_1.java').read_text()
     assert 'AIigPayment_1 getPayment()' in element_contract
     assert 'extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject' in element_contract
@@ -78,9 +78,9 @@ def test_xml_closed_choice_generates_namespace_contracts_per_language(tmp_path, 
     monkeypatch.syspath_prepend(str(tmp_path / 'intf/src/product/python.gen'))
     contract = importlib.import_module('example.choice.aiig_payment_1')
     assert contract.AIigPayment_1.__xml_data_object__.namespace_local_name == 'PaymentChoice'
-    branch = importlib.import_module('example.choice.aiig_payment_one_of0_1')
-    assert branch.AIigPaymentOneOf0_1.__xml_data_object_fields__['cash'].namespace == 'urn:choice:regression'
-    importlib.import_module('example.choice.aiig_payment_alternative1_1')
+    branch = importlib.import_module('example.choice.aiig_payment_cash_1')
+    assert branch.AIigPaymentCash_1.__xml_data_object_fields__['cash'].namespace == 'urn:choice:regression'
+    importlib.import_module('example.choice.aiig_payment_selected_wire_1')
     element = importlib.import_module('example.choice.aiig__xe_payment_1')
     assert element.AIig_xePayment_1.__xml_data_object__.namespace_local_name == 'payment'
 
@@ -129,9 +129,9 @@ def test_common_xml_choice_is_importable_and_matches_java_contract(tmp_path):
 
 
 @pytest.mark.parametrize('schema_type', ['jsondefs', 'yamldefs'])
-def test_allof_redeclaration_must_not_replace_incompatible_shape(tmp_path, schema_type):
+def test_allof_validation_does_not_create_owned_fields(tmp_path, schema_type):
     import yaml
-    suffix = 'jsondef.schema.json' if schema_type == 'jsondefs' else 'yamldef.schema.yaml'
+    suffix = 'jsondef.schema.json' if schema_type == 'jsondefs' else 'yamldef.schema.json'
     parent = tmp_path / ('parent_1.' + suffix)
     child = tmp_path / ('child_1.' + suffix)
     data_parent = {'type': 'object', 'properties': {'quantity': {'type': 'integer'}}}
@@ -139,14 +139,17 @@ def test_allof_redeclaration_must_not_replace_incompatible_shape(tmp_path, schem
         {'$ref': 'parent_1.' + suffix},
         {'type': 'object', 'properties': {'quantity': {'type': 'string'}}}
     ]}
-    render = json.dumps if schema_type == 'jsondefs' else yaml.safe_dump
+    # The selected YAMLDEFS source profile uses a JSON-encoded schema file.
+    render = json.dumps
     parent.write_text(render(data_parent))
     child.write_text(render(data_child))
     frontend = AIcJsonDefsFrontend() if schema_type == 'jsondefs' else AIcYamlDefsFrontend()
     source_kind = AInDefinitionSourceKind.JSONDEFS if schema_type == 'jsondefs' else AInDefinitionSourceKind.YAMLDEFS
-    with pytest.raises(ValueError, match='Conflicting allOf property schema'):
-        frontend.load(AIcdDefinitionLoadRequest(child, source_kind,
-            AIcAlgitesNamingProfiles.python_profile()))
+    loaded = frontend.load(AIcdDefinitionLoadRequest(child, source_kind,
+        AIcAlgitesNamingProfiles.python_profile()))
+    # Validation-only allOf branches cannot manufacture owned DataObject fields;
+    # their schema assertions remain constraints rather than type inheritance.
+    assert loaded.data_type.properties == ()
 
 
 def test_recursive_reference_requires_explicit_identity():

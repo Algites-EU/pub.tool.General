@@ -14,9 +14,9 @@ for relative in ('generators/code/common/src/product/python',
 
 from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIcgd_jElement_1, AIcgd_jElementList_1, AIcgd_jScalar_1,
-    AIcgd_jType_1, AIigComposition_1, AIigScalarKind_1,
-    AIigTypeOrigin_1, AIigSourceInputKind_1 as SourceKind,
+    AIcgdElement_1, AIcgdElementList_1, AIcgdScalar_1,
+    AIcgdType_1, AIngComposition_1, AIngScalarKind_1,
+    AIngTypeOrigin_1, AIngSourceInputKind_1 as SourceKind,
 )
 from eu.algites.tool.codegen.defs.impl.standard.canonical_schema_frontend import (
     AIcDefsCodegenCanonicalSchemaFrontend,
@@ -84,10 +84,10 @@ def test_xml_named_type_resolves_locally_despite_same_name_in_other_resource():
 
 
 def test_validation_runs_before_normalization():
-    original = AIcgd_jType_1('root', 'root', AIigTypeOrigin_1.DECLARED,
-        structure=AIcgd_jElementList_1(AIigComposition_1.SEQUENCE, (
-            AIcgd_jElementList_1(AIigComposition_1.SEQUENCE, (
-                AIcgd_jElement_1('value', AIcgd_jScalar_1(AIigScalarKind_1.STRING)),
+    original = AIcgdType_1('root', 'root', AIngTypeOrigin_1.DECLARED,
+        structure=AIcgdElementList_1(AIngComposition_1.SEQUENCE, (
+            AIcgdElementList_1(AIngComposition_1.SEQUENCE, (
+                AIcgdElement_1('value', AIcgdScalar_1(AIngScalarKind_1.STRING)),
             )),
         )))
     class CapturingSchema(dict):
@@ -96,7 +96,7 @@ def test_validation_runs_before_normalization():
     # valid before normalization, and the normalized result has only one direct child.
     linked, = AIcDefsCodegenCanonicalModelLinker.link((original,), schema=SCHEMA)
     assert len(linked.structure.children) == 1
-    assert isinstance(linked.structure.children[0], AIcgd_jElement_1)
+    assert isinstance(linked.structure.children[0], AIcgdElement_1)
 
 
 def test_unresolved_reference_identifies_exact_source_location():
@@ -114,9 +114,27 @@ def test_inheritance_reference_resolution_and_cycle_rejection():
         }}, 'derived.json', SourceKind.JSONDEFS)
     linked = AIcDefsCodegenCanonicalModelLinker.link(types, schema=SCHEMA)
     assert linked[0].inherited_from_types == ('urn:child#/$defs/Parent',)
-    a = AIcgd_jType_1('A', 'A', AIigTypeOrigin_1.DECLARED,
-            inherited_from_types=('B',), structure=AIcgd_jScalar_1(AIigScalarKind_1.ANY))
-    b = AIcgd_jType_1('B', 'B', AIigTypeOrigin_1.DECLARED,
-            inherited_from_types=('A',), structure=AIcgd_jScalar_1(AIigScalarKind_1.ANY))
+    a = AIcgdType_1('A', 'A', AIngTypeOrigin_1.DECLARED,
+            inherited_from_types=('B',), structure=AIcgdScalar_1(AIngScalarKind_1.ANY))
+    b = AIcgdType_1('B', 'B', AIngTypeOrigin_1.DECLARED,
+            inherited_from_types=('A',), structure=AIcgdScalar_1(AIngScalarKind_1.ANY))
     with pytest.raises(ValueError, match='Cyclic TYPE inheritance'):
         AIcDefsCodegenCanonicalModelLinker.link((a, b))
+
+
+def test_missing_jsonschema_is_reported_as_runtime_dependency(monkeypatch):
+    """A missing validation library must never silently bypass contract checking."""
+    import builtins
+    original_import = builtins.__import__
+
+    def without_jsonschema(name, *args, **kwargs):
+        if name == 'jsonschema':
+            raise ModuleNotFoundError("No module named 'jsonschema'")
+        return original_import(name, *args, **kwargs)
+
+    roots = frontend().load_json_or_yaml_types(
+        {'$id': 'urn:person', 'type': 'object', 'properties': {
+            'name': {'type': 'string'}}}, 'person.json', SourceKind.JSONDEFS)
+    monkeypatch.setattr(builtins, '__import__', without_jsonschema)
+    with pytest.raises(RuntimeError, match=r'jsonschema>=4\.18,<5\.0'):
+        AIcDefsCodegenCanonicalModelLinker.link(roots, schema=SCHEMA)

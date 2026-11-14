@@ -75,8 +75,28 @@ def test_one_shared_semantic_vocabulary_and_versioned_keyword_syntaxes():
     vocab = (SOURCES / 'vocabulary_1.md').read_text(encoding='utf-8')
     assert 'x-algites-defscodegen-extends' in vocab
     assert 'x-algites-defscodegen-choice' in vocab
+    assert 'x-algites-defscodegen-key' in vocab
     for name in ('extends', 'choice'):
         assert name in vocab
     keyword_sets = [_load(draft, 'vocabulary')['properties'] for draft in sorted(VERSIONS)]
     assert keyword_sets[0] == keyword_sets[1]
     assert _load('2019-09','dialect')['$vocabulary'] != _load('2020-12','dialect')['$vocabulary']
+
+
+@pytest.mark.parametrize('draft', sorted(VERSIONS))
+def test_modern_key_keyword_has_required_fields_and_rejects_extras(draft):
+    cls = VERSIONS[draft]
+    val = cls(_load(draft, 'dialect'), registry=_registry(draft))
+    original = {'type': 'object', 'properties': {'Map': {
+        'type': 'object',
+        'x-algites-defscodegen-key': {'id': 'UniqueRole', 'field-name': 'kind'},
+        'additionalProperties': {'type': 'string'}}}}
+    assert val.is_valid(original)
+    for invalid in ({'id': 'UniqueRole'}, {'field-name': 'kind'},
+                    {'id': '', 'field-name': 'kind'},
+                    {'id': 'UniqueRole', 'field-name': ''},
+                    {'id': 'UniqueRole', 'field-name': 'kind', 'unknown': 1},
+                    'invalid'):
+        bad = json.loads(json.dumps(original))
+        bad['properties']['Map']['x-algites-defscodegen-key'] = invalid
+        assert not val.is_valid(bad), (draft, invalid)

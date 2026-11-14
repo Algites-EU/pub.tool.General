@@ -3,11 +3,19 @@
 $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/sourcecode/dataobject/dataobject-naming-conventions_1.yamldef.schema.json
 DataObjectNameConventions:
   NameConventions:
-    standardpostfix-python-defscodegen-standard_1:
-      StructureNaming:
-        schema_source_schema_url: $id
-        schema_source_schema_identifier: x-algites-schema-id
-        schema_source_schema_version: x-algites-schema-version
-        data_source_schema_url: $schema
-        data_source_schema_identifier: ''
-        data_source_schema_version: ''
+    NameConvention:
+      - name: standardpostfix-python-defscodegen-standard_1
+        StructureNaming:
+          Rule:
+            - kind: schema_source_schema_url
+              Value: $id
+            - kind: schema_source_schema_identifier
+              Value: x-algites-schema-id
+            - kind: schema_source_schema_version
+              Value: x-algites-schema-version
+            - kind: data_source_schema_url
+              Value: $schema
+            - kind: data_source_schema_identifier
+              Value: ''
+            - kind: data_source_schema_version
+              Value: ''

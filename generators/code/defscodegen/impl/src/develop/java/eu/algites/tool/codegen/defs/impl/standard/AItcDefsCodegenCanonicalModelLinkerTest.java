@@ -1,15 +1,17 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElement;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElementList;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenScalar;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenSourceBinding;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenType;
-import eu.algites.tool.codegen.defs.AInDefsCodegenComposition;
-import eu.algites.tool.codegen.defs.AInDefsCodegenResolutionState;
-import eu.algites.tool.codegen.defs.AInDefsCodegenScalarKind;
-import eu.algites.tool.codegen.defs.AInDefsCodegenSourceInputKind;
-import eu.algites.tool.codegen.defs.AInDefsCodegenTypeOrigin;
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalScalar;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalSourceBinding;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngComposition_1;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngScalarKind_1;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngTypeOrigin_1;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,10 +33,10 @@ public final class AItcDefsCodegenCanonicalModelLinkerTest {
      * @param structure canonical declaration structure
      * @return validated resolved TYPE retaining its original source location
      */
-    private static AIcdDefsCodegenType declared(String identity, String name, String resource,
-            String pointer, eu.algites.tool.codegen.defs.AIiDefsCodegenStructure structure) {
-        return new AIcdDefsCodegenType(identity, name, AInDefsCodegenTypeOrigin.DECLARED,
-                List.of(name), List.of(), structure, AInDefsCodegenResolutionState.RESOLVED,
+    private static AIcDefsCanonicalType declared(String identity, String name, String resource,
+            String pointer, eu.algites.tool.codegen.defs.impl.standard.model.AIiDefsCanonicalStructure structure) {
+        return new AIcDefsCanonicalType(identity, name, AIngTypeOrigin_1.DECLARED,
+                List.of(name), List.of(), structure, AIngResolutionState_1.RESOLVED,
                 binding(resource, pointer));
     }
 
@@ -46,9 +48,9 @@ public final class AItcDefsCodegenCanonicalModelLinkerTest {
      * @param pointer exact source location of the reference
      * @return pending reference with source provenance, ready for the linker
      */
-    private static AIcdDefsCodegenType reference(String identity, String resource, String pointer) {
-        return new AIcdDefsCodegenType(identity, identity, AInDefsCodegenTypeOrigin.DECLARED,
-                List.of(identity), List.of(), null, AInDefsCodegenResolutionState.REFERENCE,
+    private static AIcDefsCanonicalType reference(String identity, String resource, String pointer) {
+        return new AIcDefsCanonicalType(identity, identity, AIngTypeOrigin_1.DECLARED,
+                List.of(identity), List.of(), null, AIngResolutionState_1.REFERENCE,
                 binding(resource, pointer));
     }
 
@@ -60,10 +62,10 @@ public final class AItcDefsCodegenCanonicalModelLinkerTest {
      * @param pointer original source JSON Pointer
      * @return source-typed immutable binding collection
      */
-    private static Map<AInDefsCodegenSourceInputKind, List<AIcdDefsCodegenSourceBinding>>
+    private static Map<AIngSourceInputKind_1, List<AIcDefsCanonicalSourceBinding>>
             binding(String resource, String pointer) {
-        return Map.of(AInDefsCodegenSourceInputKind.JSONDEFS,
-                List.of(new AIcdDefsCodegenSourceBinding(resource, pointer, "reference")));
+        return Map.of(AIngSourceInputKind_1.JSONDEFS,
+                List.of(new AIcDefsCanonicalSourceBinding(resource, pointer, "reference")));
     }
 
     /**
@@ -73,16 +75,16 @@ public final class AItcDefsCodegenCanonicalModelLinkerTest {
     @Test
     public void AIcSelfRecursiveRootReferenceIsSymbolic() {
         var root = declared("urn:node", "Node", "node.json", "#",
-                new AIcdDefsCodegenElementList(AInDefsCodegenComposition.SEQUENCE, List.of(
-                        new AIcdDefsCodegenElement("child", reference("#", "node.json",
+                new AIcDefsCanonicalElementList(AIngComposition_1.SEQUENCE, List.of(
+                        new AIcDefsCanonicalElement("child", reference("#", "node.json",
                                 "#/properties/child"), List.of(), binding("node.json", "#/properties/child")))));
         var result = AIcDefsCodegenCanonicalModelLinker.link(List.of(root));
-        var member = (AIcdDefsCodegenElement) ((AIcdDefsCodegenElementList)
+        var member = (AIcDefsCanonicalElement) ((AIcDefsCanonicalElementList)
                 result.get(0).structure()).children().get(0);
-        var resolved = (AIcdDefsCodegenType) member.structure();
+        var resolved = (AIcDefsCanonicalType) member.structure();
         Assert.assertEquals(resolved.targetIdentity(), "urn:node");
         Assert.assertNull(resolved.structure());
-        Assert.assertEquals(resolved.sourceBindings().get(AInDefsCodegenSourceInputKind.JSONDEFS)
+        Assert.assertEquals(resolved.sourceBindings().get(AIngSourceInputKind_1.JSONDEFS)
                 .get(0).sourcePointer(), "#/properties/child");
         Assert.assertNotNull(AIcDefsCodegenCanonicalContractPayload.emit(result));
     }
@@ -98,11 +100,11 @@ public final class AItcDefsCodegenCanonicalModelLinkerTest {
         var second = declared("a.json#/$defs/Branch", "Branch", "a.json", "#/$defs/Branch",
                 reference("#/$defs/Node", "a.json", "#/$defs/Branch/properties/node"));
         var foreign = declared("b.json#/$defs/Branch", "Branch", "b.json", "#/$defs/Branch",
-                new AIcdDefsCodegenScalar(AInDefsCodegenScalarKind.STRING, ""));
+                new AIcDefsCanonicalScalar(AIngScalarKind_1.STRING, ""));
         var linked = AIcDefsCodegenCanonicalModelLinker.link(List.of(first, second, foreign));
-        Assert.assertEquals(((AIcdDefsCodegenType) linked.get(0).structure()).targetIdentity(),
+        Assert.assertEquals(((AIcDefsCanonicalType) linked.get(0).structure()).targetIdentity(),
                 "a.json#/$defs/Branch");
-        Assert.assertEquals(((AIcdDefsCodegenType) linked.get(1).structure()).targetIdentity(),
+        Assert.assertEquals(((AIcDefsCanonicalType) linked.get(1).structure()).targetIdentity(),
                 "a.json#/$defs/Node");
     }
 
@@ -112,12 +114,12 @@ public final class AItcDefsCodegenCanonicalModelLinkerTest {
      */
     @Test
     public void AIcSchemaValidationPrecedesNormalization() {
-        var nested = new AIcdDefsCodegenElementList(AInDefsCodegenComposition.SEQUENCE,
-                List.of(new AIcdDefsCodegenElement("name",
-                        new AIcdDefsCodegenScalar(AInDefsCodegenScalarKind.STRING, ""),
+        var nested = new AIcDefsCanonicalElementList(AIngComposition_1.SEQUENCE,
+                List.of(new AIcDefsCanonicalElement("name",
+                        new AIcDefsCanonicalScalar(AIngScalarKind_1.STRING, ""),
                         List.of(), Map.of())));
         var root = declared("Root", "Root", "root.json", "#",
-                new AIcdDefsCodegenElementList(AInDefsCodegenComposition.SEQUENCE,
+                new AIcDefsCanonicalElementList(AIngComposition_1.SEQUENCE,
                         List.of(nested)));
         var wasCalled = new AtomicBoolean();
         var normalized = AIcDefsCodegenCanonicalModelLinker.link(List.of(root), payload -> {
@@ -128,9 +130,9 @@ public final class AItcDefsCodegenCanonicalModelLinkerTest {
             wasCalled.set(true);
         });
         Assert.assertTrue(wasCalled.get());
-        var flat = (AIcdDefsCodegenElementList) normalized.get(0).structure();
+        var flat = (AIcDefsCanonicalElementList) normalized.get(0).structure();
         Assert.assertEquals(flat.children().size(), 1);
-        Assert.assertTrue(flat.children().get(0) instanceof AIcdDefsCodegenElement);
+        Assert.assertTrue(flat.children().get(0) instanceof AIcDefsCanonicalElement);
     }
 
     /**
@@ -156,11 +158,11 @@ public final class AItcDefsCodegenCanonicalModelLinkerTest {
      */
     @Test
     public void AIcCyclicInheritanceIsRejected() {
-        var scalar = new AIcdDefsCodegenScalar(AInDefsCodegenScalarKind.ANY, "");
-        var a = new AIcdDefsCodegenType("A", "A", AInDefsCodegenTypeOrigin.DECLARED,
-                List.of("A"), List.of("B"), scalar, AInDefsCodegenResolutionState.RESOLVED, Map.of());
-        var b = new AIcdDefsCodegenType("B", "B", AInDefsCodegenTypeOrigin.DECLARED,
-                List.of("B"), List.of("A"), scalar, AInDefsCodegenResolutionState.RESOLVED, Map.of());
+        var scalar = new AIcDefsCanonicalScalar(AIngScalarKind_1.ANY, "");
+        var a = new AIcDefsCanonicalType("A", "A", AIngTypeOrigin_1.DECLARED,
+                List.of("A"), List.of("B"), scalar, AIngResolutionState_1.RESOLVED, Map.of());
+        var b = new AIcDefsCanonicalType("B", "B", AIngTypeOrigin_1.DECLARED,
+                List.of("B"), List.of("A"), scalar, AIngResolutionState_1.RESOLVED, Map.of());
         try {
             AIcDefsCodegenCanonicalModelLinker.link(List.of(a, b));
             Assert.fail("Cyclic inheritance must be rejected");

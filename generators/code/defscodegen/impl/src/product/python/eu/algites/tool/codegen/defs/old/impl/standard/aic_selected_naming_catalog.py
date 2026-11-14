@@ -70,6 +70,21 @@ class AIcSelectedNamingCatalog(AIiNameConventionCatalog):
     def matches(self, *args, **kwargs):
         return self.catalog.matches(*args, **kwargs)
 
+    def recognize_filename(self, filename: str, allowed: set[str] | None = None):
+        """Recognize an input filename using the explicitly selected source catalog.
+
+        Args:
+            filename: Source filename including its extension.
+            allowed: Optional set of allowed source naming-convention identifiers.
+
+        Returns:
+            The catalog's matching naming convention, or ``None`` when unmatched.
+
+        Raises:
+            ValueError: If multiple allowed source conventions match the same file.
+        """
+        return self.catalog.recognize_filename(filename, allowed)
+
     def multi_mapped_list_value_synthetic_getter(self):
         """Return the configured getter for an unwrapped JSON/YAML keyed value.
 

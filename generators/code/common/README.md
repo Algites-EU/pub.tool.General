@@ -29,9 +29,12 @@ The `src/product/xmldefs` tree also publishes XSD definitions for
 `generated-dataobject-structure-kind_1` and `data-object-naming-conventions_1`.
 The latter imports `pub.lib.General`'s shared
 `common-naming-conventions_1.xsd` as its common XSD base. Publication metadata
-(`.xsd.meta.yml`) is supplied for both definitions. The corresponding JSON/YAML
-schema definitions remain the authoritative mapping representation for dynamic
-profile-name keys; the XSD uses `xs:anyType` for those extensible maps.
+(`.xsd.meta.yml`) is supplied for both definitions. The JSONDEFS/YAMLDEFS definitions follow the XSD named-list model rather
+than dynamic map keys: `NameConventions: {NameConvention: [{name: ..., ...}]}`;
+`StructureNaming` and `SchemaMetadataNaming` contain `Rule` lists with a
+required `kind` and a `Value`. The `name` / `kind` fields are indexed only
+inside the Java/Python naming resolvers. All profile documents are validated
+against their actual published schemas, and duplicate identifiers are rejected.
 
 The standalone generator bootstrap publishes this shared module as
 `pub.tool.General_generators.code.common` for Java and as
@@ -39,3 +42,12 @@ The standalone generator bootstrap publishes this shared module as
 codegen implementations depend on the shared artifact. Python catalogs are
 shipped under the `eu.algites.lib.naming.convention` namespace and resolved
 via `importlib.resources`, without depending on source-checkout paths.
+
+All shipped naming catalogs now place segment alternatives under
+`NameFragmentsSegmentValue.Content`. A variable is represented by the named
+`NameRegexp` branch (`Content: {NameRegexp: {Name: ..., Regexp: ...}}`). Both
+Java and Python resolvers unwrap the tagged branch into their internal
+composition representation; this is a schema/serialization change, not a
+change to naming policy. Repeated `NameConvention` and `Rule` values use
+explicit named types and `$ref`/`xs:complexType` rather than anonymous
+JSON/YAML `items` or XSD inline complex types.

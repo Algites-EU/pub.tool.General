@@ -6,7 +6,7 @@ from pathlib import Path
 
 from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import AIcSchemaContractBindingsGenerator
 from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
-from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
@@ -83,5 +83,5 @@ def test_java_and_python_generate_named_sealed_choices(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(tmp_path / 'src/product/python.gen'))
     module = importlib.import_module('example.contracts.aiig_profile_type_choice1_1')
     assert module.AIigProfileTypeChoice1_1.__closed_choice_mode__ == 'oneOf'
-    branch = importlib.import_module('example.contracts.aiig_profile_type_choice1_alternative1_1')
-    assert issubclass(branch.AIigProfileTypeChoice1Alternative1_1, module.AIigProfileTypeChoice1_1)
+    branch = importlib.import_module('example.contracts.aiig_profile_type_choice1_selected_basic_1')
+    assert issubclass(branch.AIigProfileTypeChoice1SelectedBasic_1, module.AIigProfileTypeChoice1_1)

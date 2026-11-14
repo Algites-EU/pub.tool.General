@@ -12,7 +12,7 @@ for relative in ('generators/code/common/src/product/python',
     sys.path.insert(0, str(TOOL / relative))
 
 from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
-from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import AIigSourceInputKind_1 as Kind
+from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import AIngSourceInputKind_1 as Kind
 from eu.algites.tool.codegen.defs.impl.standard.canonical_schema_frontend import AIcDefsCodegenCanonicalSchemaFrontend
 from eu.algites.tool.codegen.defs.impl.standard.canonical_model_merger import AIcDefsCodegenCanonicalModelMerger
 from eu.algites.tool.codegen.defs.impl.standard.canonical_model_linker import AIcDefsCodegenCanonicalModelLinker
@@ -30,7 +30,9 @@ def test_identical_json_and_yaml_definitions_merge_every_nested_binding():
     schema = {'x-algites-schema-id': 'customer', 'title': 'Customer', 'type': 'object',
               'properties': {'addresses': {'type': 'array', 'items': {
                   'type': 'object', 'properties': {'zip': {'type': 'string'}}}},
-                'choice': {'oneOf': [{'type': 'string'}, {'type': 'integer'}]}},
+                'choice': {'type': 'object', 'x-algites-defscodegen-choice': True,
+                           'properties': {'text': {'type': 'string'}, 'number': {'type': 'integer'}},
+                           'minProperties': 1, 'maxProperties': 1, 'additionalProperties': False}},
               'additionalProperties': {'type': 'integer'}}
     a = frontend().load_json_or_yaml(schema, 'a.json', Kind.JSONDEFS)
     b = frontend().load_json_or_yaml(schema, 'b.yaml', Kind.YAMLDEFS)

@@ -46,13 +46,17 @@ tasks.register('bootstrapSdoJava') {
     doLast {
         if (System.getenv('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED') == '1') {
             def ids = bootstrapSdoManifest.collect { it.artifactId }.toSet()
-            if (ids != ['pub.lib.General_naming.convention.intf'].toSet() ||
+            def allowed = [
+                'pub.lib.General_naming.convention.intf',
+                'pub.tool.General_generators.code.sdocodegen.intf'
+            ].toSet()
+            if (ids.size() != 1 || !allowed.containsAll(ids) ||
                     System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') != 'source') {
                 throw new GradleException('Defs-only SDO ABI seed is permitted only for '
-                        + 'the naming conventions source artifact')
+                        + 'the naming conventions or SDO Codegen API source artifact')
             }
-            logger.lifecycle('SDO Java: naming ABI seed; deferring SDO generation '
-                    + 'until the source SDO Codegen CLI is built')
+            logger.lifecycle('SDO Java: temporary ' + ids.first() + ' compiler ABI; '
+                    + 'deferring SDO generation until the source SDO Codegen CLI is built')
             return
         }
         def candidates = bootstrapSdoManifest.findAll { entry ->
@@ -91,8 +95,54 @@ tasks.register('bootstrapSdoJava') {
                         (System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_VERSION') ?: '1.1-SNAPSHOT'))
                 toolClasspath += files(configurations.detachedConfiguration(dependency))
             }
-            // Validate the actual resolved tool classpath, rather than hard-coding
-            // the SDO source tree or copying resources into a bootstrap-only path.
+            // A source prerequisite can be building sdocodegen.intf itself. The
+            // published CLI may still transitively resolve the PREVIOUS intf JAR,
+            // which does not contain the newly introduced default settings.
+            // In source mode, resolve the current artifact's compiled output and
+            // source-owned settings ahead of all published tool dependencies.
+            // This is not a fallback to untracked/stale generated files: all
+            // paths below belong to the same source checkout being bootstrapped.
+            if (System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') == 'source') {
+                // The generator/profile may be owned by a sibling checkout,
+                // not by the repository whose DataObjects are being built.
+                // Use source checkout capabilities rather than repository IDs.
+                def sourceCheckout = new File(
+                        System.getenv('MODUSTRO_BOOTSTRAP_REPOSITORY') ?: rootProject.projectDir.path)
+                def checkoutCandidates = [sourceCheckout]
+                [System.getenv('MODUSTRO_BOOTSTRAP_CODEGEN_SOURCE'),
+                 System.getenv('MODUSTRO_BOOTSTRAP_SOURCE_REPOSITORIES')].findAll { it }.each { paths ->
+                    paths.split(java.util.regex.Pattern.quote(File.pathSeparator)).each { candidate ->
+                        if (candidate) checkoutCandidates << new File(candidate)
+                    }
+                }
+                if (sourceCheckout.parentFile?.isDirectory())
+                    checkoutCandidates.addAll(sourceCheckout.parentFile.listFiles()
+                            .findAll { it.isDirectory() && !java.nio.file.Files.isSymbolicLink(it.toPath()) })
+                def owners = checkoutCandidates.findAll { checkout ->
+                    new File(checkout, 'modustro-source-repository.yml').isFile() &&
+                    new File(checkout,
+                            'generators/code/profile/algites/src/product/config/' +
+                            'eu/algites/tool/codegen/sdo/sdocodegen-java.settings').isFile()
+                }.collect { it.canonicalFile }.unique()
+                if (owners.size() > 1)
+                    throw new GradleException('Ambiguous source SDO naming profile owners: ' + owners)
+                def sourceSettings = []
+                if (!owners.isEmpty()) {
+                    def owner = owners[0]
+                    sourceSettings += [
+                        new File(owner, 'generators/code/sdocodegen/intf/src/product/config'),
+                        new File(owner, 'generators/code/profile/algites/src/product/config')
+                    ].findAll { it.isDirectory() }
+                }
+                def intfProject = bootstrapSdoModule('_generators.code.sdocodegen.intf')
+                def freshIntf = intfProject == null ? files() : files(intfProject.sourceSets.main.output)
+                // Put the freshly compiled classes/resources FIRST. The
+                // published transitive intf JAR is still allowed to provide
+                // unmodified binary APIs needed by an older CLI.
+                toolClasspath = freshIntf + files(sourceSettings) + toolClasspath
+            }
+            // Validate the effective runtime classpath, including fresh source
+            // resources in source mode, with the same URL order used by the CLI.
             // The CLI must obtain these settings from its normal intf dependency
             // and from the Algites profile selected by this interim bootstrap.
             def classpathUrls = toolClasspath.files.findAll { it.exists() }
@@ -105,7 +155,7 @@ tasks.register('bootstrapSdoJava') {
                     ClassLoader.getPlatformClassLoader())
             try {
                 [
-                    'eu/algites/tool/codegen/sdo/old/sdocodegen-java-default.settings',
+                    'eu/algites/tool/codegen/sdo/sdocodegen-java-default.settings',
                     'eu/algites/tool/codegen/sdo/sdocodegen-java.settings'
                 ].each { resourceName ->
                     if (resourceLoader.getResource(resourceName) == null) {
@@ -127,8 +177,6 @@ tasks.register('bootstrapSdoJava') {
                 'algites-java-common-codegen-conventions.yml',
                 'algites-java-sdo-codegen-conventions.yml'
         ]
-        def roles = [common: '', xmldefs_type: '-xml-type', xmldefs_element: '-xml-element',
-                     yamldefs: '-yaml', jsondefs: '-json']
         def javaExecutable = new File(System.getProperty('java.home'), 'bin/java').absolutePath
         int count = 0
         candidates.each { entry ->
@@ -169,6 +217,32 @@ tasks.register('bootstrapSdoJava') {
             // standards and break source bootstrap.
             def binaryClasspath = files(moduleProject.sourceSets.main.output,
                     moduleFiles, classes)
+            // The initial compiler may still use a temporary java.extgen ABI.
+            // That is NOT a valid source for the new SDO generator: it can
+            // contain historical format-specific read interfaces. The fresh
+            // java.gen tree is the authoritative Defs output and the native
+            // SDO CLI can compile that tree in memory without changing the
+            // compiler's temporary seed selection. Do not mix those two roles.
+            def generatedRoot = new File(moduleProject.projectDir, 'src/product/java.gen')
+            def generatedContracts = generatedRoot.isDirectory() &&
+                    fileTree(generatedRoot).matching { include '**/*.java' }.files.any { source ->
+                def body = source.getText('UTF-8')
+                body.contains('@eu.algites.lib.data.dataobject.AIaDataObject(') &&
+                    (body =~ /(?m)^[ \t]*(?:(?:public|protected|private|static|abstract|sealed|non-sealed)[ \t]+)*interface[ \t]+[A-Za-z_][A-Za-z_0-9]*\b/).find()
+            }
+            // Hand-written read interfaces remain legitimate binary inputs.
+            // A compiled type without a corresponding user-authored source is
+            // never an implicit input: in particular java.extgen seed classes
+            // are classpath-only dependencies, not contracts to regenerate.
+            def manualRoot = new File(moduleProject.projectDir, 'src/product/java')
+            def manualInputNames = new LinkedHashSet<String>()
+            if (manualRoot.isDirectory()) {
+                fileTree(manualRoot).matching { include '**/*.java' }.files.each { source ->
+                    def relative = manualRoot.toPath().relativize(source.toPath()).toString()
+                    manualInputNames.add(relative.replace(java.io.File.separatorChar, '.' as char)
+                            .replaceAll(/\.java$/, ''))
+                }
+            }
             // Discover actual read-only DataObject contracts from the compiled
             // artifact, not every Java interface in its source directories.
             // The previous coarse scan included AIiSmartDataObject itself:
@@ -208,6 +282,10 @@ tasks.register('bootstrapSdoJava') {
                                 || relative.endsWith('\\package-info.class')) return
                         def className = relative.replace(java.io.File.separatorChar, '.' as char)
                                 .replaceAll(/\.class$/, '')
+                        // Never even LOAD historical seed-only contracts. Their
+                        // class hierarchies and naming conventions belong only
+                        // to the temporary compiler ABI, not to SDO input.
+                        if (!manualInputNames.contains(className)) return
                         def candidate = Class.forName(className, false, binaryLoader)
                         if (candidate.isInterface()
                                 && !candidate.packageName.startsWith('eu.algites.lib.data.dataobject')
@@ -226,9 +304,11 @@ tasks.register('bootstrapSdoJava') {
                 binaryLoader.close()
             }
             if (eligible.isEmpty()) {
-                logger.lifecycle('SDO Java: no eligible read-only DataObject contracts in '
-                        + entry.path + '; skipping generator')
-                return
+                if (!generatedContracts) {
+                    logger.lifecycle('SDO Java: no eligible read-only DataObject contracts in '
+                            + entry.path + '; skipping generator')
+                    return
+                }
             }
             // Resolve the engine and validate its resources only after the
             // module's own runtime has proved that generation is necessary.
@@ -237,17 +317,33 @@ tasks.register('bootstrapSdoJava') {
             def toolClasspath = resolveToolClasspath()
             def toolFiles = toolClasspath.files.findAll { !ownPublishedJar(it) }
             binaryClasspath += files(toolFiles)
-            def classpath = binaryClasspath.asPath
-            binaryUrls = binaryClasspath.files.findAll { it.exists() }
-                    .collect { it.toURI().toURL() }
+            // Gradle classpath FileCollections include optional output folders
+            // such as build/resources/main even when no resource task created
+            // them. Java's -cp ignores those folders, but SDO's source loader
+            // resolves each --sdo-dependency-paths entry via toRealPath().
+            // Pass the SAME existing-path set to both interfaces. Missing JARs
+            // are never silently ignored: they indicate a broken dependency.
+            def missingClasspath = binaryClasspath.files.findAll { !it.exists() }
+            def missingArchives = missingClasspath.findAll {
+                it.name.endsWith('.jar') || it.name.endsWith('.zip')
+            }
+            if (!missingArchives.isEmpty())
+                throw new GradleException('Missing required Java SDO dependency archives for '
+                        + entry.artifactId + ': ' + missingArchives)
+            if (!missingClasspath.isEmpty())
+                logger.info('SDO Java: ignoring unmaterialized classpath directories for '
+                        + entry.artifactId + ': ' + missingClasspath)
+            def existingDependencyFiles = binaryClasspath.files.findAll { it.exists() }
+            def classpath = files(existingDependencyFiles).asPath
+            binaryUrls = existingDependencyFiles.collect { it.toURI().toURL() }
             // Fail with the original classpath URLs if another library still
             // contributes an incompatible naming standard. Identical copies
             // are harmless, but an old published standard cannot be combined
             // with the source revision's ConversionStyle definitions.
             def standardResource = 'eu/algites/lib/naming/convention/standard-conventions.yml'
             def standardLoader = new java.net.URLClassLoader(
-                    binaryClasspath.files.findAll { it.exists() }
-                            .collect { it.toURI().toURL() }.toArray(new java.net.URL[0]),
+                    existingDependencyFiles.collect { it.toURI().toURL() }
+                            .toArray(new java.net.URL[0]),
                     ClassLoader.getPlatformClassLoader())
             try {
                 def originsByHash = [:].withDefault { [] }
@@ -274,9 +370,19 @@ tasks.register('bootstrapSdoJava') {
                     binaryUrls.toArray(new java.net.URL[0]),
                     ClassLoader.getPlatformClassLoader())
             try {
-                def service = Class.forName(
-                        'eu.algites.tool.codegen.sdo.old.impl.standard.AIcSdoCodegenService',
-                        false, revisionLoader)
+                def service
+                try {
+                    service = Class.forName(
+                            'eu.algites.tool.codegen.sdo.impl.standard.AIcSdoCodegenService',
+                            false, revisionLoader)
+                } catch (ClassNotFoundException missingGenerator) {
+                    throw new GradleException('SDO generator implementation not found for '
+                            + entry.artifactId + '. A source bootstrap must compile and publish '
+                            + 'sdocodegen.intf as a temporary Defs-only ABI, then build '
+                            + 'sdocodegen.impl and sdocodegen.cli, before rebuilding the '
+                            + 'complete sdocodegen.intf API. Resolved classpath: '
+                            + binaryClasspath.asPath, missingGenerator)
+                }
                 def origin = service.protectionDomain?.codeSource?.location
                 logger.lifecycle('SDO Java: generator implementation ' + origin)
                 def revision
@@ -296,17 +402,26 @@ tasks.register('bootstrapSdoJava') {
             }
             def arguments = [
                     '--repository-root=' + moduleProject.projectDir.absolutePath,
-                    '--technology-dointf-input-dir:java=build/bootstrap-no-java-source-input',
-                    '--technology-sdointf-output-dir:java=' + output.absolutePath,
+                                        '--technology-sdointf-output-dir:java=' + output.absolutePath,
                     '--technology-sdoimpl-output-dir:java=' + output.absolutePath,
                     '--sdointf-subpackage=impl.intf', '--sdoclass-subpackage=impl',
                     '--common-codegen-naming-convention:java=algites-java-codegen-common_1',
                     '--sdo-codegen-naming-convention:java=algites-java-sdocodegen-standard_1',
                     '--codegen-validate-one-input-at-a-time-only=' +
-                        (System.getenv('MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY') ?: 'true')
+                        (System.getenv('MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY') ?: 'false'),
+                    '--cleanup-output-folder-before-generation=' +
+                        (System.getenv('MODUSTRO_CODEGEN_CLEANUP_OUTPUT_FOLDER_BEFORE_GENERATION') ?: 'false')
             ]
-            arguments << '--dointf-input-classes:java=' + eligible.join(';')
-            arguments << '--dointf-classpath:java=' + classpath
+            // An input class list is an exact selection, whereas supplying a
+            // binary directory as --sdo-input-paths causes the CLI to scan all
+            // classes there, including outdated technology-specific ABI seeds.
+            // Use the CLI's existing source-input support for freshly generated
+            // unified read contracts; use exact names for hand-written contracts.
+            if (!eligible.isEmpty())
+                arguments << '--dointf-input-classes:java=' + eligible.join(';')
+            if (generatedContracts)
+                arguments << '--sdo-input-paths:java=' + generatedRoot.absolutePath
+            arguments << '--sdo-dependency-paths:java=' + existingDependencyFiles.collect { it.absolutePath }.join(';')
             // Each catalogue needs a distinct qualified key. Keep the Gradle
             // script independent of Groovy eachWithIndex closure inference: it
             // is compiled during configuration even for bootstrap modules
@@ -319,16 +434,14 @@ tasks.register('bootstrapSdoJava') {
             }
             arguments.add('--naming-conventions-file:codegen_common=classpath:algites-java-common-codegen-conventions.yml')
             arguments.add('--naming-conventions-file:codegen_sdo=classpath:algites-java-sdo-codegen-conventions.yml')
-            roles.each { role, suffix ->
-                arguments << "--input-technology-naming-convention:java:${role}:defsintf=algites-java-gen${suffix}-intf-versioned_1"
-                arguments << "--output-technology-naming-convention:java:${role}:sdointf=algites-java-gen-data${suffix}-intf-versioned_1"
-                arguments << "--output-technology-naming-convention:java:${role}:sdoclass=algites-java-gen-data${suffix}-class-versioned_1"
-            }
+            arguments.add('--dointf-naming-convention:java=algites-java-gen-intf-versioned_1')
+            arguments.add('--sdointf-naming-convention:java=algites-java-gen-data-intf-versioned_1')
+            arguments.add('--sdoimpl-naming-convention:java=algites-java-gen-data-class-versioned_1')
             // Groovy interpolation yields GString values. ProcessBuilder expects
             // java.lang.String entries and otherwise fails converting its varargs
             // to String[] with "arraycopy: element type mismatch".
             List<String> command = ([javaExecutable, '-cp', classpath,
-                    'eu.algites.tool.codegen.sdo.old.impl.cli.AIcSdoCodegenCli'] + arguments)
+                    'eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli'] + arguments)
                     .collect { String.valueOf(it) }
             logger.lifecycle('SDO Java: scanning ' + entry.path)
             // Gradle runs inside a daemon. Child-process inheritIO() can write

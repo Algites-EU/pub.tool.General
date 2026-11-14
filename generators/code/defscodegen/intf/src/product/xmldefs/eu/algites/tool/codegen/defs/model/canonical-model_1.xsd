@@ -42,6 +42,13 @@
       </xs:enumeration>
     </xs:restriction>
   </xs:simpleType>
+  <xs:simpleType name="ElementKind">
+    <xs:annotation><xs:documentation>Named serialized field or unnamed embedded structural group. Independent of TypeOrigin.</xs:documentation></xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="REFERENCED" />
+      <xs:enumeration value="EMBEDDED" />
+    </xs:restriction>
+  </xs:simpleType>
   <xs:simpleType name="Composition">
     <xs:annotation>
       <xs:documentation>Group compositor; ALL is ordered for canonical traversal</xs:documentation>
@@ -236,10 +243,21 @@
       <xs:element name="description" type="xs:string" minOccurs="0" />
       <xs:element name="path_segments" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
       <xs:element name="inherited_from_types" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
-      <xs:element name="structure" type="tns:Structure" minOccurs="1" />
+      <xs:element name="content" type="tns:TypeContent" minOccurs="1" />
       <xs:element name="resolution_state" type="tns:ResolutionState" minOccurs="1" />
       <xs:element name="source_bindings" type="tns:SourceBindings" minOccurs="0" />
     </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="TypeContent">
+    <xs:annotation><xs:documentation>Exactly one nested structure or symbolic target reference.</xs:documentation></xs:annotation>
+    <xs:choice>
+      <xs:element name="structure" type="tns:Structure" minOccurs="1" />
+      <xs:element name="target_identity" minOccurs="1">
+        <xs:simpleType>
+          <xs:restriction base="xs:string"><xs:minLength value="1" /></xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:choice>
   </xs:complexType>
   <xs:complexType name="ElementList">
     <xs:annotation>
@@ -248,8 +266,10 @@
     <xs:sequence>
       <xs:element name="composition" type="tns:Composition" minOccurs="1" />
       <xs:element name="children" type="tns:ElementListChild" minOccurs="1" maxOccurs="unbounded" />
-      <xs:element name="min_occurs" type="xs:nonNegativeInteger" minOccurs="1" />
-      <xs:element name="max_occurs" type="xs:int" minOccurs="1" />
+      <xs:element name="min_item_count" type="xs:nonNegativeInteger" minOccurs="1" />
+      <xs:element name="max_item_count" type="xs:int" minOccurs="1" />
+      <xs:element name="min_properties" type="xs:int" minOccurs="0" />
+      <xs:element name="max_properties" type="xs:int" minOccurs="0" />
     </xs:sequence>
   </xs:complexType>
   <xs:complexType name="XmlWireName">
@@ -267,17 +287,21 @@
   </xs:complexType>
   <xs:complexType name="Element">
     <xs:annotation>
-      <xs:documentation>Named member</xs:documentation>
+      <xs:documentation>Member of an ELEMENTLIST: referenced serialized member or unnamed embedded structural group.</xs:documentation>
     </xs:annotation>
     <xs:sequence>
+      <xs:element name="element_kind" type="tns:ElementKind" minOccurs="1" />
       <xs:element name="name" type="xs:string" minOccurs="1" />
       <xs:element name="structure" type="tns:Structure" minOccurs="1" />
       <xs:element name="description" type="xs:string" minOccurs="0" />
       <xs:element name="xml_wire" type="tns:XmlWireName" minOccurs="0" />
       <xs:element name="key_definitions" type="tns:KeyDefinition" minOccurs="0" maxOccurs="unbounded" />
       <xs:element name="source_bindings" type="tns:SourceBindings" minOccurs="0" />
-      <xs:element name="min_occurs" type="xs:nonNegativeInteger" minOccurs="1" />
-      <xs:element name="max_occurs" type="xs:int" minOccurs="1" />
+      <xs:element name="min_item_count" type="xs:nonNegativeInteger" minOccurs="1" />
+      <xs:element name="max_item_count" type="xs:int" minOccurs="1" />
+      <xs:element name="default_kind" type="xs:string" minOccurs="0" />
+      <xs:element name="default_value" type="xs:string" minOccurs="0" />
+      <xs:element name="is_empty_allowed" type="xs:boolean" minOccurs="0" />
     </xs:sequence>
   </xs:complexType>
   <xs:complexType name="List">
@@ -287,10 +311,11 @@
     <xs:sequence>
       <xs:element name="name" type="xs:string" minOccurs="1" />
       <xs:element name="item" type="tns:Structure" minOccurs="1" />
-      <xs:element name="min_occurs" type="xs:nonNegativeInteger" minOccurs="1" />
-      <xs:element name="max_occurs" type="xs:int" minOccurs="1" />
+      <xs:element name="min_item_count" type="xs:nonNegativeInteger" minOccurs="1" />
+      <xs:element name="max_item_count" type="xs:int" minOccurs="1" />
       <xs:element name="xml_wire" type="tns:XmlWireName" minOccurs="0" />
       <xs:element name="key_definitions" type="tns:KeyDefinition" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="unique_items" type="xs:boolean" minOccurs="0" />
     </xs:sequence>
   </xs:complexType>
   <xs:complexType name="Map">
@@ -312,6 +337,14 @@
     <xs:sequence>
       <xs:element name="scalar_kind" type="tns:ScalarKind" minOccurs="1" />
       <xs:element name="format" type="xs:string" minOccurs="0" />
+      <xs:element name="min_length" type="xs:int" minOccurs="0" />
+      <xs:element name="max_length" type="xs:int" minOccurs="0" />
+      <xs:element name="pattern" type="xs:string" minOccurs="0" />
+      <xs:element name="minimum" type="xs:string" minOccurs="0" />
+      <xs:element name="maximum" type="xs:string" minOccurs="0" />
+      <xs:element name="exclusive_minimum" type="xs:boolean" minOccurs="0" />
+      <xs:element name="exclusive_maximum" type="xs:boolean" minOccurs="0" />
+      <xs:element name="multiple_of" type="xs:string" minOccurs="0" />
     </xs:sequence>
   </xs:complexType>
   <xs:complexType name="Enum">
@@ -345,7 +378,7 @@
   </xs:complexType>
   <xs:complexType name="SourceBindings">
     <xs:annotation>
-      <xs:documentation>Ordered source bindings by technology. Corresponds to JSON/YAML SourceBindings mapping.</xs:documentation>
+      <xs:documentation>Ordered source binding groups by technology. Corresponds to JSON/YAML SourceBindings sequence.</xs:documentation>
     </xs:annotation>
     <xs:sequence>
       <xs:element name="SourceBindingGroup" type="tns:SourceBindingGroup" minOccurs="0" maxOccurs="unbounded" />

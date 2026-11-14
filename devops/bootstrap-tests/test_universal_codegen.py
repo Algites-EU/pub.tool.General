@@ -49,14 +49,42 @@ def test_json_encoded_yamldefs_is_discovered_and_scoped(tmp_path):
     assert selected[(a, 'product')] == (['java', 'python'], ['yamldefs'])
 
 
-def test_algites_profile_is_selected_by_common_bootstrap_not_settings(tmp_path):
+def test_defs_naming_profiles_are_forwarded_from_selected_settings(tmp_path, monkeypatch):
+    """The common bootstrap forwards real CLI settings, not a legacy manifest."""
     artifact = _artifact(tmp_path, 'project')
-    profiles = codegen._manifest(tmp_path, artifact, ['java', 'python'], ['jsondefs', 'xmldefs'])
-    assert profiles['schema_input_naming_conventions'] is codegen.ALGITES_INPUT_PROFILES
-    assert profiles['technology_outputs']['java'].endswith('/java.gen')
-    assert profiles['technology_output_naming_conventions']['java']['common'] == 'algites-java-gen-intf-versioned_1'
-    assert profiles['technology_output_naming_conventions']['python']['xmldefs_namespace'] == 'algites-python-gen-xml-namespace-intf_1'
-    assert 'resource:algites-java-name-conventions.yml' in profiles['naming_convention_files']
+    source = artifact / 'src/product'
+
+    def fake_settings(owner, language):
+        assert owner == tmp_path
+        return {
+            'input-schema-naming-convention:jsondefs':
+                'algites-jsondef-schema-versioned_1',
+            f'dointf-naming-convention:{language}':
+                f'algites-{language}-gen-intf-versioned_1',
+            f'common-codegen-naming-convention:{language}':
+                f'algites-{language}-codegen-common_1',
+            f'defs-codegen-naming-convention:{language}':
+                f'algites-{language}-defscodegen-standard_1',
+            'naming-conventions-file:codegen_common':
+                f'classpath:algites-{language}-common-codegen-conventions.yml',
+            'naming-conventions-file:codegen_defs':
+                f'classpath:algites-{language}-defs-codegen-conventions.yml',
+        }
+
+    monkeypatch.setattr(codegen, 'defs_settings', fake_settings)
+    monkeypatch.setattr(codegen, '_source_checkouts', lambda _: [tmp_path])
+    options = codegen._qualified_defs_arguments(
+        tmp_path, artifact, 'product', ['java', 'python'], ['jsondefs'], tmp_path)
+    assert f'--defs-input-paths:java={source.relative_to(tmp_path)}/jsondefs' in options
+    assert f'--defs-input-paths:python={source.relative_to(tmp_path)}/jsondefs' in options
+    assert '--dointf-naming-convention:java=algites-java-gen-intf-versioned_1' in options
+    assert '--dointf-naming-convention:python=algites-python-gen-intf-versioned_1' in options
+    assert '--naming-conventions-file:codegen_common_java=classpath:algites-java-common-codegen-conventions.yml' in options
+    assert '--naming-conventions-file:codegen_common_python=classpath:algites-python-common-codegen-conventions.yml' in options
+    assert '--naming-conventions-file:codegen_defs_java=classpath:algites-java-defs-codegen-conventions.yml' in options
+    assert '--naming-conventions-file:codegen_defs_python=classpath:algites-python-defs-codegen-conventions.yml' in options
+    assert '--input-schema-naming-convention:jsondefs=algites-jsondef-schema-versioned_1' in options
+    assert not any('_manifest' in option for option in options)
 
 
 def test_bootstrap_configuration_never_requires_specific_generator_runner():

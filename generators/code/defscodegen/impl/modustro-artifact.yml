@@ -23,8 +23,18 @@ Dependencies:
       # Canonical SDO implementations are generated from Defs' read-only
       # contracts into this module, never into defscodegen.intf.
       - GroupId: eu.algites.lib.data
-        ArtifactId: pub.lib.General_data.smartdataobject.impl
-        Usages: [product_implementation]
+        ArtifactId: pub.lib.General_data.smartdataobject.impl.common
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      # Generated AIigd*/AIcgd* signatures refer directly to mutable SDO interfaces.
+      - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.smartdataobject.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      # Field labels in generated contracts include category-provider annotations.
+      - GroupId: eu.algites.lib.common
+        ArtifactId: pub.lib.General_factory.cpdiscovery.intf
+        Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.data
         ArtifactId: pub.lib.General_data.dataobject.intf
@@ -57,6 +67,15 @@ Dependencies:
           MaximumStrict: true
   - DependencyKind: python
     Items:
+      # The canonical-model linker validates the generated contract against
+      # JSON Schema 2020-12 before structure normalization. This is a runtime
+      # dependency, also required by source-mode bootstrap hosts.
+      - ArtifactId: jsonschema
+        Usages: [product_implementation]
+        VersionRequirement:
+          Minimum: ">=4.18"
+          Maximum: "<5.0"
+          MaximumStrict: true
       - ArtifactId: pyyaml
         Usages: [product_implementation]
         VersionRequirement:

@@ -49,16 +49,14 @@ def test_generator_impl_distribution_requires_same_release_common(tmp_path: Path
             in metadata['project']['dependencies'])
 
 
-def test_gradle_bootstrap_includes_common_in_both_java_builds():
-    """Both standalone Java builds publish and consume the shared resource module."""
-    contents = (_REPOSITORY / 'generators/code/bootstrap-selfhosted.sh').read_text(encoding='utf-8')
-    assert contents.count("project(':common').projectDir") == 2
-    assert contents.count("project(':common') {\n    sourceSets.main.resources.srcDirs") == 2
-    assert contents.count("implementation project(':common')") >= 2
-    assert "for locGenerator in common profile defscodegen sdocodegen; do" in contents
-    assert contents.count("project(':profile-algites').projectDir") == 2
-    assert contents.count("testImplementation project(':profile-algites')") >= 2
-    assert "implementation project(':profile-algites')" not in contents.replace("testImplementation project(':profile-algites')", "")
+def test_selfhosted_bootstrap_uses_universal_descriptor_driven_path():
+    """The historical launcher must not run its own stale generator/Gradle build."""
+    source = (_REPOSITORY / 'generators/code/bootstrap-selfhosted.sh').read_text(encoding='utf-8')
+    assert 'exec bash "$locRepository/devops/bootstrap/bootstrap.sh"' in source
+    assert '--root generators/code' in source
+    assert 'regenerate_sources.py" generate' not in source
+    assert 'AIcSchemaContractBindingsGenerator' not in source
+    assert "project(':common')" not in source
 
 @pytest.mark.parametrize('generator,part', [
     ('profile', 'algites'),

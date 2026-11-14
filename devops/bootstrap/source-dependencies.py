@@ -209,13 +209,74 @@ def resolve(repository: Path, root: Path, available: dict[str, Artifact]) -> tup
     return ordered, groups
 
 
-# The naming definition module owns the read-only contracts consumed by the
-# SDO generator's own naming implementation. Bootstrap it in two stages:
-# first publish its Defs-only ABI, then compile the generator from source,
-# and finally regenerate/publish the complete naming artifact. This seed is
-# strictly confined to the generator's dependency graph.
-NAMING_ABI_SEED = 'pub.lib.General_naming.convention.intf'
-SDO_CLI = 'pub.tool.General_generators.code.sdocodegen.cli'
+@dataclass(frozen=True)
+class SourceCompilerBootstrap:
+    """Declarative source-compiler cycle, loaded from artifact-owner policy."""
+    cli: Artifact
+    seed_ids: frozenset[str]
+    trigger_ids: frozenset[str]
+    rebuild_ids: tuple[str, ...]
+
+
+def compiler_bootstraps(available: dict[str, Artifact]) -> tuple[SourceCompilerBootstrap, ...]:
+    """Discover special self-hosting cycles without naming any particular repo.
+
+    The optional bootstrap-specializations.yml resides beside the universal
+    engine.  Normal repositories have no compiler cycles and need no config.
+    The CLI owner declares a cycle; its temporary ABI dependencies may be in
+    other source repositories, and must be present in the resolved graph.
+    """
+    result = []
+    seen = set()
+    repositories = sorted({artifact.repository for artifact in available.values()})
+    for repository in repositories:
+        policy = repository / 'devops/bootstrap/bootstrap-specializations.yml'
+        if not policy.is_file():
+            continue
+        document = read(policy)
+        for definition in document.get('SourceCompilerBootstraps') or ():
+            if not isinstance(definition, dict):
+                raise ValueError(f'{policy}: expected mapping in SourceCompilerBootstraps')
+            cli_id = definition.get('CliArtifactId')
+            if not isinstance(cli_id, str) or not cli_id:
+                raise ValueError(f'{policy}: missing CliArtifactId')
+            cli = available.get(cli_id)
+            if cli is None or cli.repository != repository:
+                raise ValueError(f'{policy}: compiler CLI is not owned by this repository: {cli_id}')
+            if cli_id in seen:
+                raise ValueError(f'{policy}: duplicate source compiler bootstrap for {cli_id}')
+            seen.add(cli_id)
+            ids = {}
+            for key in ('SeedArtifactIds', 'TriggerArtifactIds', 'RebuildAfterCliArtifactIds'):
+                raw = definition.get(key)
+                if not isinstance(raw, list) or not all(isinstance(x, str) and x for x in raw):
+                    raise ValueError(f'{policy}: {key} must be an artifact ID list')
+                if len(raw) != len(set(raw)):
+                    raise ValueError(f'{policy}: duplicate artifact in {key}')
+                for artifact_id in raw:
+                    if artifact_id not in available:
+                        raise ValueError(f'{policy}: missing configured artifact {artifact_id}')
+                ids[key] = raw
+            if not ids['TriggerArtifactIds'] or not ids['SeedArtifactIds']:
+                raise ValueError(f'{policy}: source compiler needs triggers and ABI seeds')
+            if not set(ids['RebuildAfterCliArtifactIds']).issubset(ids['SeedArtifactIds']):
+                raise ValueError(f'{policy}: rebuilt artifacts must have an ABI seed')
+            result.append(SourceCompilerBootstrap(
+                cli=cli,
+                seed_ids=frozenset(ids['SeedArtifactIds']),
+                trigger_ids=frozenset(ids['TriggerArtifactIds']),
+                rebuild_ids=tuple(ids['RebuildAfterCliArtifactIds']),
+            ))
+    return tuple(result)
+
+
+def owns_compiler_root(program: SourceCompilerBootstrap,
+                       roots: set[str], available: dict[str, Artifact]) -> bool:
+    """Detect a self-hosted compiler's subtree from its actual CLI artifact."""
+    owner = program.cli.repository
+    directory = program.cli.relative.parent
+    return any(item.repository == owner and item.relative.is_relative_to(directory)
+               for name in roots if (item := available.get(name)) is not None)
 
 
 def build_prerequisite(artifact: Artifact, *, seed: bool = False) -> None:
@@ -224,29 +285,48 @@ def build_prerequisite(artifact: Artifact, *, seed: bool = False) -> None:
     env = dict(os.environ, MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE='source',
                MODUSTRO_BOOTSTRAP_SOURCE_PREREQUISITES_READY='1')
     env.pop('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED', None)
+    # An invocation's UUID and cleanup policy must not leak into the next
+    # repository's independent self-hosting policy.
+    if artifact.repository.resolve() != Path(__file__).resolve().parents[2]:
+        env.pop('MODUSTRO_BOOTSTRAP_FRESH_GENERATION', None)
+        env.pop('MODUSTRO_BOOTSTRAP_RUN_ID', None)
+        # Never reuse a caller's generated-source cleanup setting in another
+        # checkout: that checkout owns its default policy.
+        env.pop('MODUSTRO_CODEGEN_CLEANUP_OUTPUT_FOLDER_BEFORE_GENERATION', None)
     if seed:
-        if artifact.identifier != NAMING_ABI_SEED:
-            raise ValueError(f'ABI seed is forbidden for {artifact.identifier}')
+        # Artifact-local seed checking is entirely declarative. An ordinary
+        # repository has no configured phase and needs no exception here.
+        subprocess.run([sys.executable,
+                        str(artifact.repository / 'devops/bootstrap/selfhosting.py'),
+                        'phase', '--repository', str(artifact.repository),
+                        '--root', str(artifact.repository / artifact.relative),
+                        '--phase', 'check-seed'],
+                       cwd=artifact.repository, env=env, check=True)
         env['MODUSTRO_BOOTSTRAP_SDO_ABI_SEED'] = '1'
     print(f"Building source prerequisite {artifact.identifier}" +
-          (' (Defs-only naming ABI seed)' if seed else ''), flush=True)
+          (' (Defs-only compiler ABI seed)' if seed else ''), flush=True)
     subprocess.run(command, cwd=artifact.repository, env=env, check=True)
 
 
-def prepare_sdo_generator(repository: Path, available: dict[str, Artifact]) -> None:
-    """Build the CLI and its source prerequisites, seeding the naming ABI.
+def prepare_compiler(program: SourceCompilerBootstrap,
+                     available: dict[str, Artifact]) -> None:
+    """Build one self-hosted CLI from seed contracts and regenerate its own API.
 
-    This must not silently reuse a previously published CLI. The generator
-    itself is prepared with its complete normal dependency graph, except for
-    the one ABI-only naming seed required to break the bootstrap cycle.
+    Bootstrap seed selection comes exclusively from the owning repository's
+    declarative policy. All real compilation is still delegated to the same
+    universal bootstrap entry point; no alternate generator is involved.
     """
-    cli = available.get(SDO_CLI)
-    if cli is None:
-        raise ValueError('Source mode requires the SDO CLI checkout: ' + SDO_CLI)
+    cli = program.cli
     prerequisites, _ = resolve(cli.repository, cli.repository / cli.relative, available)
     for artifact in prerequisites:
-        build_prerequisite(artifact, seed=artifact.identifier == NAMING_ABI_SEED)
+        build_prerequisite(artifact, seed=artifact.identifier in program.seed_ids)
     build_prerequisite(cli)
+    # Once the new generator CLI exists, replace explicitly declared ABI-only
+    # publications with their complete freshly generated interface artifacts.
+    required = {artifact.identifier for artifact in prerequisites}
+    for identifier in program.rebuild_ids:
+        if identifier in required:
+            build_prerequisite(available[identifier])
 
 
 def main() -> None:
@@ -279,16 +359,22 @@ def main() -> None:
         roots = {item.identifier for item in available.values()
                  if item.repository == repository and (root == repository or
                      (item.repository / item.relative).is_relative_to(root))}
-        generator_root = SDO_CLI in roots or any(item.startswith(
-            'pub.tool.General_generators.code.sdocodegen.') for item in roots)
-        if (NAMING_ABI_SEED in identifiers or NAMING_ABI_SEED in roots) and not generator_root:
-            # The target depends on generated naming contracts. Build the
-            # generator *first*, without accepting an old cached CLI binary.
-            # The generator's own bootstrap uses the Defs-only naming seed.
-            prepare_sdo_generator(repository, available)
+        programs = compiler_bootstraps(available)
+        seeded_for_this_root: set[str] = set()
+        for program in programs:
+            generator_root = owns_compiler_root(program, roots, available)
+            if not generator_root and program.trigger_ids.intersection(identifiers | roots):
+                # Build the source compiler before generating its consumers.
+                prepare_compiler(program, available)
+                # A selected API interface already received its complete
+                # publication after the compiler came online.
+                if any(identifier in roots for identifier in program.rebuild_ids):
+                    return
+            if generator_root:
+                seeded_for_this_root.update(program.seed_ids)
         for artifact in todo:
-            build_prerequisite(artifact, seed=(generator_root and
-                               artifact.identifier == NAMING_ABI_SEED))
+            build_prerequisite(artifact, seed=artifact.identifier in seeded_for_this_root)
+
 
 
 if __name__ == '__main__':

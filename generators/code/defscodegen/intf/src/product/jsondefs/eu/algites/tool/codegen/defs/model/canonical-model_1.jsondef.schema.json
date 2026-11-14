@@ -32,6 +32,14 @@
       ],
       "description": "Seven canonical kinds"
     },
+    "ElementKind": {
+      "type": "string",
+      "enum": [
+        "REFERENCED",
+        "EMBEDDED"
+      ],
+      "description": "Serialized field with a wire name (REFERENCED) or inline, unnamed structural group (EMBEDDED); independent of TypeOrigin."
+    },
     "Composition": {
       "type": "string",
       "enum": [
@@ -111,13 +119,16 @@
     },
     "SourceBindings": {
       "type": "object",
-      "additionalProperties": {
-        "type": "array",
-        "items": {
-          "$ref": "#/$defs/SourceBinding"
+      "description": "Ordered sequence of source-binding groups matching XMLDEFS SourceBindings.",
+      "properties": {
+        "SourceBindingGroup": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceBindingGroup"
+          }
         }
       },
-      "description": "Ordered collection of source bindings, indexed by XMLDEFS, JSONDEFS or YAMLDEFS; repeated bindings are retained."
+      "additionalProperties": false
     },
     "KeyDefinition": {
       "type": "object",
@@ -227,19 +238,14 @@
             "type": "string"
           }
         },
-        "structure": {
-          "$ref": "#/$defs/Structure"
+        "content": {
+          "$ref": "#/$defs/TypeContent"
         },
         "resolution_state": {
           "$ref": "#/$defs/ResolutionState"
         },
         "source_bindings": {
           "$ref": "#/$defs/SourceBindings"
-        },
-        "target_identity": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Resolved symbolic link to a TYPE declared elsewhere; allows recursion without copying or cycles in value trees."
         },
         "schema_version": {
           "type": "string",
@@ -254,31 +260,29 @@
         "identity",
         "name",
         "origin",
-        "resolution_state"
+        "resolution_state",
+        "content"
       ],
-      "additionalProperties": false,
-      "oneOf": [
-        {
-          "required": [
-            "structure"
-          ],
-          "not": {
-            "required": [
-              "target_identity"
-            ]
-          }
+      "additionalProperties": false
+    },
+    "TypeContent": {
+      "type": "object",
+      "title": "Exactly one nested canonical structure or a resolved symbolic type reference",
+      "description": "Exclusive alternative: inline structure or target identity. Canonical Type requires this content after resolution.",
+      "x-algites-defscodegen-choice": true,
+      "properties": {
+        "structure": {
+          "$ref": "#/$defs/Structure"
         },
-        {
-          "required": [
-            "target_identity"
-          ],
-          "not": {
-            "required": [
-              "structure"
-            ]
-          }
+        "target_identity": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resolved symbolic link to a TYPE declared elsewhere; allows recursion without copying or cycles in value trees."
         }
-      ]
+      },
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false
     },
     "ElementList": {
       "type": "object",
@@ -294,22 +298,30 @@
             "$ref": "#/$defs/ElementListChild"
           }
         },
-        "min_occurs": {
+        "min_item_count": {
           "type": "integer",
           "minimum": 0,
           "description": "Minimum allowed occurrences, zero if optional."
         },
-        "max_occurs": {
+        "max_item_count": {
           "type": "integer",
           "minimum": -1,
           "description": "Maximum allowed occurrences, -1 for unbounded."
+        },
+        "min_properties": {
+          "type": "integer",
+          "description": "Minimum object property count, -1 when unspecified."
+        },
+        "max_properties": {
+          "type": "integer",
+          "description": "Maximum object property count, -1 when unspecified."
         }
       },
       "required": [
         "composition",
         "children",
-        "min_occurs",
-        "max_occurs"
+        "min_item_count",
+        "max_item_count"
       ],
       "additionalProperties": false
     },
@@ -318,6 +330,10 @@
       "title": "Named member",
       "description": "Named member",
       "properties": {
+        "element_kind": {
+          "$ref": "#/$defs/ElementKind",
+          "description": "How this member is placed in its parent ELEMENTLIST."
+        },
         "name": {
           "type": "string"
         },
@@ -333,12 +349,12 @@
         "source_bindings": {
           "$ref": "#/$defs/SourceBindings"
         },
-        "min_occurs": {
+        "min_item_count": {
           "type": "integer",
           "minimum": 0,
           "description": "Minimum allowed occurrences, zero if optional."
         },
-        "max_occurs": {
+        "max_item_count": {
           "type": "integer",
           "minimum": -1,
           "description": "Maximum allowed occurrences, -1 for unbounded."
@@ -350,13 +366,26 @@
         "xml_wire": {
           "$ref": "#/$defs/XmlWireName",
           "description": "Present for XSD-derived members only"
+        },
+        "default_kind": {
+          "type": "string",
+          "description": "Empty when unspecified, otherwise DECLARATION_ONLY, IF_FIELD_VALUE_NOT_PRESENT, IF_FIELD_VALUE_EMPTY or CONSTRAINT_DEFAULT."
+        },
+        "default_value": {
+          "type": "string",
+          "description": "Lexical schema default or fixed value. Empty string is valid when a kind is present."
+        },
+        "is_empty_allowed": {
+          "type": "boolean",
+          "description": "True if the source representation permits explicit empty content."
         }
       },
       "required": [
+        "element_kind",
         "name",
         "structure",
-        "min_occurs",
-        "max_occurs"
+        "min_item_count",
+        "max_item_count"
       ],
       "additionalProperties": false
     },
@@ -371,12 +400,12 @@
         "item": {
           "$ref": "#/$defs/Structure"
         },
-        "min_occurs": {
+        "min_item_count": {
           "type": "integer",
           "minimum": 0,
           "description": "Minimum allowed occurrences, zero if optional."
         },
-        "max_occurs": {
+        "max_item_count": {
           "type": "integer",
           "minimum": -1,
           "description": "Maximum allowed occurrences, -1 for unbounded."
@@ -391,13 +420,17 @@
         "xml_wire": {
           "$ref": "#/$defs/XmlWireName",
           "description": "Present for XSD-derived members only"
+        },
+        "unique_items": {
+          "type": "boolean",
+          "description": "Whether members must be unique."
         }
       },
       "required": [
         "name",
         "item",
-        "min_occurs",
-        "max_occurs"
+        "min_item_count",
+        "max_item_count"
       ],
       "additionalProperties": false
     },
@@ -440,6 +473,38 @@
         },
         "format": {
           "type": "string"
+        },
+        "min_length": {
+          "type": "integer",
+          "description": "Minimum Unicode code-point length, -1 means unspecified."
+        },
+        "max_length": {
+          "type": "integer",
+          "description": "Maximum Unicode code-point length, -1 means unspecified."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Regular expression as defined by source language."
+        },
+        "minimum": {
+          "type": "string",
+          "description": "Inclusive numeric lower bound, lexical decimal; empty when unspecified."
+        },
+        "maximum": {
+          "type": "string",
+          "description": "Inclusive numeric upper bound, lexical decimal; empty when unspecified."
+        },
+        "exclusive_minimum": {
+          "type": "boolean",
+          "description": "Whether lower bound is exclusive."
+        },
+        "exclusive_maximum": {
+          "type": "boolean",
+          "description": "Whether upper bound is exclusive."
+        },
+        "multiple_of": {
+          "type": "string",
+          "description": "Positive numeric divisor, lexical decimal; empty when unspecified."
         }
       },
       "required": [
@@ -518,6 +583,27 @@
         "namespace_uri",
         "local_name",
         "value_kind"
+      ],
+      "additionalProperties": false
+    },
+    "SourceBindingGroup": {
+      "type": "object",
+      "description": "One source technology and its ordered source bindings; same semantic structure as XMLDEFS SourceBindingGroup.",
+      "properties": {
+        "InputKind": {
+          "$ref": "#/$defs/SourceInputKind"
+        },
+        "Binding": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceBinding"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "InputKind",
+        "Binding"
       ],
       "additionalProperties": false
     }

@@ -1,10 +1,12 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElement;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElementList;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenList;
-import eu.algites.tool.codegen.defs.AInDefsCodegenSourceInputKind;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalList;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
 import java.util.List;
 import java.util.Map;
 import org.testng.Assert;
@@ -29,24 +31,24 @@ public final class AItcDefsCodegenOccurrencesTest {
                 "properties", Map.of("items", Map.of("type", "array", "minItems", 2,
                         "maxItems", 5, "items", Map.of("type", "string")),
                         "nickname", Map.of("type", "string")));
-        for (var kind : List.of(AInDefsCodegenSourceInputKind.JSONDEFS,
-                AInDefsCodegenSourceInputKind.YAMLDEFS)) {
+        for (var kind : List.of(AIngSourceInputKind_1.JSONDEFS,
+                AIngSourceInputKind_1.YAMLDEFS)) {
             var pipeline = new AIcDefsCodegenCanonicalPipeline(profile(), payload -> {
                 Assert.assertTrue(payload.containsKey("types"));
             });
             var result = pipeline.process(List.of(
                     new AIcdDefsCodegenSourceDocument(kind, "person.json", schema)));
-            var group = (AIcdDefsCodegenElementList) result.types().get(0).structure();
+            var group = (AIcDefsCanonicalElementList) result.types().get(0).structure();
             for (var child : group.children()) {
-                var field = (AIcdDefsCodegenElement) child;
+                var field = (AIcDefsCanonicalElement) child;
                 if (field.name().equals("items")) {
-                    Assert.assertEquals(field.minOccurs(), 1);
-                    var items = (AIcdDefsCodegenList) field.structure();
-                    Assert.assertEquals(items.minOccurs(), 2);
-                    Assert.assertEquals(items.maxOccurs(), 5);
+                    Assert.assertEquals(field.minItemCount(), 1);
+                    var items = (AIcDefsCanonicalList) field.structure();
+                    Assert.assertEquals(items.minItemCount(), 2);
+                    Assert.assertEquals(items.maxItemCount(), 5);
                 } else if (field.name().equals("nickname")) {
-                    Assert.assertEquals(field.minOccurs(), 0);
-                    Assert.assertEquals(field.maxOccurs(), 1);
+                    Assert.assertEquals(field.minItemCount(), 0);
+                    Assert.assertEquals(field.maxItemCount(), 1);
                 } else Assert.fail("Unexpected member: " + field.name());
             }
         }
@@ -67,17 +69,17 @@ public final class AItcDefsCodegenOccurrencesTest {
                 </xs:schema>
                 """;
         var result = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(
-                List.of(new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS,
+                List.of(new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS,
                         "person.xsd", xml)));
-        var group = (AIcdDefsCodegenElementList) result.types().get(0).structure();
-        var name = (AIcdDefsCodegenElement) group.children().get(0);
-        var tags = (AIcdDefsCodegenList) group.children().get(1);
-        var choice = (AIcdDefsCodegenElementList) group.children().get(2);
-        Assert.assertEquals(name.minOccurs(), 0);
-        Assert.assertEquals(tags.minOccurs(), 2);
-        Assert.assertEquals(tags.maxOccurs(), -1);
-        Assert.assertEquals(choice.minOccurs(), 0);
-        Assert.assertEquals(choice.maxOccurs(), 3);
+        var group = (AIcDefsCanonicalElementList) result.types().get(0).structure();
+        var name = (AIcDefsCanonicalElement) group.children().get(0);
+        var tags = (AIcDefsCanonicalList) group.children().get(1);
+        var choice = (AIcDefsCanonicalElementList) group.children().get(2);
+        Assert.assertEquals(name.minItemCount(), 0);
+        Assert.assertEquals(tags.minItemCount(), 2);
+        Assert.assertEquals(tags.maxItemCount(), -1);
+        Assert.assertEquals(choice.minItemCount(), 0);
+        Assert.assertEquals(choice.maxItemCount(), 3);
     }
 
     /** Rejects disagreements instead of silently taking one representation's required status. */
@@ -90,9 +92,9 @@ public final class AItcDefsCodegenOccurrencesTest {
         boolean rejected = false;
         try {
             new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                    new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.JSONDEFS,
+                    new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
                             "required.json", required),
-                    new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.YAMLDEFS,
+                    new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.YAMLDEFS,
                             "optional.yaml", optional)));
         } catch (IllegalArgumentException expected) {
             rejected = expected.getMessage().contains("Conflicting canonical definitions");
@@ -107,7 +109,7 @@ public final class AItcDefsCodegenOccurrencesTest {
         try {
             new AIcDefsCodegenCanonicalSchemaFrontend(profile()).loadJsonOrYaml(
                     Map.of("anyOf", List.of(Map.of("type", "string"), Map.of("type", "integer"))),
-                    "choice.json", AInDefsCodegenSourceInputKind.JSONDEFS);
+                    "choice.json", AIngSourceInputKind_1.JSONDEFS);
         } catch (UnsupportedOperationException expected) {
             rejected = expected.getMessage().contains("anyOf");
         }

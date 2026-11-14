@@ -1,7 +1,9 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
-import eu.algites.tool.codegen.defs.AInDefsCodegenSourceInputKind;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
 import java.util.List;
 import java.util.Map;
 import org.testng.Assert;
@@ -22,8 +24,8 @@ public final class AItcDefsCodegenCanonicalLosslessTest {
     /** Rejects validation rules absent from the current seven-kind contract. */
     @Test
     public void AIcJsonConstraintsMustNotBeSilentlyDiscarded() {
-        for (var kind : List.of(AInDefsCodegenSourceInputKind.JSONDEFS,
-                AInDefsCodegenSourceInputKind.YAMLDEFS)) {
+        for (var kind : List.of(AIngSourceInputKind_1.JSONDEFS,
+                AIngSourceInputKind_1.YAMLDEFS)) {
             for (var keyword : List.of("minLength", "pattern", "minimum", "multipleOf",
                     "uniqueItems", "minProperties", "readOnly", "writeOnly")) {
                 Object value = switch (keyword) {
@@ -56,7 +58,7 @@ public final class AItcDefsCodegenCanonicalLosslessTest {
             boolean rejected = false;
             try {
                 new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(List.of(
-                        new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS,
+                        new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS,
                                 "invalid.xsd", xml)));
             } catch (IllegalArgumentException | UnsupportedOperationException expected) {
                 rejected = true;

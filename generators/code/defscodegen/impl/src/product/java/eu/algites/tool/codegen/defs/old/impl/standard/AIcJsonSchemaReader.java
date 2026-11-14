@@ -420,8 +420,19 @@ final class AIcJsonSchemaReader {
             JsonNode locDynamic = aSchema.get("additionalProperties");
             AIcdDataType locKeyed = locDynamic != null && locDynamic.isObject()
                     ? recursiveType(locDynamic, aRequest, aVisited) : null;
+            JsonNode locMapKey = aSchema.get("x-algites-defscodegen-key");
+            if (locMapKey != null && (!locMapKey.isObject() || locMapKey.size() != 2
+                    || !locMapKey.path("id").isTextual() || locMapKey.path("id").asText().isBlank()
+                    || !locMapKey.path("field-name").isTextual()
+                    || locMapKey.path("field-name").asText().isBlank() || locKeyed == null))
+                throw new AIxCodegenValidationException(
+                        "Invalid x-algites-defscodegen-key: expected id and field-name on an additionalProperties map",
+                        "Place the two nonempty string fields on the map object, not on its value schema.");
             List<AIcdKeyDefinition> locKeys = locKeyed == null ? List.of()
-                    : List.of(new AIcdKeyDefinition("json-property-name", List.of("_getKey"), true, true));
+                    : List.of(new AIcdKeyDefinition(
+                            locMapKey == null ? "json-property-name" : locMapKey.path("id").asText(),
+                            List.of(locMapKey == null ? "_getKey" : locMapKey.path("field-name").asText()),
+                            true, true));
             return new AIcdDataType(AInDataTypeKind.OBJECT, null, locProperties, List.of(), null,
                     AIcScalarConstraints.json(aSchema, AInDataTypeKind.OBJECT),
                     locKeyed, locKeys, List.of());

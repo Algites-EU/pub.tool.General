@@ -23,7 +23,8 @@ DRAFTS = {
     'draft-06': Draft6Validator,
     'draft-07': Draft7Validator,
 }
-KEYS = ('x-algites-defscodegen-extends', 'x-algites-defscodegen-choice')
+KEYS = ('x-algites-defscodegen-extends', 'x-algites-defscodegen-choice',
+        'x-algites-defscodegen-key')
 COMMON_KEYS = ('x-algites-schema-id', 'x-algites-schema-version')
 
 
@@ -133,3 +134,21 @@ def test_legacy_dialect_retains_its_own_standard_schema_restrictions(draft):
     schema = _nested_schema()
     schema['x-algites-defscodegen-extends'] = ['#D']
     assert validator.is_valid(schema)
+
+
+@pytest.mark.parametrize('draft', DRAFTS)
+def test_legacy_key_keyword_has_required_fields_and_rejects_extras(draft):
+    validator = _validation(draft)
+    schema = {'type': 'object', 'properties': {'Map': {
+        'type': 'object',
+        'x-algites-defscodegen-key': {'id': 'UniqueRole', 'field-name': 'kind'},
+        'additionalProperties': {'type': 'string'}}}}
+    assert validator.is_valid(schema)
+    for invalid in ({'id': 'UniqueRole'}, {'field-name': 'kind'},
+                    {'id': '', 'field-name': 'kind'},
+                    {'id': 'UniqueRole', 'field-name': ''},
+                    {'id': 'UniqueRole', 'field-name': 'kind', 'unknown': 1},
+                    'invalid'):
+        bad = copy.deepcopy(schema)
+        bad['properties']['Map']['x-algites-defscodegen-key'] = invalid
+        assert not validator.is_valid(bad), (draft, invalid)

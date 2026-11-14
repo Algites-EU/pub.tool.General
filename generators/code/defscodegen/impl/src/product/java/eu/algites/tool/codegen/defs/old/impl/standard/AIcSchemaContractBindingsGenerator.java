@@ -182,7 +182,7 @@ public final class AIcSchemaContractBindingsGenerator {
         }
         /* Validate every source before writing anything when batch mode is selected. */
         var locInputValidation = new AIcCodegenValidationBatch(
-                manifest.path("codegen_validate_one_input_at_a_time_only").asBoolean(true));
+                manifest.path("codegen_validate_one_input_at_a_time_only").asBoolean(false));
         Map<String, Path> rootBySchema = new LinkedHashMap<>();
         Map<String, String> profileBySchema = new LinkedHashMap<>();
         Map<String, String> kindBySchema = new LinkedHashMap<>();
@@ -278,10 +278,13 @@ public final class AIcSchemaContractBindingsGenerator {
                                 "Correct the source schema declaration before regenerating.",
                                 source.toString(), null, locError), source.toString());
                     }
+                    // A source with a decoding/naming error has no valid model
+                    // units; report all issues discovered for it before moving on.
+                    locInputValidation.finishInput(source.toString());
                 }
             }
         }
-        locInputValidation.finish();
+        // In aggregate mode continue independent type checks on valid inputs.
         if (locExistingSourceDirectories == 0) {
             System.err.println("Defs Codegen: no configured schema input directory exists; nothing to generate");
             return List.of();
@@ -330,9 +333,9 @@ public final class AIcSchemaContractBindingsGenerator {
         Map<String, List<List<AIcdUnit>>> relations = new LinkedHashMap<>();
         Map<String, AIcdUnit> unitIndex = new LinkedHashMap<>();
         for (AIcdUnit unit : units) unitIndex.put(unit.schema + "#" + unit.pointer, unit);
-        var locUnitValidation = new AIcCodegenValidationBatch(
-                manifest.path("codegen_validate_one_input_at_a_time_only").asBoolean(true));
-        for (AIcdUnit unit : units) {
+        var locUnitValidation = locInputValidation;
+        for (int locUnitIndex = 0; locUnitIndex < units.size(); locUnitIndex++) {
+            AIcdUnit unit = units.get(locUnitIndex);
             try {
             Path source = inside(repository, unit.schema);
             String sourceKind = kindBySchema.get(unit.schema);
@@ -472,8 +475,12 @@ public final class AIcSchemaContractBindingsGenerator {
                         inside(repository, unit.schema()).toString(), unit.pointer(), locError),
                         inside(repository, unit.schema()).toString());
             }
+            if (locUnitIndex + 1 == units.size()
+                    || !units.get(locUnitIndex + 1).schema().equals(unit.schema()))
+                locUnitValidation.finishInput(inside(repository, unit.schema()).toString());
         }
         locUnitValidation.finish();
+        locUnitValidation.reportNonErrors("Defs Codegen (Java)", System.err);
         /* Resolve named XML extension bases against the complete emitted-type index.
          * A base that is not emitted cannot be represented by Java/Python inheritance:
          * silently flattening it would destroy the XSD type hierarchy. */
@@ -739,11 +746,25 @@ public final class AIcSchemaContractBindingsGenerator {
                     parentName, parentModule)) {
                 eu.algites.tool.codegen.defs.old.AIcdDefinitionReference locChoiceReference = null;
                 if (merged.sourceKind() != AInDefinitionSourceKind.XMLDEFS
-                        && merged.dataType() != null && (merged.dataType().kind() == eu.algites.tool.codegen.defs.old.AInDataTypeKind.ONE_OF
-                        || merged.dataType().kind() == eu.algites.tool.codegen.defs.old.AInDataTypeKind.ANY_OF) && locIndex > 0) {
-                    var locAlternative = merged.dataType().alternatives().get(locIndex - 1);
-                    if (locAlternative.kind() == eu.algites.tool.codegen.defs.old.AInDataTypeKind.REFERENCE)
-                        locChoiceReference = locAlternative.reference();
+                        && merged.dataType() != null && (merged.dataType().kind() == AInDataTypeKind.ONE_OF
+                        || merged.dataType().kind() == AInDataTypeKind.ANY_OF) && locIndex > 0) {
+                    // Choice source order: root, OBJECT payloads, then wrappers.
+                    // The old index-1 lookup could exceed alternatives.size() and
+                    // ignored external references owned by a payload's getter.
+                    var locObjectPayloads = merged.dataType().alternatives().stream()
+                            .filter(a -> a.kind() == AInDataTypeKind.OBJECT).toList();
+                    if (locIndex <= locObjectPayloads.size()) {
+                        var locPayload = locObjectPayloads.get(locIndex - 1);
+                        if (locPayload.properties().size() == 1)
+                            locChoiceReference = locPayload.properties().get(0).dataType().referencedDefinition();
+                    } else {
+                        int locWrapperIndex = locIndex - 1 - locObjectPayloads.size();
+                        if (locWrapperIndex < merged.dataType().alternatives().size()) {
+                            var locAlternative = merged.dataType().alternatives().get(locWrapperIndex);
+                            if (locAlternative.kind() == AInDataTypeKind.REFERENCE)
+                                locChoiceReference = locAlternative.reference();
+                        }
+                    }
                 }
                 String locSource = pair.source();
                 if (!additionalParents.isEmpty()) {
@@ -797,7 +818,11 @@ public final class AIcSchemaContractBindingsGenerator {
                         && (merged.dataType().kind() == AInDataTypeKind.OBJECT
                             || merged.dataType().kind() == AInDataTypeKind.ONE_OF
                             || merged.dataType().kind() == AInDataTypeKind.ANY_OF
-                            || merged.dataType().kind() == AInDataTypeKind.REFERENCE)
+                            || merged.dataType().kind() == AInDataTypeKind.REFERENCE
+                            // JSON/YAML additionalProperties is a nominal map-entry
+                            // contract even when the value is a scalar or list.
+                            // Preserve the common read-only parent in both languages.
+                            || merged.sourceResource().endsWith("/additionalProperties"))
                         && locIndex == 0) {
                     AIcdUnit locOrigin = unitIndex.get(first.definition().sourceResource());
                     if (locOrigin == null) locOrigin = unitIndex.get(first.definition().sourceResource() + "#");
@@ -809,7 +834,8 @@ public final class AIcSchemaContractBindingsGenerator {
                             if (targetText.equals("java")) {
                                 String locDeclaration = "public interface " + pair.typeName() + " extends ";
                                 if (merged.dataType().kind() == AInDataTypeKind.OBJECT
-                                        || merged.dataType().kind() == AInDataTypeKind.REFERENCE) {
+                                        || merged.dataType().kind() == AInDataTypeKind.REFERENCE
+                                        || merged.sourceResource().endsWith("/additionalProperties")) {
                                     locSource = locSource.replace(locDeclaration, locDeclaration
                                             + locCommon.packageName() + "." + locCommonPreview.typeName() + ", ");
                                 } else {
@@ -1203,11 +1229,19 @@ public final class AIcSchemaContractBindingsGenerator {
     private void collect(JsonNode node, String pointer, String name, String schema, JsonNode document,
                          Map<String, JsonNode> overrides, List<AIcdUnit> result,
                          AIiNameConventionCatalog sourceCatalog, String sourceProfile) {
+        collect(node, pointer, name, schema, document, overrides, result,
+                sourceCatalog, sourceProfile, true);
+    }
+
+    private void collect(JsonNode node, String pointer, String name, String schema, JsonNode document,
+                         Map<String, JsonNode> overrides, List<AIcdUnit> result,
+                         AIiNameConventionCatalog sourceCatalog, String sourceProfile,
+                         boolean includeSelf) {
         if (!node.isObject()) return;
         JsonNode override = overrides.get(schema + "#" + pointer);
         if (override != null && override.path("common_one_of_fields").asBoolean())
             throw new AIxCodegenValidationException("common_one_of_fields is obsolete: declare shared properties directly", "Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.");
-        if (pointer.isEmpty() || pointer.endsWith("/additionalProperties") || node.path("type").asText().equals("object") || node.has("properties") || node.has("enum") || node.has("x-algites-defscodegen-choice")) {
+        if (includeSelf && (pointer.isEmpty() || pointer.endsWith("/additionalProperties") || node.path("type").asText().equals("object") || node.has("properties") || node.has("enum") || node.has("x-algites-defscodegen-choice"))) {
             result.add(new AIcdUnit(schema, pointer, override == null ? name : override.required("name").asText(), node, document));
         }
         /* Visit schema-bearing keywords; examples, defaults and documentation are not definitions. */
@@ -1220,7 +1254,8 @@ public final class AIcSchemaContractBindingsGenerator {
                         ? AIcDeclaredTypeIdentity.canonicalTypeIdentifier(sourceCatalog, sourceProfile, entry.getKey())
                         : name + (map.equals("patternProperties") ? "-pattern-" : "-") + kebab(entry.getKey());
                 collect(entry.getValue(), pointer + "/" + map + "/" + token, childName,
-                        schema, document, overrides, result, sourceCatalog, sourceProfile);
+                        schema, document, overrides, result, sourceCatalog, sourceProfile,
+                        !(map.equals("properties") && node.path("x-algites-defscodegen-choice").asBoolean(false)));
             }
         }
         for (String single : List.of("items", "additionalProperties")) {

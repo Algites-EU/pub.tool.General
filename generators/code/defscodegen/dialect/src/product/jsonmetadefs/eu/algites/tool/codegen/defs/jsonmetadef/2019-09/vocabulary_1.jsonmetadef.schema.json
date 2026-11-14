@@ -21,6 +21,27 @@
     "x-algites-defscodegen-choice": {
       "const": true,
       "description": "Explicit Defs Codegen exclusive choice over sibling properties; minProperties=1, maxProperties=1 and additionalProperties=false ensure standard JSON validation where supported. May only appear in structural schema positions."
+    },
+    "x-algites-defscodegen-key": {
+      "type": "object",
+      "description": "Semantic identity constraint of a JSON/YAML additionalProperties map, scoped to the owning collection; id matches xs:key/@name, field-name matches the logical key field selected by xs:field. Does not change serialized property names.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable list-local identity constraint ID, matching xs:key/@name."
+        },
+        "field-name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Logical name of the virtual map-key getter field, overriding multi_mapped_list_key_synthetic_getter."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "field-name"
+      ]
     }
   },
   "if": {

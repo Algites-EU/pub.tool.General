@@ -11,15 +11,15 @@ import re
 from types import MappingProxyType
 from typing import Any, Mapping
 
-COMMON_ROLES = frozenset(('standard_getter', 'standard_setter',
+COMMON_ROLES = frozenset(('standard_getter', 'standard_setter', 'list_getter',
     'multi_mapped_list_key_synthetic_getter',
     'multi_mapped_list_value_synthetic_getter',
     'positional_item_synthetic_getter', 'const_container_interface'))
-DEFS_ROLES = frozenset(('synthetic_property_type', 'synthetic_list_item_type',
+DEFS_ROLES = frozenset(('synthetic_property_type', 'synthetic_inline_enum_type', 'synthetic_list_item_type',
     'synthetic_map_value_type', 'synthetic_positional_item_type',
     'synthetic_choice_variant_type', 'synthetic_group_type',
     'string_enum_item', 'non_string_enum_item'))
-SDO_ROLES = frozenset(('raw_getter', 'raw_presence_checker_method', 'raw_unsetter'))
+SDO_ROLES = frozenset(('raw_getter', 'raw_presence_checker_method', 'raw_unsetter', 'raw_empty_setter', 'raw_empty_checker_method'))
 METADATA_ROLES = frozenset(('schema_source_schema_url', 'schema_source_schema_identifier',
     'schema_source_schema_version', 'data_source_schema_url',
     'data_source_schema_identifier', 'data_source_schema_version'))
@@ -115,6 +115,21 @@ class AIcdCodegenNamingProfile:
                                                       variables, visited | {target}))
                 continue
             value = segment['NameFragmentsSegmentValue']
+            if 'Content' in value:
+                if set(value) != {'Kind', 'Content'}:
+                    raise ValueError('Inline naming segment requires Kind and Content')
+                content = value['Content']
+                if not isinstance(content, Mapping) or len(content) != 1:
+                    raise ValueError('Inline naming Content requires exactly one alternative')
+                variant, selected = next(iter(content.items()))
+                if variant == 'NameRegexp':
+                    if not isinstance(selected, Mapping) or set(selected) != {'Name', 'Regexp'}:
+                        raise ValueError('NameRegexp must contain Name and Regexp')
+                    value = {'Kind': value['Kind'], **selected}
+                elif variant in {'Value', 'Convention', 'CustomConventionRegexp'}:
+                    value = {'Kind': value['Kind'], variant: selected}
+                else:
+                    raise ValueError(f'Unsupported naming Content alternative {variant}')
             kind = value['Kind']
             if kind == 'constant_string':
                 rendered.append(value['Value'])
@@ -156,6 +171,40 @@ class AIcdCodegenNamingProfile:
         return self.method_name(role, identifier, **variables)
 
 
+
+def _catalog_entries(value: Mapping[str, Any], singular: str, field: str, path: str) -> dict[str, Any]:
+    """Convert serialized named arrays into indexed runtime entries, rejecting duplicates."""
+    if not isinstance(value, Mapping):
+        raise ValueError(f'{path}: expected mapping')
+    if singular not in value:
+        return dict(value)  # Allow already indexed in-memory callers.
+    if len(value) != 1 or not isinstance(value[singular], list):
+        raise ValueError(f'{path}/{singular}: expected array')
+    result = {}
+    for index, item in enumerate(value[singular]):
+        location = f'{path}/{singular}[{index}]'
+        if not isinstance(item, Mapping) or not isinstance(item.get(field), str) or not item[field]:
+            raise ValueError(f'{location}: missing {field}')
+        if item[field] in result:
+            raise ValueError(f'{location}: duplicate {field} {item[field]!r}')
+        result[item[field]] = {k: v for k, v in item.items() if k != field}
+    return result
+
+
+def _profile_roles(profile: Mapping[str, Any], collection: str, location: str) -> dict[str, str]:
+    named = _catalog_entries(profile.get(collection, {}), 'Rule', 'kind', location+'/'+collection)
+    roles = {}
+    for kind, item in named.items():
+        if isinstance(item, Mapping):
+            if set(item) != {'Value'} or not isinstance(item['Value'], str):
+                raise ValueError(f'{location}/{collection}/{kind}: expected string Value')
+            roles[kind] = item['Value']
+        elif isinstance(item, str):
+            roles[kind] = item
+        else:
+            raise ValueError(f'{location}/{collection}/{kind}: invalid value')
+    return roles
+
 def resolve_codegen_naming_profiles(common_doc: Mapping, common_id: str,
                                     defs_doc: Mapping | None = None, defs_id: str | None = None,
                                     sdo_doc: Mapping | None = None, sdo_id: str | None = None
@@ -175,21 +224,21 @@ def resolve_codegen_naming_profiles(common_doc: Mapping, common_id: str,
     compositions: dict[str, Mapping] = {}
     starting_from = 1
     for domain, doc, profile_id in documents:
-        profiles = doc[ROOTS[domain]]['NameConventions']
+        profiles = _catalog_entries(doc[ROOTS[domain]]['NameConventions'], 'NameConvention', 'name', domain+'/NameConventions')
         if not profile_id or profile_id not in profiles:
             raise ValueError(f'Missing {domain} naming profile {profile_id!r}')
         profile = profiles[profile_id]
         if domain != 'common' and profile.get('CommonNamingConvention') != common_id:
             raise ValueError(f'{domain} must reference existing common profile {common_id!r}')
-        mapping = profile['StructureNaming']
+        mapping = _profile_roles(profile, 'StructureNaming', domain+'/'+profile_id)
         if not isinstance(mapping, dict) or set(mapping) - DOMAINS[domain]:
             raise ValueError(f'Unknown or foreign {domain} naming roles: {set(mapping) - DOMAINS[domain]}')
         if any(not isinstance(value, str) or not value for value in mapping.values()):
             raise ValueError(f'Empty {domain} naming composition identifier')
         if domain == 'common':
-            if not {'standard_getter', 'standard_setter'} <= set(mapping):
-                raise ValueError('Common getter and setter roles are required')
-            source_meta = profile.get('SchemaMetadataNaming') or {}
+            if not {'standard_getter', 'standard_setter', 'list_getter'} <= set(mapping):
+                raise ValueError('Common getter, setter and list getter roles are required')
+            source_meta = _profile_roles(profile, 'SchemaMetadataNaming', domain+'/'+profile_id)
             if set(source_meta) - METADATA_ROLES:
                 raise ValueError('Unknown schema metadata role')
             for suffix in ('url', 'identifier', 'version'):
@@ -199,7 +248,7 @@ def resolve_codegen_naming_profiles(common_doc: Mapping, common_id: str,
             starting_from = profile.get('IndexesStartingFrom', 1)
             if isinstance(starting_from, bool) or not isinstance(starting_from, int) or starting_from < 0:
                 raise ValueError('IndexesStartingFrom must be a non-negative integer')
-        for name, composition in doc.get('NameCompositions', {}).items():
+        for name, composition in _catalog_entries(doc.get('NameCompositions', {}), 'NameComposition', 'name', domain+'/NameCompositions').items():
             if name in compositions and compositions[name] != composition:
                 raise ValueError(f'Conflicting composition {name!r}')
             compositions[name] = composition
@@ -232,7 +281,7 @@ def with_external_sourcecode_conventions(
     from dataclasses import replace
     compositions = dict(profile.name_compositions)
     for domain in ('NameFragments', 'NameCompositions'):
-        group = source_document.get(domain, {})
+        group = _catalog_entries(source_document.get(domain, {}), 'NameFragment' if domain == 'NameFragments' else 'NameComposition', 'name', domain)
         if not isinstance(group, Mapping):
             raise ValueError(f'Invalid source-code naming catalog {domain}')
         for identifier, definition in group.items():

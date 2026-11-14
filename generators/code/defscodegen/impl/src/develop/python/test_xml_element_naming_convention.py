@@ -10,6 +10,7 @@ from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeG
 from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.old.ain_defs_name_role import AInDefsNameRole
 from eu.algites.tool.codegen.defs.old.impl.standard.aic_selected_naming_catalog import AIcSelectedNamingCatalog
+from explicit_legacy_naming import catalog as source_catalog, configured_load
 from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_element_contract_generator import AIcXmlElementContractGenerator
 
@@ -35,13 +36,16 @@ def test_xml_element_records_its_own_naming_convention(tmp_path: Path):
             AInDefsNameRole.XML_ELEMENT_INTERFACE_TYPE_FILE_STEM: element_id,
         })
         frontend = AIcXmlDefsFrontend()
-        definition = frontend.load(AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS, profile))
-        declaration = frontend.global_element_declarations(
-            AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS, profile))[0]
+        # Schema parsing uses the explicitly supplied XML source catalogue;
+        # selected output roles are used only when rendering the contract.
+        load_request = configured_load(source, AInDefinitionSourceKind.XMLDEFS,
+            source_catalog(language))
+        definition = frontend.load(load_request)
+        declaration = frontend.global_element_declarations(load_request)[0]
         request = AIcdCodeGenerationRequest(definition,
             AInCodeGenerationTarget.JAVA if language == 'java' else AInCodeGenerationTarget.PYTHON,
             'example.invoice', profile, frontend.root_type_qname(
-                AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.XMLDEFS, profile)),
+                load_request),
             type_id, 'xmldefs_type')
         generated = AIcXmlElementContractGenerator().generate(
             request, declaration, {declaration.type_qname: 'example.invoice.AIig_xInvoiceType_1'}, {})

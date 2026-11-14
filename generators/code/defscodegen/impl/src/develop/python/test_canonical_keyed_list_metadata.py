@@ -15,14 +15,14 @@ for folder in ('generators/code/defscodegen/intf/src/product/python',
     sys.path.insert(0, str(ROOT / folder))
 
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIcgd_jKeyDefinition_1 as Key,
-    AIcgd_jList_1 as Collection,
-    AIcgd_jType_1 as Type,
-    AIcgd_jScalar_1 as Scalar,
-    AIcgd_jElementList_1 as Group,
-    AIigTypeOrigin_1 as Origin,
-    AIigComposition_1 as Composition,
-    AIigScalarKind_1 as ScalarKind,
+    AIcgdKeyDefinition_1 as Key,
+    AIcgdList_1 as Collection,
+    AIcgdType_1 as Type,
+    AIcgdScalar_1 as Scalar,
+    AIcgdElementList_1 as Group,
+    AIngTypeOrigin_1 as Origin,
+    AIngComposition_1 as Composition,
+    AIngScalarKind_1 as ScalarKind,
     normalize_structure,
 )
 from eu.algites.tool.codegen.defs.impl.standard.canonical_contract_payload import (
@@ -68,7 +68,7 @@ def test_keyed_list_preserves_multiple_field_paths_through_link_and_payload():
     assert keys[1].required is False
     payload = Payload.emit((normalized,))
     jsonschema.Draft202012Validator(json.loads(SCHEMA_PATH.read_text())).validate(payload)
-    exported = payload['types'][0]['structure']['ElementList']['children'][0]['List']['key_definitions']
+    exported = payload['types'][0]['content']['structure']['ElementList']['children'][0]['List']['key_definitions']
     assert exported[0]['fields'] == ['@department', 'personal/code']
     assert exported[0]['required'] is True
     assert exported[1]['fields'] == ['@alias']

@@ -7,12 +7,15 @@
 	<xs:simpleType name="GeneratedDataobjectStructureKind">
 		<xs:restriction base="xs:string">
 			<xs:enumeration value="standard_getter"/>
+            <xs:enumeration value="list_getter"><xs:annotation><xs:documentation>Configured getter for repeated fields, e.g. getRuleList.</xs:documentation></xs:annotation></xs:enumeration>
 			<xs:enumeration value="standard_setter"/>
 			<xs:enumeration value="raw_getter"/>
 			<xs:enumeration value="raw_presence_checker_method"/>
 			<xs:enumeration value="raw_unsetter"/>
 			<xs:enumeration value="multi_mapped_list_key_synthetic_getter"/>
 			<xs:enumeration value="multi_mapped_list_value_synthetic_getter"/>
-		</xs:restriction>
+		      <xs:enumeration value="raw_empty_setter"><xs:annotation><xs:documentation>Optional explicit-empty SDO method; generated only for empty-capable fields.</xs:documentation></xs:annotation></xs:enumeration>
+      <xs:enumeration value="raw_empty_checker_method"><xs:annotation><xs:documentation>Optional explicit-empty SDO method; generated only for empty-capable fields.</xs:documentation></xs:annotation></xs:enumeration>
+    </xs:restriction>
 	</xs:simpleType>
 </xs:schema>

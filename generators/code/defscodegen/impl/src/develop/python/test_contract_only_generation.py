@@ -1,4 +1,5 @@
 from explicit_naming_fixture import explicit_algites_manifest
+from explicit_legacy_naming import catalog
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 """Schemas generate annotated Java/Python contracts only; SDO has separate ownership."""
 import json
@@ -44,6 +45,36 @@ def test_contract_only_repository_two_technologies(tmp_path):
     (tmp_path/'intf/src/product/python.gen/example/contracts/aiig_example_1.py').unlink()
     with pytest.raises(ValueError, match='outdated'):
         generator.generate_repository(tmp_path, _explicit(manifest), check=True)
+
+
+def test_common_role_has_no_format_marker_and_json_role_has_one(tmp_path):
+    """Neutral contracts must remain eligible for SDO's common naming role.
+
+    JSON contracts keep their format annotation, but it must never leak into
+    the shared DataObject merely because JSON supplied the first-stage schema.
+    Validate both emitters; the SDO CLI's naming checks are intentionally
+    unchanged.
+    """
+    manifest = _fixture(tmp_path)
+    AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _explicit(manifest))
+    package = Path('example/contracts')
+    sources = tmp_path / 'intf/src/product'
+    common_java = (sources / 'java.gen' / package / 'AIigExample_1.java').read_text()
+    json_java = (sources / 'java.gen' / package / 'AIig_jExample_1.java').read_text()
+    common_py = (sources / 'python.gen' / package / 'aiig_example_1.py').read_text()
+    json_py = (sources / 'python.gen' / package / 'aiig__j_example_1.py').read_text()
+    assert 'extends eu.algites.lib.data.dataobject.AIiDataObject' in common_java
+    assert 'extends eu.algites.tool.codegen.defs.model.AIigExample_1' not in common_java
+    assert '@eu.algites.lib.data.dataobject.jsondefs.AIaJsonDataObject' not in common_java
+    assert 'schemaId = ' not in common_java.split('public interface', 1)[0]
+    assert 'extends eu.algites.lib.data.dataobject.jsondefs.AIiJsonDataObject' in json_java or 'AIigExample_1' in json_java
+    assert '@eu.algites.lib.data.dataobject.AIaDataObject(' in json_java
+    assert 'schemaId = ' in json_java.split('public interface', 1)[0]
+    assert '__json_data_object__' not in common_py
+    assert 'schema_id=' not in common_py
+    assert '__data_object__' in common_py
+    assert 'schema_id=' in json_py
+    assert 'AIiJsonDataObject' in json_py
 
 
 def test_contract_stale_ownership(tmp_path):
@@ -181,7 +212,7 @@ def test_xsd_root_attribute_becomes_canonical_field(tmp_path):
     from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
     path = root/'sample_1.xsd'
     contract = AIcXmlDefsFrontend().load(AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-        AIcAlgitesNamingProfiles.python_profile()))
+        catalog('python'), 'algites-xmldef-schema-versioned_1'))
     assert [(p.source_name, (p.presence is AInFieldPresenceKind.REQUIRED)) for p in contract.data_type.properties] == [('Value', True), ('Code', True)]
 
 
@@ -194,7 +225,9 @@ def test_json_yaml_inheritance_merge_keeps_one_parent(tmp_path):
             '$id':'urn:parent:1', 'type':'object',
             'properties':{'Name':{'type':'string'}}, 'required':['Name']}))
         (root/f'child_1.{suffix}').write_text(json.dumps({
-            '$id':'urn:child:1', 'allOf':[{'$ref':parent},
+            '$id':'urn:child:1', 'type': 'object',
+                'x-algites-defscodegen-extends': [parent],
+                'allOf':[{'$ref':parent},
                 {'type':'object','properties':{'Count':{'type':'integer'}}}]}))
     manifest=tmp_path/'bindings.json'
     manifest.write_text(json.dumps({'artifact':'intf','languages':['java','python']}))
@@ -210,7 +243,7 @@ def test_json_yaml_inheritance_merge_keeps_one_parent(tmp_path):
 
 def test_repository_manifest_xsd_import_graph_and_enums(tmp_path):
     import shutil
-    fixture = Path(__file__).resolve().parents[1] / 'xmldefs'
+    fixture = Path(__file__).resolve().parents[1] / 'examples' / 'xmldefs'
     target = tmp_path / 'intf/src/product/xmldefs/example/contracts'
     shutil.copytree(fixture, target)
     # The fixture intentionally reuses the local element name Value across
@@ -227,8 +260,8 @@ def test_repository_manifest_xsd_import_graph_and_enums(tmp_path):
     generator = AIcSchemaContractBindingsGenerator()
     result = generator.generate_repository(tmp_path,_explicit(manifest))
     # Additional named XSD simple types are now emitted independently, not discarded.
-    assert len(result) == 44  # independently configured common and XML role outputs
-    assert {'AIigParityRoot_1','AIigParityChild_1','AIigParityLeaf_1',
+    assert len(result) == 52  # common and XML-specific outputs, including independently emitted named types
+    assert {'AIigParitySupported_1','AIigParityChild_1','AIigParityLeaf_1',
             'AIngParityStatus_1', 'AIngNotationValue_1'} <= {
         row['type'] for row in result}
     assert not (tmp_path/'impl').exists()
@@ -244,7 +277,9 @@ def test_two_allof_contract_parents_preserve_both_inheritance_paths(tmp_path):
         'type': 'object', 'properties': {'SchemaId': {'type': 'string'}},
         'required': ['SchemaId']}))
     (base / 'document_1.yamldef.schema.json').write_text(json.dumps({
-        '$id': 'urn:example:document:1',
+        '$id': 'urn:example:document:1', 'type': 'object',
+        'x-algites-defscodegen-extends': [
+            'https://example.org/metadata_1.yamldef.schema.json', '#/$defs/DocumentContent'],
         '$defs': {'DocumentContent': {'type': 'object',
             'properties': {'Name': {'type': 'string'}}, 'required': ['Name']}},
         'allOf': [
@@ -258,8 +293,8 @@ def test_two_allof_contract_parents_preserve_both_inheritance_paths(tmp_path):
     assert result
     java = (tmp_path / 'intf/src/product/java.gen/example/contracts/AIigDocument_1.java').read_text()
     python = (tmp_path / 'intf/src/product/python.gen/example/contracts/aiig_document_1.py').read_text()
-    assert 'extends example.contracts.AIigMetadata_1, example.contracts.AIigDocumentDefinitionDocumentContent_1' in java
-    assert 'class AIigDocument_1(AIigMetadata_1, AIigDocumentDefinitionDocumentContent_1):' in python
+    assert 'extends example.contracts.AIigMetadata_1, example.contracts.AIigDocumentContent_1' in java
+    assert 'class AIigDocument_1(AIigMetadata_1, AIigDocumentContent_1):' in python
     assert 'getSchemaId()' not in java and 'getName()' not in java
     assert 'def getSchemaId' not in python and 'def getName' not in python
     AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _explicit(manifest), check=True)
@@ -278,7 +313,7 @@ def test_user_defined_getter_composition_reaches_generated_java_and_python(tmp_p
         source = f'algites-{language}-name-conventions.yml'
         with expand_naming_catalogs([f'resource:{source}']) as files:
             config = yaml.safe_load(Path(files[0]).read_text())
-        config['NameCompositions'][f'{language}-getter-method-name_1']['Segments'][0]['Value'] = 'read'
+        config['NameCompositions'][f'{language}-getter-method-name_1']['Segments'][0]['NameFragmentsSegmentValue']['Value'] = 'read'
         (catalog_dir / source).write_text(yaml.safe_dump(config))
     manifest = _fixture(tmp_path)
     document = explicit_algites_manifest(json.loads(manifest.read_text()))
@@ -329,7 +364,7 @@ def test_external_explicit_parent_diagnostic_identifies_child_file_and_pointer(t
     }))
     with pytest.raises(AIxCodegenValidationException) as failure:
         AIcSchemaContractBindingsGenerator().generate_repository(tmp_path, _explicit(manifest))
-    diagnostic = format_diagnostic(failure.value, generator='Bootstrap Codegen')
+    diagnostic = format_diagnostic(failure.value, generator='Defs Codegen')
     assert f'Source: {schema}' in diagnostic
     assert 'Location: /x-algites-defscodegen-extends/0' in diagnostic
     assert parent in diagnostic

@@ -2,35 +2,71 @@
 # New shared/specialized codegen naming profile. Legacy .old profiles are unchanged.
 $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/sdo/naming/sdocodegen-naming-conventions_1.yamldef.schema.json
 NameCompositions:
-  standardpostfix-python-raw_getter_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _getRaw_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standardpostfix-python-raw_presence_checker_method_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _isPresent_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standardpostfix-python-raw_unsetter_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _unset_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
+  NameComposition:
+    - name: standardpostfix-python-raw_getter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _getRaw_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-python-raw_presence_checker_method_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _isPresent_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-python-raw_unsetter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _unset_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-python-raw_empty_setter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _setEmpty_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-python-raw_empty_checker_method_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _isEmpty_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
 SdoCodegenNameConventions:
   NameConventions:
-    standardpostfix-python-sdocodegen-standard_1:
-      CommonNamingConvention: standardpostfix-python-codegen-common_1
-      StructureNaming:
-        raw_getter: standardpostfix-python-raw_getter_1
-        raw_presence_checker_method: standardpostfix-python-raw_presence_checker_method_1
-        raw_unsetter: standardpostfix-python-raw_unsetter_1
+    NameConvention:
+      - name: standardpostfix-python-sdocodegen-standard_1
+        CommonNamingConvention: standardpostfix-python-codegen-common_1
+        StructureNaming:
+          Rule:
+            - kind: raw_getter
+              Value: standardpostfix-python-raw_getter_1
+            - kind: raw_presence_checker_method
+              Value: standardpostfix-python-raw_presence_checker_method_1
+            - kind: raw_unsetter
+              Value: standardpostfix-python-raw_unsetter_1
+            - kind: raw_empty_checker_method
+              Value: standardpostfix-python-raw_empty_checker_method_1
+            - kind: raw_empty_setter
+              Value: standardpostfix-python-raw_empty_setter_1

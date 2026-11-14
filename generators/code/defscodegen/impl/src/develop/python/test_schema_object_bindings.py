@@ -22,7 +22,7 @@ from generator_implementation_parity import create_fixture
 def test_native_read_contract_without_dto(target, kind, suffix):
     profile = (AIcAlgitesNamingProfiles.python_profile() if target is AInCodeGenerationTarget.PYTHON
         else AIcAlgitesNamingProfiles.java_profile())
-    source = Path(__file__).parents[1] / kind.value / f'parity-child_1.{suffix}'
+    source = Path(__file__).parents[1] / 'examples' / kind.value / f'parity-child_1.{suffix}'
     model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(source, kind, profile))
     output = AIcSchemaContractInterfaceGenerator().generate(
         AIcdCodeGenerationRequest(model, target, 'example.contracts', profile))
@@ -39,7 +39,7 @@ def test_native_read_contract_without_dto(target, kind, suffix):
 def test_enums_share_a_single_native_source(target):
     profile = (AIcAlgitesNamingProfiles.python_profile() if target is AInCodeGenerationTarget.PYTHON
         else AIcAlgitesNamingProfiles.java_profile())
-    source = Path(__file__).parents[1] / 'jsondefs/parity-status_1.jsondef.schema.json'
+    source = Path(__file__).parents[1] / 'examples/jsondefs/parity-status_1.jsondef.schema.json'
     request = AIcdCodeGenerationRequest(AIcDefaultDefsCodegenService().load(
         AIcdDefinitionLoadRequest(source, AInDefinitionSourceKind.JSONDEFS, profile)),
         target, 'example.contracts', profile)
@@ -76,3 +76,26 @@ def test_canonical_references_ignore_transient_build_copies(tmp_path,kind,suffix
     schema.write_text('{"type":"object","properties":{"leaf":{"$ref":"urn:tests:owned-leaf:1"}}}')
     model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(schema,kind,AIcAlgitesNamingProfiles.python_profile()))
     assert model.data_type.properties[0].data_type.referenced_definition().logical_name == 'leaf'
+
+
+def test_cross_format_examples_are_not_bootstrap_schema_inputs():
+    """Only explicitly loaded examples may contain test-only schema fixtures."""
+    develop = Path(__file__).resolve().parents[1]
+    examples = develop / 'examples'
+    for kind, suffix in (('jsondefs', 'jsondef.schema.json'),
+                         ('yamldefs', 'yamldef.schema.json'),
+                         ('xmldefs', 'xsd')):
+        # The generic bootstrap selects src/develop/<kind> as a generation root.
+        # An empty bootstrap directory is harmless; only schema inputs
+        # under that root would cause the examples to enter code generation.
+        assert not list((develop / kind).rglob(f'*.{suffix}'))
+        folder = examples / kind
+        expected = ('parity-child', 'parity-leaf', 'parity-status',
+                    'parity-supported', 'parity-supported-builtins')
+        for stem in expected:
+            assert (folder / f'{stem}_1.{suffix}').is_file()
+        if kind != 'xmldefs':
+            assert (folder / f'document-common-metadata_1.{suffix}').is_file()
+    # Keep the negative xs:anyType fixtures separate from the positive set.
+    assert (examples / 'parity-root/xmldefs/parity-root_1.xsd').is_file()
+    assert (examples / 'parity-builtins/xmldefs/parity-builtins_1.xsd').is_file()

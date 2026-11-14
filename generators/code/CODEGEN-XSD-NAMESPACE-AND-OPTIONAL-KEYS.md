@@ -57,7 +57,7 @@ may remove the missing-key group just like any other group. Their indexes
 remain atomic on failed mutations. No sentinel object or per-key-type special
 resolver is necessary, and no `Id`-specific behavior exists.
 
-For named generated XML methods, the `AIaXmlKeyDefinition` metadata provides a
+For named generated XML methods, the `AIaKeyDefinition` metadata provides a
 `required` boolean. The canonical `AIcdKeyDefinition` preserves the same bit,
 and Java/Python XML readers set the runtime `AIcKeyDefinition.required` flag.
 The old required-only constructor remains valid and defaults to `true`.

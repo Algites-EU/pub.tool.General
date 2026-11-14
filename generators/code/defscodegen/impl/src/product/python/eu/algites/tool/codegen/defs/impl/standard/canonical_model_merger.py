@@ -11,10 +11,10 @@ from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import
 from collections.abc import Iterable
 
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIcgd_jType_1 as TypeNode, AIcgd_jElementList_1 as ElementList,
-    AIcgd_jElement_1 as Element, AIcgd_jList_1 as ListNode,
-    AIcgd_jMap_1 as MapNode, AIcgd_jScalar_1 as Scalar,
-    AIcgd_jEnum_1 as EnumNode, AIigTypeOrigin_1 as Origin,
+    AIcgdType_1 as TypeNode, AIcgdElementList_1 as ElementList,
+    AIcgdElement_1 as Element, AIcgdList_1 as ListNode,
+    AIcgdMap_1 as MapNode, AIcgdScalar_1 as Scalar,
+    AIcgdEnum_1 as EnumNode, AIngTypeOrigin_1 as Origin,
     merge_bindings,
 )
 
@@ -35,8 +35,17 @@ class AIcDefsCodegenCanonicalModelMerger:
             if not isinstance(root, TypeNode) or root.target_identity:
                 raise ValueError('Canonical source declarations must be unlinked TYPE roots')
             if root.identity in result:
-                result[root.identity] = _combine(result[root.identity], root, root.identity,
-                                                 same_declared_identity=True)
+                previous = result[root.identity]
+                try:
+                    result[root.identity] = _combine(previous, root, root.identity,
+                                                     same_declared_identity=True)
+                except ValueError as exc:
+                    def provenance(node):
+                        return ', '.join(f'{binding.source_resource}{binding.source_pointer}'
+                                         for bindings in node.source_bindings.values()
+                                         for binding in bindings)
+                    raise ValueError(f'{exc} [sources: {provenance(previous)}; '
+                                     f'{provenance(root)}]') from exc
             else:
                 result[root.identity] = root
         return tuple(result.values())
@@ -69,13 +78,15 @@ def _combine(left, right, path: str, *, same_declared_identity=False):
                        description=left.description or right.description)
     if isinstance(left, ElementList):
         if (left.composition != right.composition or len(left.children) != len(right.children)
-                or left.min_occurs != right.min_occurs or left.max_occurs != right.max_occurs):
+                or left.min_item_count != right.min_item_count or left.max_item_count != right.max_item_count
+                or left.min_properties != right.min_properties
+                or left.max_properties != right.max_properties):
             conflict('group composition or child count differs')
         return replace(left, children=tuple(_combine(a, b, path + f'/children/{i}')
                                             for i, (a, b) in enumerate(zip(left.children, right.children))))
     if isinstance(left, Element):
         if (left.name != right.name or left.key_definitions != right.key_definitions
-                or left.min_occurs != right.min_occurs or left.max_occurs != right.max_occurs
+                or left.min_item_count != right.min_item_count or left.max_item_count != right.max_item_count
                 or (left.xml_wire is not None and right.xml_wire is not None
                     and left.xml_wire != right.xml_wire)
                 or (left.description and right.description and left.description != right.description)):
@@ -85,8 +96,9 @@ def _combine(left, right, path: str, *, same_declared_identity=False):
                        description=left.description or right.description,
                        xml_wire=left.xml_wire or right.xml_wire)
     if isinstance(left, ListNode):
-        if (left.name != right.name or left.min_occurs != right.min_occurs
-                or left.max_occurs != right.max_occurs
+        if (left.name != right.name or left.min_item_count != right.min_item_count
+                or left.max_item_count != right.max_item_count
+                or left.unique_items != right.unique_items
                 or left.key_definitions != right.key_definitions
                 or (left.xml_wire is not None and right.xml_wire is not None
                     and left.xml_wire != right.xml_wire)):

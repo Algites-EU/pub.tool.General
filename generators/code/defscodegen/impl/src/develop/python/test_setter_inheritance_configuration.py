@@ -120,3 +120,17 @@ def test_packaged_and_direct_sys_path_settings_accumulate(monkeypatch, tmp_path)
     values = AIcDefsCodegenCli._expand_settings([])
     assert '--naming-conventions-file:packaged=classpath:package-only.yml' in values
     assert '--naming-conventions-file:direct=classpath:direct-only.yml' in values
+
+
+@pytest.fixture(autouse=True)
+def _isolate_alternative_profiles(monkeypatch):
+    """Use the selected Algites naming profile, not alternative package variants."""
+    import sys
+    from pathlib import Path
+    profile_dir = str(Path(__file__).resolve().parents[5] / 'profile')
+    monkeypatch.setattr(sys, 'path', [
+        item for item in sys.path if not (
+            str(item).startswith(profile_dir)
+            and ('standardprefix' in str(item) or 'standardpostfix' in str(item))
+        )
+    ])

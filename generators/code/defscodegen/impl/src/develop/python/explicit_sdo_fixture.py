@@ -1,7 +1,7 @@
 """Generated Python SmartDataObject types are independent of schema formats."""
 from pathlib import Path
 
-from eu.algites.tool.codegen.sdo.old.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
 
 
 class AItcConfiguredSdoGenerator:

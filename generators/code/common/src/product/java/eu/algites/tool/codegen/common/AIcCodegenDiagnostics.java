@@ -1,6 +1,10 @@
 package eu.algites.tool.codegen.common;
 
 import java.io.PrintStream;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Plain-text reporting of explicitly hinted validation exceptions raised by
@@ -25,15 +29,7 @@ public final class AIcCodegenDiagnostics {
         while (batch != null && !(batch instanceof AIxCodegenBatchValidationException))
             batch = batch.getCause();
         if (batch instanceof AIxCodegenBatchValidationException report) {
-            output.println("\n  VALIDATION ERRORS - " + generator + ": " + report.issues().size() + " issue(s)");
-            int index = 0;
-            for (AIxCodegenValidationException issue : report.issues()) {
-                output.println("\n  [" + (++index) + "/" + report.issues().size() + "] " + issue.getMessage());
-                if (issue.getSource() != null) output.println("  Source: " + issue.getSource());
-                if (issue.getLocation() != null) output.println("  Location: " + issue.getLocation());
-                output.println("  Hint: " + issue.getHint());
-            }
-            output.println();
+            reportDiagnostics(report.diagnostics(), generator, output);
             return true;
         }
         Throwable current = error;
@@ -54,6 +50,70 @@ public final class AIcCodegenDiagnostics {
         String debug = System.getenv("ALGITES_CODEGEN_DEBUG");
         if ("1".equals(debug) || "true".equalsIgnoreCase(debug)) error.printStackTrace(output);
         return true;
+    }
+
+    /**
+     * Write collected diagnostics in severity order, with counters local to each
+     * section and to each source file. Debug is suppressed unless explicitly enabled.
+     * Unknown sources are not grouped together as a fictitious common file.
+     *
+     * @param diagnostics possibly empty structured messages from one generator run
+     * @param generator generator name for the header
+     * @param output stream receiving the text
+     * @return true when at least one visible message was printed
+     * @throws NullPointerException if diagnostics or output is null
+     */
+    public static boolean reportDiagnostics(List<AIcdCodegenDiagnostic> diagnostics,
+            String generator, PrintStream output) {
+        java.util.Objects.requireNonNull(diagnostics, "diagnostics");
+        java.util.Objects.requireNonNull(output, "output");
+        boolean printed = false;
+        for (AInCodegenDiagnosticSeverity level : AInCodegenDiagnosticSeverity.values()) {
+            if (level == AInCodegenDiagnosticSeverity.DEBUG && !debugEnabled()) continue;
+            List<AIcdCodegenDiagnostic> issues = new ArrayList<>();
+            for (AIcdCodegenDiagnostic issue : diagnostics)
+                if (issue.severity() == level) issues.add(issue);
+            if (issues.isEmpty()) continue;
+            printed = true;
+            String title = switch (level) {
+                case DEBUG -> "DEBUG";
+                case INFO -> "INFO";
+                case WARNING -> "VALIDATION WARNINGS";
+                case ERROR -> "VALIDATION ERRORS";
+            };
+            String unit = level == AInCodegenDiagnosticSeverity.DEBUG
+                    || level == AInCodegenDiagnosticSeverity.INFO ? "message(s)" : "issue(s)";
+            output.println("\n  " + title + " - " + generator + ": " + issues.size() + " " + unit);
+            Map<String, Integer> totalBySource = new HashMap<>();
+            for (AIcdCodegenDiagnostic issue : issues)
+                if (issue.source() != null && !issue.source().isBlank())
+                    totalBySource.merge(issue.source(), 1, Integer::sum);
+            Map<String, Integer> seenBySource = new HashMap<>();
+            int index = 0;
+            for (AIcdCodegenDiagnostic issue : issues) {
+                int position = 1;
+                int sourceTotal = 1;
+                if (issue.source() != null && !issue.source().isBlank()) {
+                    position = seenBySource.merge(issue.source(), 1, Integer::sum);
+                    sourceTotal = totalBySource.get(issue.source());
+                }
+                output.println("\n  [" + (++index) + "/" + issues.size() + "] (" + position
+                        + "/" + sourceTotal + ") " + issue.message());
+                if (issue.source() != null) output.println("  Source: " + issue.source());
+                if (issue.location() != null) output.println("  Location: " + issue.location());
+                if (issue.hint() != null && !issue.hint().isBlank())
+                    output.println("  Hint: " + issue.hint());
+            }
+        }
+        if (printed) output.println();
+        return printed;
+    }
+
+    /** @return whether developer debug diagnostics were enabled explicitly */
+    private static boolean debugEnabled() {
+        String value = System.getenv("ALGITES_CODEGEN_DEBUG");
+        return "1".equals(value) || "true".equalsIgnoreCase(value)
+                || "yes".equalsIgnoreCase(value) || "on".equalsIgnoreCase(value);
     }
 
     /**

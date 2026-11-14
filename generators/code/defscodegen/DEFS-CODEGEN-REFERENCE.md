@@ -2,9 +2,9 @@
 
 > **Platnost a zdroje pravdy.** Tento dokument konsoliduje funkční specifikace a
 > ověřená omezení implementací Java/Python; původní přechodové poznámky a lokální
-> Přechodné stavové dokumenty nejsou autoritativními příručkami. Produkční build
-> dosud používá `defs.old`, zatímco nový sedmidruhový kanonický backend běží
-> samostatně a je zčásti experimentální. Zde popsaná zamýšlená sémantika není
+> Přechodné stavové dokumenty nejsou autoritativními příručkami. Bootstrap byl přepojen na kanonické Python Defs CLI a aktuální SDO CLI,
+> ale úplné generování stále blokují nepodporované konstrukce schémat.
+> `defs.old` zůstává zachován jen pro historické scénáře. Zde popsaná zamýšlená sémantika není
 > automaticky důkazem podpory každého vstupu v novém backendu.
 >
 > **Aktualizace při změně funkcionality:** upravit tento soubor a úvodní
@@ -34,15 +34,15 @@ přijímat schémata ani znát interní kanonický model Defs.
 
 | Vrstva | Aktuální skutečnost | Ověření / mezera |
 | --- | --- | --- |
-| `defs.old` | Dosavadní produkční Java/Python implementace, rozsáhlejší historická podpora XSD | Zachována; nepřepínat bootstrap bez regrese |
+| `defs.old` | Historická Java/Python implementace s širší podporou XSD | Zachována pouze jako historický zdroj; její testy byly odstraněny |
 | Nový Python kanonický backend | Sedm kindů, merger/linker/normalizátor/emitter nad *generovanými* SDO objekty | Ověřeny cílené JSON/YAML/XML → Defs → samostatný SDO průchody; konstrukční adaptér zatím existuje |
 | Nový Java kanonický backend | Frontend, merger, linker, emitter a read-only DataObject výstup | Interně stále používá ruční `AIcdDefsCodegen*` recordy; celý build a SDO průchod neověřeny |
-| Produkční builder | Univerzální bootstrap `devops/bootstrap` | Zatím neprovádět migraci na budoucí `model.schema`/`.do`/`.sdo` |
+| Produkční builder | Univerzální bootstrap `devops/bootstrap` | Bootstrap volá standardní veřejné Defs CLI; úplné end-to-end ověření není uzavřené |
 
 **Budoucí (dosud neimplementované) uspořádání artefaktů:**
 `model.schema → model.do → model.sdo` jako produktové API závislosti,
 `intf → model.do`, `impl → model.sdo`; vyžaduje obecnou fázi generování v
-builderu 1.1. V tomto snapshotu se soubory nepřesouvají a bootstrap se nemění.
+builderu 1.1. V tomto snapshotu se soubory nepřesouvají; bootstrap mění pouze volání generátorů a skládání manifestů.
 
 ## Kanonický model a realizace
 
@@ -52,18 +52,91 @@ Schémata modelu jsou autoritativní. Sedm strukturálních kindů je `TYPE`,
 uchovat všechny vazby ke konkrétním zdrojovým formátům, identitám a pointerům.
 Generator nepřevádí neznámou sémantiku na `ANY` bez explicitního odmítnutí.
 
+**Typová bezpečnost veřejných getterů:** žádný současný Java/Python emitter
+nesmí použít `Object`/`Any` jako náhradní typ nevyřešeného pole, ani v
+`List`, `Map` či `AIiMultiMappedList`. Kanonické `ScalarKind.ANY` může být
+přechodným stavem při čtení vstupu, ale při emisi veřejného DataObject
+getteru vyvolá diagnostiku s identitou pole a požadavkem na konkrétní typ.
+Totéž platí pro společný kontrakt: slučování XML/JSON/YAML nesmí při
+nekompatibilních signaturách getter zahodit. Zastaví se s diagnostikou
+konkrétního pole a návratových typů. `Object`/`Any` používané čistě jako
+interní typ dynamického parseru nebo runtime cache není tímto zákazem
+dotčené.
+
+Původní strukturální rozdíl naming conventions byl opraven ve vstupních
+schématech: XSD `IdentifierConventions/IdentifierConvention` a odpovídající
+JSONDEFS/YAMLDEFS mají nyní shodný model seznamu objektů s povinným
+`name`; stejné pravidlo platí pro `VersionConvention`, `NameFragment`,
+`NameComposition`, `NameConvention` a seznam `Rule` s klíčem `kind`.
+YAML katalogy používají explicitní seznamy a Java/Python čtečky si teprve
+interně vytvářejí indexované mapy. Neřešíme tedy rozdílnou strukturu
+netypovaným getterem ani odstraněním getteru ze společného kontraktu.
+
+**Kovariance všech Java kolekčních getterů:** aktivní Defs emitters (Java i
+Python backend) generují `java.util.List<? extends T>` a
+`AIiMultiMappedList<? extends T>` bez ohledu na původní dialekt XMLDEFS,
+JSONDEFS/YAMLDEFS, konkrétní nebo společnou projekci a vnoření seznamu.
+U víceúrovňových seznamů se kovariance uplatňuje na každé úrovni.
+Výjimka se týká pouze typových argumentů v deklaraci `extends` u samotného
+pojmenovaného kolekčního *rozhraní*, kde Java nepřipouští wildcard jako
+přímý supertyp; toto není getter. Parametry zapisovacích metod se tím nemění.
+Samostatné `additionalProperties: true` bez hodnotového schématu neposkytuje
+konkrétní hodnotový typ, proto na veřejném DataObject rozhraní stále nesmí
+vzniknout `Map<String,Object>` jako zástupný typ.
+
+**Otevřené bázové schéma pro odvozené profily:** Jestliže rodičovský
+JSONDEFS/YAMLDEFS dokument přes `allOf` poskytuje jen pojmenovaná
+sémantická pole, neuvádějte na jeho kořeni `additionalProperties: true`.
+V JSON Schema je povolení neznámých vlastností výchozím stavem také při
+vynechání tohoto klíče; nezakládá však tím žádné další typované pole.
+Výslovné `additionalProperties: true` nebo `{}` Codegen ignoruje pro
+účely typovaných getterů a vypíše warning s cestou, JSON pointerem, rizikem
+ztráty neznámých hodnot a ukázkou typované deklarace. Nevytváří se
+`Map<String,Object>` ani jiný getter s hodnotou typu `Object`/`Any`. Nezaměňovat s
+`additionalProperties: false`, které mění validaci a může zabránit
+rozšíření rodičovského schématu. Pokud se mají neznámé vlastnosti i
+uchovávat a serializovat, potřebují explicitně typovanou definici.
+
+
 Generované kanonické read-only typy jsou v
 `intf/src/product/{java,python}.gen`; Python generované interní SDO objekty
 jsou v `impl/src/product/python.gen`. Do žádného `.gen` zdroje se ručně
-nezasahuje. Python již nepoužívá vlastní `canonical_model.py`, Java nadále
+nezasahuje. Třídy `AIig*` jsou zdrojové **read-only kontrakty**, zatímco
+`AIigd*` v `model.impl.intf` jsou **samostatná zapisovatelná SDO rozhraní**,
+která `AIig*` dědí; `AIcgd*` jsou jejich SDO implementace. Generování
+`AIigd*` není druhým průchodem Defs nad stejným schématem. Umístění
+`model.impl.intf` je stávající volba `--sdointf-subpackage` v bootstrapu,
+nikoli identita kanonického typu. Jeho případná změna musí být provedena
+současně v Java/Python SDO výstupech, resolverech a testech; nelze ji
+simulovat ručním přesunem `.gen` souborů. Python bootstrap nyní znovu
+nepředává již vygenerovaná zapisovatelná rozhraní SDO generátoru jako
+read-only vstupy, ani pokud se změní pojmenovací prefix. Pro Java CLI
+totéž zajišťuje kontrola dědičnosti `AIiSmartDataObject`.
+
+Handwritten canonical-model implementace v balíku
+`eu.algites.tool.codegen.defs.impl.standard.model` používají prefix
+`AIcDefsCanonical*` a rozhraní `AIiDefsCanonicalStructure`.
+Pro zachování Git historie přejmenování je k dispozici
+`devops/migrations/rename-defs-canonical-classes.sh` (`git mv`), který
+je vhodné spustit **před** rozbalením přejmenovaného checkpointu. Python již nepoužívá vlastní `canonical_model.py`, Java nadále
 používá staré ruční recordy jako přechodný interní model. Nejde o finální stav.
 
 Příklady regenerace / kontroly (se zavedenými zdrojovými závislostmi):
 
 ```sh
-python devops/bootstrap/generate-canonical-contracts.py --source-dependencies --check
+# Produkční cesta používá pouze současné veřejné Defs CLI:
+MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=source bash devops/bootstrap/bootstrap.sh \
+  --root generators/code/defscodegen/intf --prepare-only
 python generators/code/defscodegen/impl/src/develop/python/regenerate_sdo_canonical_fixtures.py --production --check
 ```
+
+**Aktivní bootstrap a kompatibilita:** `generate-canonical-contracts.py`
+používá aktuální veřejné Defs CLI. `generators/code/bootstrap-selfhosted.sh`
+a historické `generators/code/regenerate_sources.py generate` jsou pouze
+kompatibilní vstupní body přesměrované na společný bootstrap a jeho nová CLI;
+nesmějí importovat ani spouštět `defs.old`. Historické implementace zůstávají
+pouze pro izolované legacy testy. Oddělené `.extgen` se musí regenerovat
+koordinovaně s nezávislým SDO Codegenem.
 
 Vstupní schémata a nová rozhraní musejí být oddělena od interních objektových
 instancí; první fáze nevytváří writable třídy ani nespouští SDO uvnitř Defs.
@@ -85,13 +158,12 @@ kompatibilita starších volajících. Pro běžný Defs Java profil:
 
 Pro Python platí analogické `:python` a `algites-python-*`. Defs nesmí číst
 `codegen_sdo` profil. `CommonNamingConvention` uvnitř Defs profilu se musí
-shodovat s výběrem společného profilu. Další vstupy/výstupy a experimentální
-native manifest popisují následující kapitoly.
+shodovat s výběrem společného profilu. Další vstupy/výstupy a interní pracovní adresáře popisují následující kapitoly.
 
 
 ## Kvalifikované dávkové CLI, vrstvení settings a katalogů
 
-**Rozsah:** historický produkční CLI a shodné kvalifikované volby; příklady s `.old` odkazují na dosud používanou produkční implementaci.
+**Rozsah:** veřejné kvalifikované parametry používané kanonickým Defs CLI i bootstrapem. Implementace v `.old` slouží pouze jako historická kompatibilní reference.
 
 The Java and Python native CLIs accept the same **kebab-case** batch options.
 Both native CLIs always resolve layered settings: a packaged language-specific
@@ -233,27 +305,28 @@ The previous `resource:NAME.yml` spelling remains a compatibility alias.
 
 Use `--defs-input-artifacts:java=group:artifact:version;...` or
 `--defs-input-artifacts:python=distribution>=version;...` to select packaged
-XMLDEFS, YAMLDEFS, and JSONDEFS source schemas. See
+XMLDEFS, YAMLDEFS, and JSONDEFS **generation inputs**. Use their
+`--defs-dependency-artifacts:TECH` counterparts for resolution-only artifacts. See
 [CODEGEN-ARTIFACT-INPUTS.md](../CODEGEN-ARTIFACT-INPUTS.md) for Modustro
 selectors, PEP 508 constraints and source bootstrap requirements.
 
 
-## Nový kanonický kompilátor a manifestové CLI
+## Kanonický kompilátor a jednotné veřejné CLI
 
-**Rozsah:** explicitně zvolený (dosud neprodukční) kanonický backend. Nejprve porovnat podporovaný rozsah; není náhradou všeho, co umí `.old`.
+**Rozsah:** kanonický backend s veřejným kvalifikovaným CLI. Úplná parita staršího backendu zatím není ověřená.
 
-The canonical compiler is an **experimental, explicitly selected** replacement path for a subset of Defs contracts. It uses the independent Java and Python canonical schema frontends, model merger, reference linker and generated-schema validation, followed by a native source emitter. It does **not** call the `defs.old` backend. The historical bootstrap/production CLI is **not switched** by this feature; do not substitute it until the complete public API and SDO interoperability have been tested.
+The canonical compiler now supplies the Python bootstrap entry point, but still supports only a subset of Defs contracts. It uses the independent Java and Python canonical schema frontends, model merger, reference linker and generated-schema validation, followed by a native source emitter. It does **not** call the `defs.old` backend. Bootstrap invokes the same qualified CLI as a direct user invocation; it does not construct public configuration manifests. This does not imply full schema compatibility or successful production bootstrap.
 
 ### What it currently emits
 
 - Java interfaces and Python typed abstract interfaces for supported object declarations, preserving source member names through explicitly selected getter/setter naming rules.
 - Named reference properties (including recursive references), schema inheritance, unconstrained arrays and supported maps.
 - String, boolean and arbitrary-precision integer enums, preserving their typed values and lexical source codes in the canonical model. Java integer enums expose `BigInteger code()`; Python uses integer-valued `Enum` members. Decimal-number enums are rejected until source parsing can preserve exact numeric precision.
-- Exclusive scalar and supported structured `oneOf` choices represented as Java `sealed interface` with same-package `record` variants and Python frozen dataclass variants marked `@final` (a static typing restriction, not a runtime-sealed hierarchy). Structured variants preserve member ordering and catalog-derived typed getters. Their private component names (`field1`, `field2`, etc.) are stable storage positions; required values are checked in variant constructors, while optional members can be `null` / `None`.
+- Explicit scalar and supported structured `x-algites-defscodegen-choice` alternatives represented as Java `sealed interface` with same-package `record` variants and Python frozen dataclass variants marked `@final` (a static typing restriction, not a runtime-sealed hierarchy). Structured variants preserve member ordering and catalog-derived typed getters. Their private component names (`field1`, `field2`, etc.) are stable storage positions; required values are checked in variant constructors, while optional members can be `null` / `None`.
 - Java and Python outputs separately named through their own selected Common + Defs naming profiles and the external Algites source-code naming catalogs.
-- A deliberately restricted form of **local XMLDEFS `xs:key` / `xs:unique` on an inline complex-type container**: a direct repeated child is emitted as `AIiMultiMappedList<T>`, with repeatable `AIaXmlKeyDefinition` annotations on the Java getter and matching `__xml_key_definitions__` metadata on the Python interface. Composite keys and nested element paths (for example `identity/code` → `identity.code`) are supported when every segment resolves to a generated typed field. Keyed lists must have named structured items and cardinality `0..unbounded`. Python XMLDEFS interfaces also emit inherited `__xml_repeated_fields__` metadata for their direct LIST members; unlike `list`, `AIiMultiMappedList` cannot be inferred as a repeated XML field solely from its generic return type. The independent SDO Codegen must expose an `AIiMultiMappedList`-compatible field descriptor rather than the ordinary `list` type. JSONDEFS and YAMLDEFS interfaces do not emit XML-specific repetition metadata.
+- **Local XMLDEFS `xs:key` / `xs:unique` on a directly repeated child of a named or inline complex container**. The enclosing element retains its original referenced nominal TYPE; a key **never creates a new TYPE**. The repeated child getter returns `AIiMultiMappedList<? extends T>`. An index declared on a reference is stored on that reference getter using repeatable Java `@AIaKeyDefinition(selector = "ChildList", ...)` or Python `__scoped_key_definitions__`. The matching runtime index exists only on the particular parsed object instance reached through that reference, not on unrelated occurrences of the same TYPE. Direct-list declarations retain the original Java annotation without a selector and Python `__key_definitions__` metadata. Multiple/composite keys and typed nested scalar field paths (for example `identity/code` → `identity.code`), including terminal XML attributes (`@name`), are supported when every segment resolves without ambiguity. Keyed lists require structured named items. The independent SDO Codegen must preserve selectors and the `AIiMultiMappedList` return type in Java and Python; Python XMLDEFS interfaces emit `__xml_repeated_fields__` for all direct LIST members.
 
-**Unsupported inputs are rejected rather than approximated.** In particular, nested/repeated choice groups, bounded arrays whose constraints cannot be preserved by these contracts, decimal-number enums, **XSD `xs:keyref`, global-element keys, XML attribute paths (`@...`), namespace-qualified/descendant/predicate XPath selectors, keys on non-inline or non-direct collections**, unsupported JSON Schema validations, and unrestricted SDO accessor/lifecycle generation are not yet supported. Generated output should not be treated as a drop-in replacement for the previous code generator.
+**Unsupported structural inputs are rejected rather than approximated.** Unsupported validation-only JSON Schema conditions are reported with source-path warnings and deferred to marshalling validation; source schemas remain intact. In particular, nested/repeated choice groups, bounded arrays whose constraints cannot be preserved by these contracts, decimal-number enums, **XSD `xs:keyref`, global-element keys, namespace-qualified/descendant/predicate XPath selectors, keys selecting non-direct or multiple collections**, certain JSON Schema validations, and unrestricted SDO accessor/lifecycle generation are not yet implemented end to end. Generated output should not be treated as a drop-in replacement for the previous code generator.
 
 ### Independent SDO Codegen
 
@@ -262,73 +335,268 @@ SDO sources and it never consumes SDO naming conventions. Writable interfaces
 and concrete implementations are generated by the separate SDO Codegen from
 DataObject interfaces, whether they were generated by Defs or written by hand.
 The SDO CLI accepts interface sources/artifacts, not Defs input schemas or the
-Defs canonical model. The current canonical Defs CLI remains opt-in during
-refactoring; the production CLI contract is unchanged.
+Defs canonical model. The canonical Defs CLI uses public qualified parameters; `.old` is only historical compatibility code.
 
-### Manifest and invocation
+### Vstupy, závislosti a spuštění (1.1-SNAPSHOT)
 
-Use a JSON manifest, committed alongside the inputs, with paths to explicitly selected source schemas and catalogs. All `inputs[].path` and `output_dirs` entries are relative to `repository_root`; other catalog/schema paths may be absolute or relative to the manifest's directory. The input extension must match its declared technology.
+All four source selectors are **qualified by target technology**. No CLI caller,
+including bootstrap, creates or supplies an external manifest. Artifact
+selectors are interpreted by the Modustro artifact resolver; explicit paths
+can denote source directories, schema files and supported packaged archives.
+List entries are separated by semicolons (`;`); repeating a list selector adds
+entries rather than replacing the earlier list. Java and Python have the same
+source-selection semantics, independently of the native implementation language.
 
-```json
-{
-  "repository_root": "/absolute/path/to/consumer-repository",
-  "canonical_schema": "/absolute/path/to/pub.tool.General/generators/code/defscodegen/intf/src/product/jsondefs/eu/algites/tool/codegen/defs/model/canonical-model_1.jsondef.schema.json",
-  "inputs": [
-    {"kind": "jsondefs", "path": "intf/src/product/jsondefs/example/api/records_1.jsondef.schema.json"}
-  ],
-  "profiles": {
-    "java": {
-      "common_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-java-common-codegen-conventions.yml",
-      "common_id": "algites-java-codegen-common_1",
-      "defs_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-java-defs-codegen-conventions.yml",
-      "defs_id": "algites-java-defscodegen-standard_1",
-      "sourcecode_catalog": "/absolute/path/to/pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-java-name-conventions.yml"
-    },
-    "python": {
-      "common_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-common-codegen-conventions.yml",
-      "common_id": "algites-python-codegen-common_1",
-      "defs_file": "/absolute/path/to/pub.tool.General/generators/code/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-defs-codegen-conventions.yml",
-      "defs_id": "algites-python-defscodegen-standard_1",
-      "sourcecode_catalog": "/absolute/path/to/pub.lib.General/naming/convention/profile/algites/src/product/config/eu/algites/lib/naming/convention/sourcecode/algites-python-name-conventions.yml"
-    }
-  },
-  "output_compositions": {
-    "java": {
-      "interface": "algites-java-gen-intf-versioned_1",
-      "interface_file": "algites-java-gen-intf-versioned-file_1",
-      "enum": "algites-java-gen-enum-versioned_1",
-      "enum_file": "algites-java-gen-enum-versioned-file_1"
-    },
-    "python": {
-      "interface": "algites-python-gen-intf-versioned_1",
-      "interface_file": "algites-python-gen-intf-versioned-file_1",
-      "enum": "algites-python-gen-enum-versioned_1",
-      "enum_file": "algites-python-gen-enum-versioned-file_1"
-    }
-  },
-  "output_dirs": {
-    "java": "intf/src/product/java.gen",
-    "python": "intf/src/product/python.gen"
-  },
-  "package_name": "example.api",
-  "versions": {"*": "1"}
-}
-```
+| Option | Scope | Meaning |
+|---|---|---|
+| `--defs-input-artifacts:TECH=LIST` | Java/Python | Packaged schema sources to generate |
+| `--defs-input-paths:TECH=LIST` | Java/Python | Local schema sources to generate |
+| `--defs-dependency-artifacts:TECH=LIST` | Java/Python | Packaged schemas and previously generated contract definitions to **resolve only** |
+| `--defs-dependency-paths:TECH=LIST` | Java/Python | Local schema/contract directories and archives to **resolve only** |
 
-Set `PYTHONPATH` to include `src/product/python` for `generators/code/common`, `generators/code/defscodegen/intf`, `generators/code/defscodegen/impl`, `generators/code/defscodegen/cli`, and the necessary `pub.lib.General` naming package directories. With the CLI module on this path, run:
+`TECH` is `java` or `python`. An input selection determines what gets
+emitted; the dependency collection never expands the set of generated schema
+contracts. For each logical TYPE the new generator emits a single common
+read-only interface, with independent XMLDEFS/JSONDEFS/YAMLDEFS metadata on
+that interface and its getters. External references are linked against these
+unified contracts, with independent metadata for each source format. Input and dependency selectors are independent
+of the naming selectors; the latter remain available as **ordinary CLI flags**
+and as per-generator `.settings` defaults.
+
+Local input paths may be outside the checkout: before compiling, the CLI copies
+such sources into its **own invocation UUID worktree**, preserving the
+`xmldefs/`, `jsondefs/`, or `yamldefs/` technology directory and the
+package-relative source structure. A directly selected schema file still
+selects only that file for generation; neighboring files are materialized
+only to preserve relative schema imports. Paths selected as dependencies are
+used exclusively for resolution and are never promoted to generation inputs.
+Source files must retain a technology/package path so naming and package
+identity come from the public naming conventions rather than a guessed title.
+
+Example (the selected Algites profile can supply the naming flags from the
+ordinary `defscodegen-python.settings` resource):
 
 ```sh
-python -m eu.algites.tool.codegen.defs.impl.cli.canonical_defs_codegen_cli --manifest canonical-defscodegen.json
-python -m eu.algites.tool.codegen.defs.impl.cli.canonical_defs_codegen_cli --manifest canonical-defscodegen.json --check
+python -m eu.algites.tool.codegen.defs.impl.cli.canonical_defs_codegen_cli \
+  --repository-root=. \
+  --defs-input-paths:python=naming/convention/intf/src/product/jsondefs \
+  --defs-dependency-paths:python=other/module/intf/src/product/python.gen \
+  --technology-dointf-output-dir:python=naming/convention/intf/src/product/python.gen \
+  --common-codegen-naming-convention:python=algites-python-codegen-common_1 \
+  --defs-codegen-naming-convention:python=algites-python-defscodegen-standard_1
 ```
 
-The CLI validates the complete batch before publication and records owned files and SHA-256 checksums in `build/run/canonical-defscodegen/generated-files.json`. It refuses to overwrite unowned or independently modified outputs; `--check` verifies generated files and ownership without changing them. The publisher stages all outputs and keeps on-disk backups until the ownership manifest has been replaced. An ordinary filesystem exception during publication triggers best-effort restoration of the prior owned files; this behavior has fault-injection regression tests for partial replacement and manifest write failure. **It is still not an atomic multi-file transaction**: power loss, process termination, or a failed rollback can leave a partial update. Run against disposable/staged target repositories first.
+Java uses `AIcDefsCodegenCanonicalCli` with exactly the same qualified
+options. For manual invocations, every `--naming-conventions-file`,
+`--input-schema-naming-convention`,
+`--output-interface-technology-naming-convention`,
+`--output-enum-technology-naming-convention`, Common/Defs profile and output
+option remains valid directly on the command line. A `--settings-file=PATH`
+merges those options before explicit overrides. The old `--manifest` switch
+is **not a public CLI parameter**. The native compiler may create private
+short-lived JSON batches under its run-specific `tmp/` workspace; their
+structure is not a configuration contract and bootstrap must not create them.
 
-A native Java programmatic compiler service is also available as `AIcDefsCodegenCanonicalCompiler`, accepting Java/Python resolved naming profiles, an explicit JSON Schema validation callback, source documents and output compositions; it returns source units without writing files.
+### Isolation, publication, cleanup and parallel builds
+
+For each invocation, Defs allocates the unique path
+`<repository>/build/<artifact-relative-path>/defscodegen/<UUID>/` containing
+`tmp/`, `staging/`, and `.run.lock`. UUIDs are generated internally. Different
+artifacts never share temporary paths; the SDO generator uses a separate
+`sdocodegen/` subtree. The generator renders and validates the complete batch
+before it publishes. Publication is serialized only for the owning artifact
+and generator by an OS file lock at `defscodegen/.publish.lock` and uses a
+staging directory plus tracked ownership hashes. By default,
+`--cleanup-output-folder-before-generation=false`, a generation run **only
+replaces the files it generates in that invocation**. It does not delete
+obsolete files or other sources, and works even after unpacking a source
+archive without the transient `build/` ownership index. The index is updated
+with the newly emitted paths. A changed file at an expected generated path is
+replaced deliberately; unrelated paths remain untouched.
+
+With `--cleanup-output-folder-before-generation=true`, previously indexed,
+now obsolete outputs **of this generator** are removed along with publication.
+The cleanup is scoped by artifact and producer: it must not delete SDO sources
+from a `*.gen` directory shared by Defs and SDO. In the universal bootstrap,
+this option additionally enables a one-time full cleanup of the selected
+`*.gen` source directories *before either generator starts*, never between
+Defs and SDO. Without the flag, bootstrap does not empty generated trees.
+
+Use the same unqualified boolean option for **Java and Python** Defs CLIs or
+add it to the layered settings file:
+
+```text
+--cleanup-output-folder-before-generation=false
+```
+
+A normal second invocation replaces only its current output paths, even if
+`build/` was not present in an unpacked checkout. Historical stale files are
+**not detected by content or name prefix**: when the index is missing, no
+obsolete paths can be safely identified by standalone cleanup. An explicit
+full cleanup through bootstrap is needed if all legacy `.gen` files must
+be removed. Example:
+
+```sh
+bash devops/bootstrap/bootstrap.sh --prepare-only \
+  --cleanup-output-folder-before-generation=true
+```
+
+This removes **every file** from the selected `src/<branch>/java.gen` and
+`python.gen` trees, including files not produced by Defs; run it only when
+all selected generated sources can be rebuilt. `--root` limits the cleanup
+scope. `--plan-only` does not delete anything; `--check` is read-only and is
+incompatible with cleanup=true. The `--clean-only` command acts only on this
+Codegen's indexed outputs and is not equivalent to full bootstrap cleanup.
+
+Generated code belongs only in the configured `src/product/java.gen` and
+`src/product/python.gen` trees. No generator edits these trees by hand.
+`--check` compares each expected source against the current file bytes, even
+without a build index, and never writes. `--check` and cleanup=true conflict. Publication
+backs up previously generated files, renames staged outputs into place and
+attempts rollback on ordinary failures, including owned-file deletion and the
+index itself. **This is not a crash-proof atomic multi-file transaction:** an
+abrupt termination or failed rollback can leave a partial update. The
+workspaces protect independent concurrent builds, not simultaneous writers
+to the same artifact and output outside the generator-managed transaction.
+
+A successful invocation removes only its own UUID directory. On an ordinary
+failure the default is also to remove that directory; diagnostic retention
+must be explicitly enabled by the caller. Cleanup walks only UUID children
+under the selected artifact/generator, skips those with active `.run.lock`
+locks, and never deletes another artifact's workspace. `build/` cleaning must
+be orchestrated when no active build is using that directory. Both Java and
+Python respect the same artifact/generator lock locations.
+
+**Java canonical model:** the Java frontend, merger, linker and emitters now
+use schema-generated SDO model implementations from
+`impl/src/product/java.extgen`, through internal `AIcDefsCanonical*` accessors
+in `impl.standard.model`. These subclasses store **no additional canonical
+fields**: accessors use the generated SDO getters/setters; union variants
+are represented by generated sealed choice records and input source bindings
+by the generated multi-mapped SDO. The 22 previous public, handwritten
+`AIcdDefsCodegen*` DTO/enum/normalizer files and their independent structure
+hierarchy were retired. The internal accessors validate constructor invariants
+and provide structural equality while keeping the generated schema as the
+single canonical structure definition. Java and Python retain independent
+implementations of the algorithm and resolver, not duplicate model schemas.
+
+**Java bridge versus generated SDO contract (P14):** Java SDO list getters
+use the generated `*List` method names (for example `getChildrenList()`,
+`getKeyDefinitionsList()`, `getSourceBindingGroupList()`) and covariant
+`List<? extends T>` element types. Generated occurrence/length bounds are
+`Long`, with checked conversion to the canonical integer API; the bridge
+must not assume `BigInteger` setters. The `Type` object exposes exactly one
+named `TypeContent` alternative (structure or `target_identity`) after
+resolution, while temporary `REFERENCE`/`UNDEFINED` types may leave `Content`
+absent until the linker finishes. `Structure` and `ElementListChild`
+choices are **immutable same-package sealed Java record variants** with no
+mutable SDO implementation of their own. The Java bridge constructs and
+inspects those actual records, never synthetic mutable `Selected*` wrappers.
+When a generated SDO list requires at least one item, the bridge initializes
+that complete list atomically through the generated SDO mapping constructor;
+creating an invalid empty list and later appending items fails SDO cardinality
+validation. This applies especially to provenance `BindingList` and its
+`SourceBindingGroupList`. These rules have a Java regression test covering
+both `TypeContent` variants, pending references, typed keys, list bounds,
+choices and source bindings.
+
+JSONDEFS/YAMLDEFS indexed maps now share the same homogeneous-map rule in
+both native frontends: explicit `properties` are allowed when every property's
+value schema is identical to `additionalProperties`. More specific per-key
+constraints remain unsupported and are reported, not discarded. Key IDs and
+field names continue to come from `x-algites-defscodegen-key`.
+
+
+### Remote reference resolution and inheritance
+
+The current canonical Defs Codegen has **independent Python and Java HTTPS
+schema resolvers** (`SchemaReferenceResolver` and
+`AIcDefsCodegenSchemaReferenceResolver`). A public schema URI retains its
+identity regardless of transport. Local declared source roots are consulted
+first, followed by the SHA-256-named disk cache and then bounded HTTPS. JSON
+references verify `$id`; XSD imports verify `targetNamespace` against the
+import declaration. XML DTDs/entities are forbidden. This is a reference
+lookup, not permission to emit a duplicate type.
+
+The canonical Defs CLI resolves imports from the **explicit dependency**
+selectors documented above. JSON/YAML schema identities (`$id`, source schema
+ID/version and URI/JSON Pointer fragments), XML `targetNamespace` and QNames,
+and Java/Python format-specific DataObject annotations are used to associate a
+schema definition with its already generated contract. A dependency schema
+alone is not evidence that a corresponding compiled/interface contract exists;
+missing or ambiguous parents are errors, never silently synthesized types.
+The resolver may consult the bounded HTTPS schema cache for missing remote
+schema resources, but it must not treat remote discovery as new output input.
+
+**Demand-driven contract indexing.** The external-contract index is scoped to
+identities *actually referenced by the selected generation inputs*. For XMLDEFS,
+this means a resolved `{targetNamespace}localTypeName` QName used with an
+imported namespace (for example `xs:extension/@base`); declaring a local named
+XSD type does not make it an external dependency. For JSONDEFS/YAMLDEFS,
+explicit external schema inheritance references select the corresponding
+published schema URL. Unreferenced generated contracts in dependency artefacts
+must not cause naming or inheritance conflicts, even when two dependency
+roots contain different historical definitions of the same symbol. No external
+identities means the contract index is empty; the selected input schemas are
+still validated and generated normally.
+
+**Consistent Java source/binary identities.** The index reads `.class` interface
+names and parent types as fully qualified binary names; when scanning `.java`
+sources it must resolve `import` statements and the source package before
+comparing the same interface. A matching source and compiled copy is not a
+conflict merely because one declares a short imported parent name. For an
+*actually referenced* identity, contradictory copies with the same fully
+qualified symbol remain an error and include the identity, both source paths,
+and both parent sets. Different, unrelated interfaces sharing one referenced
+identity likewise remain ambiguous; the resolver must never silently choose a
+random first match. Python source contracts follow the analogous import-aware
+parent-name comparison. The paired index regressions in
+`test_native_schema_reference_resolver.py` and
+`AItcDefsCodegenExternalContractIndexTest.java` cover these cases.
+
+#### Published JAR and wheel dependencies (offline)
+
+Each `--defs-dependency-paths:java` entry may identify a compiled JAR, a
+`.class` tree or a checkout; `--defs-dependency-paths:python` may identify a
+wheel, a Python module tree or a checkout. An archive is expanded **only** into
+the current invocation's UUID `tmp/` directory, never into a shared source
+root. The dependency index looks for published XSDs and JSON/YAML schemas by
+public identity, not by the presence of a `src/product` layout; it also reads
+`@AIaXmlDataObject`, `@AIaJsonDataObject` and `@AIaYamlDataObject` directly
+from compiled Java class-file annotations (without loading or initializing a
+Java class), and the corresponding Python contract metadata from wheel
+modules (without importing or executing them). An external schema reference
+becomes an inherited type **only** if its corresponding read-only interface
+is resolved unambiguously. Writable SDO contracts must be excluded.
+
+For example, the selected input may be one `child_1.xsd` while the
+corresponding parent XSD and Java `.class` live in `dependency.jar` and its
+Python read-only interface lives in `dependency.whl`:
+
+```text
+--defs-input-paths:python=sample/intf/src/product/xmldefs/example/contracts/child_1.xsd
+--defs-dependency-paths:java=/libraries/dependency.jar
+--defs-dependency-paths:python=/libraries/dependency.whl
+```
+
+The Java-specific identity key is `{targetNamespace}localTypeName` for XSD
+types; schema-level JSON/YAML references use the verified public schema URL.
+The user does not provide a manual `external_contracts` mapping. Tests
+`test_public_defs_archived_dependencies.py` and
+`AItcDefsCodegenExternalContractIndexTest` cover the archive/source separation,
+XML parent binding and compiled Java metadata. This targeted validation is
+**not** a substitute for the full bootstrap and Gradle suite.
+
+Bootstrap's `devops/bootstrap/generate_sources.py` now builds **standard**
+`--defs-input-*` and `--defs-dependency-*` argument lists, preserving the
+existing profile selectors and output paths. Defs and SDO are invoked by their
+own CLIs independently, with no coupled Defs→SDO pipeline. Passing targeted
+resolver tests does not prove the complete installed bootstrap; full Java
+and Python integration remains an explicit verification gate.
 
 ### Verification and migration criteria
 
-Before replacing production CLI or bootstrap tasks, the canonical backend must implement and test the complete Defs/SDO contract surface (including full multi-mapped identity constraints, mixed choice structures, inheritance and source metadata), run the Gradle/TestNG module test suites and complete Java/Python bootstrap with generated public API compatibility checks. The supported indexed LIST subset has been checked against the actual Java `AIiMultiMappedList` and annotation source contracts and the Python SDO key-metadata tuple format. **The supported XML subset now includes concrete Java/Python mutable SDO emission and verified XML round-trips**, but full schema support, every inherited and restricted SDO lifecycle case, and exact public API parity are still open. The current opt-in compiler **does not satisfy all migration criteria**.
+Before claiming a working production bootstrap, the canonical backend must implement and test the complete Defs/SDO contract surface (including full multi-mapped identity constraints, mixed choice structures, inheritance and source metadata), run the Gradle/TestNG module test suites and complete Java/Python bootstrap with generated public API compatibility checks. The supported indexed LIST subset has been checked against the actual Java `AIiMultiMappedList` and annotation source contracts and the Python SDO key-metadata tuple format. **The supported XML subset now includes concrete Java/Python mutable SDO emission and verified XML round-trips**, but full schema support, every inherited and restricted SDO lifecycle case, and exact public API parity are still open. The current canonical compiler **does not satisfy all migration criteria**; the bootstrap switch is not yet a successful full build.
 
 
 
@@ -571,98 +839,40 @@ Normalization of source-language primitive hints is private to the frontends.
 Full repository-level Gradle/JPMS verification remains a separate integration
 requirement.
 
-#### XML wire cardinalities and cross-format publication
+#### Unified cardinality metadata (XMLDEFS, JSONDEFS, YAMLDEFS)
 
-`AIcdXmlFieldRepresentation` carries the source element/attribute QName together
-with an independent XML occurrence interval. This interval is propagated to
-`@AIaXmlDataObjectField(minOccurs, maxOccurs)` and Python
-`AIaXmlDataObjectField(min_occurs, max_occurs)`. A finite XSD maximum and
-minimum are checked by the XML reader against the actual count of QName
-occurrences, even when the caller provides elements in a different order.
-An unspecified or unbounded maximum remains `-1`. The recursive array's
-`minItems` and `maxItems` are independent of XML sibling cardinalities:
-`xs:list` constraints apply to list items, not the count of surrounding XML
-elements. Complex multi-field repeated particles and wildcard content models
-are still rejected rather than projected into unrelated flat fields.
+The canonical `Element`, `ElementList` and `List` structures carry
+`min_item_count` and `max_item_count`; their Java accessors use
+`minItemCount()` and `maxItemCount()`. The schema-generated DataObject API
+uses `getMinItemCount()` / `getMaxItemCount()`. The common field annotation
+uses `minItemCount` / `maxItemCount`, and Python metadata uses
+`min_item_count` / `max_item_count`. Unbounded is represented by `-1`.
 
-When several schemas describe one canonical contract, `$schema` publication
-self-links are format-specific, not shared scalar enum restrictions. The merger
-checks that a self-link matches the declaring source format and path, excludes
-only that publication constant from cross-format comparison, and excludes it
-from the merged canonical `DataType`. Original per-format definitions keep
-their own `$schema` constraint. Incompatible fields and unrelated enum or
-lexical constraints continue to fail the strict merge.
+Format-specific source tokens belong only to schema readers (and schema
+serialization/test fixtures): XSD `minOccurs` / `maxOccurs` and JSON Schema
+`minItems` / `maxItems` both map onto the same canonical count fields.
+The distinct `min_properties` / `max_properties` restrictions still describe
+object-member counts, not collection item counts.
 
-This source-level fix requires the matching `defscodegen.impl:1.1-SNAPSHOT` to
-be bootstrapped into `pub.gov.Algites`: a CI invocation resolving legacy
-`defscodegen.coreimpl:1.0-SNAPSHOT` runs older merger bytecode and cannot be
-repaired by changes to this repository's unbuilt sources alone.
-
-
-## Schématová metadata a identita výstupních zdrojů
-
-Zachována specifická pravidla metadat z dřívější příručky; ostatní překryté kapitoly jsou v předchozí kapitole.
-
-### Schema metadata naming conventions
-
-The selected `SourceStructureNameConventions` profile determines six properties:
-`schema_source_schema_{url,identifier,version}` specify where to read metadata
-inside the **source schema**, whereas `data_source_schema_{url,identifier,version}`
-select their names in **instance documents**. An enabled destination property
-requires a nonempty corresponding source property in the catalog. Empty target
-property names explicitly suppress serialization, not collection of the logical
-ID/version in the canonical contract model.
-
-The built-in Algites JSONDEFS/YAMLDEFS profiles read `$id`,
-`x-algites-schema-id`, and `x-algites-schema-version` and emit `$schema`
-only. `$schema` remains reserved for the JSON Schema dialect in the definitions.
-The same mapping is propagated to the Python `__data_object__` descriptor and
-Java `@AIaDataObject` annotation, and from read contracts into generated SDOs.
-Independent source families retain their own publication URLs even when the
-same logical canonical type is shared.
-
-Edit the source definitions, conventions and generators, **not** `java.gen` or
-`python.gen` directly. Regenerate them through the usual Modustro bootstrap
-following a clean stage. In particular, applying this change to existing
-published artifacts requires regenerating the annotations before expecting the
-new `$schema` metadata on runtime objects.
-
-
-## Řízení XSD restrikcí, enumů a opakovaných choice
-
-Rozlišovat podporu historického generátoru od úzké podpory nového backendu. Opakované XML choice dosud nemají úplný SDO wire round-trip.
-
-Default distinct `yamldefs`, `jsondefs`, and `xmldefs` frontends plus Java/Python generation backends. Package namespace: `eu.algites.tool.codegen.defs.old`; `impl` is only an artifact boundary.
-
-The default Java and Python backends propagate canonical descriptions into
-Javadoc/docstrings and preserve property descriptions in generated data-object
-documentation. The current **contract-only** first stage emits `AIig..._N`
-read-only interfaces and `AIng..._N` enums. The separate SDO Codegen stage
-creates `AIigd..._N` and `AIcgd..._N`. Defs Codegen does not expose a paired
-contract/DTO generator, and renders `AIig` contracts directly from canonical
-properties rather than parsing a generated DTO source.
-
-
-### Enum-value documentation
-
-The canonical enum model preserves each wire value together with its optional human-readable description. JSON/YAML definitions may provide per-value descriptions through `oneOf` branches containing `const` plus `description`; XSD definitions use `xs:enumeration/xs:annotation/xs:documentation`. Java enum constants and Python enum class documentation are generated from the normalized per-value descriptions.
-
-See [generated source conventions](DEFS-CODEGEN-REFERENCE.md) for per-object contracts, concrete implementations, package ownership, and clean-checkout CI generation.
-
-Both native implementations expose the contract-only API and repository
-binding API. Java TestNG compares Java and Python first-stage source output;
-SDO Codegen has its own native integration tests for mutable interfaces and
-implementations.
-
-See [Code Generators Reference Guide](../CODEGEN-REFERENCE.md) for overlap,
-canonical identity, CLI and cleanup rules.
+For example, `{"type":"array","minItems":2,"maxItems":4}` and
+`<xs:element name="item" minOccurs="2" maxOccurs="4"/>` both yield
+`min_item_count=2`, `max_item_count=4` for the corresponding collection.
+The raw wire tokens must never appear as public metadata fields.
 
 #### XSD restriction safety
 
 For the supported `xs:simpleType` restriction subset, both language frontends
-reject relaxed inherited numeric bounds, lengths, enumerations, and patterns.
-Unsupported XML Schema scalar facets are rejected rather than silently lost;
-pattern conjunction across levels is not yet supported. Attribute-only
+retain string and numeric facets in the canonical scalar and emit the effective
+constraints as field annotations. A locally named scalar `xs:simpleType` may
+restrict another locally named scalar `xs:simpleType`; aliases may be chained.
+The final field gets the intersection of inherited and local length/bound
+constraints, including exclusive endpoints, rather than only the last facet.
+For example, a base `minLength=2, maxLength=20` narrowed by `minLength=3`
+and then `maxLength=8` emits `minLength=3, maxLength=8` in Java and Python.
+Cyclic aliases and unsatisfiable intersections fail with a contextual error.
+Different nonempty patterns at multiple inheritance levels still require
+conjunctive-pattern metadata, so they are rejected rather than silently lost.
+Unsupported XML Schema scalar facets are likewise rejected. Attribute-only
 `xs:complexContent` restrictions retain inherited type information when
 `use="prohibited"` omits a type and validate retained scalar facets.
 For coverage see `test_xsd_facet_narrowing.py` and
@@ -769,15 +979,47 @@ The authoritative source is
 `src/product/jsondefs/eu/algites/tool/codegen/defs/model/canonical-model_1.jsondef.schema.json`;
 corresponding XMLDEFS and YAMLDEFS representations are kept alongside it.
 
-For source-checkout regeneration or reproducibility verification, run from a
-checkout containing sibling `pub.tool.General` and `pub.lib.General`:
+For production source-checkout regeneration, use the public Defs CLI via
+`bash devops/bootstrap/bootstrap.sh --root generators/code/defscodegen/intf
+--prepare-only` from `pub.tool.General`, with the sibling `pub.lib.General`
+available. The historical helper `generate-canonical-contracts.py` still
+imports `defs.old` and **must not be used to refresh the committed read-only
+contracts** before its migration. It can reintroduce general
+`AIaDataObjectField` annotations onto JSON-specific interfaces even though
+the current emitter correctly places them on neutral interfaces only.
+Use the native Defs CLI `--check` for reproducibility checks rather than
+treating the legacy helper as a parity oracle.
 
-```sh
-python pub.tool.General/devops/bootstrap/generate-canonical-contracts.py --source-dependencies
-python pub.tool.General/devops/bootstrap/generate-canonical-contracts.py --source-dependencies --check
-```
+**Historical canonical bootstrap seed (not the new Defs output contract):**
+older, generated temporary `.extgen` ABI seeds can still contain separate JSON
+technology-specific shadow contracts. They must not be published or selected over
+current unified `src/product/{java,python}.gen` DataObject contracts. The
+new Defs emitter coalesces compatible declarations into one `AIig…` contract
+per logical TYPE and attaches independent JSONDEFS, YAMLDEFS and XMLDEFS
+metadata. The corresponding Java/Python external-contract indexers resolve
+all three identities to that one interface; the legacy `old` implementation
+remains separate and unchanged.
 
-The generation ownership manifest is `generated-canonical-contracts.json`.
+The disposable generation ownership manifest lives at
+`build/run/canonical-contracts/generated-canonical-contracts.json`, not in a
+source artifact. Each invocation stages its inputs and intermediate files in an
+isolated `build/run/canonical-contracts/stage-*` directory, removed on exit.
+The manifest is not committed or shipped: on a clean checkout `--check`
+compares regenerated contract bytes directly against the generated sources.
+Stale-file removal uses previous ownership state only when available; it must
+never delete unrelated generated contracts based on name matching.
+The source-generation manifest must select a distinct
+`technology_enum_output_naming_conventions` entry for each target language;
+using the DataObject interface convention for an enum is incorrect. The
+canonical Python model loader resolves generated enum/contract/SDO classes by
+their **canonical schema identity**, as recorded in generated source metadata,
+not by reconstructing package, module or class names from Algites prefixes.
+The emitted names therefore remain governed by the selected naming catalog.
+The preceding model bootstrap still requires generating read-only canonical
+contracts and their independent SDO implementation **before** the native Defs
+CLI is imported; merely clearing the `*.gen` roots and importing the CLI cannot
+initialize its own model. The ordering of that clean-bootstrap stage remains
+an integration issue, not a reason to maintain a second handwritten model.
 The previous `.old` interfaces remain a temporary bootstrap compatibility
 layer, not the API for the new canonical compiler.
 
@@ -808,11 +1050,20 @@ Do not restrict schema expressiveness to the common subset. Merge only genuinely
 
 ### Multi-mapped list API
 
-Java source declarations must expose `eu.algites.lib.common.list.AIiMultiMappedList<V>`, **not** `AIcMultiMappedList<V>`. The library implements `AIiMultiMappedList<V> extends java.util.List<V>`, and its key definitions provide `Map<K,List<V>>` live views over the one underlying ordered list. The map's grouped lists are immutable snapshots. Removing a key removes the entire group across all views. Inserting/replacing through maps is forbidden. The collection tracks sublists weakly and synchronizes removals; direct mutation of key-bearing fields while stored is a caller contract violation.
+Java collection getter declarations must expose `eu.algites.lib.common.list.AIiMultiMappedList<? extends V>`, **not** `AIcMultiMappedList<V>`. Direct `extends AIiMultiMappedList<V>` on a named collection interface remains invariant as required by Java's supertype syntax. The library implements `AIiMultiMappedList<V> extends java.util.List<V>`, and its key definitions provide `Map<K,List<V>>` live views over the one underlying ordered list. The map's grouped lists are immutable snapshots. Removing a key removes the entire group across all views. Inserting/replacing through maps is forbidden. The collection tracks sublists weakly and synchronizes removals; direct mutation of key-bearing fields while stored is a caller contract violation.
 
 Python declares a matching abstract `AIiMultiMappedList[V]` interface built on `collections.abc.MutableSequence[V]`; `AIcMultiMappedList` implements it. Python grouping map values are immutable `tuple[V,...]` snapshots. Do not expose concrete `AIcMultiMappedList` from generated interfaces.
 
-For overlapping common and format-specific contract getters, use one **identical generic value type** for the mutable mapped list. Generic Java collections are invariant: `AIiMultiMappedList<SpecializedValue>` does **not** override `AIiMultiMappedList<CommonValue>`. Format-specific item contracts may still extend the common value contract. Python follows the same nominal convention for predictable static type checking.
+For overlapping common and format-specific read-only contract getters,
+use the covariant return `AIiMultiMappedList<? extends CommonValue>` in the
+shared contract and `AIiMultiMappedList<? extends SpecializedValue>` in its
+specialization, provided `SpecializedValue extends CommonValue`. Java
+invariant type arguments still prohibit overriding a plain
+`AIiMultiMappedList<CommonValue>` with `AIiMultiMappedList<SpecializedValue>`;
+that is why the wildcard is mandatory for *all generated getters*.
+The declared supertype of a named collection interface is not itself a getter
+and cannot use a wildcard. Writable SDO members retain their independent
+setter and generic type policy.
 
 ### JSON/YAML dynamic keys
 
@@ -851,7 +1102,7 @@ The Python and native Java XML frontends now recognize **one direct repeated chi
 
 ### `xs:choice` and ordered wrappers
 
-A nested XSD `xs:choice` models mutually exclusive alternatives, corresponding to JSON `oneOf` when branches are semantically distinct. Named XML choice types are now emitted independently and share common nominal branch interfaces with matching JSON/YAML `$defs`; exact format-specific XPath and XML element QNames must be preserved. The `NameFragments.Segments` wrapper with one repeated typed `Segment` is recognized as an array, not as an unrelated object. A targeted 208-source generated-output check passed for the naming schema family.
+A nested XSD `xs:choice` models structural alternatives, corresponding to explicit JSON/YAML `x-algites-defscodegen-choice: true` (not JSON Schema `oneOf`). Named XML choice types are now emitted independently and share common nominal branch interfaces with matching JSON/YAML `$defs`; exact format-specific XPath and XML element QNames must be preserved. The `NameFragments.Segments` wrapper with one repeated typed `Segment` is recognized as an array, not as an unrelated object. A targeted 208-source generated-output check passed for the naming schema family.
 
 ### Explicit remaining limitations — important
 
@@ -914,7 +1165,7 @@ full validating XSD parser remains responsible for referential integrity.
 
 **Status:** design specification with explicit implementation status below.  
 **Author:** linhart1  
-**Baseline:** `pub.lib.General(20261030-061855).tgz` and `pub.tool.General(20261030-061856).tgz`.
+**Aktuální implementační vstupy:** `pub.lib.General(20261106-171400).tgz` a `pub.tool.General(20261106-171400).tgz`.
 
 This document defines the **intended contract**, including behaviors not yet
 fully implemented. A partial parser must never imply that serialization,
@@ -1057,7 +1308,7 @@ to preserve the original rejection of those keys, include the final
 }
 ```
 
-The outer `additionalProperties` supplies a closed typed variant;
+The outer `additionalProperties` does not by itself supply a closed typed variant: `oneOf` is validation-only. To generate a structural sum type, declare an explicit `x-algites-defscodegen-choice`;
 `patternProperties` is only a constraint. The expression `^(S_|I_)` enforces
 that no other names occur. **Important:** this is a target-supported modeling
 pattern, not a claim that the current Defs frontend has implemented general
@@ -1374,6 +1625,94 @@ klíčů, `xs:choice` a JSON/YAML `additionalProperties` vytvářela konflikty
 XML→MAP sjednocení bylo následně **výslovně odloženo**; neobcházet problém
 vydáním `Object` namísto typované hodnoty nebo editací generovaných zdrojů.
 
+## Kontextové XSD klíče nad sdíleným TYPE (implementace 2026-11-08)
+
+`xs:key` ani `xs:unique` **nemění identitu datového typu**. Následující
+schéma deklaruje jediný `common:Entries`; oba elementy odkazují na stejný
+TYPE. Index `ByName` je definován jen pro instanci `Entries` uvnitř `Keyed`:
+
+```xml
+<xs:element name="Keyed" type="common:Entries">
+  <xs:key name="ByName">
+    <xs:selector xpath="Entry"/>
+    <xs:field xpath="@name"/>
+  </xs:key>
+</xs:element>
+<xs:element name="Unkeyed" type="common:Entries"/>
+```
+
+- Kanonický model uchovává oba elementy jako `TYPE` reference na **stejnou**
+  definici a deklaraci klíče na příslušném `ELEMENT.key_definitions`.
+- Read-only Java getter `getKeyed()` nese
+  `@AIaKeyDefinition(name = CONST.KEY_ID__BY_NAME, selector = "Entry",
+  fields = {CONST.FIELD_NAME__NAME})`; Python ukládá tutéž vazbu do
+  `__scoped_key_definitions__['Keyed']`.
+- Getter `getEntryList()` ve sdíleném `Entries` vrací `AIiMultiMappedList<? extends Entry>`;
+  objekt `Unkeyed` má stejnou třídu, ale **prázdnou množinu indexů** a dovoluje
+  duplicitní hodnoty jména. Objekt `Keyed` vytvoří index `ByName` nad svou
+  vlastní instancí seznamu a odmítne duplicitní jména.
+- Stejné pravidlo platí pro lokálně deklarované i `xs:import` typy. SDO
+  Codegen nepřehodnocuje XSD; Java pouze přenáší také `selector`, Python
+  využívá metadata zděděná z read-only DataObject kontraktu.
+- Podporován je právě **jeden bezprostřední opakovaný child list** pro každou
+  deklaraci klíče. XPath s výběrem napříč několika seznamy a `xs:keyref`
+  vyžadují samostatnou implementaci. Pouhá lokální deklarace klíče nesmí
+  spouštět vytváření syntetické varianty původního typu.
+
+**Aktuální explicitní choice kontrakt:** naming konvence nyní deklarují
+`NameFragmentsSegmentValueContent` jako pojmenovaný typ s `CHOICE` a
+`NameFragmentsSegmentValue.Content` jako skutečnou povinnou vlastnost ve
+všech třech dialektech. Alternativa `NameRegexp` je také pojmenovaný typ.
+Vnější XML `Content` je záměrnou změnou schématu, která byla odsouhlasena
+spolu s migrací YAML katalogů; nejde o neexistující obal zavedený emitorem.
+Opakované pojmenované položky `NameConvention`, `Rule`, `IdentifierConvention`
+atd. jsou deklarovány explicitními typy XSD a `$defs` s `$ref` v JSON/YAML;
+syntetické typy nejsou nutné. `xs:key` zůstává na výskytu XML elementu,
+zatímco JSON/YAML klíč seznamu se deklaruje na `array/items`; jejich
+výsledné kanonické indexy musí mít shodnou sémantiku.
+
+Generování naming ABI seed rozhraní bylo ověřeno přímým voláním standardního
+Defs CLI; úplný Gradle/source-dependency bootstrap celé dvojice repozitářů
+vyžaduje samostatné integrační ověření.
+
+## Společná definice klíčů a getterů kolekcí
+
+**Autoritativní výstup Defs Codegenu je read-only DataObject API.** Pro
+opakované `LIST` pole definuje nyní oddělený společný naming role
+`list_getter` název getteru. Algites Java i Python používají kompozici
+`get` + `UpperCamelCase(název pole)` + `List`, například XML
+`<xs:element name="rule" maxOccurs="unbounded"/>` → `getRuleList()`.
+Tato kompozice není v generátoru zakódována; konfiguruje se zvlášť v
+Common profilu a je sdílená nezávislými Defs/SDO pipeline.
+SDO přebírá přesně stejnou deklaraci metody, metadata `fieldName="rule"`
+uchovávají skutečný zdrojový název. Nový SDO generátor nevytváří veřejný
+`setRuleList(...)`: mutable kolekce je připojena přes getter.
+
+Defs musí emitovat `AIiMultiMappedList<? extends T>` pouze pro list s
+podporovanou definicí indexu. V XMLDEFS se index vyvozuje jen z
+`xs:key`/`xs:unique`, kde `xs:selector` vybírá bezprostřední položky **jednoho**
+konkrétního seznamu a `xs:field` je typovaně vyhodnotitelné nad touto položkou.
+Ostatní selectory mají vést k **WARNING s konkrétním zdrojem a cestou** a
+vygenerování obyčejného seznamu bez odpovídajícího indexu; nemají měnit
+syntaxi XSD ani znamenat, že byla splněna jeho úplná validační pravidla.
+
+Obecná Java anotace `@AIaKeyDefinition` a Python
+`__key_definitions__` jsou společná metadata pro indexy XMLDEFS a výhledově JSONDEFS/YAMLDEFS. Před sjednocením s JSONDEFS a
+YAMLDEFS je nutné navrhnout univerzální **DataObject** anotaci a odpovídající
+Python metadata; SDO nemá analyzovat zdrojová schémata. Defs musí generovat
+konstanty pro identifikátory indexů **i všechny odkazované názvy polí** v
+konfigurovaném vnořeném `CONST`, aby deklarace nemusela obsahovat ruční názvy
+modelových členů. JSON/YAML klíčované objektové položky musí být při případném
+převodu na MultiMappedList zachovány jako syntetický klíč (`_getKey()`) a
+syntetická hodnota (`_getValue()`), bez ztráty serializačního tvaru.
+
+Zákaz veřejných setterů pro všechny kolekční `LIST`/`MAP` a interní lazy
+inicializace jsou specifikovány v
+[SDO Codegen Reference](../sdocodegen/SDO-CODEGEN-REFERENCE.md#kolekční-pole-schválený-cílový-kontrakt-dosud-neimplementováno).
+Nejde o současný stav emitorů. Stávající `AIiMultiMappedList` už výslovně
+vyžaduje neměnnost klíčových hodnot po vložení; sledování následných mutací
+klíčů se **nezavádí**.
+
 ## Dialekty a vlastní slovník
 
 
@@ -1505,6 +1844,21 @@ third-party Draft-03 validators cannot enforce the same exclusive-choice
 contract**. Draft-03 uses draft-specific object-keyword syntax, so support for
 this structural extension does not imply cross-validator conformance.
 
+**Generated CHOICE implementation and SDO boundary:** The read-only Java
+choice contract is a `sealed interface`, and its alternatives are immutable
+`record` classes generated directly into the same Java package/module as that
+interface (as required by Java sealing rules). Python emits immutable
+`@final` / `@dataclass(frozen=True)` alternatives. A CHOICE is **not** a
+mutable SmartDataObject: SDO Codegen must not generate a mutable interface or
+concrete SDO implementation for the choice or its variants. Its payload can
+be a separately generated mutable DataObject; callers replace the whole
+choice value to select another alternative. The bootstrap must import these
+Defs-generated variants from the active generated namespace; they are not
+ordinary generated SDO implementation classes. In particular, the canonical
+`Structure`, `ElementListChild`, and `TypeContent` alternatives use this
+representation. This contract is independent of whether the source schema
+uses XSD `xs:choice` or `x-algites-defscodegen-choice` in JSONDEFS/YAMLDEFS.
+
 Unlike the old `alternatives` URI-string array, the new marker does not duplicate
 any structural information. The old syntax is no longer accepted for the 1.1
 snapshot. `oneOf` remains an independent validation applicator and does not
@@ -1563,6 +1917,123 @@ identity, source-name parsing, or emitted Java/Python declarations.
    `type_name` rule. Convert a declared type's *local* name with the naming
    catalog. Keep source identity (XML QName or JSON URI + JSON Pointer) separate
    from that local name.
+**Kořenový typ JSONDEFS/YAMLDEFS se nesmí pojmenovat podle `title`.**
+`title`/`description` jsou dokumentační metadata, zatímco `x-algites-schema-id`
+vyjadřuje logickou identitu a `$id` publikovanou URL. Nativní CLI má v manifestu
+`input_naming` pro každou zdrojovou technologii; hodnoty `catalog` a `profile`
+vybírají existující `SourceStructureNameConventions`. Přes
+`file_name_stem` + `file_name_suffix` se ověří **celé** jméno souboru,
+včetně explicitně deklarované verze. Z jeho zachyceného `identifier` se
+**konverzí podle pravidel katalogu** sestaví `type_name`; `version` se použije
+v konvenci výstupního Java/Python typu a souboru. Pokud schéma současně
+obsahuje `x-algites-schema-version`, musí odpovídat zachycené verzi.
+Chybějící/neodpovídající vstupní konvence je chyba s názvem vstupního souboru,
+nikoli důvod odhadovat název z `title` nebo rozdělovat název podle podtržítka.
+
+Například obě schémata
+`common-naming-conventions_1.jsondef.schema.json` a
+`common-naming-conventions_1.yamldef.schema.json` se při vybraných
+Algites profilech převedou na lokální typ `CommonNamingConventions` a
+společně vygenerují jediné `AIigCommonNamingConventions_1` pro Javu
+a Python. JSONDEFS a YAMLDEFS metadata zůstávají nezávislá. `title` může
+nadále znít „Shared naming convention tools“ bez vlivu na názvy.
+Lokální jména explicitně deklarovaných `$defs` a XSD typů zůstávají
+samostatnými vstupy do `type_name`; nepřejmenovávají se podle názvu souboru.
+Verze z vybraného vstupního souboru má přednost před obecnou výchozí verzí
+manifestu **pro všechny deklarace vzniklé ze souboru**, včetně vnořených
+syntetických typů a pojmenovaných XSD typů. Kanonický frontend musí zapsat
+`schema_version` přímo také na každý syntetický `TYPE` (`Origin.SYNTHETIC`),
+např. inline `enum`, objektovou vlastnost, položku seznamu nebo variantu
+strukturální definice. Pro každou takovou deklaraci je verze převzata z
+**jejího vlastního zdrojového dokumentu** identifikovaného `resource`;
+jediná generovací dávka smí obsahovat dokumenty různých verzí a verze
+se mezi nimi nesmějí přenášet. Konkrétně
+`common-naming-conventions_1.jsondef.schema.json` poskytuje syntetickému
+`NameFragmentsSegmentValueKind` verzi `1`, stejně jako odpovídající XSD;
+jejich společný enum pak může být korektně sloučen do
+`AIngNameFragmentsSegmentValueKind_1` v Javě i Pythonu.
+
+Verze se při výběru zdrojového souboru **neodhaduje z Javadoc ani z výsledného
+názvu typu**: prochází vstupním pojmenovacím profilem, kanonickým modelem a
+emitorem. Pokud explicitní `x-algites-schema-version` odporuje verzi
+vyčtené souborovou konvencí, vstupní CLI musí generování odmítnout se
+zdrojovou diagnostikou. Slučovač enumů nesmí tento rozpor maskovat
+ignorováním chybějící či rozdílné verze.
+
+Více souborů pro tutéž deklaraci
+s rozdílnými verzemi nebo explicitní metadatová verze odlišná od verze
+souboru představují chybu s diagnostikou zdrojů, nikoliv důvod použít
+implicitní `1`.
+
+### Jediné společné read-only rozhraní a nezávislá metadata formátů
+
+Nový Defs Codegen vytváří pro jeden logický `TYPE` právě jedno rozhraní
+`AIigXxx` odvozené z vybrané `common` naming konvence, a to v Javě i
+Pythonu. Nevytváří potomky `AIigXxx`, `AIigXxx`, `AIigXxx`.
+Výjimkou jsou pojmenované enumy: jedná se o samostatné hodnotové typy.
+
+```java
+@AIaDataObject(description = "Example")
+@AIaDataObjectJsonSchema(schemaId = "urn:example:json",
+    schemaVersion = 3, schemaUrl = "https://defs.dev.algites.eu/api/jsondefs/example_3.jsondef.schema.json")
+@AIaYamlDataObject(schemaId = "urn:example:yaml",
+    schemaVersion = 7, schemaUrl = "https://defs.dev.algites.eu/api/yamldefs/example_7.yamldef.schema.json")
+@AIaDataObjectXmlSchema(definitionKind = AInXmlObjectDefinitionKind.TYPE,
+    namespace = "urn:example:xml", namespaceLocalName = "Example")
+public interface AIigExample_1 extends AIiDataObject { /* common getters */ }
+```
+
+ID, verze ani URL se **nikdy neporovnávají mezi technologiemi**.
+Každá technologie má vlastní schématovou identitu. Po dobu migrace mohou
+být souběžně emitovány deprecated anotace pro kompatibilitu. Přechod
+YAMLDEFS na samostatnou novou anotaci ještě není dokončen; jeho návrh se
+nesmí odhadovat implicitním sdílením anotace JSONDEFS. Změna hodnot v jiné
+technologii není důvodem k chybě ani k přepsání metadat.
+
+Společné gettery zachovávají odpovídající strukturální typy; formátově
+specifická XML QName metadata mohou ležet na těchto stejných getterech.
+Pro skutečně nekompatibilní definice polí různých technologií se vyžaduje
+samostatná diagnostika či explicitně dohodnuté pravidlo, nikoli náhodné
+přepsání posledním souborem. Existující `*.extgen` ABI seed není normativní
+vzor veřejného rozhraní a historické `old` generátory nejsou měněny.
+
+### Slučování enumů z XMLDEFS, JSONDEFS a YAMLDEFS
+
+Při definici stejného externě referencovaného enumu ve více dialektech musí být shodný i **lokální název typu**: `xs:simpleType/@name` v XMLDEFS a `type_name` odvozený z názvu kořenového JSONDEFS/YAMLDEFS souboru podle explicitní vstupní naming konvence. Například `defscodegen-structure-kind_1` dává `DefscodegenStructureKind` (nikoli `DefsCodegenStructureKind`). Identické hodnoty enumu samy o sobě k typové kompatibilitě getterů nestačí. Stejné pravidlo platí pro `sdocodegen-structure-kind_1`.
+
+Pojmenovaný enum je **jeden společný hodnotový typ** (například
+`AIngElementKind_1`), nikoli tři formátově specifické DataObject
+kontrakty. Při současném generování z více schémat může být stejný enum
+nalezen v XMLDEFS, JSONDEFS i YAMLDEFS; odlišný text dokumentace a
+zdrojové `schemaId` / URL / XML QName **neznamenají** odlišný enum.
+
+Oba Defs CLI při kolizi stejné výstupní cesty porovnávají skutečný
+vygenerovaný kontrakt enumu, nikoli doslovně všechny Javadocy/docstringy.
+Povoleny jsou pouze rozdílné komentáře a původní schématová metadata
+`CANONICAL_SOURCE_ID` / `CANONICAL_SOURCE_RESOURCE`, která u sdíleného
+enumu označují reprezentaci, z níž byl vybrán jeho zdrojový zápis.
+**Hodnoty enumu, serializované kódy, metody, ostatní konstanty a verze
+musí být shodné.** Jinak jde o konflikt obsahující cestu výsledného
+souboru a dostupné zdrojové identity obou definic, nikoli o přepsání.
+
+Výběr primární zdrojové reprezentace je deterministický a nezávislý na
+pořadí parametrů či souborů. Ostatní shodné zdrojové identity se zapisují
+do dokumentace enumu jako `Equivalent enum schema` (výstupy nesoucí fyzickou
+cestu schématu) nebo `Equivalent schema identity` (kanonický emitor
+poskytující pouze identifikátor a verzi, např. XML QName). Resolver nesmí
+vymýšlet fyzickou cestu, kterou zdrojový kontrakt neposkytuje. Python kanonický emitor nově zapisuje `Canonical identity` a verzi také
+do dokumentace enumu, stejně jako Java emitor. U byte-identických
+výstupů se nevytváří duplicitní deklarace ani nevymýšlí chybějící
+provenience. Výstupní enum se publikuje právě jednou. Stejná pravidla platí pro Java i Python
+implementaci Defs Codegenu a pro oba cílové jazyky.
+
+Externí XML rodiče se vyhledávají podle `@AIaXmlDataObject` a
+`__xml_data_object__` (`definitionKind=TYPE`, `namespace`,
+`namespaceLocalName`), **nikoliv** podle `schemaId` v obecné
+`AIaDataObject`; JSON/YAML mají vlastní formátové metadatové anotace.
+Tím je zaručena nezávislost Defs Codegenu na SDO Codegenu a přitom
+kompatibilita jejich read-only vstupního API.
+
 4. Build the canonical, format-neutral definition and resolve references.
 5. Generate the requested Java **and** Python sources via each native generator;
    check the complete file set and exact lexical content apart from whitespace.
@@ -1576,7 +2047,7 @@ the XML frontend uses it for global XSD types.
 
 `AItcGeneratorImplementationParityTest.java` is a TestNG test under the usual
 `src/develop/java` source set. It launches the artifact-local Python
-`generator_implementation_parity.py` suite and feeds it the JVM test classpath
+dřívější (odstraněná) sada parity testů and feeds it the JVM test classpath
 and JVM-generated fixtures. Consequently **the normal Gradle Java test task**
 executes both native implementations and fails if they disagree. No separate
 parity script or bootstrap action is needed.
@@ -1650,6 +2121,11 @@ in the comparison; do not make the normalizers semantically permissive.
 
 
 ## Ekvivalence skalárních typů a tří formátů
+
+Test-only cross-format fixtures reside in `impl/src/develop/examples/`
+under the `xmldefs`, `jsondefs`, and `yamldefs` subdirectories.
+They are excluded from root-level bootstrap code generation; tests load
+them explicitly and retain their relative references.
 
 The develop fixtures have distinct roles: the `parity-supported` root and
 `parity-supported-builtins` exercise currently supported generation; the
@@ -1725,7 +2201,8 @@ APIs. The runtime resource and its Python source copy must remain byte-identical
 ## Omezení a publikační pravidla
 
 **Potvrzené limity nového kanonického backendu:** obecné `patternProperties`,
-libovolné `anyOf`/nullable unie, `additionalProperties: true`, XML→MAP,
+libovolné `anyOf`/nepodporované unie, netypované dodatečné JSON vlastnosti
+(ignorují se s warningem), XML→MAP,
 externí XSD import v samostatném novém frontend režimu, pokročilé XPath
 identity constraints, některé skupinové/násobné `xs:choice`, přesné desetinné
 enumy a vybrané kardinality kolekcí. Vstupy se mají odmítnout s diagnostikou;
@@ -1767,15 +2244,636 @@ bash devops/bootstrap/bootstrap.sh --prepare-only \
   --codegen-validate-one-input-at-a-time-only=false
 ```
 
-Výchozí `true` zachovává rychlé ukončení při první vstupní chybě. `false`
-shromáždí rozpoznané chyby u všech vstupů **jednoho volání CLI** a vypíše
-zdrojové soubory a příslušná místa. Při chybách se tato dávka nezapíše do
+Výchozí hodnota je **`false`**: CLI projde všechny vstupní soubory v rozsahu
+jednoho volání a shromáždí chyby z nezávislých validačních kontrol. Hodnota
+**`true`** znamená optimalizované ukončení až **po dokončení kontrol prvního
+chybného vstupního souboru**, takže jeho jednotlivé diagnostiky se nevypustí.
+V obou režimech se vypisují konkrétní zdrojové soubory a umístění problémů.
+Kontroly závislé na neúspěšně parsované části dokumentu nelze smysluplně
+provést, dokud se tato chyba neodstraní. Při chybách se tato dávka nezapíše do
 generovaných výstupů. Politika je předávána prostředím
 `MODUSTRO_CODEGEN_VALIDATE_ONE_INPUT_AT_A_TIME_ONLY` i explicitním CLI
 argumentem; jiné hodnoty než `true`/`false` jsou odmítnuty.
 
-**Omezení současného bootstrapu:** vybrané artefakty zpracovává oddělenými
-voláními CLI. Výpis není ještě jednou atomickou validační transakcí za všechna
-`--root` artefakta. Univerzální bootstrap dál používá `.old` generační backendy,
-nikoli dosud neúplný nový kanonický Defs backend. Nezaměňovat změnu vstupní
-vrstvy CLI za migraci samotného generátoru.
+
+V souhrnném výpisu má každá chyba označení **`[x/n] (a/b)`**:
+`x/n` udává pořadí a počet chyb v celé dávce a `a/b` pořadí a počet
+chyb v témže zdrojovém souboru (`Source`). Například `[3/5] (2/3)`
+označuje třetí z pěti celkových chyb, ale druhou ze tří chyb konkrétního
+souboru. Chyba ze souboru, v němž je jediná, má `(1/1)`. Pořadí chyb
+se nemění ani tehdy, když jsou chyby různých souborů proložené; každému
+záznamu zůstává `Source`, `Location` a `Hint`. Pokud zdroj souboru není
+znám, nezaměňují se takové chyby za chyby téhož souboru. Jediná chyba
+hlášená samostatně nadále používá dosavadní `VALIDATION ERROR` formát.
+
+**Nedokončené sjednocení projekcí (zachyceno regresním testem):**
+`canonical_defs_codegen_cli.py::_merge_common_contract()` zatím používá
+průnik kompatibilních getterů. Pokud XSD deklaruje objektové pole a
+JSON/YAML ekvivalent jako `AIiMultiMappedList`, může neutrální getter
+zmizet, přestože technologická rozhraní jej zachovají. To neodpovídá
+odsouhlasené architektuře. Je nutno nejprve sladit samotná schémata a
+pak generovat všechny sémantické gettery v neutrálním kontraktu;
+`Object`/`Any` ani tiché vynechání nejsou přípustná náhrada. Test
+`test_technology_projection_never_introduces_unowned_semantic_getters`
+prozatím reprodukuje tento problém v Javě i Pythonu.
+
+**Bootstrap:** `devops/bootstrap/generate_sources.py` používá nový kanonický
+Defs Codegen a sestavuje dávku manifestů bez volání `defs.old`. Výpis není
+jednou atomickou validační transakcí přes všechna samostatná spuštění
+`--root`. Samostatný pomocný skript `generate-canonical-contracts.py` nadále
+obsahuje historickou implementaci, která nesmí být zaměňována za hlavní
+bootstrap. Jeho odstranění/migrace a regenerace již vytvořených bootstrapových
+SDO tříd jsou samostatné nedokončené kroky.
+
+Při chybě vstupního schématu nový kanonický frontend předává výjimku s názvem
+zdrojového souboru a s původní podrobností parseru (například JSON Pointer
+`#/properties/name` či XML pozice). Konflikt při slučování zdrojových
+reprezentací vypisuje kanonickou cestu i původní dokumenty a jejich source
+pointers. Tato ochrana nenahrazuje širší požadavek na soubor a místo u všech
+warningů a pozdějších chyb linkeru či emiteru.
+
+### Diagnostický kolektor podle závažnosti
+
+Defs Codegen sdílí se SDO Codegenem Java/Python typované severity `DEBUG`,
+`INFO`, `WARNING`, `ERROR`. Výpis je řazen od nejnižší severity po nejvyšší;
+každá sekce má nezávislé `[x/n]` a `(a/b)` podle souboru. Debug výpis vyžaduje
+`ALGITES_CODEGEN_DEBUG=true`; `WARNING` neukončuje generování, `ERROR` ano.
+Zachovávají se `Source`, `Location` a případný `Hint`. Nefatální zprávy se
+vypíšou na úspěšné cestě, při selhání je výjimka předá diagnostice CLI, která
+vytiskne severity včetně warningů a **errory jako poslední**. Konkrétní
+warningy pro nepodporované XML selectory budou přidány při implementaci jejich
+selektivního ignorování. Podrobné chování a API je popsáno v
+`SDO-CODEGEN-REFERENCE.md`.
+
+
+### Named map indexes across XMLDEFS, JSONDEFS and YAMLDEFS (1.1-SNAPSHOT)
+
+`x-algites-defscodegen-key` is a schema metadata keyword for either a typed
+object map (`additionalProperties` with a value schema) or a typed homogeneous
+array (`items` with object fields, including a required scalar/enum key). The
+value must have exactly two nonempty string members:
+
+```json
+"x-algites-defscodegen-key": {
+  "id": "UniqueStructureRoles",
+  "field-name": "kind"
+}
+```
+
+The `id` is copied from the corresponding `xs:key/@name`; `field-name` is
+copied from the single `xs:field/@xpath`, without its attribute-marker `@`.
+For a JSON/YAML map, the logical field replaces the naming-profile fallback
+`multi_mapped_list_key_synthetic_getter`; without the keyword the configured
+synthetic getter remains the default. `propertyNames` must continue to reference
+the named enum schema: this establishes the key's **type** independently of
+its source-format representation as a JSON object-property name. XML identity
+constraints and JSON/YAML map metadata both use the generic Java annotations
+`AIaKeyDefinition` / `AIaKeyDefinitions` in `eu.algites.lib.data.dataobject`.
+Their Java constant references are `CONST.KEY_ID__<NAME>` and
+`CONST.FIELD_NAME__<FIELD>` (with normalization through the naming catalog).
+The canonical emitter for indexed XML LISTs emits both constant families.
+
+**New canonical backend (supported subset).** Both the native Java and Python
+frontends lower an explicitly keyed, **homogeneous** JSONDEFS/YAMLDEFS object
+map or item-object array into the existing canonical `LIST` node. For arrays
+`field-name` names an actual field of `items`, not a synthetic property key; a
+matching `required` declaration is needed for an inline item schema. For
+object maps the key remains synthesized from the JSON object property name. The list contains a synthetic
+object with a typed key field (name from `field-name`, type from
+`propertyNames`, including a referenced *string* enum) and a synthetic value
+field (from `additionalProperties`). Both language emitters provide an
+`AIiMultiMappedList<? extends Item>` accessor and `AIaKeyDefinition` / Python
+`__key_definitions__` metadata. The item declares `FIELD_NAME__<FIELD>` and
+`FIELD_NAME__VALUE`; the list owner declares `KEY_ID__<ID>`,
+`FIELD_NAME__<FIELD>` for the index path, and constants for **all** its other
+direct members, whether keyed or not. `CONST` is the naming-convention role;
+the concrete nested container name is resolved from the active naming profile.
+A JSON/YAML map without the explicit keyword retains its previous MAP/object
+contract; the profile's fallback key getter is not used to invent a new key.
+
+For example:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "structureNaming": {
+      "type": "object",
+      "x-algites-defscodegen-key": {
+        "id": "UniqueStructureRoles",
+        "field-name": "kind"
+      },
+      "propertyNames": {"$ref": "#/$defs/StructureKind"},
+      "additionalProperties": {"type": "string"}
+    }
+  },
+  "$defs": {
+    "StructureKind": {
+      "type": "string", "enum": ["standard_getter", "raw_getter"]
+    }
+  }
+}
+```
+
+Here the synthetic getter for the key resolves to the typed `getKind()`
+under the configured standard getter rule, *not* the `_getKey()` fallback.
+The value getter follows the separate
+`multi_mapped_list_value_synthetic_getter` convention. An enum defined in
+`propertyNames` must be available as a resolved named type to preserve its
+identity; converting it to `String` is forbidden.
+
+**Remaining limitations:** Indexed maps with incompatible `properties`, `patternProperties`,
+`minProperties` / `maxProperties`, nested property-specific validation or
+other unrepresented map constraints are rejected rather than silently
+flattened. In particular, some currently published naming convention schemas
+mix `properties` with `additionalProperties`: those need an additional,
+semantics-preserving projection before they can be emitted by the new backend.
+XML `xs:simpleContent` and attributes are still subject to the previously
+documented limitations; an identical full XML/JSON public contract has not
+been demonstrated. The *legacy* bootstrap backend is unchanged by this update.
+Neither Defs nor SDO should be combined into a single pipeline to implement
+ the remaining behavior.
+
+**Object-level `oneOf` with independent fields is not an emitted field CHOICE.**
+For example, `{"type":"object","properties":{"a":{"type":"string"},
+"b":{"type":"string"}},"oneOf":[{"required":["a"]},
+{"required":["b"]}]}` requires exactly one of `a` and `b` while still
+retaining both property declarations. The Java and Python canonical frontends now preserve the declared object
+fields and issue a precise warning that the `oneOf` exclusivity constraint is
+not yet enforced by generated DataObjects. That constraint remains present in
+the original schema for validation during marshalling. Neither a sealed
+variant nor a replacement for the surrounding `properties` may be inferred. The canonical `Type` schema uses the two `required`
+branches of `oneOf` directly; its former `not` clauses were logically
+redundant, because `oneOf` already enforces exclusive-or.
+
+
+### XML naming `Rule` shape (2026-11-05)
+
+Naming-map entries in the maintained XSD schemas now use an explicit child
+`Value` together with the required XML attribute `kind`, instead of
+`xs:simpleContent`. This is a **wire-format change** for XML naming documents;
+existing text-only `<Rule kind="…">composition</Rule>` instances require
+conversion to `<Rule kind="…"><Value>composition</Value></Rule>` before
+validation. JSONDEFS/YAMLDEFS map instances remain unchanged. The existing
+`xs:key` (`selector=Rule`, `field=@kind`) retains the same identity semantics.
+
+This adjustment removes the unsupported `xs:simpleContent` construct from
+these naming XSDs, but does **not** resolve external XSD imports or
+`x-algites-defscodegen-extends` references to contracts in other artifacts.
+Those still need offline, explicit cross-artifact schema dependency resolution
+without generating duplicate parent contracts.
+
+
+## Metadatové defaulty, fixed, empty a XML wildcardy (1.1-SNAPSHOT)
+
+Kanonický `Element` má `default_kind`, `default_value` a `is_empty_allowed`.
+`default_kind` je prázdný pro nepřítomný default, jinak jedna ze čtyř
+konstant `AInDataObjectFieldDefaultKind`. Přítomná hodnota může být sama `""`.
+Emitery Java/Python zapisují `order`, `isEmptyAllowed` a vnořený
+`AIaDataObjectFieldDefault`/Python ekvivalent na read-only getter. Díky tomu
+SDO generátor přečte všechna metadata **z rozhraní** a nepotřebuje XSD ani
+kanonický model.
+
+```xml
+<xs:attribute name="code" type="xs:string" default="A"/>
+<xs:element name="label" type="xs:string" default="Anonymous"/>
+<xs:element name="state" type="xs:string" fixed="READY"/>
+```
+
+Výsledné politiky jsou `IF_FIELD_VALUE_NOT_PRESENT` (`code`),
+`IF_FIELD_VALUE_EMPTY` (`label`) a `CONSTRAINT_DEFAULT` (`state`).
+`fixed` je *omezení setteru*, nikoli implicitně vložená raw hodnota. XML
+serializace nezapisuje dosazený efektivní default. Pro nepodporované
+kombinace (např. `default` současně s `fixed` nebo default na
+opakovaném elementu) se generování ukončí diagnostikou, místo tiché ztráty.
+
+`xs:any` ani `xs:anyAttribute` se nestávají generovanými poli. Volitelný
+wildcard vytváří `WARNING` a původní XML deklarace je zachována v Javadoc/
+docstring vlastníka. Povinný wildcard generování zastaví s `ERROR`.
+U `xs:anyAttribute` rozhoduje kontext užití bez vlastního `minOccurs`;
+nelze jeho povinnost posuzovat jako u `xs:any`.
+
+**Ověřování:** samostatná regenerace read-only kanonických kontraktů v obou
+jazycích proběhla. Kompletní Java SDO generování, synchronizace persistentních
+`*.extgen` ze všech čtyř zdrojových sad a end-to-end Gradle bootstrap musí
+ještě proběhnout ve vývojovém prostředí se stažitelným Gradle 9.2.1. Do té
+doby nelze prohlásit deploy ani úplnou paritu za ověřené.
+
+## Temporary self-hosting bootstrap model (`*.extgen`)
+
+The native Defs compiler depends on its schema-generated canonical model.
+The first self-hosted compiler load uses a **versioned source-generated seed**
+under `.extgen`; this seed is not developer-maintained code. Its read-only
+contracts and independent SDO contracts use a distinct bootstrap namespace.
+
+| Contract layer | Java `*.extgen` | Python `*.extgen` |
+|---|---|---|
+| Defs read-only interfaces and enum/CHOICE variants (69) | `generators/code/defscodegen/intf/src/product/java.extgen` | `generators/code/defscodegen/intf/src/product/python.extgen` |
+| SDO mutable interfaces and concrete implementations (56) | `generators/code/defscodegen/impl/src/product/java.extgen` | `generators/code/defscodegen/impl/src/product/python.extgen` |
+| **Current snapshot** | **125 generated files** | **125 generated files** |
+
+A temporary bootstrap policy **only in `pub.tool.General`** checks the
+existing compiler `*.extgen` source snapshots on startup (`--prune-seed`)
+without relying on historical file-list manifests. Obsolete paths are removed
+when complete fresh Defs/SDO outputs replace the source trees after the build. It creates a unique UUID for each build, cleans the selected
+`.gen` outputs once before Defs/SDO, and scopes Python and Java ownership
+indices to that invocation. After the **entire** Defs/SDO generation and build
+complete successfully, `promote-canonical-extgen.py --refresh` reads the two
+independent kinds of output from the current Defs input artifact's
+`defscodegen/intf/src/product/{java,python}.gen` trees: Defs read-only model
+contracts at `model/` and SDO writable/concrete contracts at `model/impl/`.
+The independently generated SDO contracts do **not** currently appear under
+`defscodegen/impl/src/product/{java,python}.gen`; the bootstrap copies the
+`model/impl/` subtree into that artifact's persistent `.extgen` seed. The
+promoter verifies both roles in Java and Python, replaces all four `.extgen`
+source roots, removes
+obsolete source files by replacing complete `*.extgen` trees without writing persistent bootstrap metadata.
+If the exchange fails, previously installed roots are restored. No persistent
+bootstrap-generated metadata is created or consulted.
+A scoped `--root` build does not refresh the canonical seed.
+
+The normal `--check` remains an **explicit diagnostic** and checks the
+existing source contents, common DataObject roles, SDO inheritance and
+Java/Python symmetry. It does not claim to verify hash provenance against
+schema input when fresh `*.gen` sources are unavailable; full `--refresh`
+validates freshly generated outputs before replacing the ABI snapshot. It is **not** a prerequisite for an ordinary Tool
+bootstrap invocation. `--refresh-defs` remains a specialized manual recovery
+operation when the SDO compiler cannot yet run; it preserves independently
+produced SDO output and validates compatibility. Neither helper edits the
+`.gen` trees, and all `.extgen` sources must come from Defs/SDO generators.
+The normal standalone CLIs and other repositories retain their own lifecycle
+policies; the tool-only bootstrap mode does not change them.
+
+**Historický P4 ABI seed regression (2026-11-10; ne normativní nová projekce):** a partial refresh of only the read-only Defs
+bootstrap model leaves SDO implementations tied to old neutral contracts.
+For example, the JSON selected alternative `AIigStructureSelectedScalar_1`
+requires `AIigStructureScalar_1`, but stale `AIigdStructureScalar_1`
+previously extended `AIigStructureScalar_1` instead. The Python canonical
+frontend then failed with `Expected AIigStructureScalar_1 choice value`.
+Regenerate **both** neutral and JSON SDO roles in Java and Python through the
+independent SDO CLIs before promoting a complete snapshot. The snapshot validation and
+`--check` reject an inconsistent SDO inheritance without a hash manifest;
+`devops/bootstrap-tests/test_extgen_bootstrap.py` reproduces the original
+Python choice construction and validates both language hierarchies. The
+verified P4 snapshot has 370 files total (185 per language). The Python
+bootstrap of `naming/convention/intf` generated 164 Defs and 42 SDO files;
+the full Gradle bootstrap still requires an environment with current Java
+library dependencies and Gradle available.
+
+
+The first-stage snapshot promotion normalizes legacy generated *seed* metadata
+with `devops/bootstrap/normalize-canonical-bootstrap.py`. This is a deterministic
+bootstrap-only compatibility step: schema identities and instance metadata are
+transferred from the schema-neutral `AIaDataObject` / `AIcdDataObject` to
+`AIaJsonDataObject` in Java / Python, and the canonical count fields use
+`minItemCount` / `maxItemCount` (source schema keys `min_item_count` /
+`max_item_count`). The `old` generator and disposable `.gen` trees are never
+modified by this adapter. It cannot replace an independent Defs → SDO
+regeneration; use the current generators for the final production contracts.
+
+The temporary `…defs.bootstrap.model` package keeps first-stage types distinct
+from future generated types in `…defs.model`; it is not another source-of-truth
+canonical model. Its schema IDs continue to refer to the authoritative
+`canonical-model_1.jsondef.schema.json`. The bootstrap source cleanup never
+removes `*.extgen`, while the Java Gradle source set and Python wheel packaging
+include them. Once the self-hosted compiler is independently available as a
+published artifact, this interim snapshot can be retired.
+
+The naming convention for generated enums is read from the existing
+`--output-enum-technology-naming-convention:java|python=…` lines in the selected
+Defs `.settings` files. The corresponding file-stem composition is resolved
+from the selected source-code naming catalog (no hardcoded `AIng`/`AIig` prefix).
+
+### Ověření k 6. 11. 2026 (Java/Python parity)
+
+Připraveny jsou nové role `list_getter`, `raw_empty_setter`,
+`raw_empty_checker_method`, anotace defaultů a změny obou kanonických frontendů.
+Zdrojová syntaktická kontrola Java 21 prošla; to **není** důkaz úspěšné
+kompilace. Regenerace persistentních `*.extgen` zdrojů vyžaduje všechny
+čtyři sady (read-only a SDO pro Java/Python). Dokud tato fáze není provedena,
+kanonický model nemůže garantovat nové `default_kind`, `default_value` a
+`is_empty_allowed` v běhové podobě. Java Gradle 9.2.1 není v tomto offline
+prostředí dostupný. Žádný první deploy neproběhl; deprecated API zůstává.
+
+
+### Anonymous enumerations (XMLDEFS, JSONDEFS and YAMLDEFS)
+
+The new Defs Codegen emits a distinct canonical ENUM and Java/Python enum
+when `xs:element` or `xs:attribute` has an inline restricted `xs:simpleType`
+containing `xs:enumeration`, or when a JSONDEFS/YAMLDEFS object `properties`
+member declares an inline `enum` or scalar `const`. The
+`synthetic_inline_enum_type` role names these nominal enums uniformly from the
+containing type and member name (e.g. `NameFragmentsSegmentValueKind` or
+`PersonStatus`). It is configurable in every Defs naming profile; the getter
+uses the nominal enum instead of the underlying scalar. The same role is used
+for an inline JSON/YAML `propertyNames` enum on an indexed object-keyed list.
+Anonymous object properties still use `synthetic_property_type`. Explicit
+named XSD simpleType and JSON/YAML `$defs` enumeration references preserve
+their declared type identity and never synthesize a duplicate enum type.
+
+### XML `CHOICE` discriminator metadata for nested groups
+
+The new Defs Codegen emits immutable, closed `CHOICE` variants rather than
+representing an exclusive XML alternative as a bag of nullable properties.
+A variant beginning with a transparent nested `SEQUENCE` is selected by the
+first **actual serialized XML QName** of that sequence, never by its synthetic
+DataObject type name or by a nonexistent wrapper element.
+
+For the Python target, each XML variant may expose
+`__xml_choice_first_qnames__ = ('{namespace}FirstElement', ...)`. Java records
+expose the equivalent immutable `xmlFirstQNames()` set. These declarations are
+derived from the linked canonical XML structure, including references to named
+and synthetic types; they are not manually maintained `.gen` metadata. The
+runtime checks the candidate's prefix *before* requesting any concrete SDO
+implementation for a nested branch. An unrelated alternative therefore does
+not require its implementation to be registered. A selected nested alternative
+still requires its concrete SDO binding and fails with a diagnostic if missing.
+
+Python additionally emits lazy `__xml_scalar_type_imports__` entries for
+schema-generated nominal enums. The XML deserializer resolves the actual enum
+type and maps the lexical wire value through the member's contractual
+`AIiEnumItem.code()` (falling back to standard `Enum.value` only for ordinary
+enums), matching the XML serializer. These runtime hints do **not** replace
+XSD validation and do not create additional serializable elements or types.
+
+### Artefaktové závislosti generovaných Java/Python kontraktů (P0)
+
+Generování read-only rozhraní ani kanonických SDO kontraktů **nepřidává závislosti
+za uživatele**. Každý cílový Modustro artefakt deklaruje své přímé knihovní
+závislosti v `modustro-artifact.yml`. Pokud veřejná signatura (včetně rodičů,
+typů getterů, generik nebo veřejných anotací) používá typ z jiného artefaktu,
+jeho závislost patří do `Dependencies` s `Usages: [product_api]`. Typy používané
+pouze uvnitř implementace patří do `product_implementation`. Externí odvozené
+typy se nesmí považovat za automaticky dostupné pouze proto, že jejich zdrojové
+schéma bylo nalezeno v závislostním resolveru.
+
+Příklady důležitých přímých závislostí:
+
+- `defscodegen.intf` používá `common.util`, `naming.convention.intf`
+  a `data.dataobject.intf` pro veřejnou vrstvu.
+- `defscodegen.impl` má ve vygenerovaných SDO kontraktech přímé reference
+  na `data.smartdataobject.intf` a `factory.cpdiscovery.intf`. Jejich přímé
+  API závislosti jsou potřebné i při samostatném sestavování artefaktu.
+- `sdocodegen.intf` vystavuje při generování pojmenovacích kontraktů
+  `AIiMultiMappedList` z `pub.lib.General_common.util` a rodičovská
+  `AIigCommonNamingConventions_1` z `pub.lib.General_naming.convention.intf`.
+
+Nativní bootstrap v `devops/bootstrap/prepare.py` překládá `product_api`
+na Gradle `api` (a závislost Python distribuce), `product_implementation`
+na Gradle `implementation`. Závislosti artefaktů sloužící k *načtení*
+zdrojů během generování (`--defs-dependency-*`) jsou jiné než knihovní
+závislosti nutné pro **kompilaci již vygenerovaného zdrojového kódu**;
+obě množiny musí být korektně deklarované.
+
+Kontrolní test `devops/bootstrap/test_artifact_dependency_descriptors.py`
+ověřuje kritické přímé závislosti, výsledné Gradle konfigurace a (jsou-li
+přítomny oba repozitáře) všechny známé přímé Java odkazy mezi artefakty.
+Test záměrně kontroluje i `java.extgen` a `java.gen`, které se ručně neupravují.
+
+U Pythonu platí totéž: importy v `python.gen` i v původních veřejných
+kontraktech určují přímé závislosti distribučního balíčku. Například veřejné
+legacy request kontrakty v `defscodegen.intf` ještě přímo používají
+`AIcNameConventionCatalog` z `naming.convention.impl`. Kanonické Defs CLI
+**nesmí** importovat SDO CLI; pro katalogy používá vlastní Defs pomocnou
+funkci se stejným chováním. Její aktuální umístění v `defs.old` je přechodový
+implementační detail, nikoli nové veřejné CLI či požadavek na SDO.
+
+## Anotace: přechodný dvojí formát a umístění v modelu (1.1-SNAPSHOT)
+
+**Dočasná veřejná kompatibilita:** nové `AIaDataObjectJsonSchema`,
+`AIaDataObjectXmlSchema`, `AIaDataObjectFieldXmlSchema` jsou zavedeny vedle
+existujících `AIaJsonDataObject`, `AIaYamlDataObject`, `AIaXmlDataObject`,
+`AIaXmlDataObjectField` (staré anotace jsou `@Deprecated(forRemoval=false)`;
+Python obdoby mají `__deprecated__`). Staré atributy se nemažou a nevracejí
+se ani odstraněné `schemaId`, `schemaVersion`, `fingerprint` do obecného
+`AIaDataObject`. JSONDEFS používá novou `AIaDataObjectJsonSchema`,
+YAMLDEFS má zatím samostatné metadata `AIaYamlDataObject` (přechodný
+nedokončený bod migrace na nové schématové anotace). Metadata se nesmějí
+přepisovat mezi technologiemi.
+Nový Defs emitor přechodně zapisuje vedle nových metadat také odpovídající
+starou formátovou anotaci / Python metadata pro starší konzumenty.
+
+**Závazná projekce:** `AIaDataObject` a `AIaDataObjectField` včetně
+strukturálních omezení patří na jediné `AIigXxx` rozhraní a jeho gettery.
+Na témže rozhraní se nezávisle ukládají formátové schématové anotace;
+XML QName anotace může být přímo na příslušném getteru. Python runtime
+používá `__xml_schema__` a `__xml_schema_fields__`, s přechodnými deprecated
+poli emitovanými pouze pro kompatibilitu se staršími konzumenty.
+
+```java
+@AIaDataObject(description = "Example")
+@AIaDataObjectXmlSchema(definitionKind = AInXmlObjectDefinitionKind.TYPE,
+    namespace = "urn:example", namespaceLocalName = "Example")
+interface AIigExample_1 extends AIiDataObject {
+    @AIaDataObjectField(dataFieldName = "Code")
+    @AIaDataObjectFieldXmlSchema(namespaceLocalName = "code",
+        valueKind = AInXmlValueKind.ATTRIBUTE)
+    String getCode();
+}
+```
+
+**Otevřená integrační mezera, nevyřešená touto migrací:** společná projekce
+je zatím průnik kompatibilních členů všech vstupních formátů. Pole existující
+jen v jedné reprezentaci (`additionalProperties` u JSON/YAML oproti XML)
+proto nelze bez dalšího kontraktu opatřit obecnou `AIaDataObjectField`,
+pokud má být tato anotace *výhradně* na `AIig…` rozhraních. Takové pole
+může být bez deklarace pro SDO neviditelné. Nepřidávat proto automaticky
+generování takových polí do produkčního SDO, dokud nebude odsouhlasena
+bezpečná projekce formátově specifických společných polí; zejména se
+nesmí obcházet pravidlo umístění obecných anotací.
+
+**Kontrola Java/Python parity:** test tří reálných `CommonNamingConventions`
+zdrojů ověřuje Java kompilaci, dědičnost obou vrstev a umístění anotací.
+Úplná semantická parita historických testů stále není dosažena (viz níže).
+
+
+
+### Rozsah parity regresních scénářů — audit P0
+
+Statická inventura testů (9. 11. 2026) v `src/develop`: Java
+**55 souborů / 169 metod `@Test`**, Python **89 souborů / 465 funkcí
+`test_*`**. Počty nezohledňují parametrizaci a nejsou důkazem
+funkční ekvivalence; zároveň jasně ukazují, že historické testovací
+scénáře nejsou dosud všechny zrcadlené. Nová párová regresní sada metadat
+má 5 scénářů na jazyk. Dále je ověřeno umístění anotací na skutečných
+XML/JSON/YAML `CommonNamingConventions` včetně kompilace Java výstupů.
+Doplnění zbývajících stovek jazykově specifických testů je samostatná
+otevřená práce před označením parity za splněnou; nelze ji nahradit
+úspěšným během menší cílené sady.
+
+## Umístění nových schématových anotací
+
+**Umístění nových anotací (Java/Python):**
+
+| Anotace | Java package | Python modul |
+|---|---|---|
+| `AIaDataObjectJsonSchema` | `eu.algites.lib.data.dataobject.jsonschema` | `eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema` |
+| `AIaDataObjectXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmlschema.aia_data_object_xml_schema` |
+| `AIaDataObjectFieldXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema` |
+
+Původní formátové anotace (`AIaJsonDataObject`, `AIaYamlDataObject`,
+`AIaXmlDataObject`, `AIaXmlDataObjectField`) zůstávají v dosavadních
+`jsondefs`, `yamldefs` a `xmldefs` packages jako deprecated; jejich veřejná
+signatura se nemění. Obecné `AIaDataObject` / `AIaDataObjectField` zůstávají
+v `eu.algites.lib.data.dataobject` a náleží výhradně společným `AIig…`
+kontraktům. Při generování se importy nových anotací vytvářejí pro nové
+packages; pro kompatibilitu se nadále emitují i původní anotace.
+
+
+### Vyhledávání externích kontraktů po přesunu anotací (P0)
+
+Externí Defs kontrakt se identifikuje **každou nezávislou formátovou**
+schématovou anotací na témže společném read-only `AIig...` rozhraní.
+Obecná `AIaDataObject` neidentifikuje žádné konkrétní schéma.
+Indexery čtou jednotlivé anotace ze zdrojových `.java`,
+Python modulů a binárních `.class` v závislostních artefaktech. Při dočasné
+kompatibilitě přijímají rovněž původní `AIaJsonDataObject`,
+`AIaYamlDataObject` a `AIaXmlDataObject`; původní anotace však není podmínkou
+pro indexování. Python pole `__json_schema__` / `__xml_schema__` se čtou
+vedle historických `__json_data_object__`, `__yaml_data_object__` a
+`__xml_data_object__`.
+
+Index používá jednotlivé, navzájem nezávislé URL pro JSONDEFS a
+YAMLDEFS a XML QName `{namespace}localName` pro XMLDEFS TYPE. Jejich
+identifikátory a verze se nikdy vzájemně neporovnávají. Dočasná
+`*.extgen`/`build/lib` ABI kopie nesmí přebít novou `*.gen` definici.
+Když má jedna společná třída všechny tři anotace, resolver indexuje
+všechny tři identity na stejný typ. Při konfliktech dvou skutečně
+odlišných `*.gen` rozhraní zůstává chyba ambiguity.
+
+Při spuštění z bootstrapu se přes `--schema-locations-property-file`
+předává UTF-8 mapovací soubor ve formátu
+`https://host/path/example_1.jsondef.schema.json=/absolute/path/example_1.jsondef.schema.json`.
+Pravidlo platí analogicky pro `.yamldef.schema.json` a `.xsd`; při
+předání mapy není povolen náhradní síťový download. CLI bez tohoto
+parametru zachovává dosavadní samostatné HTTPS/cache vyhodnocování.
+
+ Pole XML se nadále anotují
+`AIaDataObjectFieldXmlSchema` z package `dataobject.xmlschema` (s fallbackem
+na deprecated `AIaXmlDataObjectField`). Není přípustné přidávat
+`AIaDataObject` na technologické rozhraní pouze kvůli indexování.
+
+Trvalé párové testy `test_migrated_schema_metadata_indexed_without_generic_annotation`
+a `testModernSchemaPackagesWithoutRepeatedGenericAnnotation` ověřují
+Java/Python zdrojové indexování; `test_new_annotation_class_reader_without_generic_marker`
+a `testModernCompiledSchemaPackagesWithoutGenericAnnotation` ověřují
+binární Java anotace. Testy pracují i bez historických schématových anotací.
+
+## Testovací brány pro neutrální kontrakty a jazykovou paritu
+
+Dohodnutá pravidla jsou kontrolována v
+`devops/bootstrap-tests/test_contract_architecture_audit.py` nad **opravdu
+publikovanými** `src/product/{java,python}.gen` a `*.extgen` obou sousedních
+repozitářů. Kontrola úmyslně nevyžaduje lokální `build/` manifest a nepovažuje
+jeho nepřítomnost za důvod k přeskočení testů.
+
+Testy jednotlivě kontrolují:
+
+- všechny `@AIaDataObjectField` a obecné anotace pouze na neutrálních `AIig…`;
+- jedno read-only `AIig…` rozhraní na logický TYPE a nezávislé
+  JSONDEFS/YAMLDEFS/XMLDEFS anotace na něm;
+- zachování `? extends` u `List` a `AIiMultiMappedList` na společném
+  rozhraní;
+- odpovídající Java/Python metody, sémantické anotace a struktury návratových
+  typů včetně typů položek kolekcí;
+- existenci neutrálního předka pro každou technologickou specializaci.
+
+Spuštění (z kořene `pub.tool.General` se sousedním `pub.lib.General`):
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q \
+    devops/bootstrap-tests/test_contract_architecture_audit.py
+```
+
+**Červený výsledek je platný nález**, nikoli důvod test přeskočit nebo změnit
+jeho očekávání. Při dosavadní P9 migraci byly v již uložených `.gen` zdrojích
+zjištěny například obecné anotace na JSON/XML specializacích a některé
+ne-kovariantní seznamové gettery. Tyto nálezy vyžadují opravu emitování
+kontraktů a čisté přegenerování v **obou** jazycích; ruční úprava `.gen` či
+změkčení testů není řešení. Testy vykazují přesné cesty problematických zdrojů.
+
+Integrační test tříformátové neutrální projekce je v
+`generators/code/defscodegen/impl/src/develop/python/test_canonical_common_projection.py`.
+Samostatná sada `devops/bootstrap-tests/test_canonical_sdo_lifecycle_parity.py`
+ověřuje skutečný `set`/`get`/`isPresent`/`unset` v Pythonu a v Javě po
+zkompilování aktuálních SDO zdrojů; Java běh vyžaduje
+`ALGITES_PARITY_JAVA_CLASSPATH` s cestami k závislostním JAR souborům.
+Nepřítomný Java classpath znamená explicitní `SKIP`, nikoli úspěšně prokázanou
+funkční paritu.
+
+Pro **úplný** oddělený source bootstrap obou repozitářů existuje
+`devops/bootstrap-tests/verify_full_bootstrap.py`. Nejde o `--plan-only`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 \
+    devops/bootstrap-tests/verify_full_bootstrap.py \
+    --output build/run/bootstrap/full-verification \
+    --timeout-seconds 900 --dependency-mode source
+```
+
+Skript vytvoří vedle sebe izolované kopie obou repozitářů, spustí na každé
+`--prepare-only --cleanup-output-folder-before-generation=false`, zaznamená
+výstup a návratový kód a zapíše `summary.json`. Plánovací režim `--plan-only`
+lze použít zvlášť, ale jeho úspěch není důkazem kompilace a generování.
+Není-li dostupný Gradle 9.2.1 nebo externí závislosti, výsledkem plného testu
+je *failed* či *timeout* s konkrétní diagnostikou; takový běh se **nesmí**
+vykazovat jako úspěšný bootstrap.
+
+
+## Untyped JSON/YAML additional properties and XML wildcards
+
+Explicit `additionalProperties: true`, `{}`, or otherwise unrestricted
+JSON/YAML additional values are **ignored for typed getter generation**, with a
+warning containing source file, JSON pointer, possible roundtrip loss, and a
+typed example (`"additionalProperties":{"type":"string"}` or a `$ref`).
+A missing `additionalProperties` also produces no untyped getter but does not
+warn by default; JSON Schema still permits unknown properties. With a concrete
+additional-properties value schema, a typed collection remains supported.
+No public `Object`/`Any` getters or `Map<String,Object>` getters are allowed.
+
+`x-algites-defscodegen-key` supports typed JSON/YAML object maps (virtual
+property-name key) and typed homogeneous arrays (`items` object with a required
+scalar/enum `field-name` or a named object reference). Both become indexed
+canonical LISTs; array keys refer to actual item fields and object-map keys
+are synthesized. Neither representation becomes an untyped map.
+
+For XML, optional `xs:any` and `xs:anyAttribute` wildcards are likewise ignored
+with warnings citing the source and the XML declaration plus hints to declare
+explicit named, typed `xs:element` or `xs:attribute`. Their data may be lost in
+a DataObject roundtrip. Required `xs:any` remains a hard error with a hint,
+since silently dropping a required field would violate the schema.
+
+## External contracts in source and staged Python distributions
+
+For imported schema identities, Defs resolves read-only external contracts from
+explicit source checkouts and explicitly selected published dependency roots.
+For an entire source checkout, the contract indexer inspects current
+`src/product/java.gen` and `src/product/python.gen` sources, not old Gradle or
+setuptools staging trees. In particular, files in
+`build/run/bootstrap/<run-id>/.../build/lib`, `build/classes`, `*.extgen`,
+Python caches and other disposable build directories **never** become
+implicit contract candidates. This also holds if a particular schema has no
+current read-only contract: a previous bootstrap run is not a fallback.
+
+An independently supplied, unpacked wheel/JAR or compiled dependency root
+remains supported, even without a source checkout. When live source and an
+explicit compiled ABI representation are both supplied, the current source is
+authoritative for that schema identity. Two unrelated **current source**
+contracts with the same format-specific identity remain an error; the
+resolver must not suppress genuine ambiguity or prefer a contract by its
+name. This rule belongs to Defs Codegen and applies outside bootstrap.
+
+
+## Generation lifecycle diagnostics
+
+The native Defs Codegen CLIs (Java and Python) print a flushed `Defs Codegen
+START` line on entering generation and a matching `Defs Codegen END` line on
+completion, including validation failure. One pair is emitted per selected
+output technology for each artifact. The common fields are `artifact`
+(repository-relative directory), `technology` (`java` or `python`), `at`
+(ISO-8601 local date/time with UTC offset), and `epochMillis` (Unix epoch
+milliseconds). `END` additionally includes `durationMs` and `durationSec`
+computed from a monotonic clock, not by subtracting wall-clock timestamps.
+The events belong to the generator, not the bootstrap driver, and also appear
+in standalone CLI runs. CLI configuration failures before an output artifact
+can be determined are reported as ordinary configuration errors.

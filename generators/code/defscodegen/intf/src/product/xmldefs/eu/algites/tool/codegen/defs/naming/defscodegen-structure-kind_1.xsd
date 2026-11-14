@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-structure-kind_1.xsd" xmlns:tns="https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-structure-kind_1.xsd" version="1">
   <xs:annotation><xs:documentation>Valid defs naming roles; each value is documented separately. This schema supersedes the mixed method role enum for the new codegen.</xs:documentation></xs:annotation>
-  <xs:simpleType name="DefsCodegenStructureKind"><xs:restriction base="xs:string">
+  <xs:simpleType name="DefscodegenStructureKind"><xs:restriction base="xs:string">
     <xs:enumeration value="synthetic_property_type"><xs:annotation><xs:documentation>Naming composition for a synthetic type representing an inline property.</xs:documentation></xs:annotation></xs:enumeration>
+    <xs:enumeration value="synthetic_inline_enum_type"><xs:annotation><xs:documentation>Naming for an enum declared inline on an XSD element/attribute or a JSONDEFS/YAMLDEFS property, combining owner type and member name.</xs:documentation></xs:annotation></xs:enumeration>
     <xs:enumeration value="synthetic_list_item_type"><xs:annotation><xs:documentation>Naming composition for a synthetic list item type.</xs:documentation></xs:annotation></xs:enumeration>
     <xs:enumeration value="synthetic_map_value_type"><xs:annotation><xs:documentation>Naming composition for an additionalProperties/map value type.</xs:documentation></xs:annotation></xs:enumeration>
     <xs:enumeration value="synthetic_positional_item_type"><xs:annotation><xs:documentation>Naming composition for a prefixItems tuple position type.</xs:documentation></xs:annotation></xs:enumeration>

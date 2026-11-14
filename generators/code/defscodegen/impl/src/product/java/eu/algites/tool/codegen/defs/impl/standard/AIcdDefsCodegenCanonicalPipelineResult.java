@@ -1,6 +1,8 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenType;
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,7 +15,7 @@ import java.util.Objects;
  * @param types linked and normalized declarations in stable input order
  * @param payload JSON-compatible generated-contract representation for downstream codegen
  */
-public record AIcdDefsCodegenCanonicalPipelineResult(List<AIcdDefsCodegenType> types,
+public record AIcdDefsCodegenCanonicalPipelineResult(List<AIcDefsCanonicalType> types,
         Map<String, Object> payload) {
     /**
      * Requires complete non-null results and copies the outer declaration list.

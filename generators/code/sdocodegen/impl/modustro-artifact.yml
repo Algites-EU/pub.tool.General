@@ -19,12 +19,20 @@ Dependencies:
         ArtifactId: pub.tool.General_generators.code.sdocodegen.intf
         Usages: [product_api]
       - GroupId: eu.algites.lib.data
+        ArtifactId: pub.lib.General_data.smartdataobject.intf
+        Usages: [product_implementation]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.naming
+        ArtifactId: pub.lib.General_naming.convention.intf
+        Usages: [product_api]
+        VersionRequirement: { Exact: "1.1-SNAPSHOT" }
+      - GroupId: eu.algites.lib.data
         ArtifactId: pub.lib.General_data.dataobject.intf
         Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       - GroupId: eu.algites.lib.data
-        ArtifactId: pub.lib.General_data.smartdataobject.impl
-        Usages: [product_implementation]
+        ArtifactId: pub.lib.General_data.smartdataobject.impl.common
+        Usages: [product_api]
         VersionRequirement: { Exact: "1.1-SNAPSHOT" }
       # Source generation inspects the category-provider factory annotation directly.
       - GroupId: eu.algites.lib.common

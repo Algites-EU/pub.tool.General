@@ -74,13 +74,45 @@ public final class AIcLayeredCodegenSettings {
         // wheels/JARs happen to be on the classpath.
         var locOverlays = readOverlays(locProfileRoot + locOverrideName,
                 Path.of(locProfileBase, locOverrideName));
-        Map<Map<String, String>, List<Map.Entry<String, String>>> locFamilies =
+        // Stale profile artifacts can carry qualified options removed from the
+        // native SDO CLI. Such overlays cannot be merged, even if they do not
+        // declare any current profile-family selector. Prefer a compatible
+        // checkout/current JAR; never ignore an outdated profile if it is the
+        // only available configuration.
+        List<Map.Entry<String, String>> locCompatible = new ArrayList<>();
+        List<String> locOutdated = new ArrayList<>();
+        for (var locOverlay : locOverlays) {
+            if (hasObsoleteSdoSelectors(locOverlay.getValue()))
+                locOutdated.add(locOverlay.getKey());
+            else
+                locCompatible.add(locOverlay);
+        }
+        if (locCompatible.isEmpty() && !locOutdated.isEmpty())
+            throw new AIxCodegenValidationException(
+                    "Only outdated SDO naming profile overlays were found: "
+                            + String.join(", ", locOutdated),
+                    "Use a current source naming profile or republish the profile artifact; "
+                            + "legacy input-technology naming options are not supported by the new SDO CLI.");
+        locOverlays = locCompatible;
+        // A source checkout and a published JAR can contain different revisions
+        // of the *same* named profile. Output/input naming selectors can evolve
+        // without changing that profile's Common/SDO family identity. Treat
+        // such copies as alternatives and use the highest-priority resource
+        // (last in readOverlays order), rather than reporting two families.
+        // Different family identities must still be diagnosed as ambiguous.
+        Map<Map<String, String>, Map.Entry<String, String>> locPreferred =
                 new LinkedHashMap<>();
         for (var locOverlay : locOverlays) {
             var locSignature = profileSelections(locOverlay.getValue());
             if (!locSignature.isEmpty())
-                locFamilies.computeIfAbsent(locSignature, ignored -> new ArrayList<>())
-                        .add(locOverlay);
+                locPreferred.put(profileFamily(locSignature), locOverlay);
+        }
+        Map<Map<String, String>, List<Map.Entry<String, String>>> locFamilies =
+                new LinkedHashMap<>();
+        for (var locOverlay : locPreferred.values()) {
+            var locSignature = profileSelections(locOverlay.getValue());
+            locFamilies.computeIfAbsent(locSignature, ignored -> new ArrayList<>())
+                    .add(locOverlay);
         }
         List<Map<String, String>> locMatching = new ArrayList<>();
         for (var locSignature : locFamilies.keySet()) {
@@ -90,9 +122,12 @@ public final class AIcLayeredCodegenSettings {
             }
             boolean locAgrees = locSignature.entrySet().stream().anyMatch(item ->
                     item.getValue().equals(locRequested.get(item.getKey())));
+            // Custom source interface naming conventions are legitimate
+            // overrides; Common/Defs/SDO family identities must still agree.
             boolean locConflicts = locSignature.entrySet().stream().anyMatch(item ->
                     locRequested.containsKey(item.getKey())
-                    && !item.getValue().equals(locRequested.get(item.getKey())));
+                    && !item.getValue().equals(locRequested.get(item.getKey()))
+                    && !item.getKey().startsWith("--dointf-naming-convention:"));
             if (locAgrees && !locConflicts) locMatching.add(locSignature);
         }
         if (locMatching.size() > 1) {
@@ -104,6 +139,7 @@ public final class AIcLayeredCodegenSettings {
                     "Ambiguous Codegen naming profile overlays: " + String.join(", ", locOrigins),
                     "Select exactly one naming family using qualified profile IDs or --settings-file.");
         }
+
         if (locMatching.isEmpty() && !locRequested.isEmpty()) {
             boolean locPartiallyMatched = locFamilies.keySet().stream().anyMatch(signature ->
                     signature.entrySet().stream().anyMatch(item ->
@@ -112,11 +148,19 @@ public final class AIcLayeredCodegenSettings {
                 throw new AIxCodegenValidationException(
                         "Conflicting naming profile selection: no single installed profile matches "
                         + "the explicitly selected profile IDs",
-                        "Do not mix Algites, Standard Prefix and Standard Postfix profile IDs.");
+                        "Choose one Common/Defs/SDO family; custom input interface IDs may differ.");
         }
-        if (locMatching.size() == 1)
-            for (var locOverlay : locFamilies.get(locMatching.get(0)))
+        // Ordinary settings resources without profile identities always layer.
+        // Only explicitly selected naming families are mutually exclusive.
+        // Keep resource order and invocation precedence identical to Python.
+        for (var locOverlay : locOverlays) {
+            var locSignature = profileSelections(locOverlay.getValue());
+            if (locSignature.isEmpty()
+                    || (locMatching.size() == 1
+                        && locSignature.equals(locMatching.get(0))
+                        && locOverlay == locPreferred.get(profileFamily(locSignature))))
                 addLines(locSettings, locOverlay.getValue(), locOverlay.getKey());
+        }
         if (locSpecifiedFile != null)
             addLines(locSettings, locUserFile, locSpecifiedFile);
         for (String locArg : locInvocation)
@@ -139,6 +183,28 @@ public final class AIcLayeredCodegenSettings {
     }
 
     /**
+     * Rejects obsolete, pre-split SDO naming selectors in an installed overlay.
+     *
+     * <p>Only discovered profile resources are inspected; explicitly supplied
+     * invalid CLI arguments and settings files still reach the CLI validator.
+     * This does not modify or emulate the archived SDO generator.</p>
+     *
+     * @param aContent discovered profile settings, one qualified option per line
+     * @return true if this profile belongs to the old SDO CLI dialect
+     */
+    private static boolean hasObsoleteSdoSelectors(String aContent) {
+        for (String locLine : aContent.lines().toList()) {
+            String locToken = locLine.strip();
+            if (locToken.startsWith("#")) continue;
+            if (locToken.startsWith("--input-technology-naming-convention:")
+                    || locToken.startsWith("--output-technology-naming-convention:")
+                    || locToken.startsWith("--output-enum-technology-naming-convention:"))
+                return true;
+        }
+        return false;
+    }
+
+    /**
      * Identifies the naming profile chosen by settings without introducing
      * vendor-specific profile names into the generic CLI settings loader.
      *
@@ -151,10 +217,10 @@ public final class AIcLayeredCodegenSettings {
                 "--common-codegen-naming-convention:",
                 "--defs-codegen-naming-convention:",
                 "--sdo-codegen-naming-convention:",
-                "--output-interface-technology-naming-convention:",
-                "--output-enum-technology-naming-convention:",
-                "--input-technology-naming-convention:",
-                "--output-technology-naming-convention:");
+                "--dointf-naming-convention:",
+                "--sdointf-naming-convention:",
+                "--sdoimpl-naming-convention:",
+                "--output-enum-technology-naming-convention:");
         Map<String, String> locResult = new LinkedHashMap<>();
         for (String locLine : aContent.lines().toList()) {
             String locToken = locLine.strip();
@@ -166,6 +232,30 @@ public final class AIcLayeredCodegenSettings {
                 locResult.put(locKey, locValue);
         }
         return locResult;
+    }
+
+    /**
+     * Returns the stable naming-family identity of a settings overlay.
+     *
+     * <p>Common plus generator-specific naming selectors identify the profile
+     * family. Input, output-interface and implementation names can be customized
+     * independently and are not evidence of a different installed family.
+     * If a third-party profile has no family selectors, its entire signature
+     * remains the identity so unrelated overlays cannot be silently merged.</p>
+     *
+     * @param aSignature all qualified naming selectors provided by one overlay
+     * @return stable family selectors, or the entire signature as a fallback
+     */
+    private static Map<String, String> profileFamily(Map<String, String> aSignature) {
+        Map<String, String> locFamily = new LinkedHashMap<>();
+        for (var locEntry : aSignature.entrySet()) {
+            String locKey = locEntry.getKey();
+            if (locKey.startsWith("--common-codegen-naming-convention:")
+                    || locKey.startsWith("--defs-codegen-naming-convention:")
+                    || locKey.startsWith("--sdo-codegen-naming-convention:"))
+                locFamily.put(locKey, locEntry.getValue());
+        }
+        return locFamily.isEmpty() ? aSignature : locFamily;
     }
 
     private static String readBuiltIn(String aResource, Path aCheckout) throws IOException {

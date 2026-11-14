@@ -15,14 +15,13 @@ from eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli import main
 
 
 def _read_contracts(source_root: Path) -> list[str]:
-    """Find source-generated JSON read contracts, excluding non-DataObject records."""
+    """Find schema-generated Common and JSON read contracts, excluding choice records."""
     results: list[str] = []
     for source in sorted(source_root.glob('eu/algites/tool/codegen/defs/model/*.py')):
         module = '.'.join(source.relative_to(source_root).with_suffix('').parts)
         for declaration in ast.parse(source.read_text(encoding='utf-8')).body:
             if (isinstance(declaration, ast.ClassDef)
-                    and declaration.name.startswith('AIig')
-                    and any(isinstance(parent, ast.Name) and parent.id == 'AIiJsonDataObject'
+                    and any(isinstance(parent, ast.Name) and parent.id in {'AIiDataObject', 'AIiJsonDataObject'}
                             for parent in declaration.bases)):
                 results.append(f'{module}:{declaration.name}')
     if not results:
@@ -41,15 +40,19 @@ def regenerate(check: bool = False, *, production: bool = False) -> int:
                             'eu/algites/tool/codegen/sdo/algites-sdocodegen-python.settings')
     arguments = [
         f'--repository-root={repository}',
-        f'--technology-dointf-input-dir:python={read_root}',
+        f'--sdo-input-paths:python={read_root}',
         f'--technology-sdointf-output-dir:python={fixture_root}',
         f'--technology-sdoimpl-output-dir:python={fixture_root}',
         '--dointf-input-classes:python=' + ';'.join(_read_contracts(repository / read_root)),
         '--sdointf-subpackage=impl.intf',
         '--sdoclass-subpackage=impl',
     ]
-    arguments.extend(line.strip() for line in profile.read_text(encoding='utf-8').splitlines()
-                     if line.startswith('--'))
+    settings = [line.strip() for line in profile.read_text(encoding='utf-8').splitlines()
+                if line.startswith('--')]
+    # Keep the Common and JSONDEFS input profiles distinct. The read-only
+    # contracts contain both roles, and the SDO generator must recognize
+    # their actual marker/annotation rather than forcing the Common ABI.
+    arguments.extend(settings)
     if check:
         arguments.append('--check')
     return main(arguments)

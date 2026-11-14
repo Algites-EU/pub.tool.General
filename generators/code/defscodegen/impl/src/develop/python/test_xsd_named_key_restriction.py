@@ -14,9 +14,9 @@ from explicit_legacy_naming import catalog, configured_load
 
 COMMON = '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
     xmlns:tns="urn:shared-conventions" targetNamespace="urn:shared-conventions" version="1">
-    <xs:complexType name="shared">
+    <xs:complexType name="Shared">
         <xs:sequence>
-            <xs:element name="Entries" type="tns:entries" minOccurs="0">
+            <xs:element name="Entries" type="tns:Entries" minOccurs="0">
                 <xs:key name="ByName">
                     <xs:selector xpath="Entry"/>
                     <xs:field xpath="@name"/>
@@ -24,7 +24,7 @@ COMMON = '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
             </xs:element>
         </xs:sequence>
     </xs:complexType>
-    <xs:complexType name="entries">
+    <xs:complexType name="Entries">
         <xs:sequence>
             <xs:element name="Entry" minOccurs="0" maxOccurs="unbounded">
                 <xs:complexType>
@@ -38,11 +38,11 @@ COMMON = '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
 STANDARD = '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
     xmlns:shared="urn:shared-conventions" targetNamespace="urn:standard-conventions" version="1">
     <xs:import namespace="urn:shared-conventions" schemaLocation="shared_1.xsd"/>
-    <xs:complexType name="standard">
+    <xs:complexType name="Standard">
         <xs:complexContent>
-            <xs:restriction base="shared:shared">
+            <xs:restriction base="shared:Shared">
                 <xs:sequence>
-                    <xs:element name="Entries" type="shared:entries">
+                    <xs:element name="Entries" type="shared:Entries">
                         <xs:key name="ByName">
                             <xs:selector xpath="Entry"/>
                             <xs:field xpath="@name"/>
@@ -66,12 +66,12 @@ def test_named_xsd_key_container_survives_required_restriction(tmp_path: Path) -
     assert "SharedEntriesAdditionalProperties" in frontend.additional_named_type_names(common)
     profile = catalog("java")
     request = configured_load(common, AInDefinitionSourceKind.XMLDEFS, profile)
-    entries = frontend.load_named_type(request, "entries")
-    assert len(entries.data_type.properties) == 1
-    item = entries.data_type.properties[0]
-    assert item.source_name == "Entry"
-    assert item.data_type.kind is AInDataTypeKind.ARRAY
-    assert tuple((key.name, key.fields) for key in item.data_type.key_definitions) == (
+    entries = frontend.load_named_type(request, "Entries")
+    # The keyed map is represented as a named virtual indexed container,
+    # not as an unkeyed property named Entry. Preserve the key metadata.
+    assert entries.data_type.kind is AInDataTypeKind.OBJECT
+    assert entries.data_type.keyed_value_type is not None
+    assert tuple((key.name, key.fields) for key in entries.data_type.key_definitions) == (
         ("ByName", ("name",)),)
 
     service = AIcDefaultDefsCodegenService()

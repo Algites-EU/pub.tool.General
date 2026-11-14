@@ -15,15 +15,16 @@ import yaml
 
 CODE_ROOT = Path(__file__).resolve().parents[5]
 ROLES = {
-    'common': {'standard_getter', 'standard_setter',
+    'common': {'standard_getter', 'standard_setter', 'list_getter',
                'positional_item_synthetic_getter',
                'multi_mapped_list_key_synthetic_getter',
                'multi_mapped_list_value_synthetic_getter', 'const_container_interface'},
-    'defs': {'synthetic_property_type', 'synthetic_list_item_type',
+    'defs': {'synthetic_property_type', 'synthetic_inline_enum_type', 'synthetic_list_item_type',
              'synthetic_map_value_type', 'synthetic_positional_item_type',
              'synthetic_choice_variant_type', 'synthetic_group_type',
              'string_enum_item', 'non_string_enum_item'},
-    'sdo': {'raw_getter', 'raw_presence_checker_method', 'raw_unsetter'},
+    'sdo': {'raw_getter', 'raw_presence_checker_method', 'raw_unsetter',
+            'raw_empty_setter', 'raw_empty_checker_method'},
 }
 SCHEMAS = {
     'common': ('common', 'src/product', 'common/naming',
@@ -55,7 +56,7 @@ def test_role_enum_and_structural_naming_key_reference(domain: str, source_kind:
                  ['additionalProperties']['properties']['StructureNaming'])
     assert structure['propertyNames']['$ref'].endswith(f'/{prefix}-structure-kind_1.{suffix}')
     if domain == 'common':
-        assert set(structure['required']) == {'standard_getter', 'standard_setter'}
+        assert set(structure['required']) == {'standard_getter', 'standard_setter', 'list_getter'}
     else:
         assert 'standard_getter' not in structure.get('properties', {})
 

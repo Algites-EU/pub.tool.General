@@ -12,7 +12,7 @@ for relative in ('generators/code/common/src/product/python',
     sys.path.insert(0, str(TOOL / relative))
 
 from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
-from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import AIigSourceInputKind_1 as Kind
+from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import AIngSourceInputKind_1 as Kind
 from eu.algites.tool.codegen.defs.impl.standard.canonical_pipeline import (
     AIcDefsCodegenCanonicalPipeline, AIcdDefsCodegenSourceDocument,
 )
@@ -43,7 +43,10 @@ def test_cross_technology_recursive_schema_is_merged_and_validated():
     assert result.types[0].structure.children[0].structure.target_identity == 'urn:my-model#/$defs/Node'
     assert result.types[1].structure.children[0].structure.target_identity == 'urn:my-model#/$defs/Node'
     assert set(result.types[1].structure.children[0].structure.source_bindings) == {Kind.JSONDEFS, Kind.YAMLDEFS}
-    assert result.payload['types'][1]['source_bindings']['JSONDEFS'][0]['source_resource'] == 'tree.json'
+    groups = result.payload['types'][1]['source_bindings']['SourceBindingGroup']
+    assert {group['InputKind'] for group in groups} == {'JSONDEFS', 'YAMLDEFS'}
+    json_group = next(group for group in groups if group['InputKind'] == 'JSONDEFS')
+    assert json_group['Binding'][0]['source_resource'] == 'tree.json'
 
 
 def test_xsd_named_self_recursive_type_is_linked_and_schema_validated():
@@ -53,7 +56,8 @@ def test_xsd_named_self_recursive_type_is_linked_and_schema_validated():
     </xs:sequence></xs:complexType></xs:schema>'''
     result = pipeline().process((AIcdDefsCodegenSourceDocument(Kind.XMLDEFS, 'tree.xsd', xsd),))
     assert result.types[0].structure.children[0].structure.target_identity == 'Node'
-    assert 'XMLDEFS' in result.payload['types'][0]['source_bindings']
+    groups = result.payload['types'][0]['source_bindings']['SourceBindingGroup']
+    assert any(group['InputKind'] == 'XMLDEFS' for group in groups)
 
 
 def test_conflict_and_unresolved_reference_prevent_result_publication():

@@ -91,3 +91,29 @@ def test_root_escape_is_rejected_before_cleanup(checkout, tmp_path):
     ], capture_output=True, text=True)
     assert result.returncode != 0
     assert (checkout / 'generators/code/defscodegen/intf/src/product/java.gen/stale').is_file()
+
+
+def test_legacy_generate_action_delegates_to_canonical_cli(checkout, tmp_path):
+    """An old generate invocation may not import or execute the retired Defs generator."""
+    entry = checkout / 'devops/bootstrap/generate_sources.py'
+    entry.parent.mkdir(parents=True)
+    entry.write_text('''from pathlib import Path
+import sys
+Path(sys.argv[sys.argv.index("--output") + 1], "canonical-invoked").write_text("yes")
+''', encoding='utf-8')
+    output = checkout / 'build/run/canonical'
+    result = subprocess.run([sys.executable, str(SCRIPT), 'generate',
+        '--repository', str(checkout), '--output', str(output)],
+        capture_output=True, text=True, env={'PYTHONDONTWRITEBYTECODE': '1'})
+    assert result.returncode == 0, result.stderr
+    assert (output / 'canonical-invoked').read_text() == 'yes'
+
+
+def test_no_retired_generator_import_in_active_bootstrap():
+    """Both legacy entry points must lead to the same live CLI."""
+    module = SCRIPT.read_text(encoding='utf-8')
+    launcher = (SCRIPT.parent / 'bootstrap-selfhosted.sh').read_text(encoding='utf-8')
+    assert 'from eu.algites.tool.codegen.defs.old.' not in module
+    assert 'AIcSchemaContractBindingsGenerator' not in module
+    assert 'regenerate_sources.py"' not in launcher
+    assert 'exec bash "$locRepository/devops/bootstrap/bootstrap.sh"' in launcher

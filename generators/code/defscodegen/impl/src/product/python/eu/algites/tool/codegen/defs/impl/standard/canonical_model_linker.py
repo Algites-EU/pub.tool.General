@@ -13,10 +13,10 @@ from typing import Any
 from urllib.parse import urljoin
 
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIcgd_jType_1 as TypeNode,
-    AIcgd_jElement_1 as Element, AIcgd_jElementList_1 as ElementList,
-    AIcgd_jList_1 as ListNode, AIcgd_jMap_1 as MapNode,
-    AIigResolutionState_1 as State, normalize_structure,
+    AIcgdType_1 as TypeNode,
+    AIcgdElement_1 as Element, AIcgdElementList_1 as ElementList,
+    AIcgdList_1 as ListNode, AIcgdMap_1 as MapNode,
+    AIngResolutionState_1 as State, normalize_structure,
 )
 from eu.algites.tool.codegen.defs.impl.standard.canonical_contract_payload import (
     AIcDefsCodegenCanonicalContractPayload,
@@ -27,7 +27,9 @@ class AIcDefsCodegenCanonicalModelLinker:
     """Links local or registered external schema refs while collecting diagnostics."""
 
     @staticmethod
-    def link(types: Iterable[TypeNode], *, schema: Mapping[str, Any] | None = None
+    def link(types: Iterable[TypeNode], *, schema: Mapping[str, Any] | None = None,
+             external_parents: Iterable[str] = (),
+             document_uris: Mapping[str, str] | None = None
              ) -> tuple[TypeNode, ...]:
         """Resolve references, validate all outputs, then normalize, in that order.
 
@@ -35,6 +37,10 @@ class AIcDefsCodegenCanonicalModelLinker:
             types: All named definitions collected from the selected source inputs.
             schema: Optional generated canonical-model JSON Schema contract to
                 validate prior to normalization, including closed choices and maps.
+            external_parents: Verified external base-type identities.
+            document_uris: Declared `$id` URL for each input source resource;
+                permits qualified local or cross-document `$ref` while preserving
+                the logical `x-algites-schema-id` as canonical TYPE identity.
 
         Returns:
             Finalized roots; any recursive usage is a resolved symbolic TYPE edge.
@@ -45,6 +51,8 @@ class AIcDefsCodegenCanonicalModelLinker:
                 exact schema source locations where available.
         """
         candidates = tuple(types)
+        external = frozenset(external_parents)
+        uris = document_uris or {}
         declarations: dict[str, TypeNode] = {}
         aliases: dict[str, set[str]] = {}
         problems: list[str] = []
@@ -64,6 +72,12 @@ class AIcDefsCodegenCanonicalModelLinker:
                     aliases.setdefault(b.source_resource + '::' + root.name, set()).add(root.identity)
                     if b.source_pointer.startswith('#'):
                         aliases.setdefault(b.source_resource + b.source_pointer, set()).add(root.identity)
+                        declared_uri = uris.get(b.source_resource)
+                        if declared_uri:
+                            # `#` is the root, not a separate URI fragment.
+                            qualified = declared_uri.rstrip('#') + (
+                                '' if b.source_pointer == '#' else b.source_pointer)
+                            aliases.setdefault(qualified, set()).add(root.identity)
                         if b.source_pointer == '#':
                             aliases.setdefault(b.source_resource, set()).add(root.identity)
         if problems:
@@ -89,6 +103,8 @@ class AIcDefsCodegenCanonicalModelLinker:
                                         + ', '.join(sorted(matches)))
                         return None
                     return next(iter(matches))
+            if identity in external:
+                return identity
             problems.append(f'{location}: unresolved reference {identity!r}; '
                             'supply its declared TYPE or a supported local schema dependency')
             return None
@@ -96,6 +112,9 @@ class AIcDefsCodegenCanonicalModelLinker:
         def resolve(ref: TypeNode) -> TypeNode:
             identity = find_target(ref.identity, ref.source_bindings)
             if identity is None:
+                return ref
+            if identity in external:
+                problems.append(f'External type {identity!r} is only supported as an inherited parent, not as a field reference')
                 return ref
             target = declarations[identity]
             return replace(ref, identity=target.identity, name=target.name,
@@ -153,7 +172,16 @@ class AIcDefsCodegenCanonicalModelLinker:
             raise ValueError('Canonical model reference resolution failed:\n' + '\n'.join(problems))
         # A generated interface contract describes the graph *before* normalization.
         if schema is not None:
-            from jsonschema import Draft202012Validator
+            try:
+                from jsonschema import Draft202012Validator
+            except ImportError as error:
+                raise RuntimeError(
+                    'Defs Codegen requires the Python runtime dependency '
+                    'jsonschema>=4.18,<5.0 for canonical model validation. '
+                    'Install it into the bootstrap Python environment '
+                    '(e.g. python3 -m pip install "jsonschema>=4.18,<5.0"), '
+                    'then rerun the bootstrap; validation must not be skipped.'
+                ) from error
             errors = sorted(Draft202012Validator(schema).iter_errors(
                 AIcDefsCodegenCanonicalContractPayload.emit(linked)), key=lambda e: str(e.path))
             if errors:

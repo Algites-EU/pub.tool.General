@@ -81,6 +81,82 @@ Existing JSON/YAML instance documents must be migrated, and XML/JSON common
 contract compatibility requires an independent projection review. Neither the
 vocabulary update nor the marker itself implements that projection.
 
+## `x-algites-defscodegen-key`
+
+The keyword is an object with exactly two nonempty string members, `id` and
+`field-name`; additional members are forbidden. It applies to a JSONDEFS or
+YAMLDEFS schema of one of two forms:
+
+- A homogeneous JSON/YAML **object map** with an object-valued `additionalProperties`
+  schema, where map property names supply virtual key values.
+- A homogeneous JSON/YAML **array** with an `items` schema describing typed
+  objects and a required scalar/enum item field selected by `field-name`.
+  For arrays, `field-name` selects a *real item field*, not a synthetic map key.
+  The key is attached to the canonical LIST and the owning generated getter.
+
+For object maps, the map's **property names** provide virtual key values;
+`field-name` names the **logical data field** returned by the generated synthetic
+map-key getter, and overrides the `multi_mapped_list_key_synthetic_getter`
+naming-role default. It is **not** the spelling of a method in a specific
+programming language. `id` names the identity constraint local to the map's
+owning collection, equivalent to `xs:key/@name`. `field-name` corresponds to
+the one selected field of a simple XML `xs:key` such as `@kind` or `@name`.
+
+Example:
+
+```json
+{
+  "type": "object",
+  "x-algites-defscodegen-key": {
+    "id": "UniqueStructureRoles",
+    "field-name": "kind"
+  },
+  "propertyNames": {"$ref": "https://example.org/structure-kind.schema.json"},
+  "additionalProperties": {"type": "string"}
+}
+```
+
+For arrays, for example:
+
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {"name": {"type": "string"}, "Value": {"type": "string"}},
+    "required": ["name", "Value"]
+  },
+  "x-algites-defscodegen-key": {"id": "UniqueNames", "field-name": "name"}
+}
+```
+
+`items` may also reference a named object type; the resolved key field must
+still be a typed scalar or enum. Invalid or missing fields are diagnosed rather
+than interpreted as untyped map values. Both representations preserve their
+original wire format.
+
+The property-name schema remains the source of validation and the **typed key**
+(enum when its referenced contract is an enum); the extension does not widen an
+enum to `String`. The index must expose a typed keyed collection equivalent to
+the corresponding XML indexed list, **not** a raw `Map<String, String>`.
+Absent the extension, the previously configured synthetic key getter remains
+applicable. Repeated JSON/YAML member names cannot form distinct entries.
+
+Explicit `additionalProperties: true` and `additionalProperties: {}` carry no
+value type and MUST NOT produce `Object`, `Any`, or `Map<String,Object>` getters.
+The generator ignores those wildcards, emits a location-specific warning, and
+shows a typed declaration such as `"additionalProperties":{"type":"string"}`
+or `"additionalProperties":{"$ref":"#/$defs/Item"}`. Omitted
+`additionalProperties` follows JSON Schema's default open semantics but does
+not trigger a warning or create an untyped getter. Ignoring unknown values can
+prevent lossless data roundtrips. A typed `additionalProperties` schema still
+creates a typed collection.
+
+Both `id` and `field-name` MUST be valid, collision-free logical identifiers;
+loss of typed enum identity, ambiguous external references and incompatible
+field/value projections MUST be rejected rather than silently emitted as an
+untyped map. The keyword does not itself describe a composite XML key.
+
 ## Compatibility and publication
 
 One semantic vocabulary URI is shared across dialect-specific vocabulary keyword meta-schemas for JSON Schema 2019-09 and 2020-12. For Draft-03, Draft-04, Draft-06, and Draft-07, the same semantics are expressed as proprietary annotations in extended, version-specific meta-schemas. These historical dialects lack `$vocabulary`; the corresponding `vocabulary_1.jsonmetadef.schema.json` resources validate keyword syntax, while `dialect_1.jsonmetadef.schema.json` preserves the published standard metaschema’s recursive validation rules and references the keyword definitions. Draft-05 shares the Draft-04 metaschema (no distinct dialect resource). The keyword meta-schemas describe JSON syntax only; the semantic requirements above must be implemented and tested by consuming tools. Older drafts without `$vocabulary` may use these `x-` keywords as proprietary annotations with separately documented support, but they MUST NOT be described as implementing the 2019-09/2020-12 `$vocabulary` mechanism.

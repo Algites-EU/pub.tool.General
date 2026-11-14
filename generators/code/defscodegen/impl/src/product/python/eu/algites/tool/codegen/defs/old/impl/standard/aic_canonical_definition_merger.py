@@ -8,14 +8,15 @@ class AIcCanonicalDefinitionMerger:
     """Merge compatible representations while retaining documentation and source provenance."""
 
     @staticmethod
-    def merge(definitions):
+    def merge(definitions, naming_profile=None, source_naming_profile=None):
         """Reject differing contracts and combine documentation for one logical type."""
         definitions = tuple(definitions)
         if not definitions:
             raise AIxCodegenValidationException("No canonical definitions to merge.", 'Compare the pairwise XMLDEFS, JSONDEFS and YAMLDEFS differences listed above, ' +
                     'including field types, requiredness, collection shape and key definitions. ' +
                     'Correct the indicated source declarations so all representations agree.')
-        AIcCanonicalDefinitionMerger.validate(definitions, documentation=False)
+        AIcCanonicalDefinitionMerger.validate(definitions, documentation=False, naming_profile=naming_profile,
+            source_naming_profile=source_naming_profile)
         return AIcCanonicalDefinitionMerger._merge_validated(definitions)
 
     @staticmethod
@@ -72,7 +73,7 @@ class AIcCanonicalDefinitionMerger:
         return AIcCanonicalDefinitionMerger._merge_validated(definitions)
 
     @staticmethod
-    def validate(definitions, documentation=False, source_root=None, naming_profile=None):
+    def validate(definitions, documentation=False, source_root=None, naming_profile=None, source_naming_profile=None):
         """Report every incompatible pair with source filenames and best-effort source lines."""
         definitions = tuple(definitions)
         if not definitions:
@@ -131,17 +132,29 @@ class AIcCanonicalDefinitionMerger:
             """
             if naming_profile is None:
                 return False
+            # Resolve a source convention only from the explicitly provided
+            # catalog; never import a vendor catalog or assume a filename rule.
+            xml_source = path(xml_definition)
+            selected_source = source_naming_profile
+            if not selected_source:
+                match = naming_profile.recognize_filename(xml_source.name)
+                selected_source = match.convention_name if match is not None else None
+            if not selected_source:
+                return False
             reference = xml_field.data_type.referenced_definition()
             if (reference is None or not reference.identity.startswith('#@type/')
-                    or xml_field.data_type.kind.name != 'ARRAY'
-                    or inline_field.data_type.kind.name != 'ARRAY'
-                    or inline_field.data_type.element_type.kind.name != 'OBJECT'):
+                    or xml_field.data_type.kind.name not in ('ARRAY', 'REFERENCE')
+                    or inline_field.data_type.kind.name not in ('ARRAY', 'OBJECT')):
                 return False
+            # A local anonymous XML complexType is projected as a named type;
+            # JSON/YAML carry that object inline. Compare the resolved structure
+            # rather than requiring their representation-specific references
+            # to have the same lexical identity.
             from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
             from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
             from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
             request = AIcdDefinitionLoadRequest(path(xml_definition), AInDefinitionSourceKind.XMLDEFS,
-                naming_profile)
+                naming_profile, selected_source)
             try:
                 named = AIcXmlDefsFrontend().load_named_type(request,
                     reference.identity.removeprefix('#@type/'))
@@ -171,7 +184,13 @@ class AIcCanonicalDefinitionMerger:
                         and first.reference.version == second.reference.version)
                 return True
 
-            return same_shape(named.data_type, inline_field.data_type.element_type)
+            inline_shape = (inline_field.data_type.element_type
+                if inline_field.data_type.kind.name == 'ARRAY' else inline_field.data_type)
+            if xml_field.data_type.kind.name == 'ARRAY' and inline_field.data_type.kind.name != 'ARRAY':
+                return False
+            if xml_field.data_type.kind.name == 'REFERENCE' and inline_field.data_type.kind.name != 'OBJECT':
+                return False
+            return same_shape(named.data_type, inline_shape)
 
         def diff(a, b):
             found = []
@@ -251,6 +270,13 @@ class AIcCanonicalDefinitionMerger:
 
             def compare_structural_type(prefix, field, left, right):
                 """Compare all nested kinds across XML/JSON/YAML without equating lexical facets."""
+                # An XSD simpleType restriction with xs:enumeration is an
+                # equivalent finite scalar to a JSON/YAML inline enum when
+                # every allowed wire value is identical.
+                if ({left.kind.name, right.kind.name} == {'ENUM', 'STRING'}
+                        and left.constraints.enum_values
+                        and left.constraints.enum_values == right.constraints.enum_values):
+                    return
                 compare(prefix + '.kind', field, 'dataType/kind', left.kind, right.kind)
                 if left.kind != right.kind:
                     return
@@ -332,13 +358,14 @@ class AIcCanonicalDefinitionMerger:
                 # The published JSON/YAML schema may spell a finite scalar enum
                 # as enum + oneOf(const) solely to carry per-value documentation;
                 # XSD expresses the same restriction with xs:enumeration facets.
-                loc_literal_enum_projection = (x.data_type.kind == y.data_type.kind and
-                    x.data_type.kind.name in ('STRING', 'INTEGER', 'NUMBER', 'BOOLEAN') and
-                    x.data_type.constraints.enum_values == y.data_type.constraints.enum_values and
-                    (literal_oneof_matches_enum(x.data_type, x.data_type.constraints.enum_values)
-                     and y.data_type.kind.name in ('STRING', 'INTEGER', 'NUMBER', 'BOOLEAN') or
-                     literal_oneof_matches_enum(y.data_type, y.data_type.constraints.enum_values)
-                     and x.data_type.kind.name in ('STRING', 'INTEGER', 'NUMBER', 'BOOLEAN')))
+                # XSD expresses an inline enumeration as a restricted scalar,
+                # while JSON/YAML may represent exactly the same finite values as
+                # a named enum. Never collapse an unconstrained scalar to an enum.
+                enum_values_equal = (bool(x.data_type.constraints.enum_values)
+                    and x.data_type.constraints.enum_values == y.data_type.constraints.enum_values)
+                loc_literal_enum_projection = (enum_values_equal
+                    and {x.data_type.kind.name, y.data_type.kind.name} == {'ENUM', 'STRING'}
+                    and (a.source_kind.value == 'xmldefs') != (b.source_kind.value == 'xmldefs'))
                 # The current XML frontend does not yet project all nested named
                 # complexTypes into recursive DataType nodes. Keep the established
                 # flat canonical comparison for XML until both readers can produce

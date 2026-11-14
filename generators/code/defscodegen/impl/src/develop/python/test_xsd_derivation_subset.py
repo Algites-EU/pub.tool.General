@@ -2,7 +2,7 @@
 from pathlib import Path
 import pytest
 
-from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
+from explicit_legacy_naming import catalog, configured_load
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
@@ -24,8 +24,7 @@ _SCHEMA = '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
 def _load(tmp_path, xml):
     path = tmp_path / 'derived_1.xsd'
     path.write_text(xml)
-    req = AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.XMLDEFS,
-        AIcAlgitesNamingProfiles.python_profile())
+    req = configured_load(path, AInDefinitionSourceKind.XMLDEFS, catalog('python'))
     return AIcXmlDefsFrontend().load(req)
 
 

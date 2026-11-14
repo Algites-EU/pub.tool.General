@@ -6,7 +6,9 @@
   "enum": [
     "raw_getter",
     "raw_presence_checker_method",
-    "raw_unsetter"
+    "raw_unsetter",
+    "raw_empty_setter",
+    "raw_empty_checker_method"
   ],
   "description": "Strictly typed naming role vocabulary for the sdo domain. Roles in other domains are forbidden.",
   "x-algites-schema-id": "eu.algites.tool.codegen.sdo.naming.sdocodegen-structure-kind",

@@ -3,6 +3,8 @@ package eu.algites.tool.codegen.sdo.impl.cli;
 import eu.algites.tool.codegen.common.AIxCodegenValidationException;
 
 import eu.algites.tool.codegen.common.AIcCodegenDiagnostics;
+import eu.algites.tool.codegen.common.AIcCodegenWorkspace;
+import eu.algites.tool.codegen.common.AIcCodegenRunLog;
 import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
 import eu.algites.tool.codegen.common.AIcCodegenArtifactResolver;
 import eu.algites.tool.codegen.sdo.AIcdGeneratedSdoSource;
@@ -31,8 +33,8 @@ import java.util.jar.JarFile;
  * are scanned as ordinary classpath JARs, without requiring opens declarations.
  */
 public final class AIcSdoCodegenCli {
-    private static final Set<String> ROLES = Set.of(
-            "common", "xmldefs_type", "xmldefs_element", "yamldefs", "jsondefs");
+    /** All SDO types use one schema-neutral naming role. */
+    private static final String SDO_ROLE = "common";
 
     private AIcSdoCodegenCli() { }
 
@@ -45,7 +47,11 @@ public final class AIcSdoCodegenCli {
     public static void main(String[] aArguments) throws Exception {
         String locPrevious = System.getProperty("algites.sdocodegen.setterInheritancePolicy");
         try {
-            batch(expandSettings(aArguments));
+            String[] locExpanded = expandSettings(aArguments);
+            try (var locLog = AIcCodegenRunLog.fromArguments("SDO Codegen", "java",
+                    locExpanded, "technology-sdointf-output-dir:java")) {
+                batch(locExpanded);
+            }
         } catch (Exception locFailure) {
             AIcCodegenDiagnostics.exitOnExpectedError(locFailure, "SDO Codegen (Java)");
         } finally {
@@ -72,7 +78,8 @@ public final class AIcSdoCodegenCli {
         Map<String, String> locConcreteRoles = new LinkedHashMap<>();
         List<String> locCatalogSources = new ArrayList<>();
         List<String> locArtifacts = new ArrayList<>();
-        String locResolvedArtifacts = null;
+        List<String> locResolvedArtifacts = new ArrayList<>();
+        List<String> locDependencyArtifacts = new ArrayList<>();
         List<String> locClasses = new ArrayList<>();
         List<String> locClassPathParts = new ArrayList<>();
         String locMutableSubpackage = "";
@@ -83,6 +90,7 @@ public final class AIcSdoCodegenCli {
         Set<String> locCatalogKinds = new LinkedHashSet<>();
         boolean locCheck = false;
         boolean locClean = false;
+        boolean locCleanup = false;
         boolean locOneAtATime = eu.algites.tool.codegen.common.AIcCodegenValidationBatch.defaultPolicy();
         for (String locOption : aArgs) {
             if (locOption.equals("--check")) { locCheck = true; continue; }
@@ -103,6 +111,13 @@ public final class AIcSdoCodegenCli {
                     System.setProperty("algites.sdocodegen.setterInheritancePolicy", locPolicy.name());
                 }
                 case "repository-root" -> locRepository = Path.of(locValue).toAbsolutePath().normalize();
+                case "cleanup-output-folder-before-generation" -> {
+                    if (locQualified.length != 1 || !(locValue.equals("true") || locValue.equals("false")))
+                        throw new AIxCodegenValidationException(
+                                "Expected --cleanup-output-folder-before-generation=true|false",
+                                "Use an unqualified boolean cleanup setting.");
+                    locCleanup = Boolean.parseBoolean(locValue);
+                }
                 case "naming-conventions-file" -> {
                     if (locQualified.length != 2 || locQualified[1].isBlank())
                         throw new AIxCodegenValidationException("Catalog option needs a unique qualifier: " + locOption, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
@@ -127,18 +142,21 @@ public final class AIcSdoCodegenCli {
                     requireQualifiers(locQualified, "java");
                     locSdoCodegenProfile = locValue;
                 }
-                case "dointf-classpath" -> {
+                case "sdo-dependency-artifacts" -> {
                     requireQualifiers(locQualified, "java");
-                    locClassPathParts.addAll(Arrays.asList(
-                            locValue.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))));
+                    for (String part : locValue.split(";")) if (!part.isBlank()) locDependencyArtifacts.add(part);
                 }
-                case "dointf-input-artifacts" -> {
+                case "sdo-dependency-paths" -> {
                     requireQualifiers(locQualified, "java");
-                    locResolvedArtifacts = locValue;
+                    for (String part : locValue.split(";")) if (!part.isBlank()) locClassPathParts.add(part);
                 }
-                case "dointf-input-paths" -> {
+                case "sdo-input-artifacts" -> {
                     requireQualifiers(locQualified, "java");
-                    locArtifacts.addAll(Arrays.asList(locValue.split(";", -1)));
+                    for (String part : locValue.split(";")) if (!part.isBlank()) locResolvedArtifacts.add(part);
+                }
+                case "sdo-input-paths" -> {
+                    requireQualifiers(locQualified, "java");
+                    for (String part : locValue.split(";")) if (!part.isBlank()) locArtifacts.add(part);
                 }
                 case "dointf-input-classes" -> {
                     requireQualifiers(locQualified, "java");
@@ -146,30 +164,28 @@ public final class AIcSdoCodegenCli {
                 }
                 case "sdointf-subpackage" -> locMutableSubpackage = locValue;
                 case "sdoclass-subpackage" -> locConcreteSubpackage = locValue;
-                case "technology-dointf-input-dir", "technology-sdointf-output-dir",
-                        "technology-sdoimpl-output-dir" -> {
+                case "technology-sdointf-output-dir", "technology-sdoimpl-output-dir" -> {
                     requireQualifiers(locQualified, "java");
                     locDirectories.put(locBase, locValue);
                 }
-                case "input-technology-naming-convention" -> {
-                    if (locQualified.length != 4 || !locQualified[1].equals("java")
-                            || !ROLES.contains(locQualified[2]) || !locQualified[3].equals("defsintf"))
-                        throw new AIxCodegenValidationException("Expected :java:role:defsintf in " + locOption, "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
-                    locInputRoles.put(locQualified[2], locValue);
+                case "dointf-naming-convention" -> {
+                    requireQualifiers(locQualified, "java");
+                    locInputRoles.put(SDO_ROLE, locValue);
                 }
-                case "output-technology-naming-convention" -> {
-                    if (locQualified.length != 4 || !locQualified[1].equals("java")
-                            || !ROLES.contains(locQualified[2]))
-                        throw new AIxCodegenValidationException("Expected :java:role:output in " + locOption, "Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.");
-                    if (locQualified[3].equals("sdointf"))
-                        locMutableRoles.put(locQualified[2], locValue);
-                    else if (locQualified[3].equals("sdoclass"))
-                        locConcreteRoles.put(locQualified[2], locValue);
-                    else throw new AIxCodegenValidationException("Unknown SDO naming output: " + locOption, "Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.");
+                case "sdointf-naming-convention" -> {
+                    requireQualifiers(locQualified, "java");
+                    locMutableRoles.put(SDO_ROLE, locValue);
+                }
+                case "sdoimpl-naming-convention" -> {
+                    requireQualifiers(locQualified, "java");
+                    locConcreteRoles.put(SDO_ROLE, locValue);
                 }
                 default -> throw new AIxCodegenValidationException("Unknown SDO CLI argument: " + locOption, "Check the qualified CLI option and the active layered settings. Supply the required value, role and technology and remove conflicting options.");
             }
         }
+        if (locCheck && locCleanup) throw new AIxCodegenValidationException(
+                "--check conflicts with --cleanup-output-folder-before-generation=true",
+                "Run cleanup only while generating sources.");
         if (locCheck && locClean) throw new AIxCodegenValidationException("--check conflicts with --clean-only", "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
         Path locMutableRoot = root(locRepository, locDirectories.get("technology-sdointf-output-dir"));
         Path locConcreteRoot = root(locRepository, locDirectories.get("technology-sdoimpl-output-dir"));
@@ -194,45 +210,75 @@ public final class AIcSdoCodegenCli {
         } else if (locGeneratedMethodsProfile != null) {
             locNames = locNames.withGeneratedMethodProfile(locGeneratedMethodsProfile);
         }
+        if (!locInputRoles.containsKey(SDO_ROLE) || !locMutableRoles.containsKey(SDO_ROLE)
+                || !locConcreteRoles.containsKey(SDO_ROLE))
+            throw new AIxCodegenValidationException(
+                    "Select --dointf-naming-convention:java, --sdointf-naming-convention:java and --sdoimpl-naming-convention:java",
+                    "Supply one schema-neutral naming profile for each SDO input/output role.");
         AIcNameConventionCatalog locInputNames = locNames.withRoles(locInputRoles);
         AIcNameConventionCatalog locMutableNames = locNames.withRoles(locMutableRoles);
         AIcNameConventionCatalog locConcreteNames = locNames.withRoles(locConcreteRoles);
+        Path locArtifact = AIcCodegenWorkspace.artifactRoot(locRepository, locMutableRoot);
+        if (!locArtifact.equals(AIcCodegenWorkspace.artifactRoot(locRepository, locConcreteRoot)))
+            throw new IOException("SDO output roots must belong to one artifact");
         if (locClean) {
-            cleanOutputs(locMutableRoot, locConcreteRoot, locNames, locMutableRoles, locConcreteRoles);
+            try (var workspace = new AIcCodegenWorkspace(locRepository, locArtifact, "sdocodegen")) {
+                workspace.publish(Map.of(), false, true);
+            }
+            AIcCodegenWorkspace.cleanupInactive(locRepository, locArtifact, "sdocodegen");
             return;
         }
         var locService = new AIcSdoCodegenService();
         Map<String, AIcdSdoGenerationResult> locResults = new LinkedHashMap<>();
         List<Path> locDependencies = new ArrayList<>();
         for (String locPart : locClassPathParts) locDependencies.add(root(locRepository, locPart));
-        Path locSourceRoot = root(locRepository, locDirectories.get("technology-dointf-input-dir"));
-        if (locSourceRoot != null && !Files.isDirectory(locSourceRoot))
-            System.err.println("SDO Codegen: skipping configured input directory (not found): " + locSourceRoot);
-        if (locSourceRoot != null && Files.isDirectory(locSourceRoot)) {
+        if (!locDependencyArtifacts.isEmpty())
+            locDependencies.addAll(AIcCodegenArtifactResolver.resolveJava(
+                    String.join(";", locDependencyArtifacts)));
+        // Validate the shared dependency set ONCE. Otherwise, source-input
+        // batching repeats one missing classpath entry as an error for every
+        // annotated DataObject in the same artifact.
+        for (Path locDependency : locDependencies) {
+            if (!Files.exists(locDependency))
+                throw new AIxCodegenValidationException(
+                        "Missing Java SDO dependency classpath entry: " + locDependency,
+                        "Supply an existing JAR or compiled class/resource directory using "
+                        + "--sdo-dependency-paths:java. Unmaterialized optional Gradle "
+                        + "output directories must not be passed to SDO Codegen.",
+                        locDependency.toString(), null);
+        }
+        List<Path> locSourceRoots = new ArrayList<>();
+        List<Path> locBinaryPaths = new ArrayList<>();
+        for (String input : locArtifacts) {
+            Path selected = root(locRepository, input);
+            if (!Files.exists(selected)) throw new IOException("SDO input path does not exist: " + selected);
+            if (Files.isDirectory(selected)) {
+                try (var walk = Files.walk(selected)) {
+                    if (walk.anyMatch(path -> path.toString().endsWith(".java"))) locSourceRoots.add(selected);
+                    else locBinaryPaths.add(selected);
+                }
+            } else if (selected.toString().endsWith(".java")) {
+                locSourceRoots.add(selected.getParent());
+            } else locBinaryPaths.add(selected);
+        }
+        for (Path locSourceRoot : locSourceRoots) {
             List<Path> locContracts = new ArrayList<>();
             try (var locWalk = Files.walk(locSourceRoot)) {
                 for (Path locSource : locWalk.filter(aPath -> aPath.toString().endsWith(".java")).sorted().toList()) {
                     String locText = Files.readString(locSource, StandardCharsets.UTF_8);
-                    if (locText.matches("(?s).*\\binterface\\s+\\w+.*")
-                            && (locText.contains("@AIaDataObject")
-                                || locText.contains("@eu.algites.lib.data.dataobject.AIaDataObject"))) {
+                    // All source interfaces are type-checked after compilation.
+                    // Only the reflected neutral @AIaDataObject declaration or
+                    // an inherited neutral annotation may select an SDO input.
+                    // A filename/naming convention is NOT a selection criterion.
+                    if (locText.matches("(?s).*\\binterface\\s+\\w+.*"))
                         locContracts.add(locSource);
-                        continue;
-                    }
-                    for (String locProfile : locInputRoles.values()) {
-                        if (locInputNames.recognizeFilename(locSource.getFileName().toString(), Set.of(locProfile)) != null) {
-                            locContracts.add(locSource);
-                            break;
-                        }
-                    }
                 }
             }
             if (!locContracts.isEmpty()) {
                 // In aggregate mode each source is isolated so later input
                 // failures are still reported. Never write output before finish().
                 List<List<Path>> locGroups = new ArrayList<>();
-                if (locOneAtATime) locGroups.add(locContracts);
-                else for (Path locContract : locContracts) locGroups.add(List.of(locContract));
+                for (Path locContract : locContracts) locGroups.add(List.of(locContract));
                 for (List<Path> locGroup : locGroups) {
                     try {
                         Map<Path, AIcdSdoGenerationResult> locGenerated = locService.generateFromSources(
@@ -245,13 +291,15 @@ public final class AIcSdoCodegenCli {
                     } catch (AIxCodegenValidationException error) {
                         locValidation.add(error, locGroup.iterator().next().toString());
                     }
+                    locValidation.finishInput(locGroup.iterator().next().toString());
                 }
             }
         }
         List<Path> locBinaryInputs = new ArrayList<>();
-        if (locResolvedArtifacts != null)
-            locBinaryInputs.addAll(AIcCodegenArtifactResolver.resolveJava(locResolvedArtifacts));
-        for (String locItem : locArtifacts) locBinaryInputs.add(root(locRepository, locItem));
+        if (!locResolvedArtifacts.isEmpty())
+            locBinaryInputs.addAll(AIcCodegenArtifactResolver.resolveJava(
+                    String.join(";", locResolvedArtifacts)));
+        locBinaryInputs.addAll(locBinaryPaths);
         List<URL> locUrls = new ArrayList<>();
         for (Path locDependency : locDependencies) locUrls.add(locDependency.toUri().toURL());
         for (Path locInput : locBinaryInputs) locUrls.add(locInput.toUri().toURL());
@@ -264,24 +312,25 @@ public final class AIcSdoCodegenCli {
                 // The service owns DataObject eligibility. In particular,
                 // namespace marker interfaces extend AIiDataObject indirectly
                 // but must not be sent to SDO generation as independent inputs.
-                if (!AIcSdoCodegenService.isReadContract(locClass)) continue;
-                String locRole = role(locClass);
+                if (!AIcSdoCodegenService.isSdoInput(locClass)) continue;
+                String locRole = SDO_ROLE;
                 if (!locInputRoles.containsKey(locRole) || !locMutableRoles.containsKey(locRole)
                         || !locConcreteRoles.containsKey(locRole)) continue;
                 locResults.put(locClassName, locService.generate(locClass, "d", locInputNames,
                         locMutableNames, locConcreteNames, locMutableSubpackage, locConcreteSubpackage));
                 } catch (AIxCodegenValidationException error) {
                     locValidation.add(error, locClassName);
+                } catch (ClassNotFoundException | LinkageError error) {
+                    locValidation.add(new AIxCodegenValidationException(
+                            "Unable to load Java DataObject input " + locClassName + ": " + error,
+                            "Verify that the compiled input class and its API dependencies are on the SDO classpath.",
+                            locClassName, null, error), locClassName);
                 }
+                locValidation.finishInput(locClassName);
             }
         }
         locValidation.finish();
-        for (AIcdSdoGenerationResult locResult : locResults.values()) {
-            String locMutableRole = outputRole(locResult.mutableInterface(), locMutableRoles);
-            String locConcreteRole = outputRole(locResult.implementation(), locConcreteRoles);
-            if (locMutableRole == null || locConcreteRole == null)
-                throw new AIxCodegenValidationException("SDO output naming profile mismatch: " + locResult.mutableInterface().typeName(), "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
-        }
+        locValidation.reportNonErrors("SDO Codegen (Java)", System.err);
         Set<Path> locPaths = new LinkedHashSet<>();
         for (AIcdSdoGenerationResult locResult : locResults.values()) {
             Path locMutablePath = locMutableRoot.resolve(locResult.mutableInterface().relativePath()).normalize();
@@ -290,12 +339,18 @@ public final class AIcSdoCodegenCli {
                 throw new AIxCodegenValidationException("SDO naming roles generate duplicate output path: "
                         + locMutablePath + " / " + locConcretePath, "Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.");
         }
-        if (!locCheck)
-            cleanOutputs(locMutableRoot, locConcreteRoot, locNames, locMutableRoles, locConcreteRoles);
+        Map<Path, String> locPending = new LinkedHashMap<>();
         for (AIcdSdoGenerationResult locResult : locResults.values()) {
-            write(locMutableRoot, locResult.mutableInterface(), locCheck);
-            write(locConcreteRoot, locResult.implementation(), locCheck);
+            Path mutable = locMutableRoot.resolve(locResult.mutableInterface().relativePath()).normalize();
+            Path concrete = locConcreteRoot.resolve(locResult.implementation().relativePath()).normalize();
+            if (locPending.putIfAbsent(mutable, locResult.mutableInterface().source()) != null
+                    || locPending.putIfAbsent(concrete, locResult.implementation().source()) != null)
+                throw new IOException("Duplicate SDO output path " + mutable + " / " + concrete);
         }
+        try (var workspace = new AIcCodegenWorkspace(locRepository, locArtifact, "sdocodegen")) {
+            workspace.publish(locPending, locCheck, locCleanup);
+        }
+        locPending.keySet().forEach(System.out::println);
     }
 
     /**
@@ -320,26 +375,6 @@ public final class AIcSdoCodegenCli {
             aCatalog.clean(aMutableRoot, Set.copyOf(aMutableRoles.values()));
             aCatalog.clean(aConcreteRoot, Set.copyOf(aConcreteRoles.values()));
         }
-    }
-
-    private static String outputRole(AIcdGeneratedSdoSource aOutput, Map<String, String> aRoles) {
-        if (aOutput == null) return null;
-        for (String locRole : aRoles.keySet())
-            if (aOutput.source().contains("namingConvention = \"" + aRoles.get(locRole) + "\""))
-                return locRole;
-        return null;
-    }
-
-    private static String role(Class<?> aClass) {
-        if (eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject.class.isAssignableFrom(aClass)) {
-            var locAnnotation = aClass.getDeclaredAnnotation(eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject.class);
-            return locAnnotation != null && locAnnotation.definitionKind()
-                    == eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.ELEMENT
-                    ? "xmldefs_element" : "xmldefs_type";
-        }
-        if (eu.algites.lib.data.dataobject.yamldefs.AIiYamlDataObject.class.isAssignableFrom(aClass)) return "yamldefs";
-        if (eu.algites.lib.data.dataobject.jsondefs.AIiJsonDataObject.class.isAssignableFrom(aClass)) return "jsondefs";
-        return "common";
     }
 
     private static Set<String> scanClassNames(Path aRoot) throws IOException {

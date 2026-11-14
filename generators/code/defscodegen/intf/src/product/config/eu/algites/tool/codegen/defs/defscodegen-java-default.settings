@@ -1,0 +1,4 @@
+# Native canonical Defs CLI neutral defaults. Input and dependency sources are explicit.
+--repository-root=.
+--setter-inheritance-policy=INHERIT_AS_GENERIC_PARAMETER
+--cleanup-output-folder-before-generation=false

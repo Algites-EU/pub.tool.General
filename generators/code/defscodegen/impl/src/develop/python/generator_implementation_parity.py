@@ -222,7 +222,7 @@ class AItcGeneratorImplementationParityTest(unittest.TestCase):
                     for family in (language, 'jsondef', 'yamldef', 'xmldef')])
                 for stem in ('parity-supported', 'parity-child', 'parity-leaf', 'parity-status', 'parity-supported-builtins'):
                     with self.subTest(kind=kind, target=target, stem=stem):
-                        source = resources / kind.value / (stem + '_1.' + suffix)
+                        source = resources / 'examples' / kind.value / (stem + '_1.' + suffix)
                         model = AIcDefaultDefsCodegenService().load(configured_load(source, kind, profile))
                         item = AIcSchemaContractInterfaceGenerator().generate(AIcdCodeGenerationRequest(
                             model, target, 'api_parity', rendering_catalog(profile, language)))

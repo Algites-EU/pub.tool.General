@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from explicit_legacy_naming import catalog
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.old.ain_data_type_kind import AInDataTypeKind
@@ -15,7 +16,7 @@ from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings
 
 def _request(path: Path) -> AIcdDefinitionLoadRequest:
     return AIcdDefinitionLoadRequest(path, AInDefinitionSourceKind.JSONDEFS,
-                                    AIcAlgitesNamingProfiles.python_profile())
+                                    catalog('python'), 'algites-jsondef-schema-versioned_1')
 
 
 def test_validation_allof_does_not_declare_fields(tmp_path: Path) -> None:
@@ -28,7 +29,9 @@ def test_validation_allof_does_not_declare_fields(tmp_path: Path) -> None:
                                        '', '', '')
     assert [field.source_name for field in result.data_type.properties] == ['own']
     units = []
-    AIcSchemaContractBindingsGenerator()._collect(schema, '', 'child', 'child.json', schema, {}, units)
+    AIcSchemaContractBindingsGenerator()._collect(
+        schema, '', 'child', 'child.json', schema, {}, units,
+        catalog('python'), 'algites-jsondef-schema-versioned_1')
     assert not any('allOf' in unit.pointer for unit in units)
 
 
@@ -42,7 +45,8 @@ def test_explicit_parent_is_independent_from_validation_allof(tmp_path: Path) ->
     repository = tmp_path.resolve()
     units = []
     bindings = AIcSchemaContractBindingsGenerator()
-    bindings._collect(schema, '', 'child', source.name, schema, {}, units)
+    bindings._collect(schema, '', 'child', source.name, schema, {}, units,
+                      catalog('python'), 'algites-jsondef-schema-versioned_1')
     index = {(unit.schema, unit.pointer): unit for unit in units}
     parents = bindings._parent_units(index[(source.name, '')], index, repository)
     assert len(parents) == 1
@@ -50,7 +54,8 @@ def test_explicit_parent_is_independent_from_validation_allof(tmp_path: Path) ->
     assert all('allOf' not in unit.pointer for unit in units)
     schema.pop('x-algites-defscodegen-extends')
     units.clear()
-    bindings._collect(schema, '', 'child', source.name, schema, {}, units)
+    bindings._collect(schema, '', 'child', source.name, schema, {}, units,
+                      catalog('python'), 'algites-jsondef-schema-versioned_1')
     index = {(unit.schema, unit.pointer): unit for unit in units}
     assert bindings._parent_units(index[(source.name, '')], index, repository) == ()
 
@@ -73,7 +78,7 @@ def test_choice_comes_only_from_metadata_and_uses_nominal_variants(tmp_path: Pat
     assert prop.data_type.reference.target_data_type.kind is AInDataTypeKind.ONE_OF
     schema['$defs']['Payload'].pop('x-algites-defscodegen-choice')
     source.write_text(json.dumps(schema))
-    assert reader._recursive_type(schema['$defs']['Payload'], _request(source)).kind is AInDataTypeKind.ANY
+    assert reader._recursive_type(schema['$defs']['Payload'], _request(source)).kind is AInDataTypeKind.OBJECT
 
 
 def test_supported_homogeneous_arrays_are_draft_independent(tmp_path: Path) -> None:
@@ -91,7 +96,7 @@ def test_supported_homogeneous_arrays_are_draft_independent(tmp_path: Path) -> N
         assert result.data_type.element_type.kind is AInDataTypeKind.STRING
 
 
-def test_positional_arrays_cannot_silently_lose_types(tmp_path: Path) -> None:
+def test_positional_arrays_preserve_all_slot_types(tmp_path: Path) -> None:
     import pytest
     reader = AIcJsonSchemaReader()
     source = tmp_path / 'values_1.jsondef.schema.json'
@@ -100,8 +105,10 @@ def test_positional_arrays_cannot_silently_lose_types(tmp_path: Path) -> None:
                   {'$schema': 'http://json-schema.org/draft-07/schema#',
                    'type': 'array', 'items': [{'type': 'integer'}, {'type': 'string'}]}):
         source.write_text(json.dumps(value))
-        with pytest.raises(ValueError, match='POSITIONAL_VALUE'):
-            reader.read(value, _request(source), AInDefinitionSourceKind.JSONDEFS, '', '', '')
+        parsed = reader.read(value, _request(source), AInDefinitionSourceKind.JSONDEFS, '', '', '')
+        assert [slot.kind for slot in parsed.data_type.position_types] == [
+            AInDataTypeKind.INTEGER, AInDataTypeKind.STRING]
+        assert parsed.data_type.kind is AInDataTypeKind.ARRAY
 
 
 def test_choice_cannot_be_declared_inside_validation_branch(tmp_path: Path) -> None:

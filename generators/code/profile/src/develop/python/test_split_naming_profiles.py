@@ -42,9 +42,13 @@ def test_split_naming_catalog_schema_parity(family, profile, language, domain):
     assert field in document
     assert ('SmartDataObjectNameConventions' if domain == 'dataobject'
             else 'DataObjectNameConventions') not in document
-    name, profile_body = next(iter(document[field]['NameConventions'].items()))
+    entries = document[field]['NameConventions']['NameConvention']
+    assert len(entries) == 1
+    profile_body = entries[0]
+    name = profile_body['name']
     assert name == f'{profile}-{language}-' + ('defscodegen' if domain == 'dataobject' else 'sdocodegen') + '-standard_1'
-    roles = profile_body['StructureNaming']
+    roles = {entry['kind']: entry['Value'] for entry in profile_body['StructureNaming']['Rule']}
+    assert len(roles) == len(profile_body['StructureNaming']['Rule'])
     if domain == 'dataobject':
         assert roles['data_source_schema_url'] == '$schema'
         assert roles['schema_source_schema_url'] == '$id'

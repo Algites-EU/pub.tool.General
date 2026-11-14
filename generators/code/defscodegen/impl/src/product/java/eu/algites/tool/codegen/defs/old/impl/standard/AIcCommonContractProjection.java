@@ -146,6 +146,19 @@ public final class AIcCommonContractProjection {
     private static AIcdDataType projectType(List<AIcdDataType> aTypes, String aContext) {
         AIcdDataType locFirst = aTypes.get(0);
         if (aTypes.stream().anyMatch(aType -> aType.kind() != locFirst.kind())) {
+            /* XSD restricted string and JSON/YAML nominal enum represent the
+             * same finite wire values only when their restrictions agree.
+             * Preserve the strongly typed enum rather than widening to Object. */
+            boolean locFiniteEnum = aTypes.stream().allMatch(aType ->
+                    aType.kind() == AInDataTypeKind.STRING || aType.kind() == AInDataTypeKind.ENUM)
+                    && aTypes.stream().anyMatch(aType -> aType.kind() == AInDataTypeKind.ENUM)
+                    && aTypes.stream().anyMatch(aType -> aType.kind() == AInDataTypeKind.STRING)
+                    && !locFirst.constraints().enumValues().isEmpty()
+                    && aTypes.stream().allMatch(aType -> Objects.equals(
+                            aType.constraints().enumValues(), locFirst.constraints().enumValues()));
+            if (locFiniteEnum) return aTypes.stream()
+                    .filter(aType -> aType.kind() == AInDataTypeKind.ENUM)
+                    .findFirst().orElseThrow();
             /* XSD anyType is a genuine structural supertype, not an incompatible
              * scalar. The specialized representation retains its exact structure. */
             boolean locAny = aTypes.stream().anyMatch(aType -> aType.kind() == AInDataTypeKind.ANY);

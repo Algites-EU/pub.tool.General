@@ -13,8 +13,8 @@ for path in ('generators/code/common/src/product/python',
 
 from eu.algites.tool.codegen.common.naming_profiles import resolve_codegen_naming_profiles
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIigSourceInputKind_1 as Kind, AIcgd_jList_1,
-    AIcgd_jElement_1, AIcgd_jElementList_1,
+    AIngSourceInputKind_1 as Kind, AIcgdList_1,
+    AIcgdElement_1, AIcgdElementList_1,
 )
 from eu.algites.tool.codegen.defs.impl.standard.canonical_pipeline import (
     AIcDefsCodegenCanonicalPipeline, AIcdDefsCodegenSourceDocument,
@@ -39,13 +39,13 @@ def test_required_and_array_occurrences_survive_link_and_schema_validation(kind)
         'nickname': {'type': 'string'}}}
     result = _pipeline().process([AIcdDefsCodegenSourceDocument(kind, 'sample.schema.json', schema)])
     children = result.types[0].structure.children
-    assert [(c.name, c.min_occurs, c.max_occurs) for c in children] == [
+    assert [(c.name, c.min_item_count, c.max_item_count) for c in children] == [
         ('items', 1, 1), ('nickname', 0, 1)]
-    assert children[0].structure.min_occurs == 2
-    assert children[0].structure.max_occurs == 5
-    data = result.payload['types'][0]['structure']['ElementList']['children']
-    assert data[0]['Element']['min_occurs'] == 1
-    assert data[0]['Element']['structure']['List']['max_occurs'] == 5
+    assert children[0].structure.min_item_count == 2
+    assert children[0].structure.max_item_count == 5
+    data = result.payload['types'][0]['content']['structure']['ElementList']['children']
+    assert data[0]['Element']['min_item_count'] == 1
+    assert data[0]['Element']['structure']['List']['max_item_count'] == 5
 
 
 def test_xsd_optional_repeated_and_optional_choice_occurrences():
@@ -58,10 +58,17 @@ def test_xsd_optional_repeated_and_optional_choice_occurrences():
     </xs:schema>'''
     result = _pipeline().process([AIcdDefsCodegenSourceDocument(Kind.XMLDEFS, 'person.xsd', xsd)])
     name, tags, choice = result.types[0].structure.children
-    assert isinstance(name, AIcgd_jElement_1) and (name.min_occurs, name.max_occurs) == (0, 1)
-    assert isinstance(tags, AIcgd_jList_1) and (tags.min_occurs, tags.max_occurs) == (2, -1)
-    assert isinstance(choice, AIcgd_jElementList_1) and (choice.min_occurs, choice.max_occurs) == (0, 3)
-    assert result.payload['types'][0]['structure']['ElementList']['children'][2]['ElementList']['max_occurs'] == 3
+    assert isinstance(name, AIcgdElement_1) and (name.min_item_count, name.max_item_count) == (0, 1)
+    assert isinstance(tags, AIcgdList_1) and (tags.min_item_count, tags.max_item_count) == (2, -1)
+    # XML CHOICE is an explicitly represented embedded TYPE, not a flattened
+    # anonymous list. Its occurrence bounds belong to the nested choice.
+    assert isinstance(choice, AIcgdElement_1)
+    assert (choice.min_item_count, choice.max_item_count) == (0, 1)
+    assert isinstance(choice.structure.structure, AIcgdElementList_1)
+    assert (choice.structure.structure.min_item_count,
+            choice.structure.structure.max_item_count) == (0, 3)
+    wire = result.payload['types'][0]['content']['structure']['ElementList']['children'][2]
+    assert wire['Element']['structure']['Type']['content']['structure']['ElementList']['max_item_count'] == 3
 
 
 def test_cardinality_disagreement_is_not_merged():
@@ -77,11 +84,12 @@ def test_cardinality_disagreement_is_not_merged():
     ({'type': 'array', 'minItems': -1}, ValueError),
     ({'type': 'array', 'minItems': 4, 'maxItems': 3}, ValueError),
     ({'type': 'array', 'minItems': True}, ValueError),
-    ({'type': 'object', 'required': ['missing'], 'properties': {}}, NotImplementedError),
+    ({'type': 'object', 'required': ['missing'], 'properties': {}}, ValueError),
     ({'type': 'object', 'required': ['id', 'id'], 'properties': {'id': {'type': 'string'}}}, ValueError),
+    # JSON Schema permits this inapplicable facet; the current frontend rejects
+    # its nonprojectable conditional meaning rather than calling it malformed.
     ({'type': 'string', 'minItems': 2}, ValueError),
-    ({'anyOf': [{'type': 'string'}, {'type': 'integer'}]}, NotImplementedError),
-    ({'type': 'array', 'prefixItems': [{'type': 'string'}], 'maxItems': 1}, NotImplementedError),
+    ({'type': 'array', 'prefixItems': [{'type': 'string'}], 'maxItems': 1}, ValueError),
 ])
 def test_reject_unrepresentable_or_invalid_bounds(schema, exception):
     with pytest.raises(exception):
@@ -100,4 +108,14 @@ def test_source_schema_representations_are_in_sync():
     for kind in ('Element','ElementList','List'):
         declaration = xsd.find(f".//xs:complexType[@name='{kind}']",ns)
         names = [item.get('name') for item in declaration.findall('xs:sequence/xs:element',ns)]
-        assert 'min_occurs' in names and 'max_occurs' in names
+        assert 'min_item_count' in names and 'max_item_count' in names
+
+
+def test_anyof_is_validation_only_and_does_not_change_structural_contract():
+    """Unprojected JSON Schema assertions produce a warning, not CHOICE."""
+    source = {'type': 'object', 'properties': {'code': {'type': 'string'}},
+              'anyOf': [{'required': ['code']}, {'maxProperties': 2}]}
+    with pytest.warns(UserWarning, match='Validation-only JSON Schema anyOf'):
+        result = _pipeline().process([
+            AIcdDefsCodegenSourceDocument(Kind.JSONDEFS, 'anyof.json', source)])
+    assert [child.name for child in result.types[0].structure.children] == ['code']

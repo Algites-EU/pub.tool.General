@@ -2,52 +2,92 @@
 # $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
 $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json
 NameCompositions:
-  standard-postfix-java-sdo-raw-getter_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _getRaw_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standard-postfix-java-sdo-presence_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _isPresent_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  standard-postfix-java-sdo-unsetter_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _unset_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
+  NameComposition:
+    - name: standard-postfix-java-sdo-raw-getter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _getRaw_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standard-postfix-java-sdo-presence_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _isPresent_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standard-postfix-java-sdo-unsetter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _unset_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-java-raw_empty_setter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _setEmpty_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: standardpostfix-java-raw_empty_checker_method_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _isEmpty_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
 GeneratedDataObjectMethodNameConventions:
   NameConventions:
-    standard-postfix-java-codegen-standard_1:
-      StructureNaming:
-        standard_getter: java-getter-method-name_1
-        standard_setter: java-setter-method-name_1
-        raw_getter: standard-postfix-java-sdo-raw-getter_1
-        raw_presence_checker_method: standard-postfix-java-sdo-presence_1
-        raw_unsetter: standard-postfix-java-sdo-unsetter_1
-        # Literal synthetic getter name for JSON/YAML object-keyed values.
-        multi_mapped_list_key_synthetic_getter: _getKey
-        multi_mapped_list_value_synthetic_getter: _getValue
-      SchemaMetadataNaming:
-        # Schema declaration field containing the schema URI; blank disables URL extraction.
-        schema_source_schema_url: $id
-        # Schema declaration field containing the stable logical schema ID; blank disables ID extraction.
-        schema_source_schema_identifier: x-algites-schema-id
-        # Schema declaration field containing the logical schema version; blank disables version extraction.
-        schema_source_schema_version: x-algites-schema-version
-        # Instance document field used to write/read the source schema URI; blank disables. Requires schema_source_schema_url.
-        data_source_schema_url: $schema
-        # Instance document field used to write/read the source schema ID; blank disables. Requires schema_source_schema_identifier.
-        data_source_schema_identifier: ''
-        # Instance document field used to write/read the source schema version; blank disables. Requires schema_source_schema_version.
-        data_source_schema_version: ''
+    NameConvention:
+      - name: standard-postfix-java-codegen-standard_1
+        StructureNaming:
+          Rule:
+            - kind: standard_getter
+              Value: java-getter-method-name_1
+            - kind: standard_setter
+              Value: java-setter-method-name_1
+            - kind: raw_getter
+              Value: standard-postfix-java-sdo-raw-getter_1
+            - kind: raw_presence_checker_method
+              Value: standard-postfix-java-sdo-presence_1
+            - kind: raw_unsetter
+              Value: standard-postfix-java-sdo-unsetter_1
+            - kind: raw_empty_checker_method
+              Value: standardpostfix-java-raw_empty_checker_method_1
+            - kind: raw_empty_setter
+              Value: standardpostfix-java-raw_empty_setter_1
+            - kind: multi_mapped_list_key_synthetic_getter
+              Value: _getKey
+            - kind: multi_mapped_list_value_synthetic_getter
+              Value: _getValue
+        SchemaMetadataNaming:
+          Rule:
+            - kind: schema_source_schema_url
+              Value: $id
+            - kind: schema_source_schema_identifier
+              Value: x-algites-schema-id
+            - kind: schema_source_schema_version
+              Value: x-algites-schema-version
+            - kind: data_source_schema_url
+              Value: $schema
+            - kind: data_source_schema_identifier
+              Value: ''
+            - kind: data_source_schema_version
+              Value: ''

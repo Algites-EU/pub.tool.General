@@ -47,7 +47,21 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      */
     public static final String KEYED_SDO_GENERATOR_REVISION = "indexed-collection-delegation-20261031-1";
 
-    private record AIcdGetter(Method method, AIaDataObjectField field) { }
+    /**
+     * Effective semantic field used by SDO generation. The value getter may be
+     * covariantly specialized by a format projection whose method intentionally
+     * has no {@link AIaDataObjectField}. The original getter remains the sole
+     * source for format-neutral restrictions, labels, and defaults.
+     *
+     * @param method most-specific getter to implement, including XML projections
+     * @param field schema-neutral field definition
+     * @param dataMethod original method declaring the schema-neutral field
+     */
+    private record AIcdGetter(Method method, AIaDataObjectField field, Method dataMethod) {
+        private AIcdGetter(Method method, AIaDataObjectField field) {
+            this(method, field, method);
+        }
+    }
 
     /** {@inheritDoc} */
     @Override
@@ -130,8 +144,13 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             for (Path locSource : aContractSources) {
                 Path locCanonical = locCompiled.validate(locSource);
                 Class<?> locClass = locCompiled.load(locCanonical);
-                if (aEnabledRoles != null && (!isReadContract(locClass)
-                        || !aEnabledRoles.contains(dataObjectRole(locClass)))) continue;
+                // The neutral annotation may be declared on this interface or
+                // inherited from another neutral read-only DataObject. Pure
+                // marker interfaces and legacy technology projections do not
+                // become independent writable SDO inputs.
+                if (!isSdoInput(locClass)
+                        || (aEnabledRoles != null
+                            && !aEnabledRoles.contains(dataObjectRole(locClass)))) continue;
                 if (locResults.putIfAbsent(locCanonical, generate(locClass, aImplementationMarker,
                         aInputNames, aMutableNames, aConcreteNames,
                         aMutableSubpackage, aConcreteSubpackage)) != null)
@@ -176,9 +195,25 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 || !isReadContract(aReadContract)) {
             throw new AIxCodegenValidationException("Expected an interface extending AIiDataObject: " + aReadContract, "Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.");
         }
+        // Recognize the shared annotation on this interface or on any of its
+        // read-only DataObject ancestors. A separate XML/JSON/YAML projection
+        // is never an independent SDO input merely because it inherits one.
+        if (!isSdoInput(aReadContract)) {
+            throw new AIxCodegenValidationException(
+                    "SDO input must declare or inherit schema-neutral @AIaDataObject "
+                    + "without being a technology-specific projection: " + aReadContract.getName(),
+                    "Pass an annotated read-only DataObject interface or its neutral descendant; "
+                    + "do not pass technology-specific projections or compiler ABI seeds.");
+        }
         var locParents = Arrays.stream(aReadContract.getInterfaces())
                 .filter(AIcSdoCodegenService::isReadContract).toList();
         LinkedHashMap<String, AIcdGetter> locAll = inheritedFields(aReadContract, aInputNames);
+        // Join the schema-neutral structural fields and the XML-only wire
+        // projections once, before producing methods or nested-type metadata.
+        // The SDO runtime consumes the resulting generated descriptors: it must
+        // not rediscover XML child types from unrelated inherited getters.
+        if (AIiXmlDataObject.class.isAssignableFrom(aReadContract))
+            applyXmlFieldProjections(aReadContract, locAll, aInputNames);
         Map<String, String> locEffectiveDataNames = effectiveDataNames(aReadContract, aInputNames);
         /* Mutable interfaces keep the complete read-only hierarchy, but generated
          * concrete SDO implementations never inherit other generated implementations.
@@ -192,13 +227,23 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         String locContractRole = dataObjectRole(aReadContract);
         String locMutableConvention = aMutableNames == null ? "" : aMutableNames.selectedRole(locContractRole);
         String locConcreteConvention = aConcreteNames == null ? "" : aConcreteNames.selectedRole(locContractRole);
-        AIaDataObject locSourceAnnotation = aReadContract.getDeclaredAnnotation(AIaDataObject.class);
-        String locSchemaId = locSourceAnnotation == null ? "" : locSourceAnnotation.schemaId();
-        int locSchemaVersion = locSourceAnnotation == null ? -1 : locSourceAnnotation.schemaVersion();
-        String locSourceConvention = locSourceAnnotation != null
-                && !locSourceAnnotation.namingConvention().isBlank()
-                ? locSourceAnnotation.namingConvention()
-                : aInputNames.selectedRole(locContractRole);
+        AIaDataObject locSourceAnnotation = commonDataObjectMetadata(aReadContract);
+        var locJsonAnnotation = aReadContract.getDeclaredAnnotation(
+                eu.algites.lib.data.dataobject.jsondefs.AIaJsonDataObject.class);
+        var locYamlAnnotation = aReadContract.getDeclaredAnnotation(
+                eu.algites.lib.data.dataobject.yamldefs.AIaYamlDataObject.class);
+        var locSchemaAnnotation = aReadContract.getDeclaredAnnotation(
+                eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema.class);
+        String locLegacyId = locJsonAnnotation != null ? locJsonAnnotation.schemaId()
+                : locYamlAnnotation != null ? locYamlAnnotation.schemaId() : "";
+        int locLegacyVersion = locJsonAnnotation != null ? locJsonAnnotation.schemaVersion()
+                : locYamlAnnotation != null ? locYamlAnnotation.schemaVersion() : -1;
+        // JSONDEFS and YAMLDEFS may use different identifiers, versions and
+        // URLs. Never compare format-local compatibility metadata to each other
+        // or to the shared modern descriptor.
+        String locSchemaId = locSchemaAnnotation != null ? locSchemaAnnotation.schemaId() : locLegacyId;
+        int locSchemaVersion = locSchemaAnnotation != null ? locSchemaAnnotation.schemaVersion() : locLegacyVersion;
+        String locSourceConvention = aInputNames.selectedRole(locContractRole);
         if (locSourceConvention == null || locSourceConvention.isBlank())
             throw new AIxCodegenValidationException("Missing explicit input naming convention for " + locContractRole, "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         Map<String, String> locParsedNames = aInputNames.parse(locSourceConvention,
@@ -218,31 +263,26 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             locSchemaVersion = Integer.parseInt(locVersion);
         }
         String locAnnotationLiteral = "@eu.algites.lib.data.dataobject.AIaDataObject("
-                + (locSourceAnnotation != null && locSourceAnnotation.schemaId().isBlank() ? ""
-                        : "schemaId = \"" + escape(locSchemaId) + "\", ")
-                + (locSourceAnnotation != null && locSourceAnnotation.schemaVersion() < 0 ? ""
-                        : "schemaVersion = " + locSchemaVersion + ", ")
-                + (locSourceAnnotation == null || locSourceAnnotation.schemaUrl().isBlank() ? ""
-                        : "schemaUrl = \"" + escape(locSourceAnnotation.schemaUrl()) + "\", ")
-                + (locSourceAnnotation == null || locSourceAnnotation.dataSourceSchemaUrlField().isBlank() ? ""
-                        : "dataSourceSchemaUrlField = \"" + escape(locSourceAnnotation.dataSourceSchemaUrlField()) + "\", ")
-                + (locSourceAnnotation == null || locSourceAnnotation.dataSourceSchemaIdentifierField().isBlank() ? ""
-                        : "dataSourceSchemaIdentifierField = \"" + escape(locSourceAnnotation.dataSourceSchemaIdentifierField()) + "\", ")
-                + (locSourceAnnotation == null || locSourceAnnotation.dataSourceSchemaVersionField().isBlank() ? ""
-                        : "dataSourceSchemaVersionField = \"" + escape(locSourceAnnotation.dataSourceSchemaVersionField()) + "\", ")
                 + "title = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.title())
                 + "\", description = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.description())
-                + "\", fingerprint = \"" + escape(locSourceAnnotation == null ? "" : locSourceAnnotation.fingerprint())
-                + "\", namingConvention = \"" + escape(locMutableConvention) + "\""
-                + ", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy."
+                + "\", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy."
                 + (locSourceAnnotation == null || locSourceAnnotation.setterInheritancePolicy()
                     == AInFieldSetterInheritancePolicy.DEFAULT
                         ? defaultSetterPolicy().name()
                         : locSourceAnnotation.setterInheritancePolicy().name()) + ")\n";
-        String locConcreteAnnotationLiteral = locAnnotationLiteral.replace(
-                "namingConvention = \"" + escape(locMutableConvention) + "\"",
-                "namingConvention = \"" + escape(locConcreteConvention) + "\"");
-        String locXmlAnnotationLiteral = xmlTypeAnnotation(aReadContract.getDeclaredAnnotation(AIaXmlDataObject.class));
+        String locConcreteAnnotationLiteral = locAnnotationLiteral;
+        // The source-technology annotation, not AIaDataObject, owns schema identifiers.
+        String locFormatAnnotationLiteral = formatTypeAnnotation(locJsonAnnotation, locYamlAnnotation)
+                + (locSchemaAnnotation == null ? "" : "@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema("
+                + "schemaId = \"" + escape(locSchemaAnnotation.schemaId()) + "\", schemaVersion = "
+                + locSchemaAnnotation.schemaVersion() + ", schemaUrl = \""
+                + escape(locSchemaAnnotation.schemaUrl()) + "\", dataSourceSchemaUrlField = \""
+                + escape(locSchemaAnnotation.dataSourceSchemaUrlField())
+                + "\", dataSourceSchemaIdentifierField = \""
+                + escape(locSchemaAnnotation.dataSourceSchemaIdentifierField())
+                + "\", dataSourceSchemaVersionField = \""
+                + escape(locSchemaAnnotation.dataSourceSchemaVersionField()) + "\")\n");
+        String locXmlAnnotationLiteral = xmlTypeAnnotation(aReadContract);
         String locSmartAnnotationLiteral = smartTypeAnnotation(
                 aReadContract.getDeclaredAnnotation(eu.algites.lib.data.smartdataobject.AIaSmartDataObject.class));
         String locMutable = typeName(aReadContract, locMarker, true, aInputNames, aMutableNames, aConcreteNames);
@@ -314,6 +354,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         StringBuilder locInterface = new StringBuilder("package " + locMutablePackage + ";\n\n"
                 + "/** Generated mutable contract derived from " + aReadContract.getSimpleName() + ". */\n"
                 + locAnnotationLiteral
+                + locFormatAnnotationLiteral
                 + locXmlAnnotationLiteral
                 + locSmartAnnotationLiteral
                 + "public interface " + locMutable + locGenericDeclaration + " extends " + aReadContract.getCanonicalName()
@@ -322,6 +363,9 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         StringBuilder locImplementation = new StringBuilder("package " + locConcretePackage + ";\n\n"
                 + "/** Generated mutable implementation of " + aReadContract.getSimpleName() + ". */\n"
                 + locConcreteAnnotationLiteral
+                + locFormatAnnotationLiteral
+                + "@eu.algites.lib.data.smartdataobject.impl.common.AIaSmartDataObjectImplementationBinding("
+                + "readContracts = {" + aReadContract.getCanonicalName() + ".class})\n"
                 + "public class " + locConcrete + " extends " + locConcreteParent
                 + " implements " + locMutablePackage + "." + locMutable + locConcreteArguments
                 + (locMappedValueName == null ? "" : ", eu.algites.lib.common.list.AIiMultiMappedListForwarding<" + locMappedValueName + ">")
@@ -364,8 +408,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 "multi_mapped_list_key_synthetic_getter");
         Method locSyntheticKeyGetter = syntheticGetter(aReadContract, locSyntheticKeyName);
         if (locSyntheticKeyGetter != null) {
-            if (!AIiJsonDataObject.class.isAssignableFrom(aReadContract)
-                    && !AIiYamlDataObject.class.isAssignableFrom(aReadContract))
+            if (AIiXmlDataObject.class.isAssignableFrom(aReadContract))
                 throw new AIxCodegenValidationException("Virtual JSON/YAML map-entry keys cannot be XML fields: "
                         + aReadContract.getName(), "Check xs:key/xs:unique selectors and all xs:field paths against the selected repeated element. A key requires complete values; a unique constraint permits absent values.");
             locImplementation.append("    /** Actual parent JSON/YAML object property name; never an embedded field. */\n")
@@ -477,9 +520,25 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     : locAccessorCatalog.generatedMethodReference("raw_unsetter") == null ? null
                     : locAccessorCatalog.format(locMethodProfile, "raw_unsetter",
                             Map.of("identifier", locName), locIdentifierConvention);
+            boolean locCollection = java.util.Collection.class.isAssignableFrom(locGetter.getReturnType());
+            boolean locMapped = eu.algites.lib.common.list.AIiMultiMappedList.class
+                    .isAssignableFrom(locGetter.getReturnType());
+            boolean locNamedMappedCollection = locMapped && isSdoInput(locGetter.getReturnType());
+            String locEmptySetter = !locField.field().isEmptyAllowed() ? null
+                    : locMethodProfile == null || locAccessorCatalog.generatedMethodReference("raw_empty_setter") == null
+                    ? null : locAccessorCatalog.format(locMethodProfile, "raw_empty_setter",
+                            Map.of("identifier", locName), locIdentifierConvention);
+            String locEmptyChecker = !locField.field().isEmptyAllowed() ? null
+                    : locMethodProfile == null || locAccessorCatalog.generatedMethodReference("raw_empty_checker_method") == null
+                    ? null : locAccessorCatalog.format(locMethodProfile, "raw_empty_checker_method",
+                            Map.of("identifier", locName), locIdentifierConvention);
+            if (locField.field().isEmptyAllowed() && (locEmptySetter == null || locEmptyChecker == null))
+                throw new AIxCodegenValidationException("Missing empty-state SDO naming roles for " + locName,
+                        "Configure raw_empty_setter and raw_empty_checker_method in the selected SDO naming profile.");
             var locGeneratedNames = new java.util.ArrayList<String>();
-            locGeneratedNames.add(locSetterName);
-            for (String locGenerated : new String[] {locRawGetter, locPresenceChecker, locUnsetter}) {
+            if (!locCollection) locGeneratedNames.add(locSetterName);
+            for (String locGenerated : new String[] {locRawGetter, locPresenceChecker, locUnsetter,
+                    locEmptySetter, locEmptyChecker}) {
                 if (locGenerated == null) continue;
                 if (!javax.lang.model.SourceVersion.isIdentifier(locGenerated)
                         || javax.lang.model.SourceVersion.isKeyword(locGenerated))
@@ -501,43 +560,70 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             String locBoxed = boxed(locGetter.getReturnType(), locType);
             locInterface.append("    /** Typed writable access to field ")
                     .append(locName).append(" under the published setter policy. */\n");
-            locInterface.append("    @eu.algites.lib.data.dataobject.AIaDataObjectField(fieldName = \"")
+            locInterface.append("    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = \"")
                     .append(escape(locEffectiveDataNames.get(locName))).append("\", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.")
                     .append(locField.field().presence().name()).append(", allowsNull = ")
                     .append(locField.field().allowsNull())
+                    .append(", order = ").append(locField.field().order())
+                    .append(", minItemCount = ").append(locField.field().minItemCount())
+                    .append(", maxItemCount = ").append(locField.field().maxItemCount())
+                    .append(", isEmptyAllowed = ").append(locField.field().isEmptyAllowed())
+                    .append(", defaultValue = @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(kind = ")
+                    .append("eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.")
+                    .append(locField.field().defaultValue().kind().name())
+                    .append(", value = \"").append(escape(locField.field().defaultValue().value()))
+                    .append("\", defined = ").append(locField.field().defaultValue().defined()).append(")")
                     .append(", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.")
                     .append(locFieldPolicies.get(locName)).append(")\n");
-            locInterface.append("    ").append(fieldLabelAnnotation(locGetter, locName));
+            locInterface.append("    ").append(fieldConstraintsAnnotations(locField.dataMethod()));
+            locInterface.append("    ").append(fieldLabelAnnotation(locField.dataMethod(), locName));
             locInterface.append("    ").append(xmlFieldAnnotation(locGetter));
-            for (var locKey : locGetter.getAnnotationsByType(
-                    eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition.class)) {
+            for (var locKey : locField.dataMethod().getAnnotationsByType(
+                    eu.algites.lib.data.dataobject.AIaKeyDefinition.class)) {
                 String locPaths = java.util.Arrays.stream(locKey.fields())
                         .map(aPath -> "\"" + escape(aPath) + "\"")
                         .collect(java.util.stream.Collectors.joining(", "));
-                locInterface.append("    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlKeyDefinition(name = \"")
-                        .append(escape(locKey.name())).append("\", fields = {")
+                locInterface.append("    @eu.algites.lib.data.dataobject.AIaKeyDefinition(name = \"")
+                        .append(escape(locKey.name())).append("\", selector = \"")
+                        .append(escape(locKey.selector())).append("\", fields = {")
                         .append(locPaths).append("}, required = ").append(locKey.required()).append(")\n");
             }
-            locInterface.append("    ").append(defaultValueAnnotation(locGetter));
-            locInterface.append("    ").append(smartFieldAnnotation(locGetter));
+            locInterface.append("    ").append(defaultValueAnnotation(locField.dataMethod()));
+            locInterface.append("    ").append(smartFieldAnnotation(locField.dataMethod()));
             locInterface.append("    @Override ").append(locInterfaceType).append(' ')
                     .append(locGetter.getName()).append("();\n");
-            locInterface.append("    void ").append(locSetterName).append('(').append(locInterfaceType).append(' ')
-                    .append(locParameter).append(");\n")
-                    ;
+            if (!locCollection) locInterface.append("    void ").append(locSetterName).append('(')
+                    .append(locInterfaceType).append(' ').append(locParameter).append(");\n");
             if (locRawGetter != null)
                 locInterface.append("    ").append(locInterfaceType).append(' ').append(locRawGetter).append("();\n");
             if (locPresenceChecker != null)
                 locInterface.append("    boolean ").append(locPresenceChecker).append("();\n");
             if (locUnsetter != null)
                 locInterface.append("    void ").append(locUnsetter).append("();\n");
+            if (locEmptySetter != null)
+                locInterface.append("    void ").append(locEmptySetter).append("();\n");
+            if (locEmptyChecker != null)
+                locInterface.append("    boolean ").append(locEmptyChecker).append("();\n");
             locImplementation.append("    @Override public ").append(locType).append(' ').append(locGetter.getName())
-                    .append("() { return (").append(locBoxed).append(") get_EffectiveField(")
-                    .append(locLiteral).append("); }\n")
-                    .append("    @Override public void ").append(locSetterName).append('(').append(locType).append(' ')
+                    .append("() { return (").append(locBoxed).append(") ");
+            if (locNamedMappedCollection) {
+                String locNestedConcrete = qualifiedName(locGetter.getReturnType(),
+                        typeName(locGetter.getReturnType(), locMarker, false,
+                                aInputNames, aMutableNames, aConcreteNames), aConcreteSubpackage);
+                Class<?> locMappedElement = mappedValueContract(locGetter.getReturnType());
+                locImplementation.append("this.<")
+                        .append(locMappedElement.getCanonicalName()).append(", ")
+                        .append(locNestedConcrete).append(">get_OrCreateNamedMappedCollectionField(")
+                        .append(locLiteral).append(", ").append(locNestedConcrete).append("::new");
+            } else {
+                locImplementation.append(locCollection ? "get_OrCreateCollectionField(" : "get_EffectiveField(")
+                        .append(locLiteral).append(locCollection ? ", " + locMapped : "");
+            }
+            locImplementation.append("); }\n");
+            if (!locCollection) locImplementation.append("    @Override public void ")
+                    .append(locSetterName).append('(').append(locType).append(' ')
                     .append(locParameter).append(") { set_RawField(").append(locLiteral).append(", ")
-                    .append(locParameter).append("); }\n")
-                    ;
+                    .append(locParameter).append("); }\n");
             /* A representation-specific getter may narrow a common Object (or
              * another non-generic value) getter. The common mutable interface
              * then has a concrete setter such as setVersionConventions(Object),
@@ -550,6 +636,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             Set<String> locEmittedSignatures = new LinkedHashSet<>();
             locEmittedSignatures.add(locSetterName + "(" + locType + ")");
             for (AIcdGetter locAncestorField : locAncestorDeclarations) {
+                if (locCollection) continue;
                 Method locAncestorGetter = locAncestorField.method();
                 if (!locName.equals(semanticFieldId(locAncestorGetter, aInputNames))) continue;
                 if (setterPolicy(locAncestorField) == AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER
@@ -581,60 +668,12 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             if (locUnsetter != null)
                 locImplementation.append("    @Override public void ").append(locUnsetter)
                         .append("() { unset_Field(").append(locLiteral).append("); }\n");
-        }
-        if (AIiXmlDataObject.class.isAssignableFrom(aReadContract)) {
-            locImplementation.append("    /**\n")
-                    .append("     * Parse one XML document by expanded QName, independently of child element order.\n")
-                    .append("     * Nested schema contracts are materialized as their generated concrete\n")
-                    .append("     * SmartDataObject implementations, including repeated sibling elements.\n")
-                    .append("     * This method enforces the runtime mapping and field checks; strict full\n")
-                    .append("     * XSD validation remains the responsibility of a schema validator.\n")
-                    .append("     *\n")
-                    .append("     * @param aXml the XML document to deserialize; DTDs and entities are forbidden\n")
-                    .append("     * @return a populated instance of this generated concrete XML type\n")
-                    .append("     * @throws IllegalArgumentException if the XML contains unknown or ambiguous QNames\n")
-                    .append("     * @throws eu.algites.lib.data.smartdataobject.AIxSmartDataValidationException\n")
-                    .append("     *         if populated fields violate SmartDataObject constraints\n")
-                    .append("     */\n")
-                    .append("    public static ").append(locConcrete).append(" fromXml(String aXml) {\n")
-                    .append("        return eu.algites.lib.data.smartdataobject.impl.xmldefs.AIcXmlSmartDataObject.fromXml(\n")
-                    .append("                aXml, ").append(locConcrete).append(".class, xmlNestedTypes());\n")
-                    .append("    }\n")
-                    .append("    /**\n")
-                    .append("     * Return the generated direct-child concrete type associations used to\n")
-                    .append("     * resolve nested XML content, including during recursion.\n")
-                    .append("     *\n")
-                    .append("     * @return immutable mapping from local field identity to generated SDO class\n")
-                    .append("     */\n")
-                    .append("    public static java.util.Map<String, Class<? extends ")
-                    .append("eu.algites.lib.data.smartdataobject.impl.xmldefs.AIcXmlSmartDataObject>> xmlNestedTypes() {\n")
-                    .append("        return ");
-            var locNested = new java.util.LinkedHashMap<String, String>();
-            for (var locField : locAll.values()) {
-                Method locGetter = locField.method();
-                Class<?> locTarget = referencedContract(locGetter);
-                if (locTarget == null) continue;
-                if (!AIiXmlDataObject.class.isAssignableFrom(locTarget))
-                    throw new AIxCodegenValidationException("XML field references a non-XML DataObject: " + locGetter, "Review the referenced XML Schema declaration and its XSD type, element and attribute definitions. Correct the unsupported or inconsistent schema construct.");
-                String locName = semanticFieldId(locGetter, aInputNames);
-                locNested.put(locName, qualifiedName(locTarget,
-                        typeName(locTarget, locMarker, false, aInputNames, aMutableNames, aConcreteNames),
-                        aConcreteSubpackage));
-            }
-            if (locNested.isEmpty()) {
-                locImplementation.append("java.util.Map.of();\n");
-            } else {
-                locImplementation.append("java.util.Map.ofEntries(\n");
-                int locIndex = 0;
-                for (var locEntry : locNested.entrySet()) {
-                    if (locIndex++ > 0) locImplementation.append(",\n");
-                    locImplementation.append("                    java.util.Map.entry(\"")
-                            .append(escape(locEntry.getKey())).append("\", ")
-                            .append(locEntry.getValue()).append(".class)");
-                }
-                locImplementation.append(");\n");
-            }
-            locImplementation.append("    }\n");
+            if (locEmptySetter != null)
+                locImplementation.append("    @Override public void ").append(locEmptySetter)
+                        .append("() { set_EmptyField(").append(locLiteral).append("); }\n");
+            if (locEmptyChecker != null)
+                locImplementation.append("    @Override public boolean ").append(locEmptyChecker)
+                        .append("() { return isEmpty_Field(").append(locLiteral).append("); }\n");
         }
         locInterface.append("}\n");
         locImplementation.append("}\n");
@@ -810,33 +849,20 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 || locMethod.getAnnotation(AIaDataObjectField.class) != null)
             throw new AIxCodegenValidationException("Invalid synthetic map value accessor: " + locMethod,
                     "Use a nonprimitive typed getter with no data-field annotation.");
-        if (!AIiJsonDataObject.class.isAssignableFrom(aReadContract)
-                && !AIiYamlDataObject.class.isAssignableFrom(aReadContract))
-            throw new AIxCodegenValidationException("Virtual map values require JSON/YAML DataObject contracts: "
+        if (AIiXmlDataObject.class.isAssignableFrom(aReadContract))
+            throw new AIxCodegenValidationException("Virtual map value getters cannot be XML DataObject fields: "
                     + aReadContract.getName(), "Remove virtual map getters from XML contracts.");
         return locMethod;
     }
 
-    /** Choose the source-family mutable contract marker from the actual read interface. */
+    /** Return the single format-neutral marker for every mutable SDO contract. */
     private static String mutableBase(Class<?> aRead) {
-        if (AIiXmlDataObject.class.isAssignableFrom(aRead))
-            return "eu.algites.lib.data.smartdataobject.xmldefs.AIiXmlSmartDataObject";
-        if (AIiJsonDataObject.class.isAssignableFrom(aRead))
-            return "eu.algites.lib.data.smartdataobject.jsondefs.AIiJsonSmartDataObject";
-        if (AIiYamlDataObject.class.isAssignableFrom(aRead))
-            return "eu.algites.lib.data.smartdataobject.yamldefs.AIiYamlSmartDataObject";
         return "eu.algites.lib.data.smartdataobject.AIiSmartDataObject";
     }
 
-    /** Choose the future-proof technology implementation base for root/diamond SDO classes. */
+    /** Return the independent shared SDO runtime, never a format-specific base. */
     private static String implementationBase(Class<?> aRead) {
-        if (AIiXmlDataObject.class.isAssignableFrom(aRead))
-            return "eu.algites.lib.data.smartdataobject.impl.xmldefs.AIcXmlSmartDataObject";
-        if (AIiJsonDataObject.class.isAssignableFrom(aRead))
-            return "eu.algites.lib.data.smartdataobject.impl.jsondefs.AIcJsonSmartDataObject";
-        if (AIiYamlDataObject.class.isAssignableFrom(aRead))
-            return "eu.algites.lib.data.smartdataobject.impl.yamldefs.AIcYamlSmartDataObject";
-        return "eu.algites.lib.data.smartdataobject.impl.standard.AIcSmartDataObject";
+        return "eu.algites.lib.data.smartdataobject.impl.common.AIcSmartDataObject";
     }
 
     /**
@@ -870,27 +896,131 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
     }
 
     /** Carry the XML QName and type/element distinction onto the mutable contract. */
-    private static String xmlTypeAnnotation(AIaXmlDataObject aMetadata) {
-        if (aMetadata == null) return "";
-        return "@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject(definitionKind = "
-                + "eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind."
-                + aMetadata.definitionKind().name() + ", namespace = \"" + escape(aMetadata.namespace())
-                + "\", namespaceLocalName = \"" + escape(aMetadata.namespaceLocalName()) + "\")\n";
+    /**
+     * Copy the exact format-local identity and enabled wire metadata of a read contract.
+     *
+     * @param json optional JSON Schema annotation
+     * @param yaml optional YAML Schema annotation
+     * @return complete annotation source or empty string when neither is declared
+     */
+    private static String formatTypeAnnotation(
+            eu.algites.lib.data.dataobject.jsondefs.AIaJsonDataObject json,
+            eu.algites.lib.data.dataobject.yamldefs.AIaYamlDataObject yaml) {
+        if (json != null && yaml != null)
+            return formatTypeAnnotation(json, null) + formatTypeAnnotation(null, yaml);
+        if (json == null && yaml == null) return "";
+        String qualified = json != null ? "jsondefs.AIaJsonDataObject" : "yamldefs.AIaYamlDataObject";
+        String id = json != null ? json.schemaId() : yaml.schemaId();
+        int version = json != null ? json.schemaVersion() : yaml.schemaVersion();
+        String url = json != null ? json.schemaUrl() : yaml.schemaUrl();
+        String urlField = json != null ? json.dataSourceSchemaUrlField() : yaml.dataSourceSchemaUrlField();
+        String idField = json != null ? json.dataSourceSchemaIdentifierField() : yaml.dataSourceSchemaIdentifierField();
+        String versionField = json != null ? json.dataSourceSchemaVersionField() : yaml.dataSourceSchemaVersionField();
+        return "@eu.algites.lib.data.dataobject." + qualified
+                + "(schemaId = \"" + escape(id) + "\", schemaVersion = " + version
+                + ", schemaUrl = \"" + escape(url)
+                + "\", dataSourceSchemaUrlField = \"" + escape(urlField)
+                + "\", dataSourceSchemaIdentifierField = \"" + escape(idField)
+                + "\", dataSourceSchemaVersionField = \"" + escape(versionField) + "\")\n";
     }
 
-    /** Retain XML field QName independently of its common fieldName annotation. */
-    private static String xmlFieldAnnotation(Method aGetter) {
-        AIaXmlDataObjectField locXml = aGetter.getDeclaredAnnotation(AIaXmlDataObjectField.class);
-        if (locXml == null) return "";
-        return "@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = \""
-                + escape(locXml.namespace()) + "\", namespaceLocalName = \""
-                + escape(locXml.namespaceLocalName()) + "\", valueKind = "
-                + "eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind."
-                + locXml.valueKind().name() + ", order = " + locXml.order()
-                + ", minOccurs = " + locXml.minOccurs()
-                + ", maxOccurs = " + locXml.maxOccurs()
-                + ", wildcardNamespace = \"" + escape(locXml.wildcardNamespace()) + "\""
-                + ", wildcardProcessContents = \"" + escape(locXml.wildcardProcessContents()) + "\")\n";
+    /**
+     * Preserve both current and deprecated XML schema type metadata.
+     * Schema-neutral AIaDataObject metadata is inherited separately from the
+     * read-only common contract; it is not an XML identity declaration.
+     *
+     * @param readContract input representation-specific read-only interface
+     * @return both compatible XML annotations, or an empty string
+     */
+    private static String xmlTypeAnnotation(Class<?> readContract) {
+        var modern = readContract.getDeclaredAnnotation(
+                eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema.class);
+        AIaXmlDataObject legacy = readContract.getDeclaredAnnotation(AIaXmlDataObject.class);
+        if (modern == null && legacy == null) return "";
+        if (modern != null && legacy != null
+                && (modern.definitionKind() != legacy.definitionKind()
+                || !modern.namespace().equals(legacy.namespace())
+                || !modern.namespaceLocalName().equals(legacy.namespaceLocalName())))
+            throw new AIxCodegenValidationException(
+                    "Conflicting XML Schema type annotations on " + readContract.getName(),
+                    "Align AIaDataObjectXmlSchema and deprecated AIaXmlDataObject before generating SDO.");
+        var kind = modern != null ? modern.definitionKind() : legacy.definitionKind();
+        String namespace = modern != null ? modern.namespace() : legacy.namespace();
+        String local = modern != null ? modern.namespaceLocalName() : legacy.namespaceLocalName();
+        String arguments = "definitionKind = "
+                + "eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind."
+                + kind.name() + ", namespace = \"" + escape(namespace)
+                + "\", namespaceLocalName = \"" + escape(local) + "\")\n";
+        return "@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject(" + arguments
+                + "@eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema(" + arguments;
+    }
+
+    /**
+     * Return whether a getter has an explicit XML wire binding.
+     *
+     * <p>Schema-neutral parent contracts may be inherited by XML contracts,
+     * but the mere presence of a nested DataObject return type must not turn
+     * their fields into XML elements. Both the modern XML Schema annotation
+     * and the retained compatibility annotation are accepted.
+     *
+     * @param getter reflected read-only field getter
+     * @return {@code true} if the getter is explicitly mapped to XML
+     */
+    private static boolean isXmlWireField(Method getter) {
+        return getter.isAnnotationPresent(AIaXmlDataObjectField.class)
+                || getter.isAnnotationPresent(
+                        eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema.class);
+    }
+
+    private static String xmlFieldAnnotation(Method getter) {
+        var modern = getter.getDeclaredAnnotation(
+                eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema.class);
+        AIaXmlDataObjectField legacy = getter.getDeclaredAnnotation(AIaXmlDataObjectField.class);
+        if (modern == null && legacy == null) return "";
+        if (modern != null && legacy != null
+                && (modern.valueKind() != legacy.valueKind()
+                || !modern.namespace().equals(legacy.namespace())
+                || !modern.namespaceLocalName().equals(legacy.namespaceLocalName())))
+            throw new AIxCodegenValidationException(
+                    "Conflicting XML Schema field annotations on " + getter,
+                    "Align AIaDataObjectFieldXmlSchema and deprecated AIaXmlDataObjectField before generating SDO.");
+        var kind = modern != null ? modern.valueKind() : legacy.valueKind();
+        String namespace = modern != null ? modern.namespace() : legacy.namespace();
+        String local = modern != null ? modern.namespaceLocalName() : legacy.namespaceLocalName();
+        String arguments = "namespace = \"" + escape(namespace)
+                + "\", namespaceLocalName = \"" + escape(local)
+                + "\", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind."
+                + kind.name() + ")\n";
+        return "@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(" + arguments
+                + "@eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(" + arguments;
+    }
+
+    /**
+     * Carry every supported schema-independent typed restriction onto the mutable getter.
+     * @param getter original read-only annotated getter
+     * @return complete Java annotation source, possibly empty
+     */
+    private static String fieldConstraintsAnnotations(Method getter) {
+        var text = new StringBuilder();
+        var str = getter.getDeclaredAnnotation(eu.algites.lib.data.dataobject.AIaDataObjectFieldStringConstraints.class);
+        if (str != null) text.append("@eu.algites.lib.data.dataobject.AIaDataObjectFieldStringConstraints(minLength = ")
+                .append(str.minLength()).append(", maxLength = ").append(str.maxLength())
+                .append(", pattern = \"").append(escape(str.pattern())).append("\")\n    ");
+        var num = getter.getDeclaredAnnotation(eu.algites.lib.data.dataobject.AIaDataObjectFieldNumericConstraints.class);
+        if (num != null) text.append("@eu.algites.lib.data.dataobject.AIaDataObjectFieldNumericConstraints(minimum = \"")
+                .append(escape(num.minimum())).append("\", maximum = \"").append(escape(num.maximum()))
+                .append("\", exclusiveMinimum = ").append(num.exclusiveMinimum())
+                .append(", exclusiveMaximum = ").append(num.exclusiveMaximum())
+                .append(", multipleOf = \"").append(escape(num.multipleOf())).append("\")\n    ");
+        var list = getter.getDeclaredAnnotation(eu.algites.lib.data.dataobject.AIaDataObjectFieldListConstraints.class);
+        if (list != null) text.append("@eu.algites.lib.data.dataobject.AIaDataObjectFieldListConstraints(minItems = ")
+                .append(list.minItems()).append(", maxItems = ").append(list.maxItems())
+                .append(", uniqueItems = ").append(list.uniqueItems()).append(")\n    ");
+        var obj = getter.getDeclaredAnnotation(eu.algites.lib.data.dataobject.AIaDataObjectFieldObjectConstraints.class);
+        if (obj != null) text.append("@eu.algites.lib.data.dataobject.AIaDataObjectFieldObjectConstraints(minProperties = ")
+                .append(obj.minProperties()).append(", maxProperties = ").append(obj.maxProperties())
+                .append(")\n    ");
+        return text.toString();
     }
 
     /** Retain a field default factory selection on the mutable getter. */
@@ -905,6 +1035,55 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                 .append(", factoryCategory = \"").append(escape(locResolver.factoryCategory())).append("\"")
                 .append(", factoryProviderId = \"").append(escape(locResolver.factoryProviderId())).append("\"))\n");
         return locResult.toString();
+    }
+
+
+    /**
+     * Merge explicit XML wire projections into inherited semantic field metadata.
+     *
+     * <p>A generated XML contract overrides a getter from its common ancestor
+     * with an XML-mapped, covariant getter but deliberately does not repeat
+     * {@link AIaDataObjectField}. Looking only at annotated common getters
+     * loses both the QName and the specialized XML DataObject return type.
+     * The most-specific declared XML getter is therefore selected by semantic
+     * identity, while neutral field restrictions remain on the parent method.
+     * An unannotated inherited getter is never turned into an XML element by
+     * guessing its name or return type.
+     *
+     * @param contract XML read-only DataObject contract to generate
+     * @param fields effective inherited semantic fields, updated in place
+     * @param names the configured input naming catalog
+     */
+    private static void applyXmlFieldProjections(Class<?> contract,
+            LinkedHashMap<String, AIcdGetter> fields, AIiNameConventionCatalog names) {
+        for (Class<?> parent : contract.getInterfaces()) {
+            if (AIiDataObject.class.isAssignableFrom(parent))
+                applyXmlFieldProjections(parent, fields, names);
+        }
+        for (Method xmlGetter : Arrays.stream(contract.getDeclaredMethods())
+                .filter(getter -> !getter.isBridge() && !getter.isSynthetic())
+                .sorted(Comparator.comparing(Method::getName)).toList()) {
+            if (!isXmlWireField(xmlGetter)) continue;
+            String fieldName = semanticFieldId(xmlGetter, names);
+            AIcdGetter inherited = fields.get(fieldName);
+            if (inherited == null)
+                throw new AIxCodegenValidationException("XML wire getter has no semantic DataObject field: "
+                        + xmlGetter + " (" + contract.getName() + ")",
+                        "Declare the schema-neutral DataObject field on a compatible ancestor; "
+                        + "use the XML projection only for QName and covariant return type metadata.");
+            Method original = inherited.dataMethod();
+            if (!original.getName().equals(xmlGetter.getName())
+                    || xmlGetter.getParameterCount() != 0
+                    || !original.getReturnType().isAssignableFrom(xmlGetter.getReturnType()))
+                throw new AIxCodegenValidationException("Incompatible XML field projection: "
+                        + xmlGetter + " for " + original,
+                        "The XML getter must preserve the semantic field identity and "
+                        + "narrow, never widen, the original DataObject return type.");
+            // Reject contradictory modern and legacy XML annotations even if
+            // this field does not refer to a nested DataObject.
+            xmlFieldAnnotation(xmlGetter);
+            fields.put(fieldName, new AIcdGetter(xmlGetter, inherited.field(), original));
+        }
     }
 
     /**
@@ -933,16 +1112,40 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     && aClass.getDeclaredAnnotation(AIaDataObject.class) == null);
     }
 
-    /** Determines the independent schema role from actual marker types and XML metadata. */
-    private static String dataObjectRole(Class<?> aContract) {
-        if (AIiXmlDataObject.class.isAssignableFrom(aContract)) {
-            AIaXmlDataObject locXml = aContract.getDeclaredAnnotation(AIaXmlDataObject.class);
-            return locXml != null && locXml.definitionKind()
-                    == eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.ELEMENT
-                    ? "xmldefs_element" : "xmldefs_type";
+    /**
+     * Determine whether a source type is a schema-neutral SDO generation input.
+     *
+     * <p>Names and naming profiles must never establish eligibility. A neutral
+     * child inherits its parent's annotation even when it has no annotation
+     * of its own. Legacy XML/JSON/YAML projection marker interfaces, however,
+     * are never independently generated, even if they repeat the neutral
+     * annotation: the single shared interface is the only source of SDOs.
+     *
+     * @param aClass candidate class to inspect
+     * @return whether this class can be generated as an independent SDO
+     */
+    public static boolean isSdoInput(Class<?> aClass) {
+        return isReadContract(aClass)
+                && commonDataObjectMetadata(aClass) != null
+                && !AIiXmlDataObject.class.isAssignableFrom(aClass)
+                && !AIiJsonDataObject.class.isAssignableFrom(aClass)
+                && !AIiYamlDataObject.class.isAssignableFrom(aClass);
+    }
+
+    /** Read the schema-neutral annotation from the common read-only ancestor. */
+    private static AIaDataObject commonDataObjectMetadata(Class<?> aType) {
+        AIaDataObject direct = aType.getDeclaredAnnotation(AIaDataObject.class);
+        if (direct != null) return direct;
+        for (Class<?> parent : aType.getInterfaces()) {
+            if (!AIiDataObject.class.isAssignableFrom(parent)) continue;
+            AIaDataObject inherited = commonDataObjectMetadata(parent);
+            if (inherited != null) return inherited;
         }
-        if (AIiYamlDataObject.class.isAssignableFrom(aContract)) return "yamldefs";
-        if (AIiJsonDataObject.class.isAssignableFrom(aContract)) return "jsondefs";
+        return null;
+    }
+
+    /** Every read-only DataObject uses the same technology-independent naming role. */
+    private static String dataObjectRole(Class<?> aContract) {
         return "common";
     }
 
@@ -954,6 +1157,46 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         return aPackage + "." + aSubpackage;
     }
 
+    /**
+     * Preserve technology-specific covariant getters with neutral field metadata.
+     *
+     * <p>JSON/YAML read-only projections intentionally inherit their schema-neutral
+     * {@link AIaDataObjectField} annotations rather than copying them onto every
+     * specialization. In particular, a getter returning {@code List<? extends
+     * FormatItem>} has the same erased return type as its neutral ancestor but
+     * must retain the narrower element type when producing a writable SDO.
+     * Selecting only annotated methods silently widens generated setters and
+     * causes unrelated inherited getters in the common and specialized APIs.
+     *
+     * @param aType read-only contract declaring specialized methods
+     * @param aFields effective inherited semantic fields to update in place
+     * @throws AIxCodegenValidationException for an incompatible override
+     */
+    private static void applyNonXmlCovariantGetters(Class<?> aType,
+            LinkedHashMap<String, AIcdGetter> aFields) {
+        if (!AIiJsonDataObject.class.isAssignableFrom(aType)
+                && !AIiYamlDataObject.class.isAssignableFrom(aType)) return;
+        for (Method locMethod : Arrays.stream(aType.getDeclaredMethods())
+                .filter(aMethod -> !aMethod.isBridge() && !aMethod.isSynthetic()
+                        && aMethod.getParameterCount() == 0
+                        && aMethod.getDeclaredAnnotation(AIaDataObjectField.class) == null)
+                .sorted(Comparator.comparing(Method::getName)).toList()) {
+            for (var locEntry : aFields.entrySet()) {
+                AIcdGetter locInherited = locEntry.getValue();
+                if (!locMethod.getName().equals(locInherited.method().getName())) continue;
+                if (!locInherited.method().getReturnType().isAssignableFrom(locMethod.getReturnType()))
+                    throw new AIxCodegenValidationException(
+                            "Incompatible format-specific DataObject getter: " + locMethod,
+                            "Preserve the inherited getter name and use a covariant return type.");
+                // The format field is a refinement of the neutral source field;
+                // its original annotation continues to govern cardinality etc.
+                locEntry.setValue(new AIcdGetter(
+                        locMethod, locInherited.field(), locInherited.dataMethod()));
+                break;
+            }
+        }
+    }
+
     /** Collect the complete inherited contract tree, detecting incompatible redeclarations. */
     private static LinkedHashMap<String, AIcdGetter> inheritedFields(Class<?> aType,
             AIiNameConventionCatalog aInputNames) {
@@ -963,7 +1206,38 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             merge(locResult, inheritedFields(locParent, aInputNames));
         }
         mergeOverrides(locResult, fields(aType.getDeclaredMethods(), aInputNames));
+        applyNonXmlCovariantGetters(aType, locResult);
+        locResult.entrySet().removeIf(e -> reservedSchemaField(aType, e.getValue().field().dataFieldName()));
         return locResult;
+    }
+
+    /** Check only explicitly selected instance-schema metadata names on this format. */
+    private static boolean reservedSchemaField(Class<?> aContract, String aFieldName) {
+        if (aFieldName == null || aFieldName.isBlank()) return false;
+        var schema = aContract.getDeclaredAnnotation(
+                eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema.class);
+        if (schema != null) return aFieldName.equals(schema.dataSourceSchemaUrlField())
+                && !schema.dataSourceSchemaUrlField().isBlank()
+                || aFieldName.equals(schema.dataSourceSchemaIdentifierField())
+                && !schema.dataSourceSchemaIdentifierField().isBlank()
+                || aFieldName.equals(schema.dataSourceSchemaVersionField())
+                && !schema.dataSourceSchemaVersionField().isBlank();
+        var json = aContract.getDeclaredAnnotation(
+                eu.algites.lib.data.dataobject.jsondefs.AIaJsonDataObject.class);
+        var yaml = aContract.getDeclaredAnnotation(
+                eu.algites.lib.data.dataobject.yamldefs.AIaYamlDataObject.class);
+        return json != null && ((aFieldName.equals(json.dataSourceSchemaUrlField())
+                && !json.dataSourceSchemaUrlField().isBlank())
+                || (aFieldName.equals(json.dataSourceSchemaIdentifierField())
+                && !json.dataSourceSchemaIdentifierField().isBlank())
+                || (aFieldName.equals(json.dataSourceSchemaVersionField())
+                && !json.dataSourceSchemaVersionField().isBlank()))
+            || yaml != null && ((aFieldName.equals(yaml.dataSourceSchemaUrlField())
+                && !yaml.dataSourceSchemaUrlField().isBlank())
+                || (aFieldName.equals(yaml.dataSourceSchemaIdentifierField())
+                && !yaml.dataSourceSchemaIdentifierField().isBlank())
+                || (aFieldName.equals(yaml.dataSourceSchemaVersionField())
+                && !yaml.dataSourceSchemaVersionField().isBlank()));
     }
 
     /**
@@ -1026,11 +1300,9 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             if (aMethod.isBridge() || aMethod.isSynthetic()) return;
             AIaDataObjectField locAnnotation = aMethod.getDeclaredAnnotation(AIaDataObjectField.class);
             if (locAnnotation == null) return;
-            AIaDataObject locDocument = aMethod.getDeclaringClass().getDeclaredAnnotation(AIaDataObject.class);
-            if (locDocument != null && !locAnnotation.fieldName().isBlank()
-                    && (locAnnotation.fieldName().equals(locDocument.dataSourceSchemaUrlField())
-                    || locAnnotation.fieldName().equals(locDocument.dataSourceSchemaIdentifierField())
-                    || locAnnotation.fieldName().equals(locDocument.dataSourceSchemaVersionField()))) return;
+            // Format schema metadata belongs to the selected format contract, not to
+            // AIaDataObject on the declaring common interface. The caller filters
+            // configured instance-metadata fields in the most-derived context.
             if (aMethod.getParameterCount() != 0 || Modifier.isStatic(aMethod.getModifiers())
                     || aMethod.getReturnType() == void.class) {
                 throw new AIxCodegenValidationException("Annotated method is not a value getter: " + aMethod, "Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.");
@@ -1058,8 +1330,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         String locRole = dataObjectRole(locOwner);
         AIaDataObject locMetadata = locOwner.getDeclaredAnnotation(AIaDataObject.class);
         AIiNameConventionCatalog locCatalog = Objects.requireNonNull(aInputNames, "input naming profile");
-        String locProfile = locMetadata != null && !locMetadata.namingConvention().isBlank()
-                ? locMetadata.namingConvention() : locCatalog.selectedRole(locRole);
+        String locProfile = locCatalog.selectedRole(locRole);
         if (locProfile == null || locProfile.isBlank())
             throw new AIxCodegenValidationException("Missing input getter naming profile for " + locOwner.getName(), "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String locIdentifier = locCatalog.parse(locProfile, "getter_method_name", aGetter.getName())
@@ -1089,15 +1360,15 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             effectiveDataNames(locParent, aInputNames).forEach((aSemantic, aData) -> {
                 String locExisting = locNames.putIfAbsent(aSemantic, aData);
                 if (locExisting != null && !locExisting.equals(aData))
-                    throw new AIxCodegenValidationException("Conflicting inherited fieldName for " + aSemantic, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
+                    throw new AIxCodegenValidationException("Conflicting inherited dataFieldName for " + aSemantic, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
             });
         }
         for (var locEntry : fields(aType.getDeclaredMethods(), aInputNames).entrySet()) {
             String locSemantic = locEntry.getKey();
-            String locExplicit = locEntry.getValue().field().fieldName();
+            String locExplicit = locEntry.getValue().field().dataFieldName();
             String locPrevious = locNames.get(locSemantic);
             if (locPrevious != null && !locExplicit.isBlank() && !locPrevious.equals(locExplicit))
-                throw new AIxCodegenValidationException("Inherited fieldName cannot be changed for " + locSemantic
+                throw new AIxCodegenValidationException("Inherited dataFieldName cannot be changed for " + locSemantic
                         + " from " + locPrevious + " to " + locExplicit, "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
             locNames.put(locSemantic, locExplicit.isBlank()
                     ? locPrevious == null ? locSemantic : locPrevious : locExplicit);
@@ -1106,7 +1377,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         locNames.forEach((aSemantic, aData) -> {
             String locPrevious = locOwners.putIfAbsent(aData, aSemantic);
             if (locPrevious != null && !locPrevious.equals(aSemantic))
-                throw new AIxCodegenValidationException("Duplicate fieldName '" + aData + "' for getters "
+                throw new AIxCodegenValidationException("Duplicate dataFieldName '" + aData + "' for getters "
                         + locPrevious + " and " + aSemantic, "Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.");
         });
         return locNames;
@@ -1119,8 +1390,7 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
             throw new AIxCodegenValidationException("Missing required input/mutable/concrete SDO naming profiles", "Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.");
         String locSemanticRole = dataObjectRole(aContract);
         AIaDataObject locMetadata = aContract.getDeclaredAnnotation(AIaDataObject.class);
-        String locSourceRole = locMetadata != null && !locMetadata.namingConvention().isBlank()
-                ? locMetadata.namingConvention() : aInput.selectedRole(locSemanticRole);
+        String locSourceRole = aInput.selectedRole(locSemanticRole);
         var locVars = aInput.parse(locSourceRole, "type_name", aContract.getSimpleName());
         AIiNameConventionCatalog locTarget = aMutable ? aMutableCatalog : aConcreteCatalog;
         String locTargetRole = locTarget.selectedRole(locSemanticRole);
@@ -1166,21 +1436,24 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
      * source list contains a scalar such as String, an enum, or an unknown Object.
      * Otherwise a broad parent setter such as setLanguages(List<?>) clashes by
      * erasure with a specialized child setter setLanguages(List<? extends String>).
+     * Indexed {@code AIiMultiMappedList} projections must participate as well:
+     * JSON/YAML/XML may covariantly narrow a common {@code List} getter to an
+     * indexed list, and the inherited mutable type parameter must survive.
      * Non-collection nested DataObjects also need a type variable, as before.
      *
      * @param aGetter the read-only getter
      * @return true if its setter supports a generic value parameter
      */
     private static boolean supportsGenericSetterValue(Method aGetter) {
-        return isReadContract(aGetter.getReturnType())
-                || (!eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(aGetter.getReturnType())
-                    && (referencedContract(aGetter) != null
-                        || java.util.List.class.isAssignableFrom(aGetter.getReturnType())));
+        return isSdoInput(aGetter.getReturnType())
+                || referencedContract(aGetter) != null
+                || java.util.List.class.isAssignableFrom(aGetter.getReturnType());
     }
 
     /**
      * Determine the value bound shared by the interface getter and setter.
-     * Nested DataObjects use their generated mutable interface, whereas a scalar
+     * Only eligible, annotated nested DataObjects use their generated mutable interface;
+     * auxiliary union/choice interfaces retain their original read-only type. A scalar
      * collection uses the element's own Java type rather than the raw collection.
      * This permits a shared List<?> read contract to be specialized by JSON,
      * YAML, or XML into a List of a stricter element type.
@@ -1216,50 +1489,72 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
         throw new AIxCodegenValidationException("Field has no generically typed setter: " + aGetter, "Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.");
     }
 
-    /** Express a mutable getter and setter through the same interface-level variable. */
+    /**
+     * Express a mutable getter and setter through the same interface-level variable.
+     *
+     * <p>Preserve the source collection interface when specializing its value:
+     * {@code AIiMultiMappedList<? extends T>} is covariant with an inherited
+     * {@code List<? extends T>} getter, whereas replacing it with a plain list
+     * would violate the read-only override and lose indexed operations.
+     *
+     * @param aGetter effective read-only getter
+     * @param aVariable mutable interface type parameter for its field
+     * @return writable getter type retaining the read-only collection kind
+     */
     private static String genericMutableValueType(Method aGetter, String aVariable) {
-        return !isReadContract(aGetter.getReturnType())
-                && java.util.List.class.isAssignableFrom(aGetter.getReturnType())
-                ? "java.util.List<? extends " + aVariable + ">" : aVariable;
+        if (isSdoInput(aGetter.getReturnType())) return aVariable;
+        if (eu.algites.lib.common.list.AIiMultiMappedList.class
+                .isAssignableFrom(aGetter.getReturnType()))
+            return "eu.algites.lib.common.list.AIiMultiMappedList<? extends " + aVariable + ">";
+        if (java.util.List.class.isAssignableFrom(aGetter.getReturnType()))
+            return "java.util.List<? extends " + aVariable + ">";
+        return aVariable;
     }
 
     /**
-     * Discovers the read-only contract referenced by one field, including a list element.
+     * Discovers an eligible SDO contract referenced by one field, including a list element.
      *
-     * <p>A parameterized collection with an unknown element type is not silently treated
-     * as a typed nested object. Only declared interface types are eligible for a generated
-     * concrete XML implementation mapping.
+     * <p>Only schema-neutral annotated DataObjects (or eligible descendants) may be
+     * converted into generated writable references. XML choice markers and other
+     * auxiliary interfaces remain typed read-only references even when they have
+     * DataObject ancestry for compatibility. They have no generated AIigd type.
      *
      * @param aGetter the annotated getter in the read-only schema contract
      * @return the referenced read contract, or {@code null} for scalar fields
      */
     private static Class<?> referencedContract(Method aGetter) {
         Class<?> locRaw = aGetter.getReturnType();
-        if (isReadContract(locRaw)) return locRaw;
+        if (isSdoInput(locRaw)) return locRaw;
         if (java.util.List.class.isAssignableFrom(locRaw) &&
                 aGetter.getGenericReturnType() instanceof ParameterizedType locList) {
             Type locItem = locList.getActualTypeArguments()[0];
-            if (locItem instanceof Class<?> locClass && isReadContract(locClass)) return locClass;
+            if (locItem instanceof Class<?> locClass && isSdoInput(locClass)) return locClass;
             if (locItem instanceof WildcardType locWildcard && locWildcard.getLowerBounds().length == 0) {
                 for (Type locBound : locWildcard.getUpperBounds()) {
-                    if (locBound instanceof Class<?> locClass && isReadContract(locClass)) return locClass;
+                    if (locBound instanceof Class<?> locClass && isSdoInput(locClass)) return locClass;
                 }
             }
         }
         return null;
     }
 
-    /** A nested read contract becomes a covariant mutable value in the generated SDO API. */
+    /** Eligible nested SDO contracts become writable values; helper types stay read-only. */
     private static String mutableValueType(Method aGetter, String aMarker,
             AIiNameConventionCatalog aInput, AIiNameConventionCatalog aMutableNames,
             AIiNameConventionCatalog aConcreteNames, String aMutableSubpackage) {
         Class<?> locReturn = aGetter.getReturnType();
-        if (isReadContract(locReturn)) {
+        if (isSdoInput(locReturn)) {
             return qualifiedMutableValueName(locReturn, aMarker,
                     aInput, aMutableNames, aConcreteNames, aMutableSubpackage);
         }
-        if (eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locReturn))
+        if (eu.algites.lib.common.list.AIiMultiMappedList.class.isAssignableFrom(locReturn)) {
+            Class<?> locNested = referencedContract(aGetter);
+            if (locNested != null)
+                return "eu.algites.lib.common.list.AIiMultiMappedList<? extends "
+                        + qualifiedMutableValueName(locNested, aMarker,
+                                aInput, aMutableNames, aConcreteNames, aMutableSubpackage) + ">";
             return aGetter.getGenericReturnType().getTypeName().replace('$', '.');
+        }
         if (java.util.List.class.isAssignableFrom(locReturn)) {
             Class<?> locNested = referencedContract(aGetter);
             if (locNested != null) {
@@ -1278,6 +1573,15 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
     private static String qualifiedMutableValueName(Class<?> aRead, String aMarker,
             AIiNameConventionCatalog aInput, AIiNameConventionCatalog aMutableNames,
             AIiNameConventionCatalog aConcreteNames, String aSubpackage) {
+        // A writable name exists only for an eligible, annotated DataObject.
+        // XML choice interfaces and other auxiliary read-only types must retain
+        // their original Java type; naming a hypothetical AIigd type would leave
+        // the generated source uncompilable.
+        if (!isSdoInput(aRead))
+            throw new AIxCodegenValidationException(
+                    "No writable SDO contract exists for unannotated auxiliary type: " + aRead.getName(),
+                    "Keep the source read-only type for helper interfaces, or explicitly declare "
+                    + "an annotated DataObject contract if an SDO is intended.");
         String locName = qualifiedName(aRead, typeName(aRead, aMarker, true,
                 aInput, aMutableNames, aConcreteNames), aSubpackage);
         long locCount = inheritedFields(aRead, aInput).values().stream()

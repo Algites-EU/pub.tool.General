@@ -46,6 +46,14 @@ def _common_type(types, context):
     """Keep structural types, intersect object members and relax wire-specific facets."""
     first = types[0]
     if any(t.kind is not first.kind for t in types):
+        # XSD represents an enumerated simpleType as a restricted string;
+        # JSON/YAML can publish the same finite set as a named enum. Preserve
+        # that enum only when *every* declared value agrees. Never weaken a
+        # nominal enum to Object or an unrestricted string.
+        if ({t.kind for t in types} == {AInDataTypeKind.STRING, AInDataTypeKind.ENUM}
+                and first.constraints.enum_values
+                and all(t.constraints.enum_values == first.constraints.enum_values for t in types)):
+            return next(t for t in types if t.kind is AInDataTypeKind.ENUM)
         # Cross-representation contracts must not silently broaden methods
         # to Object. A different type-kind is only compatible when the code
         # generator can emit exactly the same public type, which is the

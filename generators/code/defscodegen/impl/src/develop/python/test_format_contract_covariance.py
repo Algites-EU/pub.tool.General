@@ -14,8 +14,9 @@ def test_root_alias_choice_and_anchored_content_are_nominal(tmp_path):
     folder.mkdir(parents=True)
     schemas = {
         'version_1.yamldef.schema.json': {
-            '$defs': {'VersionRequirement': {'oneOf': [
-                {'type': 'string'}, {'type': 'integer'}]}},
+            '$defs': {'VersionRequirement': {'type': 'object', 'x-algites-defscodegen-choice': True,
+                'minProperties': 1, 'maxProperties': 1, 'additionalProperties': False,
+                'properties': {'Text': {'type': 'string'}, 'Number': {'type': 'integer'}}}},
             '$ref': '#/$defs/VersionRequirement',
         },
         'credentials_1.yamldef.schema.json': {
@@ -58,16 +59,16 @@ def test_root_alias_choice_and_anchored_content_are_nominal(tmp_path):
         return (output / name).read_text(encoding='utf-8')
     version = read('AIig_yVersion_1.java')
     assert 'AIigVersion_1' in version and ' extends ' in version
-    named_choice = read('AIig_yVersionDefinitionVersionRequirement_1.java')
+    named_choice = read('AIig_yVersionRequirement_1.java')
     assert 'sealed interface' in named_choice
-    assert 'extends example.contracts.AIigVersionDefinitionVersionRequirement_1' in named_choice
-    common_choice = read('AIigVersionDefinitionVersionRequirement_1.java')
+    assert 'extends example.contracts.AIigVersionRequirement_1' in named_choice
+    common_choice = read('AIigVersionRequirement_1.java')
     assert 'public interface ' in common_choice
     artifact = read('AIigArtifact_1.java')
-    assert 'AIigCredentialsDefinitionDocumentContent_1 getCredentialProfiles()' in artifact
+    assert 'AIigDocumentContent_1 getCredentialProfiles()' in artifact
     assert 'ArtifactCredentialProfiles' not in artifact
     yaml_artifact = read('AIig_yArtifact_1.java')
-    assert 'AIig_yCredentialsDefinitionDocumentContent_1 getCredentialProfiles()' in yaml_artifact
+    assert 'AIig_yDocumentContent_1 getCredentialProfiles()' in yaml_artifact
     assert 'extends example.contracts.AIigArtifact_1' in yaml_artifact
     assert not list(output.glob('*ArtifactCredentialProfiles*.java'))
 
@@ -84,5 +85,5 @@ def test_root_alias_choice_and_anchored_content_are_nominal(tmp_path):
         'algites-yamldef-name-conventions.yml')]
     AIcSchemaContractBindingsGenerator().generate_manifest(tmp_path, py_options)
     py_output = tmp_path / 'src/product/python.gen/example/contracts'
-    py_choice = (py_output / 'aiig__y_version_definition_version_requirement_1.py').read_text()
-    assert 'class AIig_yVersionDefinitionVersionRequirement_1(AIigVersionDefinitionVersionRequirement_1):' in py_choice
+    py_choice = (py_output / 'aiig__y_version_requirement_1.py').read_text()
+    assert 'class AIig_yVersionRequirement_1(AIigVersionRequirement_1):' in py_choice

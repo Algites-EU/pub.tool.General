@@ -1,10 +1,12 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
+import eu.algites.tool.codegen.defs.impl.standard.model.*;
+import eu.algites.tool.codegen.defs.bootstrap.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElementList;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenElement;
-import eu.algites.tool.codegen.defs.AIcdDefsCodegenType;
-import eu.algites.tool.codegen.defs.AInDefsCodegenSourceInputKind;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
+import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
+import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,17 +47,17 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
             validationCalls.incrementAndGet();
         });
         var result = pipeline.process(List.of(
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.JSONDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
                         "source.json", schema),
-                new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.YAMLDEFS,
+                new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.YAMLDEFS,
                         "source.yaml", schema)));
         Assert.assertEquals(validationCalls.get(), 1);
         Assert.assertEquals(result.types().size(), 2);
         Assert.assertEquals(result.types().get(1).identity(), "urn:shared#/$defs/Node");
         Assert.assertEquals(result.types().get(1).sourceBindings().size(), 2);
-        var members = (AIcdDefsCodegenElementList) result.types().get(1).structure();
-        var element = (AIcdDefsCodegenElement) members.children().get(0);
-        Assert.assertEquals(((AIcdDefsCodegenType) element.structure()).targetIdentity(),
+        var members = (AIcDefsCanonicalElementList) result.types().get(1).structure();
+        var element = (AIcDefsCanonicalElement) members.children().get(0);
+        Assert.assertEquals(((AIcDefsCanonicalType) element.structure()).targetIdentity(),
                 "urn:shared#/$defs/Node");
     }
 
@@ -74,10 +76,10 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
         var pipeline = new AIcDefsCodegenCanonicalPipeline(profile(), payload ->
                 Assert.assertEquals(((List<?>) payload.get("types")).size(), 1));
         var result = pipeline.process(List.of(new AIcdDefsCodegenSourceDocument(
-                AInDefsCodegenSourceInputKind.XMLDEFS, "schema.xsd", xml)));
-        var group = (AIcdDefsCodegenElementList) result.types().get(0).structure();
-        Assert.assertEquals(((AIcdDefsCodegenType)
-                ((AIcdDefsCodegenElement) group.children().get(0)).structure()).targetIdentity(), "Node");
+                AIngSourceInputKind_1.XMLDEFS, "schema.xsd", xml)));
+        var group = (AIcDefsCanonicalElementList) result.types().get(0).structure();
+        Assert.assertEquals(((AIcDefsCanonicalType)
+                ((AIcDefsCanonicalElement) group.children().get(0)).structure()).targetIdentity(), "Node");
     }
     /**
      * Confirms that XMLDEFS namespace-qualified declarations retain independent
@@ -99,7 +101,7 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
                 </xs:schema>
                 """;
         var result = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(
-                List.of(new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS,
+                List.of(new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS,
                         "family.xsd", xsd)));
         Assert.assertEquals(result.types().size(), 2);
         Assert.assertEquals(result.types().get(0).identity(), "{urn:family}Base");
@@ -118,9 +120,9 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
                 "Child", Map.of("type", "object", "allOf", List.of(Map.of("$ref", "#/$defs/Base")),
                         "properties", Map.of("value", Map.of("type", "string")))));
         var result = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(
-                List.of(new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.JSONDEFS,
+                List.of(new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.JSONDEFS,
                         "models.json", schema)));
-        AIcdDefsCodegenType child = result.types().stream().filter(
+        AIcDefsCanonicalType child = result.types().stream().filter(
                 item -> item.name().equals("Child")).findFirst().orElseThrow();
         Assert.assertEquals(child.inheritedFromTypes(), List.of("urn:shared#/$defs/Base"));
     }
@@ -141,8 +143,8 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
                 Map.of("type", "array", "items", false),
                 Map.of("oneOf", List.of(Map.of("type", "string")),
                         "anyOf", List.of(Map.of("type", "integer"))));
-        for (var kind : List.of(AInDefsCodegenSourceInputKind.JSONDEFS,
-                AInDefsCodegenSourceInputKind.YAMLDEFS)) {
+        for (var kind : List.of(AIngSourceInputKind_1.JSONDEFS,
+                AIngSourceInputKind_1.YAMLDEFS)) {
             for (var schema : bad) {
                 boolean rejected = false;
                 try {
@@ -154,7 +156,7 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
             }
             var array = frontend.loadJsonOrYaml(Map.of("type", "array"), "array.schema.json", kind);
             Assert.assertEquals(array.structure().kind(),
-                    eu.algites.tool.codegen.defs.AInDefsCodegenStructureKind.LIST);
+                    eu.algites.tool.codegen.defs.bootstrap.model.AIngStructureKind_1.LIST);
         }
     }
 
@@ -177,16 +179,16 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
             </xs:schema>
             """;
         var result = new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(
-                List.of(new AIcdDefsCodegenSourceDocument(AInDefsCodegenSourceInputKind.XMLDEFS,
+                List.of(new AIcdDefsCodegenSourceDocument(AIngSourceInputKind_1.XMLDEFS,
                         "types.xsd", xsd)));
         var holder = result.types().stream().filter(item -> item.name().equals("Holder"))
                 .findFirst().orElseThrow();
-        var members = (AIcdDefsCodegenElementList) holder.structure();
-        var builtin = (AIcdDefsCodegenElement) members.children().get(0);
-        var named = (AIcdDefsCodegenElement) members.children().get(1);
+        var members = (AIcDefsCanonicalElementList) holder.structure();
+        var builtin = (AIcDefsCanonicalElement) members.children().get(0);
+        var named = (AIcDefsCanonicalElement) members.children().get(1);
         Assert.assertEquals(builtin.structure().kind(),
-                eu.algites.tool.codegen.defs.AInDefsCodegenStructureKind.SCALAR);
-        Assert.assertEquals(((AIcdDefsCodegenType) named.structure()).targetIdentity(),
+                eu.algites.tool.codegen.defs.bootstrap.model.AIngStructureKind_1.SCALAR);
+        Assert.assertEquals(((AIcDefsCanonicalType) named.structure()).targetIdentity(),
                 "{urn:test}string");
     }
 
@@ -207,7 +209,7 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
         try {
             new AIcDefsCodegenCanonicalPipeline(profile(), ignored -> { }).process(
                     List.of(new AIcdDefsCodegenSourceDocument(
-                            AInDefsCodegenSourceInputKind.XMLDEFS, "broken.xsd", xsd)));
+                            AIngSourceInputKind_1.XMLDEFS, "broken.xsd", xsd)));
         } catch (IllegalArgumentException expected) {
             rejected = true;
         }
@@ -221,19 +223,19 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
     @Test
     public void AIcIntegratedPropertyMapIsDirectElementListChild() {
         var frontend = new AIcDefsCodegenCanonicalSchemaFrontend(profile());
-        for (var kind : List.of(AInDefsCodegenSourceInputKind.JSONDEFS,
-                AInDefsCodegenSourceInputKind.YAMLDEFS)) {
+        for (var kind : List.of(AIngSourceInputKind_1.JSONDEFS,
+                AIngSourceInputKind_1.YAMLDEFS)) {
             var root = frontend.loadJsonOrYaml(Map.of("type", "object", "properties",
                     Map.of("name", Map.of("type", "string")),
                     "additionalProperties", Map.of("type", "integer")), "map.json", kind);
-            var members = (AIcdDefsCodegenElementList) root.structure();
+            var members = (AIcDefsCanonicalElementList) root.structure();
             Assert.assertEquals(members.children().size(), 2);
             Assert.assertEquals(members.children().get(1).kind(),
-                    eu.algites.tool.codegen.defs.AInDefsCodegenStructureKind.MAP);
-            var propertyMap = (eu.algites.tool.codegen.defs.AIcdDefsCodegenMap)
+                    eu.algites.tool.codegen.defs.bootstrap.model.AIngStructureKind_1.MAP);
+            var propertyMap = (eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalMap)
                     members.children().get(1);
             Assert.assertEquals(propertyMap.mapKind(),
-                    eu.algites.tool.codegen.defs.AInDefsCodegenMapKind.INTEGRATED_PROPERTY_MAP);
+                    eu.algites.tool.codegen.defs.bootstrap.model.AIngMapKind_1.INTEGRATED_PROPERTY_MAP);
         }
     }
 

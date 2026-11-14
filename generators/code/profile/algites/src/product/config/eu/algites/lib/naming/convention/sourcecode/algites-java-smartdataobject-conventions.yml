@@ -1,37 +1,52 @@
 # yaml-language-server: $schema=https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/sourcecode/smartdataobject/smartdataobject-naming-conventions_1.yamldef.schema.json
 # $schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/sourcecode/smartdataobject/smartdataobject-naming-conventions_1.yamldef.schema.json
-$schema: https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/sourcecode/smartdataobject/smartdataobject-naming-conventions_1.yamldef.schema.json
+$schema: 
+  https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/sourcecode/smartdataobject/smartdataobject-naming-conventions_1.yamldef.schema.json
 NameCompositions:
-  algites-java-sdo-raw-getter_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _getRaw_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  algites-java-sdo-presence_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _isPresent_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
-  algites-java-sdo-unsetter_1:
-    Segments:
-    - NameFragmentsSegmentValue:
-        Kind: constant_string
-        Value: _unset_
-    - NameFragmentsSegmentValue:
-        Kind: identifier
-        Convention: upper_camel_case_1
+  NameComposition:
+    - name: algites-java-sdo-raw-getter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _getRaw_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: algites-java-sdo-presence_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _isPresent_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
+    - name: algites-java-sdo-unsetter_1
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Content:
+              Value: _unset_
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Content:
+              Convention: upper_camel_case_1
 SmartDataObjectNameConventions:
   NameConventions:
-    algites-java-sdocodegen-standard_1:
-      StructureNaming:
-        standard_getter: java-getter-method-name_1
-        standard_setter: java-setter-method-name_1
-        raw_getter: algites-java-sdo-raw-getter_1
-        raw_presence_checker_method: algites-java-sdo-presence_1
-        raw_unsetter: algites-java-sdo-unsetter_1
+    NameConvention:
+      - name: algites-java-sdocodegen-standard_1
+        StructureNaming:
+          Rule:
+            - kind: standard_getter
+              Value: java-getter-method-name_1
+            - kind: standard_setter
+              Value: java-setter-method-name_1
+            - kind: raw_getter
+              Value: algites-java-sdo-raw-getter_1
+            - kind: raw_presence_checker_method
+              Value: algites-java-sdo-presence_1
+            - kind: raw_unsetter
+              Value: algites-java-sdo-unsetter_1

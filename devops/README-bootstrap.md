@@ -58,6 +58,39 @@ MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=remote bash devops/bootstrap/bootstrap.sh --p
 MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE=remote bash devops/bootstrap/bootstrap.sh --root generators/code --upload
 ```
 
+`--upload-prepared` is an independent upload-only action. It **never** generates,
+compiles, invokes a prerequisite bootstrap, or changes local packages. With
+`--root` it selects exactly the Maven / Python products owned under that
+root, validates the complete publication set **before** Cloudsmith is contacted,
+then uploads already built files. Maven uses the configured coordinates and
+current `*-SNAPSHOT` JAR/POM/module/sources quartet from Modustro-local Maven.
+Python uses the latest matching built `1.1.dev...` wheel **and** sdist; an
+incomplete latest pair is an error. Use `MODUSTRO_BOOTSTRAP_PYTHON_VERSION`
+for a specific version when necessary. Example:
+
+```sh
+bash devops/bootstrap/bootstrap.sh --root generators/code/sdocodegen/intf --upload-prepared
+```
+
+The regular generation paths (including `remote` dependency mode) first create
+`build/run/schema-locations/<run-id>.properties` by scanning the product
+`xmldefs`, `jsondefs`, and `yamldefs` folders of selected artifacts **and their
+transitive Modustro dependencies**, using each schema's companion
+`GlobalPublicationPathId` metadata. Each line maps the original public URL to
+its absolute local path, e.g.:
+
+```properties
+https://defs.dev.algites.eu/api/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json=/home/user/Work/pub.lib.General/naming/convention/intf/src/product/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json
+```
+
+The bootstrap passes `--schema-locations-property-file` to both Defs CLIs.
+With this parameter, Defs resolves strictly from the supplied map; missing
+URLs, mismatched schema identities and duplicate declarations are errors,
+not reasons to fetch outdated remote schema bytes. Without the parameter,
+standalone Defs CLI preserves its original local/cache/HTTPS behavior. The
+map is not a schema publication mechanism and does not affect SDO's
+independent input/annotation validation.
+
 `--plan-only` never generates, builds or uploads. `--prepare-only` regenerates,
 compiles, verifies Maven JARs and Python wheel/sdist contents and promotes the
 verified local packages without uploading to Cloudsmith. `--upload` is the

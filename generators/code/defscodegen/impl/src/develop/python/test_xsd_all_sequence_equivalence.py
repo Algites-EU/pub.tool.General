@@ -4,13 +4,13 @@ import pytest
 
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
-from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
 
 
 def _source(tmp_path, compositor, content):
-    path = tmp_path / ('composition_' + compositor + '_1.xsd')
+    path = tmp_path / ('composition' + compositor + '_1.xsd')
     path.write_text('''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
         xmlns:tns="urn:compositors" targetNamespace="urn:compositors"
         elementFormDefault="qualified" version="1">

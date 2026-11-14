@@ -16,203 +16,21 @@
       "properties": {
         "NameConventions": {
           "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "StructureNaming": {
-                "type": "object",
-                "propertyNames": {
-                  "$ref": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/common/naming/codegen-common-structure-kind_1.jsondef.schema.json"
-                },
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "properties": {
-                  "standard_getter": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Generated typed getter; compositional name rule shared by Defs and SDO."
-                  },
-                  "standard_setter": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Generated typed setter; compositional name rule shared by Defs and SDO."
-                  },
-                  "positional_item_synthetic_getter": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Naming composition for a positional prefixItems accessor, with a configurable displayed position."
-                  },
-                  "multi_mapped_list_key_synthetic_getter": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Literal synthetic getter for a JSON/YAML map entry key; no serialized field."
-                  },
-                  "multi_mapped_list_value_synthetic_getter": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Literal synthetic getter for a JSON/YAML map entry value; no serialized field."
-                  },
-                  "const_container_interface": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Composition for the nested generated CONST interface used by Defs and SDO."
-                  }
-                },
-                "description": "Role names are restricted to the common domain. Values reference naming compositions except the two literal key/value getters.",
-                "required": [
-                  "standard_getter",
-                  "standard_setter"
-                ]
+          "title": "NameConvention collection",
+          "description": "",
+          "additionalProperties": false,
+          "properties": {
+            "NameConvention": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CommonCodegenNameConvention"
               },
-              "SchemaMetadataNaming": {
-                "type": "object",
-                "propertyNames": {
-                  "$ref": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/common/naming/generated-dataobject-schema-metadata-kind_1.jsondef.schema.json"
-                },
-                "additionalProperties": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "properties": {
-                  "schema_source_schema_url": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "default": "",
-                    "description": "Source schema metadata field name; an empty name disables extraction."
-                  },
-                  "schema_source_schema_identifier": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "default": "",
-                    "description": "Source schema metadata field name; an empty name disables extraction."
-                  },
-                  "schema_source_schema_version": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "default": "",
-                    "description": "Source schema metadata field name; an empty name disables extraction."
-                  },
-                  "data_source_schema_url": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "default": "",
-                    "description": "Serialized instance metadata field name; empty disables reading and writing. Requires matching schema_source role."
-                  },
-                  "data_source_schema_identifier": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "default": "",
-                    "description": "Serialized instance metadata field name; empty disables reading and writing. Requires matching schema_source role."
-                  },
-                  "data_source_schema_version": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "default": "",
-                    "description": "Serialized instance metadata field name; empty disables reading and writing. Requires matching schema_source role."
-                  }
-                },
-                "allOf": [
-                  {
-                    "if": {
-                      "required": [
-                        "data_source_schema_url"
-                      ],
-                      "properties": {
-                        "data_source_schema_url": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      }
-                    },
-                    "then": {
-                      "required": [
-                        "schema_source_schema_url"
-                      ],
-                      "properties": {
-                        "schema_source_schema_url": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      }
-                    }
-                  },
-                  {
-                    "if": {
-                      "required": [
-                        "data_source_schema_identifier"
-                      ],
-                      "properties": {
-                        "data_source_schema_identifier": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      }
-                    },
-                    "then": {
-                      "required": [
-                        "schema_source_schema_identifier"
-                      ],
-                      "properties": {
-                        "schema_source_schema_identifier": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      }
-                    }
-                  },
-                  {
-                    "if": {
-                      "required": [
-                        "data_source_schema_version"
-                      ],
-                      "properties": {
-                        "data_source_schema_version": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      }
-                    },
-                    "then": {
-                      "required": [
-                        "schema_source_schema_version"
-                      ],
-                      "properties": {
-                        "schema_source_schema_version": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      }
-                    }
-                  }
-                ],
-                "description": "Six metadata bindings, with disabled roles represented by omitted/empty/null values."
-              },
-              "IndexesStartingFrom": {
-                "type": "integer",
-                "minimum": 0,
-                "default": 1,
-                "description": "First suffix in generated positional getter/type names (e.g. prefixItems), not data indexes or enum values."
+              "description": "Ordered XSD NameConvention elements; name is an identity attribute.",
+              "x-algites-defscodegen-key": {
+                "id": "UniqueProfileIds",
+                "field-name": "name"
               }
-            },
-            "required": [
-              "StructureNaming"
-            ]
+            }
           }
         }
       },
@@ -228,5 +46,285 @@
     "https://defs.dev.algites.eu/api/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json"
   ],
   "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.codegen-common-naming-conventions",
-  "x-algites-schema-version": 1
+  "x-algites-schema-version": 1,
+  "$defs": {
+    "CommonCodegenNameConvention": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required XSD identity attribute."
+        },
+        "StructureNaming": {
+          "type": "object",
+          "title": "Naming rules",
+          "description": "Role names are restricted to the common domain. Values reference naming compositions except the two literal key/value getters.",
+          "additionalProperties": false,
+          "properties": {
+            "Rule": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CommonCodegenStructureNamingRule"
+              },
+              "x-algites-defscodegen-key": {
+                "id": "UniqueStructureRoles",
+                "field-name": "kind"
+              },
+              "allOf": [
+                {
+                  "contains": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "const": "standard_getter"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  }
+                },
+                {
+                  "contains": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "const": "list_getter"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  }
+                },
+                {
+                  "contains": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "const": "standard_setter"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "SchemaMetadataNaming": {
+          "type": "object",
+          "title": "Naming rules",
+          "description": "Six metadata bindings, with disabled roles represented by omitted/empty/null values.",
+          "additionalProperties": false,
+          "properties": {
+            "Rule": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CommonCodegenSchemaMetadataNamingRule"
+              }
+            }
+          }
+        },
+        "IndexesStartingFrom": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "First suffix in generated positional getter/type names (e.g. prefixItems), not data indexes or enum values."
+        }
+      },
+      "required": [
+        "name",
+        "StructureNaming"
+      ]
+    },
+    "CommonCodegenStructureNamingRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/common/naming/codegen-common-structure-kind_1.jsondef.schema.json"
+        },
+        "Value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "Value"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "standard_getter"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Generated typed getter; compositional name rule shared by Defs and SDO."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "standard_setter"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Generated typed setter; compositional name rule shared by Defs and SDO."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "positional_item_synthetic_getter"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Naming composition for a positional prefixItems accessor, with a configurable displayed position."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "multi_mapped_list_key_synthetic_getter"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Literal synthetic getter for a JSON/YAML map entry key; no serialized field."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "multi_mapped_list_value_synthetic_getter"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Literal synthetic getter for a JSON/YAML map entry value; no serialized field."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "const_container_interface"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Composition for the nested generated CONST interface used by Defs and SDO."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "list_getter"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "Value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Required composition for a typed getter of a repeated field. Uses the field singular name as a role input; e.g. getRuleList."
+              }
+            }
+          }
+        }
+      ]
+    },
+    "CommonCodegenSchemaMetadataNamingRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/common/naming/generated-dataobject-schema-metadata-kind_1.jsondef.schema.json"
+        },
+        "Value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "Value"
+      ]
+    }
+  }
 }

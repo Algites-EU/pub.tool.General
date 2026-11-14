@@ -135,7 +135,10 @@
     "anything": {
       "description": "Typed string value, matching the supported XML parity fixture.",
       "title": "Anything",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "dateValue": {
       "type": "string",

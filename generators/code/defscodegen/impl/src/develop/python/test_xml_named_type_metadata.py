@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from eu.algites.lib.naming.convention.profile.algites.aic_algites_naming_profiles import AIcAlgitesNamingProfiles
 from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
-from eu.algites.tool.codegen.defs.old.aicd_definition_load_request import AIcdDefinitionLoadRequest
+from explicit_legacy_naming import configured_load as AIcdDefinitionLoadRequest
 from explicit_legacy_naming import configured_generation as AIcdCodeGenerationRequest
 from eu.algites.tool.codegen.defs.old.ain_definition_source_kind import AInDefinitionSourceKind
 from eu.algites.tool.codegen.defs.old.ain_code_generation_target import AInCodeGenerationTarget

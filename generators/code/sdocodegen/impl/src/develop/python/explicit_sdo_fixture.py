@@ -1,7 +1,7 @@
 """Generated Python SmartDataObject types are independent of schema formats."""
 from pathlib import Path
 
-from eu.algites.tool.codegen.sdo.old.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
+from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import AIcSdoCodegenService
 
 
 class AItcConfiguredSdoGenerator:
@@ -31,15 +31,10 @@ class AItcConfiguredSdoGenerator:
             ]).with_generated_method_profile('algites-python-codegen-standard_1')
         else:
             catalog = configured[-1]
-        if issubclass(read_contract, AIiXmlDataObject):
-            kind = getattr(getattr(read_contract, '__xml_data_object__', None), 'definition_kind', None)
-            role = 'xmldefs_element' if kind is AInXmlObjectDefinitionKind.ELEMENT else 'xmldefs_type'
-        elif issubclass(read_contract, AIiJsonDataObject):
-            role = 'jsondefs'
-        elif issubclass(read_contract, AIiYamlDataObject):
-            role = 'yamldefs'
-        else:
-            role = 'common'
+        # SDO consumes the common read-only contract regardless of the
+        # source schema technology. XML/JSON/YAML wire projections are not
+        # naming roles in the independent SDO generator.
+        role = 'common'
         versioned = bool(__import__('re').search(r'_[1-9][0-9]*$', read_contract.__name__))
         suffix = '-versioned_1' if versioned else '_1'
         input_kind = 'intf'
@@ -62,12 +57,6 @@ class AItcConfiguredSdoGenerator:
         input_roles = {role: input_profile}
         mutable_roles = {role: mutable_profile}
         concrete_roles = {role: concrete_profile}
-        if role == 'xmldefs_element':
-            # XML substitution heads and generated elements can inherit from
-            # a named XML type, so both roles are required by this fixture.
-            input_roles['xmldefs_type'] = 'algites-python-gen-intf' + suffix
-            mutable_roles['xmldefs_type'] = mutable_profile
-            concrete_roles['xmldefs_type'] = concrete_profile
         return (input_roles, mutable_roles, concrete_roles, selected_catalog)
 
     def generate(self, read_contract, marker='d', naming=None,

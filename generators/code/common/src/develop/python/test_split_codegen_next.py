@@ -24,13 +24,13 @@ for path in (TOOL / 'generators/code/common/src/product/python',
 from eu.algites.tool.codegen.common.naming_profiles import (
     COMMON_ROLES, DEFS_ROLES, SDO_ROLES, resolve_codegen_naming_profiles)
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIcgd_jElement_1, AIcgd_jElementList_1, AIcgd_jEnum_1,
-    AIcgd_jEnumValue_1, AIcgd_jList_1, AIcgd_jMap_1,
-    AIcgd_jScalar_1, AIcgd_jSourceBinding_1,
-    AIcgd_jType_1, AIigComposition_1,
-    AIigMapKind_1, AIigScalarKind_1,
-    AIigSourceInputKind_1, AIigTypeOrigin_1,
-    AIigStructureKind_1, freeze_bindings, merge_bindings, normalize_structure)
+    AIcgdElement_1, AIcgdElementList_1, AIcgdEnum_1,
+    AIcgdEnumValue_1, AIcgdList_1, AIcgdMap_1,
+    AIcgdScalar_1, AIcgdSourceBinding_1,
+    AIcgdType_1, AIngComposition_1,
+    AIngMapKind_1, AIngScalarKind_1,
+    AIngSourceInputKind_1, AIngTypeOrigin_1,
+    AIngStructureKind_1, freeze_bindings, merge_bindings, normalize_structure)
 
 FAM_SUFFIX = {'yamldefs': 'yamldef.schema.json', 'jsondefs': 'jsondef.schema.json'}
 NAMES = {'common': ('common', 'common', 'codegen-common'),
@@ -127,6 +127,7 @@ def test_naming_functions(profile, language):
     assert resolved.method_name('positional_item_synthetic_getter', position='2') == 'getItem2'
     assert resolved.synthetic_type_name('synthetic_property_type', 'AIiCustomer', 'first_name') == 'AIiCustomerPropertyFirstName'
     assert resolved.synthetic_type_name('synthetic_positional_item_type', 'AIiCustomer', 'address', 0) == 'AIiCustomerPositionAddress1'
+    assert resolved.method_name('list_getter', 'rule') == 'getRuleList'
     assert resolved.method_name('multi_mapped_list_key_synthetic_getter') == '_getKey'
     assert resolved.method_name('multi_mapped_list_value_synthetic_getter') == '_getValue'
     assert resolved.method_name('raw_unsetter', 'FirstName') == '_unset_FirstName'
@@ -165,34 +166,34 @@ def test_wrong_cross_reference_and_foreign_domain_rejected():
 
 
 def test_canonical_shape_provenance_and_normalization():
-    source = AIcgd_jSourceBinding_1('schema.json', '/properties/a', 'properties')
-    sources = freeze_bindings({AIigSourceInputKind_1.JSONDEFS: [source, source]})
-    assert len(sources[AIigSourceInputKind_1.JSONDEFS]) == 2
-    assert len(merge_bindings(sources, sources)[AIigSourceInputKind_1.JSONDEFS]) == 4
-    field = AIcgd_jElement_1('name', AIcgd_jScalar_1(AIigScalarKind_1.STRING), source_bindings=sources)
-    group = AIcgd_jElementList_1(AIigComposition_1.SEQUENCE, (
-        AIcgd_jElementList_1(AIigComposition_1.SEQUENCE, (field,)),
-        AIcgd_jElementList_1(AIigComposition_1.CHOICE, (field,)),
-        AIcgd_jMap_1('additionalProperties', AIigMapKind_1.INTEGRATED_PROPERTY_MAP,
-                           AIcgd_jScalar_1(AIigScalarKind_1.STRING),
-                           AIcgd_jScalar_1(AIigScalarKind_1.NUMBER), sources)))
-    source_type = AIcgd_jType_1('stable:1', 'Person', AIigTypeOrigin_1.SYNTHETIC,
+    source = AIcgdSourceBinding_1('schema.json', '/properties/a', 'properties')
+    sources = freeze_bindings({AIngSourceInputKind_1.JSONDEFS: [source, source]})
+    assert len(sources[AIngSourceInputKind_1.JSONDEFS]) == 2
+    assert len(merge_bindings(sources, sources)[AIngSourceInputKind_1.JSONDEFS]) == 4
+    field = AIcgdElement_1('name', AIcgdScalar_1(AIngScalarKind_1.STRING), source_bindings=sources)
+    group = AIcgdElementList_1(AIngComposition_1.SEQUENCE, (
+        AIcgdElementList_1(AIngComposition_1.SEQUENCE, (field,)),
+        AIcgdElementList_1(AIngComposition_1.CHOICE, (field,)),
+        AIcgdMap_1('additionalProperties', AIngMapKind_1.INTEGRATED_PROPERTY_MAP,
+                           AIcgdScalar_1(AIngScalarKind_1.STRING),
+                           AIcgdScalar_1(AIngScalarKind_1.NUMBER), sources)))
+    source_type = AIcgdType_1('stable:1', 'Person', AIngTypeOrigin_1.SYNTHETIC,
                                        ('Person', 'Group'), structure=group, source_bindings=sources)
     normalized = normalize_structure(source_type)
-    assert normalized.kind == AIigStructureKind_1.TYPE
-    assert normalized.origin == AIigTypeOrigin_1.SYNTHETIC
+    assert normalized.kind == AIngStructureKind_1.TYPE
+    assert normalized.origin == AIngTypeOrigin_1.SYNTHETIC
     assert len(normalized.structure.children) == 3
     assert normalized.structure.children[0] == field
-    assert normalized.structure.children[1].composition == AIigComposition_1.CHOICE
-    assert normalized.structure.children[2].map_kind == AIigMapKind_1.INTEGRATED_PROPERTY_MAP
-    assert normalized.source_bindings[AIigSourceInputKind_1.JSONDEFS] == (source, source)
+    assert normalized.structure.children[1].composition == AIngComposition_1.CHOICE
+    assert normalized.structure.children[2].map_kind == AIngMapKind_1.INTEGRATED_PROPERTY_MAP
+    assert normalized.source_bindings[AIngSourceInputKind_1.JSONDEFS] == (source, source)
     with pytest.raises(ValueError):
-        AIcgd_jElementList_1(AIigComposition_1.SEQUENCE, (AIcgd_jScalar_1(AIigScalarKind_1.ANY),))
+        AIcgdElementList_1(AIngComposition_1.SEQUENCE, (AIcgdScalar_1(AIngScalarKind_1.ANY),))
 
 
 def test_enum_and_list_canonical_shapes():
-    enum = AIcgd_jEnum_1(AIigScalarKind_1.INTEGER,
-                               (AIcgd_jEnumValue_1('1'), AIcgd_jEnumValue_1('2')))
-    assert enum.kind == AIigStructureKind_1.ENUM
-    assert AIcgd_jList_1('codes', enum).kind == AIigStructureKind_1.LIST
-    assert len(AIigStructureKind_1) == 7
+    enum = AIcgdEnum_1(AIngScalarKind_1.INTEGER,
+                               (AIcgdEnumValue_1('1'), AIcgdEnumValue_1('2')))
+    assert enum.kind == AIngStructureKind_1.ENUM
+    assert AIcgdList_1('codes', enum).kind == AIngStructureKind_1.LIST
+    assert len(AIngStructureKind_1) == 7

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Clean or regenerate native Defs contracts for the standalone Codegen bootstrap.
+"""Compatibility helper for legacy Codegen clean/list/generate commands.
 
-Generated trees are disposable. Each build must remove their contents and
-produce contracts from the currently checked-out schema sources, never retain
-previous generated files or run an incremental upgrade against them.
+The generate action delegates to the universal bootstrap Defs/SDO CLI, never
+to the retired ``defs.old`` generator. The normal bootstrap has its own
+explicit, opt-in output cleanup flag (default: false).
 """
 from __future__ import annotations
 
@@ -171,27 +171,26 @@ def manifest(repository: Path, artifact: Path, languages: list[str]) -> dict:
 
 def generate(repository: Path, source_general: Path | None, output: Path,
              selected: Path | None = None) -> None:
-    modules = artifact_outputs(repository, selected)
-    if not modules:
-        print('No declared generated-source roots; nothing to regenerate.', flush=True)
-        return
+    """Compatibility action: dispatch exclusively to the canonical Defs/SDO CLI.
+
+    Historically this command imported ``defs.old``.  It must never do so:
+    the shared bootstrap already handles artifact selection, input/dependency
+    scoping, and the independent Defs and SDO generators.  ``source_general``
+    is retained only as an override for the source dependency checkout.
+    """
+    selected = selected or repository
+    if not selected.resolve().is_relative_to(repository.resolve()):
+        raise ValueError(f'Selected root escapes repository: {selected}')
+    entry = repository / 'devops/bootstrap/generate_sources.py'
+    if not entry.is_file():
+        raise FileNotFoundError(f'Missing canonical bootstrap generator: {entry}')
     output.mkdir(parents=True, exist_ok=True)
-    load_dependencies(repository, source_general, output)
-    from eu.algites.tool.codegen.defs.old.impl.standard.aic_schema_contract_bindings_generator import (
-        AIcSchemaContractBindingsGenerator,
-    )
-    count = 0
-    for artifact, languages in sorted(modules.items()):
-        sources = AIcSchemaContractBindingsGenerator().generate_manifest(
-            repository, manifest(repository, artifact, sorted(languages)))
-        if not sources:
-            raise RuntimeError(f'No code was generated for {artifact}')
-        count += len(sources)
-        for language in languages:
-            target = artifact / 'src/product' / (language + '.gen')
-            if not list(target.rglob('*.java' if language == 'java' else '*.py')):
-                raise RuntimeError(f'Empty generated {language} source tree: {artifact}')
-    print(f'Regenerated {count} Defs contracts in {len(modules)} Codegen artifacts', flush=True)
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
+    if source_general is not None:
+        env['MODUSTRO_BOOTSTRAP_GENERAL_SOURCE_DIR'] = str(source_general.resolve())
+    subprocess.run([sys.executable, str(entry), '--repository', str(repository),
+                    '--root', str(selected), '--output', str(output)],
+                   cwd=repository, env=env, check=True)
 
 
 def main() -> None:

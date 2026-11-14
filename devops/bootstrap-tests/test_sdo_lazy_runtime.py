@@ -63,11 +63,11 @@ apply from: file('sdo-java.gradle')
         }
         for scenario, body in cases.items():
             self.write(f'target/fixtures/{scenario}/example/Contract.java', 'package example;\n' + body)
-        self.java('cli', 'eu.algites.tool.codegen.sdo.old.impl.standard', 'AIcSdoCodegenService', '''
+        self.java('cli', 'eu.algites.tool.codegen.sdo.impl.standard', 'AIcSdoCodegenService', '''
 public class AIcSdoCodegenService {
     public static final String KEYED_SDO_GENERATOR_REVISION = "indexed-collection-delegation-20261031-1";
 }''')
-        self.java('cli', 'eu.algites.tool.codegen.sdo.old.impl.cli', 'AIcSdoCodegenCli', '''
+        self.java('cli', 'eu.algites.tool.codegen.sdo.impl.cli', 'AIcSdoCodegenCli', '''
 public class AIcSdoCodegenCli {
     public static void main(String[] args) {
         if (!java.util.Arrays.asList(args).contains("--dointf-input-classes:java=example.Contract"))
@@ -78,7 +78,7 @@ public class AIcSdoCodegenCli {
         repo = SCRIPT.parents[2]
         if not (repo / 'generators/code').is_dir():
             repo = repo.parent / 'pub.tool.General'
-        default = 'eu/algites/tool/codegen/sdo/old/sdocodegen-java-default.settings'
+        default = 'eu/algites/tool/codegen/sdo/sdocodegen-java-default.settings'
         overlay = 'eu/algites/tool/codegen/sdo/sdocodegen-java.settings'
         self.write('cli/src/main/resources/' + default,
                    (repo / 'generators/code/sdocodegen/intf/src/product/config' / default).read_text())

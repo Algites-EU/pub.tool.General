@@ -5,6 +5,7 @@
   "type": "string",
   "enum": [
     "synthetic_property_type",
+    "synthetic_inline_enum_type",
     "synthetic_list_item_type",
     "synthetic_map_value_type",
     "synthetic_positional_item_type",

@@ -11,7 +11,7 @@ import re
 import pytest
 
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIigSourceInputKind_1 as SourceKind,
+    AIngSourceInputKind_1 as SourceKind,
 )
 from eu.algites.tool.codegen.defs.impl.standard.canonical_pipeline import (
     AIcdDefsCodegenSourceDocument,

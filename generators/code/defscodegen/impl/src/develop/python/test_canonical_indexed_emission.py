@@ -15,14 +15,14 @@ for suffix in ('generators/code/defscodegen/intf/src/product/python',
                'generators/code/common/src/product/python'):
     sys.path.insert(0, str(ROOT / suffix))
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-    AIcgd_jKeyDefinition_1 as Key,
-    AIcgd_jList_1 as ListNode,
+    AIcgdKeyDefinition_1 as Key,
+    AIcgdList_1 as ListNode,
 )
 from eu.algites.tool.codegen.defs.impl.standard.canonical_pipeline import (
     AIcDefsCodegenCanonicalPipeline as Pipeline,
     AIcdDefsCodegenSourceDocument as Document,
 )
-from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import AIigSourceInputKind_1 as Kind
+from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import AIngSourceInputKind_1 as Kind
 from eu.algites.tool.codegen.defs.impl.standard.canonical_source_emitter import (
     AIcDefsCodegenCanonicalSourceEmitter as Emitter,
     AIcdDefsCodegenEmissionName as Names,
@@ -82,34 +82,34 @@ def test_composite_keys_from_real_xsd_compile_and_retain_sdo_metadata(tmp_path):
             compile(file.content, str(location), 'exec')
     java_code = '\n'.join(file.content for file in emitted if file.language == 'java')
     python_code = '\n'.join(file.content for file in emitted if file.language == 'python')
-    assert 'AIiMultiMappedList<AIigT' in java_code
-    assert 'fields = {"department", "identity.code"}, required = true' in java_code
-    assert 'fields = {"department"}, required = false' in java_code
-    assert "__xml_key_definitions__ = {" in python_code
-    assert 'KEY_EMPLOYEE_BY_DEPARTMENT_AND_CODE = "ByDepartmentAndCode"' in java_code
-    assert 'KEY_EMPLOYEE_UNIQUE_DEPARTMENT = "UniqueDepartment"' in java_code
-    assert 'name = CONSTOrganizationPropertyStaff.KEY_EMPLOYEE_BY_DEPARTMENT_AND_CODE' in java_code
-    assert 'name = CONSTOrganizationPropertyStaff.KEY_EMPLOYEE_UNIQUE_DEPARTMENT' in java_code
-    assert "KEY_EMPLOYEE_BY_DEPARTMENT_AND_CODE = 'ByDepartmentAndCode'" in python_code
-    assert 'CONSTOrganizationPropertyStaff.KEY_EMPLOYEE_BY_DEPARTMENT_AND_CODE' in python_code
+    assert 'AIiMultiMappedList<? extends AIigT' in java_code
+    assert 'selector = "employee", fields = {CONSTOrganization.FIELD_NAME__DEPARTMENT, CONSTOrganization.FIELD_NAME__IDENTITY_CODE}, required = true' in java_code
+    assert 'selector = "employee", fields = {CONSTOrganization.FIELD_NAME__DEPARTMENT}, required = false' in java_code
+    assert "__scoped_key_definitions__ = {" in python_code
+    assert 'KEY_ID__BY_DEPARTMENT_AND_CODE = "ByDepartmentAndCode"' in java_code
+    assert 'KEY_ID__UNIQUE_DEPARTMENT = "UniqueDepartment"' in java_code
+    assert 'name = CONSTOrganization.KEY_ID__BY_DEPARTMENT_AND_CODE' in java_code
+    assert 'name = CONSTOrganization.KEY_ID__UNIQUE_DEPARTMENT' in java_code
+    assert "KEY_ID__BY_DEPARTMENT_AND_CODE = 'ByDepartmentAndCode'" in python_code
+    assert 'ByDepartmentAndCode' in python_code
     # Check the generated metadata resolves back to the exact original XSD strings.
     generated = next(file for file in emitted if file.language == 'python'
-                     and 'KEY_EMPLOYEE_BY_DEPARTMENT_AND_CODE' in file.content)
+                     and 'KEY_ID__BY_DEPARTMENT_AND_CODE' in file.content)
     namespace = {'__name__': 'test.output.generated'}
     exec(generated.content, namespace)
     contract = next(value for name, value in namespace.items() if name.startswith('AIig'))
-    assert contract.__xml_repeated_fields__ == ('employee',)
-    assert contract.__xml_key_definitions__['employee'] == (
-        ('ByDepartmentAndCode', ('department', 'identity.code'), True),
-        ('UniqueDepartment', ('department',), False))
+    assert contract.__scoped_key_definitions__['staff'] == (
+        ('employee', 'ByDepartmentAndCode', ('department', 'identity.code'), True),
+        ('employee', 'UniqueDepartment', ('department',), False))
+    assert not hasattr(contract, '__key_definitions__')
     # Compile the source against the real Java annotation and key-list contracts.
     lib_root = LIB / 'common/util/src/product/java'
     meta_root = LIB / 'data/dataobject/intf/src/product/java'
     dependencies = [
         lib_root / 'eu/algites/lib/common/list/AIiMultiMappedList.java',
         lib_root / 'eu/algites/lib/common/list/AIiKeyDefinition.java',
-        meta_root / 'eu/algites/lib/data/dataobject/xmldefs/AIaXmlKeyDefinition.java',
-        meta_root / 'eu/algites/lib/data/dataobject/xmldefs/AIaXmlKeyDefinitions.java',
+        meta_root / 'eu/algites/lib/data/dataobject/AIaKeyDefinition.java',
+        meta_root / 'eu/algites/lib/data/dataobject/AIaKeyDefinitions.java',
         meta_root / 'eu/algites/lib/data/dataobject/xmldefs/AIaXmlDataObjectField.java',
         meta_root / 'eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.java',
     ]
@@ -144,9 +144,9 @@ def test_unresolved_or_global_xsd_keys_fail_closed():
 def test_indexed_list_requires_structured_named_items():
     """Keyed scalar collections cannot be indexed by SDO getter extraction."""
     from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
-        AIcgd_jType_1 as Type, AIcgd_jElementList_1 as Group,
-        AIcgd_jScalar_1 as Scalar, AIigScalarKind_1 as ScalarKind,
-        AIigComposition_1 as Composition, AIigTypeOrigin_1 as Origin,
+        AIcgdType_1 as Type, AIcgdElementList_1 as Group,
+        AIcgdScalar_1 as Scalar, AIngScalarKind_1 as ScalarKind,
+        AIngComposition_1 as Composition, AIngTypeOrigin_1 as Origin,
     )
     scalar = Type('urn:x', 'X', Origin.DECLARED, ('X',),
                   structure=Group(Composition.SEQUENCE, (ListNode('employee', Scalar(ScalarKind.STRING),
@@ -166,5 +166,29 @@ def test_rejected_missing_or_non_scalar_key_path():
 def test_normalized_index_constant_collision_fails_closed():
     """Distinct XML identifiers must not overwrite a shared generated constant."""
     colliding = XSD.replace('name="UniqueDepartment"', 'name="By_DepartmentAndCode"')
-    with pytest.raises(ValueError, match='Conflicting XSD key constant'):
+    with pytest.raises(ValueError, match='Conflicting key or field constant'):
         _emit(colliding)
+
+
+def test_xml_attribute_key_normalizes_to_typed_semantic_field(tmp_path):
+    """An XSD @attribute key is indexed by its semantic getter, never by XML text."""
+    source = XSD.replace(
+        '  </xs:sequence></xs:complexType>\n  <xs:complexType name="Organization">',
+        '  </xs:sequence><xs:attribute name="staffName" type="xs:string" use="required"/>'
+        '</xs:complexType>\n  <xs:complexType name="Organization">')
+    source = source.replace('<xs:field xpath="department"/>\n      </xs:unique>',
+                            '<xs:field xpath="@staffName"/>\n      </xs:unique>')
+    assert 'xpath="@staffName"' in source and 'name="staffName"' in source
+    _, emitted, _ = _emit(source)
+    java = '\n'.join(x.content for x in emitted if x.language == 'java')
+    python = '\n'.join(x.content for x in emitted if x.language == 'python')
+    assert 'FIELD_NAME__STAFF_NAME' in java
+    indexed = next(item for item in emitted if item.language == 'python'
+                   and 'KEY_ID__UNIQUE_DEPARTMENT' in item.content)
+    namespace = {'__name__': 'test.output.generated'}
+    exec(indexed.content, namespace)
+    contract = next(value for name, value in namespace.items() if name.startswith('AIig'))
+    assert ('employee', 'UniqueDepartment', ('staffName',), False) in contract.__scoped_key_definitions__['staff']
+    bad = source.replace('xpath="@staffName"', 'xpath="@department"')
+    with pytest.raises(ValueError, match='XPath attribute'):
+        _emit(bad)

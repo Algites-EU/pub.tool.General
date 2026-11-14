@@ -102,13 +102,20 @@ in addition to Java TestNG, including the cross-language Defs parity wrapper.
 The old repository-specific parity Gradle scripts are no longer applied.
 
 **Rollout requirement:** first deploy the matching Builder support from
-`pub.gov.Algites`, then test this repository on the new Builder. The canonical standalone entry point is `devops/bootstrap/bootstrap.sh`, shared with `pub.lib.General`. It selects the native Java/Python artifacts declared by `modustro-artifact.yml`, uses the repository version/group metadata, and restricts work to `--root` (default: repository root). `generators/code/bootstrap.sh` and `generators/code/bootstrap-profiles.sh` forward into that common entry point with the corresponding default roots. The older generator-specific emergency build is preserved separately as `generators/code/bootstrap-selfhosted.sh` when an isolated self-hosting recovery build is necessary; it is not the canonical bootstrap.
+`pub.gov.Algites`, then test this repository on the new Builder. The canonical standalone entry point is `devops/bootstrap/bootstrap.sh`, shared with `pub.lib.General`. It selects the native Java/Python artifacts declared by `modustro-artifact.yml`, uses the repository version/group metadata, and restricts work to `--root` (default: repository root). `generators/code/bootstrap.sh` and `generators/code/bootstrap-profiles.sh` forward into that common entry point with the corresponding default roots. The historical `generators/code/bootstrap-selfhosted.sh` is now a compatibility alias for the canonical bootstrap; it does not run `defs.old`.
 
-The universal bootstrap **always discards the selected `src/<branch>/java.gen` and
-`src/<branch>/python.gen` contents and regenerates them** from current
-JSONDEFS/YAMLDEFS/XMLDEFS before build. This is never an in-place upgrade.
-The build stage always recreates `build/run/tool-bootstrap`; generation work
-is under `build/run/tool-codegen`. `--plan-only` does not clean generated sources.
+For the temporary self-hosting bootstrap **of this repository only**, the
+selected `src/<branch>/java.gen` and `src/<branch>/python.gen` roots are cleaned
+before generation (default `--cleanup-output-folder-before-generation=true`).
+Each invocation receives a new UUID for its publisher indices and work under
+`build/run/{codegen,bootstrap}/<UUID>`. Historical `generated-files.json`
+indices do not block a new run. The initial `.extgen` seed is retained just
+long enough to bootstrap the compiler; after a **successful full** build the
+four `.extgen` trees and the matching manifest are completely replaced by
+fresh `.gen` output. The initial old-hash check is intentionally omitted;
+old extra seed paths are pruned. `--root` runs never promote an incomplete
+seed. These temporary policies are **not** exported to `pub.lib.General`.
+`--plan-only` does not clean generated sources.
 No build, source regeneration, or publication may silently expand beyond the
 requested root. External dependencies are resolved from published/local packages.
 
@@ -177,8 +184,9 @@ parsed as versioned filenames. `allOf` compositions contribute object fields
 and requiredness. Canonical URL references are resolved from checked-out
 schema roots, without downloading schema documents during generation.
 
-The original common-metadata YAML/JSON fixtures are under Impl
-`src/develop/yamldefs` and `src/develop/jsondefs`. Java TestNG and Python pytest
+The common-metadata and cross-format parity fixtures are under Impl
+`src/develop/examples/{yamldefs,jsondefs,xmldefs}`. They are test-only
+resources, not inputs to repository-wide code generation. Java TestNG and Python pytest
 regressions cover both output targets, descriptions, provenance, Java source
 compilation, Python mapping roundtrips, incompatible contracts, local pointers,
 anchors, composed objects and XML filename identity/repeated elements.

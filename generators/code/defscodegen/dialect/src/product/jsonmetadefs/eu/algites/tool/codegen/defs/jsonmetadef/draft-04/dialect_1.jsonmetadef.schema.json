@@ -220,6 +220,9 @@
     },
     "x-algites-schema-version": {
       "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/draft-04/vocabulary_1.jsonmetadef.schema.json#/properties/x-algites-schema-version"
+    },
+    "x-algites-defscodegen-key": {
+      "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/draft-04/vocabulary_1.jsonmetadef.schema.json#/properties/x-algites-defscodegen-key"
     }
   },
   "dependencies": {

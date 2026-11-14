@@ -10,7 +10,9 @@ import os
 import sys
 import traceback
 from pathlib import Path
-from typing import TextIO
+from collections import Counter
+from typing import TextIO, Iterable
+from .diagnostic_model import AIcdCodegenDiagnostic, AInCodegenDiagnosticSeverity
 
 from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 from eu.algites.tool.codegen.common.validation_batch import AIxCodegenBatchValidationException
@@ -41,6 +43,62 @@ def format_diagnostic(error: AIxCodegenValidationException, *, generator: str = 
     return '\n'.join(lines) + '\n'
 
 
+def report_diagnostics(diagnostics: Iterable[AIcdCodegenDiagnostic], *,
+                       generator: str = 'Codegen', stream: TextIO | None = None) -> bool:
+    """Render a single ordered report grouped by increasing severity.
+
+    Every section has independent global and per-file counters, even when the
+    underlying diagnostic records from different source files are interleaved.
+    DEBUG is suppressed unless ALGITES_CODEGEN_DEBUG is enabled; ERROR is last.
+
+    Args:
+        diagnostics: Structured events produced during the current Codegen run.
+        generator: Human-readable generator label.
+        stream: Optional output stream, defaulting to stderr.
+
+    Returns:
+        True when at least one visible diagnostic was emitted.
+    """
+    output = stream if stream is not None else sys.stderr
+    entries = tuple(diagnostics)
+    headers = {
+        AInCodegenDiagnosticSeverity.DEBUG: 'DEBUG',
+        AInCodegenDiagnosticSeverity.INFO: 'INFO',
+        AInCodegenDiagnosticSeverity.WARNING: 'VALIDATION WARNINGS',
+        AInCodegenDiagnosticSeverity.ERROR: 'VALIDATION ERRORS',
+    }
+    printed = False
+    for level in AInCodegenDiagnosticSeverity:
+        if level is AInCodegenDiagnosticSeverity.DEBUG and not debug_enabled():
+            continue
+        issues = [item for item in entries if item.severity is level]
+        if not issues:
+            continue
+        printed = True
+        counts = Counter(item.source for item in issues if item.source and item.source.strip())
+        seen: Counter[str] = Counter()
+        total = len(issues)
+        output.write(f'\n  {headers[level]} - {generator}: {total} message(s)\n'
+                     if level in (AInCodegenDiagnosticSeverity.DEBUG, AInCodegenDiagnosticSeverity.INFO)
+                     else f'\n  {headers[level]} - {generator}: {total} issue(s)\n')
+        for index, item in enumerate(issues, 1):
+            if item.source and item.source.strip():
+                seen[item.source] += 1
+                position, source_total = seen[item.source], counts[item.source]
+            else:
+                position = source_total = 1
+            output.write(f'\n  [{index}/{total}] ({position}/{source_total}) {item.message}\n')
+            if item.source:
+                output.write(f'  Source: {item.source}\n')
+            if item.location:
+                output.write(f'  Location: {item.location}\n')
+            if item.hint:
+                output.write(f'  Hint: {item.hint}\n')
+    if printed:
+        output.write('\n')
+    return printed
+
+
 def report_exception(exc: BaseException, *, generator: str = 'Codegen',
                      source: str | Path | None = None, location: str | None = None,
                      stream: TextIO | None = None) -> bool:
@@ -58,15 +116,7 @@ def report_exception(exc: BaseException, *, generator: str = 'Codegen',
     """
     if isinstance(exc, AIxCodegenBatchValidationException):
         output = stream if stream is not None else sys.stderr
-        output.write(f'\n  VALIDATION ERRORS - {generator}: {len(exc.errors)} issue(s)\n')
-        for index, error in enumerate(exc.errors, 1):
-            output.write(f'\n  [{index}/{len(exc.errors)}] {error.message}\n')
-            if error.source:
-                output.write(f'  Source: {error.source}\n')
-            if error.location:
-                output.write(f'  Location: {error.location}\n')
-            output.write(f'  Hint: {error.hint}\n')
-        output.write('\n')
+        report_diagnostics(exc.diagnostics, generator=generator, stream=output)
         if debug_enabled():
             traceback.print_exception(type(exc), exc, exc.__traceback__, file=output)
         return True

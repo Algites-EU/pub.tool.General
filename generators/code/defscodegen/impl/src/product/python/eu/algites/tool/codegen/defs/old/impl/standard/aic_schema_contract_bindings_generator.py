@@ -48,7 +48,7 @@ class AIcSchemaContractBindingsGenerator:
 
     def generate_manifest(self, repository: Path, manifest: dict, check: bool = False) -> list[dict[str, str]]:
         """Generate all selected targets from explicit schema roots and YAML naming catalogs."""
-        policy = manifest.get('codegen_validate_one_input_at_a_time_only', True)
+        policy = manifest.get('codegen_validate_one_input_at_a_time_only', False)
         if isinstance(policy, str):
             policy = parse_boolean(policy)
         if not isinstance(policy, bool):
@@ -132,6 +132,7 @@ class AIcSchemaContractBindingsGenerator:
         kind_by_source = {}
         declared_identity_by_source = {}
         existing_source_directories = 0
+        invalid_sources: set[str] = set()
         for source_input in source_roots:
             kind = source_input['kind']
             suffix = {'jsondefs': '.jsondef.schema.json', 'yamldefs': '.yamldef.schema.json', 'xmldefs': '.xsd'}[kind]
@@ -145,8 +146,9 @@ class AIcSchemaContractBindingsGenerator:
             for source in sorted(root.rglob('*')):
                 if not source.is_file() or not source.name.endswith(suffix):
                     continue
+                schema = source.relative_to(repository).as_posix()
+                unit_count_before_source = len(units)
                 try:
-                    schema = source.relative_to(repository).as_posix()
                     if schema in root_by_source:
                         raise AIxCodegenValidationException('Overlapping schema input roots: ' + schema, 'Inspect the declarations named in the error, their source schemas, namespaces and naming profiles; remove the duplicate or make their canonical identities unambiguous.')
                     root_by_source[schema] = root
@@ -184,15 +186,27 @@ class AIcSchemaContractBindingsGenerator:
                         self._collect(document, '', base, schema, document, overrides, units,
                             source_catalogs[kind], profile_by_source[schema])
                 except AIxCodegenValidationException as exc:
+                    invalid_sources.add(schema)
+                    del units[unit_count_before_source:]
                     validation.add(exc, source=str(source))
                 except (ValueError, OSError) as exc:
+                    invalid_sources.add(schema)
+                    del units[unit_count_before_source:]
                     validation.add(AIxCodegenValidationException(str(exc),
                         'Correct the invalid schema or its metadata.'), source=str(source))
+                # Even optimized mode finishes the complete validation of this
+                # input, not just the first rule. A malformed document cannot
+                # be decoded into individual model units, so no unit checks
+                # can be performed until its syntax is repaired.
+                if schema in invalid_sources:
+                    validation.finish_input(str(source))
         if existing_source_directories == 0:
             print('Defs Codegen: no configured schema input directory exists; nothing to generate',
                   file=__import__('sys').stderr)
             return []
-        validation.finish()
+        # Do not stop here in exhaustive mode: the successfully loaded documents
+        # still need independent per-type validation below. Both stages share
+        # one collector and one final report.
         discovered = {unit.schema + '#' + unit.pointer for unit in units}
         for key in overrides:
             if key not in discovered:
@@ -231,9 +245,9 @@ class AIcSchemaContractBindingsGenerator:
         unit_index = {(unit.schema, unit.pointer): unit for unit in units}
         reader = AIcJsonSchemaReader()
         generator = AIcSchemaContractInterfaceGenerator()
-        for unit in units:
+        for unit_index_position, unit in enumerate(units):
+            source = self._inside(repository, unit.schema)
             try:
-                source = self._inside(repository, unit.schema)
                 kind = kind_by_source[unit.schema]
                 package = source.parent.relative_to(root_by_source[unit.schema]).as_posix().replace('/', '.')
                 if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*', package):
@@ -360,7 +374,13 @@ class AIcSchemaContractBindingsGenerator:
                 validation.add(AIxCodegenValidationException(str(exc),
                     'Correct the invalid schema declaration or naming profile.'),
                     source=str(source), location=unit.pointer or '/')
+            # All named/inline model units belonging to one source file have
+            # now been examined; only now may optimized mode abort.
+            if (unit_index_position + 1 == len(units)
+                    or units[unit_index_position + 1].schema != unit.schema):
+                validation.finish_input(str(source))
         validation.finish()
+        validation.report_non_errors(generator='Defs Codegen (Python)')
         units_by_resource = {unit.schema + ('#' + unit.pointer if unit.pointer else ''): unit
                              for unit in units}
         # Source-format-specific inheritance must bind to an independently emitted
@@ -700,6 +720,18 @@ class AIcSchemaContractBindingsGenerator:
                     if 0 <= wrapper_index < len(merged.data_type.alternatives):
                         alternative = merged.data_type.alternatives[wrapper_index]
                 choice_reference = alternative.reference if alternative is not None and alternative.kind is AInDataTypeKind.REFERENCE else None
+                # A closed choice emits root, then one payload contract per OBJECT
+                # branch, then its selected-value wrappers. References owned by a
+                # payload getter must be qualified in the payload's source file,
+                # not only in the later wrapper. Do not use the historical
+                # index-1 shortcut: payloads shift the wrapper positions.
+                if (merged.source_kind is not AInDefinitionSourceKind.XMLDEFS
+                        and merged.data_type.kind in (AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF)
+                        and 1 <= index <= payload_count):
+                    payload = [option for option in merged.data_type.alternatives
+                               if option.kind is AInDataTypeKind.OBJECT][index - 1]
+                    if len(payload.properties) == 1:
+                        choice_reference = payload.properties[0].data_type.referenced_definition()
                 rendered = pair.source
                 if additional_parents:
                     if language == 'java':
@@ -718,9 +750,15 @@ class AIcSchemaContractBindingsGenerator:
                         end = rendered.index('):', start)
                         rendered = (rendered[:end] + ', ' + ', '.join(name for name, _ in additional_parents)
                                     + rendered[end:])
-                if (configured and first.contract_role != 'common' and index == 0 and merged.data_type.kind in (
-                        AInDataTypeKind.OBJECT, AInDataTypeKind.ONE_OF,
-                        AInDataTypeKind.ANY_OF, AInDataTypeKind.REFERENCE)):
+                # A synthetic JSON/YAML map item is a nominal DataObject even
+                # when the value is a scalar or array. The specialized map
+                # entry must inherit the matching representation-neutral type.
+                # Crucially, this must NOT apply to the common role itself.
+                if (configured and first.contract_role != 'common' and index == 0
+                        and (merged.data_type.kind in (AInDataTypeKind.OBJECT,
+                            AInDataTypeKind.ONE_OF, AInDataTypeKind.ANY_OF,
+                            AInDataTypeKind.REFERENCE)
+                            or merged.source_resource.endswith('/additionalProperties'))):
                     origin = units_by_resource.get(first.definition.source_resource)
                     common = (unit_requests.get((language, 'common', origin.schema, origin.pointer))
                               if origin is not None else None)
@@ -728,7 +766,8 @@ class AIcSchemaContractBindingsGenerator:
                         preview = generator.generate(common)
                         if language == 'java':
                             declaration = f'public interface {pair.type_name} extends '
-                            if merged.data_type.kind in (AInDataTypeKind.OBJECT, AInDataTypeKind.REFERENCE):
+                            if (merged.data_type.kind in (AInDataTypeKind.OBJECT, AInDataTypeKind.REFERENCE)
+                                    or merged.source_resource.endswith('/additionalProperties')):
                                 rendered = rendered.replace(declaration, declaration +
                                     common.package_name + '.' + preview.type_name + ', ')
                             else:
@@ -1100,7 +1139,7 @@ class AIcSchemaContractBindingsGenerator:
         return source
 
     def _collect(self, node, pointer, name, schema, document, overrides, result,
-                 source_catalog, source_profile):
+                 source_catalog, source_profile, include_self=True):
         """Discover schema contracts; named definitions retain local type identity.
 
         Named ``$defs`` contracts have an independently validated local name.
@@ -1112,7 +1151,7 @@ class AIcSchemaContractBindingsGenerator:
         override = overrides.get(schema + '#' + pointer)
         if override is not None and override.get('common_one_of_fields', False):
             raise AIxCodegenValidationException('common_one_of_fields is obsolete: declare shared properties directly', 'Check that each choice/enum branch is declared once with a supported, resolvable type and that any required choice annotation is present.')
-        if not pointer or pointer.endswith('/additionalProperties') or node.get('type') == 'object' or 'properties' in node or 'enum' in node or 'x-algites-defscodegen-choice' in node:
+        if include_self and (not pointer or pointer.endswith('/additionalProperties') or node.get('type') == 'object' or 'properties' in node or 'enum' in node or 'x-algites-defscodegen-choice' in node):
             result.append(self.AIcdUnit(schema, pointer, override['name'] if override is not None else name, node, document))
         for keyword in ('properties', '$defs', 'definitions', 'patternProperties'):
             for key, value in node.get(keyword, {}).items():
@@ -1133,7 +1172,8 @@ class AIcSchemaContractBindingsGenerator:
                     child_name = name + ('-pattern-' if keyword == 'patternProperties' else '-') + self._kebab(key)
                 self._collect(value, pointer + '/' + keyword + '/' + token,
                     child_name, schema, document, overrides, result,
-                    source_catalog, source_profile)
+                    source_catalog, source_profile,
+                    not (keyword == 'properties' and node.get('x-algites-defscodegen-choice') is True))
         for keyword in ('items', 'additionalProperties'):
             self._collect(node.get(keyword), pointer + '/' + keyword,
                 name + '-' + self._kebab(keyword), schema, document, overrides,

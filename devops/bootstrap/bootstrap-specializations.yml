@@ -1,0 +1,22 @@
+# The only repository-specific bootstrap policy; ordinary repos may omit it.
+CleanGeneratedDefault: true
+RequireFreshGenerated: true
+Snapshots:
+  - ArtifactPath: generators/code/defscodegen/intf
+    Program: promote-canonical-extgen.py
+    BeforeGeneration: --prune-seed
+    BeforeGenerationAnyRoot: true
+    AfterBootstrap: --refresh
+    RequireWholeRepository: true
+
+# Source compiler cycle described by artifact IDs rather than hard-coded engine logic.
+SourceCompilerBootstraps:
+  - CliArtifactId: pub.tool.General_generators.code.sdocodegen.cli
+    SeedArtifactIds:
+      - pub.lib.General_naming.convention.intf
+      - pub.tool.General_generators.code.sdocodegen.intf
+    TriggerArtifactIds:
+      - pub.lib.General_naming.convention.intf
+      - pub.tool.General_generators.code.sdocodegen.intf
+    RebuildAfterCliArtifactIds:
+      - pub.tool.General_generators.code.sdocodegen.intf

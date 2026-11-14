@@ -90,9 +90,12 @@ public final class AIcLayeredCodegenSettings {
             }
             boolean locAgrees = locSignature.entrySet().stream().anyMatch(item ->
                     item.getValue().equals(locRequested.get(item.getKey())));
+            // Custom source interface naming conventions are legitimate
+            // overrides; Common/Defs/SDO family identities must still agree.
             boolean locConflicts = locSignature.entrySet().stream().anyMatch(item ->
                     locRequested.containsKey(item.getKey())
-                    && !item.getValue().equals(locRequested.get(item.getKey())));
+                    && !item.getValue().equals(locRequested.get(item.getKey()))
+                    && !item.getKey().startsWith("--input-technology-naming-convention:"));
             if (locAgrees && !locConflicts) locMatching.add(locSignature);
         }
         if (locMatching.size() > 1) {
@@ -104,6 +107,7 @@ public final class AIcLayeredCodegenSettings {
                     "Ambiguous Codegen naming profile overlays: " + String.join(", ", locOrigins),
                     "Select exactly one naming family using qualified profile IDs or --settings-file.");
         }
+
         if (locMatching.isEmpty() && !locRequested.isEmpty()) {
             boolean locPartiallyMatched = locFamilies.keySet().stream().anyMatch(signature ->
                     signature.entrySet().stream().anyMatch(item ->
@@ -112,11 +116,17 @@ public final class AIcLayeredCodegenSettings {
                 throw new AIxCodegenValidationException(
                         "Conflicting naming profile selection: no single installed profile matches "
                         + "the explicitly selected profile IDs",
-                        "Do not mix Algites, Standard Prefix and Standard Postfix profile IDs.");
+                        "Choose one Common/Defs/SDO family; custom input interface IDs may differ.");
         }
-        if (locMatching.size() == 1)
-            for (var locOverlay : locFamilies.get(locMatching.get(0)))
+        // Ordinary settings resources without profile identities always layer.
+        // Only explicitly selected naming families are mutually exclusive.
+        // Keep resource order and invocation precedence identical to Python.
+        for (var locOverlay : locOverlays) {
+            var locSignature = profileSelections(locOverlay.getValue());
+            if (locSignature.isEmpty()
+                    || (locMatching.size() == 1 && locSignature.equals(locMatching.get(0))))
                 addLines(locSettings, locOverlay.getValue(), locOverlay.getKey());
+        }
         if (locSpecifiedFile != null)
             addLines(locSettings, locUserFile, locSpecifiedFile);
         for (String locArg : locInvocation)

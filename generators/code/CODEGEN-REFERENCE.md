@@ -27,12 +27,17 @@ of generated sources is appended by the generator.
 removes standard `src/product/java.gen`, `src/product/python.gen`,
 `src/develop/java.gen`, and `src/develop/python.gen` under each artifact.
 The canonical `generators/code/bootstrap.sh` delegates to the shared
-`devops/bootstrap/bootstrap.sh --root generators/code` entry point. It clears
-only native `.gen` trees inside that selected root, **regenerates** Defs
-contracts before build and recreates `build/run/tool-bootstrap`. The
-`--root` argument can narrow scope further. The independent emergency
-`generators/code/bootstrap-selfhosted.sh` retains the legacy fixed-subset
-self-hosting Gradle script and its `build/run/codegen-bootstrap` output.
+`devops/bootstrap/bootstrap.sh --root generators/code` entry point. By default,
+it preserves unrelated files in native `.gen` trees, updates generated Defs
+contracts before build and recreates `build/run/tool-bootstrap`. **Whole-folder
+cleanup is opt-in**, using `--cleanup-output-folder-before-generation=true`
+on the universal bootstrap. The `--root` argument narrows the selected source
+scope; on cleanup=true, only the selected `src/<branch>/{java,python}.gen` trees
+are emptied *before* either Defs or SDO runs. Do not put handwritten sources
+in these output trees. The historical `generators/code/bootstrap-selfhosted.sh` is a compatibility
+alias for the universal bootstrap, never a second generator implementation.
+The old `regenerate_sources.py generate` action also delegates to the current
+Defs/SDO CLI. No bootstrap entry point may call `defs.old`.
 
 Common contract identity normalization accepts XML `urn:eu:algites:` namespace
 aliases of an explicit dotted JSON/YAML schema ID only where the package,
@@ -43,8 +48,8 @@ choice constraints remain on the format-specific contract.
 ## 2. Defs Codegen — explicit semantic naming roles
 
 The Java CLI entry point is
-`eu.algites.tool.codegen.defs.old.impl.cli.AIcDefsCodegenCli`; the Python CLI is
-`python -m eu.algites.tool.codegen.defs.old.impl.cli.aic_defs_codegen_cli`.
+`eu.algites.tool.codegen.defs.impl.cli.AIcDefsCodegenCanonicalCli`; the Python CLI is
+`python -m eu.algites.tool.codegen.defs.impl.cli.canonical_defs_codegen_cli`.
 Both accept the same kebab-case option names. See
 [Defs Codegen naming CLI](defscodegen/DEFS-CODEGEN-REFERENCE.md) for a complete
 invocation and the role/configuration contract.
@@ -64,7 +69,8 @@ and **independent mappings of semantic roles to exact convention IDs**:
 | `--common-codegen-naming-convention:TECH=ID` | Common getters/setters, CONST and schema metadata naming shared with SDO. |
 | `--defs-codegen-naming-convention:TECH=ID` | Defs-only synthetic type/enum naming; linked to the Common profile. |
 | `--settings-file=PATH` | Overlay an invocation settings file on bundled and classpath defaults; explicit CLI arguments override matching keys. |
-| `--check`, `--clean-only` | Read-only verification or cleanup of generator-owned outputs. |
+| `--check`, `--clean-only` | Read-only verification or explicitly removing previously indexed generator-owned outputs. |
+| `--cleanup-output-folder-before-generation=true|false` | Default `false`: replace only files generated now; `true`: additionally remove obsolete indexed outputs owned by this generator. |
 
 The getter-interface roles are `common`, `xmldefs_type`, `xmldefs_element`,
 `xmldefs_namespace`, `yamldefs` and `jsondefs`, independently for Java and Python.
@@ -134,8 +140,8 @@ programmatic generator service for individual definitions.
 ## 3. SDO Codegen — independent input and output mapping
 
 The Java CLI entry point is
-`eu.algites.tool.codegen.sdo.old.impl.cli.AIcSdoCodegenCli`; the Python CLI is
-`python -m eu.algites.tool.codegen.sdo.old.impl.cli.aic_sdo_codegen_cli`.
+`eu.algites.tool.codegen.sdo.impl.cli.AIcSdoCodegenCli`; the Python CLI is
+`python -m eu.algites.tool.codegen.sdo.impl.cli.aic_sdo_codegen_cli`.
 See [SDO Codegen naming CLI](sdocodegen/SDO-CODEGEN-REFERENCE.md).
 
 | Parameter | Meaning |
@@ -152,7 +158,8 @@ See [SDO Codegen naming CLI](sdocodegen/SDO-CODEGEN-REFERENCE.md).
 | `--dointf-classpath:TECH=PATHS` | Supporting Java binary / Python import-path dependencies, not generation inputs. |
 | `--dointf-input-artifacts:TECH=LIST`, `--dointf-input-classes:TECH=LIST` | Semicolon-delimited artifact selectors or explicit Java/Python contract names. |
 | `--dointf-input-paths:TECH=LIST` | Explicit local JAR/class-directory or wheel/Python-directory inputs. |
-| `--settings-file=PATH`, `--check`, `--clean-only` | Layered settings, verification and cleanup. |
+| `--settings-file=PATH`, `--check`, `--clean-only` | Layered settings, verification and explicit owned-output cleanup. |
+| `--cleanup-output-folder-before-generation=true|false` | Default `false`; `true` enables deletion of this Codegen's indexed obsolete files, not the other Codegen's outputs. |
 
 Java SDO uses source compilation/reflection and can also scan full compiled
 JARs and class directories. A modular JAR can be loaded for generation as a
@@ -190,49 +197,53 @@ components. Source schema formats and target languages each have a catalog:
 - `algites-jsondef-name-conventions.yml`, `algites-yamldef-name-conventions.yml`, `algites-xmldef-name-conventions.yml`: input schema filename/type conventions.
 - `algites-java-name-conventions.yml`, `algites-python-name-conventions.yml`: output and contract naming conventions.
 
-The catalog schema in `pub.lib.General` is `name-conventions_1` (with the
-`standard-conventions_1`, `source-structure-kind_1` and
-`container-structure-type_1` companion schemas). The YAML uses:
+The shared catalog is described by `common-naming-conventions_1`, with
+`standard-conventions_1` and the specialized source-structure/DO/SDO schemas.
+XSD is the reference for collection structure. JSONDEFS and YAMLDEFS use the
+same named-list model. An illustrative input profile looks like:
 
 ```yaml
 StandardConventionsFile: standard-conventions.yml
 NameFragments:
-  prefix:
-    Segments:
-      - Kind: constant_string
-        Value: AI
+  NameFragment:
+    - name: prefix
+      Segments:
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Value: AI
 NameCompositions:
-  generated-interface-stem:
-    Segments:
-      - Ref: prefix
-      - Kind: constant_string
-        Value: ig
-      - Kind: identifier
-        Convention: upper_camel_case
-      - Kind: constant_string
-        Value: '_'
-      - Kind: version
-        Convention: positive_integer
-  source-suffix:
-    Segments:
-      - Kind: constant_string
-        Value: .java
-NameConventions:
-  custom-java-do-interface:
-    ContainerStructureType: interface
-    StructureNaming:
-      type_name: generated-interface-stem
-      file_name_stem: generated-interface-stem
-      file_name_suffix: source-suffix
+  NameComposition:
+    - name: generated-interface-stem
+      Segments:
+        - NameFragmentsSegmentReference:
+            Ref: prefix
+        - NameFragmentsSegmentValue:
+            Kind: constant_string
+            Value: ig
+        - NameFragmentsSegmentValue:
+            Kind: identifier
+            Convention: upper_camel_case_1
+SourceStructureNameConventions:
+  NameConventions:
+    NameConvention:
+      - name: custom-java-do-interface
+        ContainerStructureType: interface
+        StructureNaming:
+          Rule:
+            - kind: type_name
+              Value: generated-interface-stem
+            - kind: file_name_stem
+              Value: generated-interface-stem
 ```
 
-This is an illustrative **custom** profile, not an additional built-in CLI
-role. `NameFragments` are reusable sequences; `Ref` expands a sequence with
-cycle checking. `NameCompositions` are ordered sequences of `constant_string`,
-`identifier`, `version` or named `variable` segments. `NameConventions` map
-`source-structure-kind` keys to compositions, plus `ContainerStructureType`.
-`file_name_stem` and `file_name_suffix` concatenate **without an implicit dot**;
-for example `customer_1` + `.yamldef.schema.json`.
+This is an illustrative custom profile, not a stock CLI profile. All named
+entries carry an explicit `name`; roles use an explicit `kind` and `Value`.
+The Java/Python resolvers index these lists internally and reject duplicate
+identifiers. `NameFragments` are reusable ordered sequences; `Ref` expands a
+sequence with cycle checking. `NameCompositions` preserve ordered
+`NameFragmentsSegmentValue` and `NameFragmentsSegmentReference` alternatives.
+Metadata fields of DataObject source/instance schemas live in the separate
+DataObject naming profiles, not in the source-structure profile.
 
 Built-in standard regexes use Java-style named groups such as
 `(?<identifier>...)` and `(?<version>...)`; the Python catalog interpreter
@@ -256,6 +267,15 @@ Profile recognition uses the complete filename and requires **exactly one**
 matching profile in the considered set. Multiple matches are a configuration
 error. The generator checks paths of generated outputs against its ownership state.
 Prefix strings alone are never sufficient for safe cleanup matching.
+The transient indexes are per artifact, language and producer (Java/Python and
+Defs/SDO) under `build/`. Output files are in the configured `*.gen` trees.
+The default does **not** scan those trees and delete files that were absent
+from the current generation. For example, a former `AIigOld_1.java` remains
+until generator-owned cleanup with an available historical index or explicit
+bootstrap folder cleanup. `--check` compares current expected files without
+modifying either output or index; it cannot be combined with cleanup=true.
+Refer to the two generator-specific reference files for publication guarantees
+and the difference between clean-only and full bootstrap cleanup.
 
 ## 5. Diagnostics and troubleshooting
 
@@ -313,44 +333,30 @@ converted into `AIigCustomerAddress__beta__7-2__eu_west.java` by reordering
 `major` and `minor`. This demonstrates the naming library's capabilities; it
 is not a separate code generator or a built-in source schema format.
 
-## 1.1 recursive and XML contract migration
+## 1.1 Unified read-only DataObject contracts
 
-The current staged model, XML element naming `_xe`, closed choices, canonical field presence and explicit limitations are documented in [Defs Codegen recursive types](defscodegen/DEFS-CODEGEN-REFERENCE.md). This replaces neither the explicit bootstrap procedure nor the existing source-ownership contracts.
+The active Defs Codegen emits one read-only `AIig…` contract for each
+canonical semantic definition, irrespective of the source XMLDEFS, JSONDEFS
+or YAMLDEFS technology. The same contract can carry independent schema and
+wire-format metadata for each applicable technology. No separate inheritance
+projection is created simply to distinguish wire formats.
 
+Nested objects, sequences, references, scalar constraints and closed choices
+are represented by the shared canonical model. An explicitly declared closed
+choice uses a sealed Java interface with selected records and the corresponding
+Python typed selection wrappers. These structural alternatives are not
+standalone mutable SDO contracts without shared DataObject metadata.
 
-## 5. Recursive canonical contracts and XML-element naming (migration)
+XML QName, substitution and element-level wire metadata belong to the XML
+annotations of the owning shared DataObject. They must not cause additional
+technology-specific contract interfaces or a parallel writable hierarchy.
 
-The 1.1 canonical model uses only `AIcdDataType` / `AInDataTypeKind` for
-recursively nested objects, arrays, reference identities and distinct `ONE_OF`
-and `ANY_OF` semantics. The previous `AInDefinitionKind` and `AInValueKind`
-are removed, including their redundant canonical property and definition
-projections. Source-specific scalar/type hints are normalized inside each
-frontend. An unresolved `AIcdDefinitionReference` now carries optional
-`targetDataType` instead of a separate `targetKind` projection, with an
-unknown target remaining nullable until the reference graph is resolved. **Not every supported recursive shape is yet emitted as a full
-Java/Python contract**; unsupported nested structures must fail explicitly.
+See [Defs Codegen reference](defscodegen/DEFS-CODEGEN-REFERENCE.md) for
+validation and the supported recursive forms; see
+[SDO Codegen reference](sdocodegen/SDO-CODEGEN-REFERENCE.md) for writable
+contracts derived only from eligible annotated read-only DataObjects.
 
-A top-level finite choice emits a sealed Java contract with one separate
-public record per explicitly selected alternative. Python generates frozen
-value wrappers. Record names are disambiguated using stable reference
-identities; dependencies from other business packages retain their actual
-qualified names. Wire-format `oneOf` and `anyOf` validation is not implied by
-selecting a programming-language wrapper.
-
-Each global XSD element has its own nominal `AIig_xe...` contract in the
-existing business package, with `AIigd_xe...` / `AIcgd_xe...` generated by
-SDO Codegen. The Java marker is `_xe`, while Python filenames use an
-additional underscore: `aiig__xe_payment_1.py`. The naming catalog contains
-separate XML-element interface/class profiles; automatic pattern resolution
-must stay unambiguous across **all** active profiles. Users defining different
-conventions are responsible for the same uniqueness and reversibility.
-
-The element's XML QName, its content type and optional substitution head are
-separate canonical concepts; element interface inheritance preserves supported substitution relationships.
-There is no Open Choice annotation or runtime substitution registry.
-Named content types are not renamed or moved into artificial Java packages.
-
-The shared field annotation uses `fieldName`, `presence` (REQUIRED,
+The shared field annotation uses `dataFieldName`, `presence` (REQUIRED,
 ALLOWED, FORBIDDEN), and `allowsNull`. XML QName metadata belongs to
 `AIaXmlDataObject` and `AIaXmlDataObjectField`, not the shared field annotation.
 Java SDO contracts provide the direct inherited getter contract for reflection. For `allOf`,
@@ -420,8 +426,12 @@ Handwritten read contracts may declare the policy directly; this release does
 not define a new schema-language extension for per-property overrides in XSD,
 JSON Schema, or YAML Schema.
 
-For Java, `AIig` read-only collection getters expose covariant lists using
-`List<? extends Value>`, at every nested array level. The mutable `AIigd`
+For Java, **every active Defs Codegen emitter** publishes covariant read-only
+collection getters `List<? extends Value>` and
+`AIiMultiMappedList<? extends Value>`, also in technology-specific and nested
+arrays, not only in common projected contracts. Direct named collection
+interfaces themselves may extend `AIiMultiMappedList<Value>` because Java
+forbids wildcards in an interface supertype declaration; that is not a getter. The mutable `AIigd`
 interface introduces a type variable for each reference-valued field whose
 setter policy is `INHERIT_AS_GENERIC_PARAMETER`; its getter and setter share
 that variable, including `List<? extends TVariable>` for repeated values.

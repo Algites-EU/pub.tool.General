@@ -13,6 +13,11 @@ import email
 import os
 import json
 from pathlib import Path
+from importlib.util import module_from_spec, spec_from_file_location
+_selfhost_spec = spec_from_file_location('modustro_bootstrap_selfhosting',
+                                      Path(__file__).with_name('selfhosting.py'))
+_selfhost = module_from_spec(_selfhost_spec)
+_selfhost_spec.loader.exec_module(_selfhost)
 import re
 import shutil
 import subprocess
@@ -25,7 +30,8 @@ import yaml
 
 # Resources are discovered per artifact; bootstrap does not maintain a schema-kind
 # whitelist (a repository may introduce additional data formats).
-CODE_SOURCE_DIRS = {'java', 'java.gen', 'python', 'python.gen'}
+CODE_SOURCE_DIRS = {'java', 'java.extgen', 'java.gen',
+                    'python', 'python.extgen', 'python.gen'}
 
 
 def product_resource_dirs(artifact_root: Path) -> list[str]:
@@ -217,6 +223,8 @@ def module_records(repository: Path, release: str, py_release: str) -> list[dict
             'pythonName': python_name(identifier, prefix),
             'pythonOwnerPrefix': owner_python_prefix,
             'pythonRequires': str(python_requires),
+            'javaGeneratedCompletionPatterns': list(_selfhost.source_policy(
+                repository, identifier).get('JavaCompletionPatterns') or ()),
         })
     if not records:
         raise ValueError('No native Java or Python products declared in modustro-artifact.yml')
@@ -293,6 +301,7 @@ def stage_gradle(repository: Path, work: Path, records: list[dict], version: str
     ids = {r['artifactId']: r['gradleProject'] for r in java_modules}
     modules = [{'project': r['gradleProject'], 'groupId': r['groupId'], 'artifactId': r['artifactId'], 'path': r['path'],
                 'resourceDirs': r['resourceDirs'],
+                'javaGeneratedCompletionPatterns': r['javaGeneratedCompletionPatterns'],
                 'dependencies': [{'kind': d['kind'], 'configuration': d['configuration'],
                                   'target': ids[d['artifactId']] if d['kind'] == 'project' else d['coordinate']}
                                  for d in r['dependencies']]}
@@ -310,7 +319,25 @@ def stage_gradle(repository: Path, work: Path, records: list[dict], version: str
                             if dep.get('modustro') and dep['kind'] == 'external'}
                            | {group for group in os.environ.get('MODUSTRO_BOOTSTRAP_SOURCE_GROUPS', '').split(',')
                               if group})
-    build = '''import groovy.json.JsonSlurper\n\ndef manifest = new JsonSlurper().parse(new File(rootProject.projectDir, 'modules.json'))\ndef configByProject = manifest.collectEntries { [(it.project): it] }\nrootProject.ext.bootstrapRemoteModustroGroups = __MODUSTRO_REMOTE_GROUP_IDS__\ndef outputRoot = new File(System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_OUTPUT') ?: rootProject.projectDir)\nlayout.buildDirectory.set(new File(outputRoot, 'gradle-build/root'))\nsubprojects { project ->\n    def config = configByProject[project.name]\n    if (config == null) throw new GradleException("Missing bootstrap configuration: ${project.name}")\n    project.layout.buildDirectory.set(new File(outputRoot, 'gradle-build/modules/' + project.name))\n    apply plugin: 'java-library'\n    apply plugin: 'maven-publish'\n    group = config.groupId\n    version = System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_VERSION') ?: 'unspecified'\n    repositories {\n        def bootstrapMode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'\n        def sourceRepository = System.getenv('MODUSTRO_LOCAL_MAVEN_REPOSITORY') ?: new File(System.getenv('MODUSTRO_HOME') ?: new File(System.getProperty('user.home'), '.modustro').path, 'artifact-repos/java/maven')\n        if (bootstrapMode == 'source' && !rootProject.ext.bootstrapRemoteModustroGroups.isEmpty()) {\n            // Never resolve Modustro sources from Maven Central or stale remote snapshots.\n            exclusiveContent {\n                forRepository { maven { name = 'modustro-sources-only'; url = uri(sourceRepository) } }\n                filter { rootProject.ext.bootstrapRemoteModustroGroups.each { includeGroup(it) } }\n            }\n        } else if (bootstrapMode != 'remote') maven { name = 'modustro-local'; url = uri(sourceRepository) }\n        if (bootstrapMode == 'remote') maven {\n            name = 'modustro-remote'\n            url = uri(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL'))\n            // Do not filter this repository by direct dependency groups: published\n            // Modustro POMs can bring transitive dependencies from other groups.\n            // Maven Central below remains a fallback for unrelated libraries.\n        }\n        mavenCentral()\n    }\n    java { withSourcesJar() }\n    tasks.withType(JavaCompile).configureEach { options.release = Integer.parseInt(System.getenv('MODUSTRO_BOOTSTRAP_JAVA_RELEASE')) }\n    sourceSets {\n        main {\n            java.srcDirs = ['src/product/java', 'src/product/java.gen']\n            resources.srcDirs = __MODUSTRO_RESOURCE_SOURCE_DIRS__\n        }\n    }\n    dependencies {\n        config.dependencies.each { d ->\n            if (d.kind == 'project') {\n                add(d.configuration, rootProject.project(':' + d.target))\n            } else {\n                add(d.configuration, d.target)\n            }\n        }\n    }\n    publishing {\n        publications {\n            mavenJava(MavenPublication) {\n                from components.java\n                artifactId = config.artifactId\n            }\n        }\n        repositories {\n            maven { name = 'Bootstrap'; url = uri(new File(outputRoot, 'maven-repository')) }\n        }\n    }\n}\n'''
+    build = '''import groovy.json.JsonSlurper\n\ndef manifest = new JsonSlurper().parse(new File(rootProject.projectDir, 'modules.json'))\ndef configByProject = manifest.collectEntries { [(it.project): it] }\nrootProject.ext.bootstrapRemoteModustroGroups = __MODUSTRO_REMOTE_GROUP_IDS__\ndef outputRoot = new File(System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_OUTPUT') ?: rootProject.projectDir)\nlayout.buildDirectory.set(new File(outputRoot, 'gradle-build/root'))\nsubprojects { project ->\n    def config = configByProject[project.name]\n    if (config == null) throw new GradleException("Missing bootstrap configuration: ${project.name}")\n    project.layout.buildDirectory.set(new File(outputRoot, 'gradle-build/modules/' + project.name))\n    apply plugin: 'java-library'\n    apply plugin: 'maven-publish'\n    group = config.groupId\n    version = System.getenv('MODUSTRO_BOOTSTRAP_NATIVE_VERSION') ?: 'unspecified'\n    repositories {\n        def bootstrapMode = System.getenv('MODUSTRO_BOOTSTRAP_DEPENDENCY_MODE') ?: 'remote'\n        def sourceRepository = System.getenv('MODUSTRO_LOCAL_MAVEN_REPOSITORY') ?: new File(System.getenv('MODUSTRO_HOME') ?: new File(System.getProperty('user.home'), '.modustro').path, 'artifact-repos/java/maven')\n        if (bootstrapMode == 'source' && !rootProject.ext.bootstrapRemoteModustroGroups.isEmpty()) {\n            // Never resolve Modustro sources from Maven Central or stale remote snapshots.\n            exclusiveContent {\n                forRepository { maven { name = 'modustro-sources-only'; url = uri(sourceRepository) } }\n                filter { rootProject.ext.bootstrapRemoteModustroGroups.each { includeGroup(it) } }\n            }\n        } else if (bootstrapMode != 'remote') maven { name = 'modustro-local'; url = uri(sourceRepository) }\n        if (bootstrapMode == 'remote') maven {\n            name = 'modustro-remote'\n            url = uri(System.getenv('MODUSTRO_BOOTSTRAP_REMOTE_MAVEN_URL'))\n            // Do not filter this repository by direct dependency groups: published\n            // Modustro POMs can bring transitive dependencies from other groups.\n            // Maven Central below remains a fallback for unrelated libraries.\n        }\n        mavenCentral()\n    }\n    java { withSourcesJar() }\n    tasks.withType(JavaCompile).configureEach { options.release = Integer.parseInt(System.getenv('MODUSTRO_BOOTSTRAP_JAVA_RELEASE')) }\n    sourceSets {\n        main {\n            // A repository's explicit specialization may require exclusive
+            // compilation from either the seed tree OR completed generated
+            // output. Never compile duplicate FQCNs from both roots.
+            def completionPatterns = config.javaGeneratedCompletionPatterns ?: []
+            def generated = new File(project.projectDir, 'src/product/java.gen')
+            def seed = new File(project.projectDir, 'src/product/java.extgen')
+            if (!completionPatterns.isEmpty() && seed.isDirectory()) {
+                def prepared = generated.isDirectory() && completionPatterns.every { pattern ->
+                    !fileTree(generated).matching { include pattern }.isEmpty()
+                }
+                def useSeed = (System.getenv('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED') == '1') || !prepared
+                java.srcDirs = ['src/product/java', useSeed ? 'src/product/java.extgen' : 'src/product/java.gen']
+                logger.lifecycle('Compiler seed selection for ' + config.artifactId + ': ' +
+                        (useSeed ? 'extgen' : 'gen'))
+            } else {
+                java.srcDirs = ['src/product/java', 'src/product/java.extgen', 'src/product/java.gen']
+            }
+            // Explicitly ignore stale historical SDO files after overlay extraction.
+            java.exclude '**/eu/algites/tool/codegen/sdo/old/**'\n            resources.srcDirs = __MODUSTRO_RESOURCE_SOURCE_DIRS__\n        }\n    }\n    dependencies {\n        config.dependencies.each { d ->\n            if (d.kind == 'project') {\n                add(d.configuration, rootProject.project(':' + d.target))\n            } else {\n                add(d.configuration, d.target)\n            }\n        }\n    }\n    publishing {\n        publications {\n            mavenJava(MavenPublication) {\n                from components.java\n                artifactId = config.artifactId\n            }\n        }\n        repositories {\n            maven { name = 'Bootstrap'; url = uri(new File(outputRoot, 'maven-repository')) }\n        }\n    }\n}\n'''
     build = build.replace('__MODUSTRO_RESOURCE_SOURCE_DIRS__', 'config.resourceDirs')
     build = build.replace('__MODUSTRO_REMOTE_GROUP_IDS__', json.dumps(remote_groups))
     # The same universal SDO phase is applied to every staged Gradle build.
@@ -321,18 +348,29 @@ def stage_gradle(repository: Path, work: Path, records: list[dict], version: str
     (stage / 'release-version.txt').write_text(version + '\n', encoding='utf-8')
 
 
+def python_source_dirs(native_source: Path, artifact_identifier: str) -> tuple[str, ...]:
+    """Choose explicit compiler-ABI seed or complete generated source tree."""
+    repository = Path(os.environ.get('MODUSTRO_BOOTSTRAP_REPOSITORY') or
+                      Path(__file__).resolve().parents[2]).resolve()
+    return _selfhost.source_directories(native_source, artifact_identifier,
+                                        'python', repository)
+
+
 def stage_one_python(repository: Path, work: Path, record: dict, release: str) -> Path:
     package = work / 'python-projects' / record['artifactId'].replace('.', '-')
     source_target = package / 'src'
     source_target.mkdir(parents=True, exist_ok=True)
     native_source = repository / record['path']
-    for subdir in ('src/product/python', 'src/product/python.gen',
+    for subdir in (*python_source_dirs(native_source, record['artifactId']),
                    *product_resource_dirs(native_source)):
         source = native_source / subdir
         if not source.is_dir():
             continue
         for file in sorted(source.rglob('*')):
             if not file.is_file() or file.suffix in ('.pyc', '.pyo') or any(p in IGNORED for p in file.parts):
+                continue
+            relative_parts = file.relative_to(source).parts
+            if relative_parts[:6] == ('eu', 'algites', 'tool', 'codegen', 'sdo', 'old'):
                 continue
             dst = source_target / file.relative_to(source)
             if dst.exists():

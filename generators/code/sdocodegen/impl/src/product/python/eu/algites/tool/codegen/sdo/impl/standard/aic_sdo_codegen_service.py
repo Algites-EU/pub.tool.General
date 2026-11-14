@@ -10,9 +10,12 @@ from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxC
 import re
 import os
 import importlib
+import ast
+from functools import lru_cache
 from pathlib import Path
 import sys
 from inspect import isclass
+from dataclasses import dataclass
 from typing import get_type_hints, get_args, get_origin, Union
 from types import UnionType
 from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList
@@ -22,7 +25,7 @@ from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object_namespace import
 from eu.algites.lib.data.dataobject.jsondefs.aii_json_data_object import AIiJsonDataObject
 from eu.algites.lib.data.dataobject.yamldefs.aii_yaml_data_object import AIiYamlDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
-from eu.algites.lib.data.smartdataobject.impl.standard.aic_smart_data_object import _data_object_fields, _declared_fields
+from ._read_contract_fields import _data_object_fields, _declared_fields
 from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy
 from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel
 from eu.algites.tool.codegen.sdo.aicd_generated_sdo_source import AIcdGeneratedSdoSource
@@ -37,6 +40,84 @@ def _default_setter_inheritance_policy() -> AInFieldSetterInheritancePolicy:
     return AInFieldSetterInheritancePolicy(os.environ.get(
         'ALGITES_SDO_CODEGEN_SETTER_INHERITANCE_POLICY',
         'INHERIT_AS_GENERIC_PARAMETER'))
+
+
+@dataclass(frozen=True)
+class _EffectiveXmlField:
+    """Joined semantic DataObject field and explicit inherited XML wire metadata.
+
+    The schema-neutral field descriptor owns value restrictions. The XML
+    projection owns only its QName mapping; these are separate declarations in
+    generated contracts, and neither may be inferred from the other's name.
+    """
+    semantic_name: str
+    descriptor: object
+    wire: object | None
+
+
+def _effective_xml_fields(contract: type, fields: dict[str, object]) -> dict[str, _EffectiveXmlField]:
+    """Join XSD overlays with inherited DataObject fields before code emission.
+
+    Follow the runtime metadata precedence (base-to-derived, modern overriding
+    deprecated annotations) and detect orphaned, conflicting XML mappings.
+    Contract field names, not Python getter spelling, identify the wire overlay.
+    """
+    mapping: dict[str, object] = {}
+    for ancestor in reversed(contract.__mro__):
+        legacy = ancestor.__dict__.get('__xml_data_object_fields__', {}) or {}
+        modern = ancestor.__dict__.get('__xml_schema_fields__', {}) or {}
+        if not isinstance(legacy, dict) or not isinstance(modern, dict):
+            raise AIxCodegenValidationException(
+                'Invalid XML field metadata on ' + ancestor.__module__ + '.' + ancestor.__name__,
+                'Supply mappings from semantic or data field names to XML field descriptors.')
+        for name in legacy.keys() & modern.keys():
+            a, b = legacy[name], modern[name]
+            if (a.namespace, a.namespace_local_name, a.value_kind) != (
+                    b.namespace, b.namespace_local_name, b.value_kind):
+                raise AIxCodegenValidationException(
+                    'Conflicting XML field metadata for ' + str(name) + ' on ' + ancestor.__name__,
+                    'Align modern and compatibility XML QName and value-kind declarations.')
+        mapping.update(legacy)
+        mapping.update(modern)
+    joined = {}
+    consumed = set()
+    for semantic, descriptor in fields.items():
+        alternatives = (semantic, descriptor.field_name)
+        matched = [name for name in dict.fromkeys(alternatives) if name in mapping]
+        if len(matched) > 1 and any(mapping[name] != mapping[matched[0]] for name in matched[1:]):
+            raise AIxCodegenValidationException(
+                'Ambiguous XML field projection for ' + semantic + ' on ' + contract.__name__,
+                'Use one unambiguous semantic/data-name mapping for this inherited field.')
+        consumed.update(matched)
+        joined[semantic] = _EffectiveXmlField(
+            semantic, descriptor, mapping[matched[0]] if matched else None)
+    unknown = mapping.keys() - consumed
+    if unknown:
+        raise AIxCodegenValidationException(
+            'XML field metadata has no inherited DataObject field on '
+            + contract.__name__ + ': ' + ', '.join(sorted(map(str, unknown))),
+            'Add a matching schema-neutral DataObject field or correct the XML field identity.')
+    return joined
+
+
+def _is_sdo_input(contract: type) -> bool:
+    """Select common annotated DataObjects and their neutral descendants.
+
+    XML/JSON/YAML marker descendants from historical split projections are
+    not independently generated. Naming conventions only interpret accepted
+    contracts; they never establish DataObject identity.
+
+    Args:
+        contract: Loaded candidate Python class.
+    Returns:
+        True for one eligible read-only contract.
+    """
+    if (not isclass(contract) or not issubclass(contract, AIiDataObject)
+            or contract.__module__.startswith('eu.algites.lib.data.dataobject')):
+        return False
+    return (getattr(contract, '__data_object__', None) is not None
+            and not issubclass(contract, (AIiXmlDataObject,
+                                          AIiJsonDataObject, AIiYamlDataObject)))
 
 
 class AIcSdoCodegenService(AIiSdoCodegenService):
@@ -66,6 +147,27 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         inserted = str(root) not in sys.path
         if inserted:
             sys.path.insert(0, str(root))
+        # pkgutil.extend_path-based Algites packages capture their search paths
+        # when first imported. A newly staged read-only contract must override
+        # that stale snapshot (and any same-named generated module) for this
+        # invocation only; restore all package paths afterwards.
+        previous_package_paths = {}
+        for module_name, _ in prepared.values():
+            parts = module_name.split('.')
+            for count in range(1, len(parts)):
+                package_name = '.'.join(parts[:count])
+                package = sys.modules.get(package_name)
+                if package is None or not hasattr(package, '__path__'):
+                    continue
+                staged_directory = root.joinpath(*parts[:count])
+                if not staged_directory.is_dir():
+                    continue
+                if package_name not in previous_package_paths:
+                    previous_package_paths[package_name] = package.__path__
+                original_paths = list(package.__path__)
+                stage_path = str(staged_directory)
+                package.__path__ = [stage_path] + [path for path in original_paths
+                                                   if path != stage_path]
         try:
             importlib.invalidate_caches()
             # Reload precisely the requested source contracts, not possibly stale
@@ -79,25 +181,20 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 if loaded != source:
                     raise AIxCodegenValidationException(f'Imported DO contract is not the requested source: {source} (loaded {loaded})', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
                 contract = getattr(module, class_name)
-                if enabled_roles is not None:
-                    if not isclass(contract) or not issubclass(contract, AIiDataObject):
-                        continue
-                    from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
-                    if issubclass(contract, AIiXmlDataObject):
-                        metadata = contract.__dict__.get('__xml_data_object__')
-                        role = ('xmldefs_element' if getattr(metadata, 'definition_kind', None)
-                                is AInXmlObjectDefinitionKind.ELEMENT else 'xmldefs_type')
-                    elif issubclass(contract, AIiJsonDataObject):
-                        role = 'jsondefs'
-                    elif issubclass(contract, AIiYamlDataObject):
-                        role = 'yamldefs'
-                    else:
-                        role = 'common'
-                    if role not in enabled_roles:
-                        continue
+                # The input schema dialect does not select an SDO naming role.
+                # Every annotated read-only DataObject belongs to the one
+                # format-neutral 'common' contract family.  XML/JSON/YAML
+                # metadata are interpreted later by format binding providers.
+                if (not _is_sdo_input(contract)
+                        or (enabled_roles is not None and 'common' not in enabled_roles)):
+                    continue
                 results[source] = self.generate(contract, marker, naming, mutable_subpackage, concrete_subpackage)
             return results
         finally:
+            for package_name, original_path in previous_package_paths.items():
+                package = sys.modules.get(package_name)
+                if package is not None:
+                    package.__path__ = original_path
             if inserted:
                 sys.path.remove(str(root))
 
@@ -108,19 +205,19 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         if not isclass(read_contract) or not issubclass(read_contract, AIiDataObject) or read_contract.__module__.startswith("eu.algites.lib.data.dataobject"):
             # Source-family marker types are infrastructure, not generated schema contracts.
             raise AIxCodegenValidationException('Read contract must extend AIiDataObject', 'Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.')
+        if not _is_sdo_input(read_contract):
+            raise AIxCodegenValidationException(
+                'SDO input must declare or inherit schema-neutral __data_object__ '
+                'without being a technology-specific projection: '
+                + read_contract.__module__ + '.' + read_contract.__name__,
+                'Pass an annotated read-only DataObject or its neutral descendant; '
+                'not an XML/JSON/YAML projection or compiler ABI seed.')
         if not re.fullmatch(r'[a-z][a-z0-9]*', marker):
             raise AIxCodegenValidationException(f'Invalid mutable implementation marker: {marker!r}', 'Inspect the selected DataObject contract and SDO naming profile; correct the incompatible declaration, then regenerate the SDO sources.')
         if '.' not in read_contract.__module__:
             raise AIxCodegenValidationException('Read contract must live in an importable package', 'Check the configured source, output and artifact paths; ensure inputs exist, paths stay inside their allowed roots and required dependencies are present.')
         def role_for_identity(contract):
-            if issubclass(contract, AIiXmlDataObject):
-                metadata = contract.__dict__.get('__xml_data_object__')
-                return ('xmldefs_element' if getattr(getattr(metadata, 'definition_kind', None), 'name', '')
-                        == 'ELEMENT' else 'xmldefs_type')
-            if issubclass(contract, AIiJsonDataObject):
-                return 'jsondefs'
-            if issubclass(contract, AIiYamlDataObject):
-                return 'yamldefs'
+            """Contract naming is independent of its original source schema."""
             return 'common'
 
         def resolve_identity(owner, getter_name):
@@ -129,7 +226,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             roles = naming[0]
             role_profile = roles.get(role) if isinstance(roles, dict) else None
             source_metadata = owner.__dict__.get('__data_object__')
-            profile = getattr(source_metadata, 'naming_convention', '') or role_profile
+            profile = role_profile
             if not profile:
                 raise AIxCodegenValidationException('Missing source getter naming convention for ' + owner.__name__, 'Select the appropriate naming catalog/profile and check its configured structure rules. Rename the source declaration to match that profile or update the profile explicitly.')
             parsed = name_catalog.parse(profile, 'getter_method_name', getter_name)
@@ -141,23 +238,19 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
 
         all_fields = _data_object_fields(read_contract, resolve_identity)
         owned_identifiers = {resolve_identity(read_contract, field.getter_name)
-                             for field in _declared_fields(read_contract)}
+                             for field in _declared_fields(read_contract, resolve_identity)}
         fields = tuple(field for key, field in all_fields.items() if key in owned_identifiers)
         parents = [c for c in read_contract.__bases__ if not c.__module__.startswith('eu.algites.lib.data.dataobject')
                    and issubclass(c, AIiDataObject)
                    and not (issubclass(c, AIiXmlDataObjectNamespace)
                             and '__data_object__' not in c.__dict__)]
         parent = parents[0] if len(parents) == 1 else None
-        if len(parents) > 1:
-            fields = tuple(all_fields.values())
+        # Concrete implementations derive from the technology runtime base,
+        # never from a parent's concrete class. They must therefore implement
+        # every inherited semantic field, including format-only projections.
+        fields = tuple(all_fields.values())
         def role_for(contract):
-            if issubclass(contract, AIiXmlDataObject):
-                metadata = contract.__dict__.get('__xml_data_object__')
-                return 'xmldefs_element' if getattr(getattr(metadata, 'definition_kind', None), 'name', '') == 'ELEMENT' else 'xmldefs_type'
-            if issubclass(contract, AIiJsonDataObject):
-                return 'jsondefs'
-            if issubclass(contract, AIiYamlDataObject):
-                return 'yamldefs'
+            """One naming convention per read/mutable/implementation role."""
             return 'common'
 
         def selected(contract, index):
@@ -198,7 +291,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         def names_for(contract):
             input_catalog = catalog() or naming[0]
             source = getattr(contract, '__data_object__', None)
-            source_profile = getattr(source, 'naming_convention', '') or selected(contract, 0)
+            source_profile = selected(contract, 0)
             values = input_catalog.parse(source_profile, 'type_name', contract.__name__)
             return (input_catalog.format(selected(contract, 1), 'type_name', values,
                                           input_catalog.identifier_convention(source_profile, 'type_name')),
@@ -222,22 +315,11 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         input_role = selected(read_contract, 0)
         mutable_role = selected(read_contract, 1)
         concrete_role = selected(read_contract, 2)
-        if issubclass(read_contract, AIiXmlDataObject):
-            technology = 'xmldefs'
-            mutable_technology = 'AIiXmlSmartDataObject'
-            concrete_technology = 'AIcXmlSmartDataObject'
-        elif issubclass(read_contract, AIiJsonDataObject):
-            technology = 'jsondefs'
-            mutable_technology = 'AIiJsonSmartDataObject'
-            concrete_technology = 'AIcJsonSmartDataObject'
-        elif issubclass(read_contract, AIiYamlDataObject):
-            technology = 'yamldefs'
-            mutable_technology = 'AIiYamlSmartDataObject'
-            concrete_technology = 'AIcYamlSmartDataObject'
-        else:
-            technology = None
-            mutable_technology = 'AIiSmartDataObject'
-            concrete_technology = 'AIcSmartDataObject' 
+        # SDO implementations are independent of their original Defs technology.
+        # Schema-specific annotations remain on the read-only getter contracts.
+        technology = None
+        mutable_technology = 'AIiSmartDataObject'
+        concrete_technology = 'AIcSmartDataObject'
         # The selected YAML profiles also own names of generated method parameters.
         parameter_catalog, parameter_profile = accessor_profile(read_contract, 1)
         parameter_name = parameter_catalog.format(parameter_profile, 'method_parameter_name',
@@ -262,13 +344,13 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             'from __future__ import annotations',
             'from abc import abstractmethod',
             contract_import,
-            (f'from eu.algites.lib.data.smartdataobject.{technology}.aii_{technology.removesuffix("defs")}_smart_data_object import {mutable_technology}' if technology else
-            'from eu.algites.lib.data.smartdataobject.aii_smart_data_object import AIiSmartDataObject')]
+            'from eu.algites.lib.data.smartdataobject.aii_smart_data_object import AIiSmartDataObject']
         concrete_lines = [f'"""Generated SmartDataObject implementation for {read_contract.__name__}."""',
             'from __future__ import annotations',
             f'from {mutable_package}.{stem_for(mutable_name, True)} import {mutable_name}',
-            (f'from eu.algites.lib.data.smartdataobject.impl.{technology}.aic_{technology.removesuffix("defs")}_smart_data_object import {concrete_technology}' if technology else
-            'from eu.algites.lib.data.smartdataobject.impl.standard.aic_smart_data_object import AIcSmartDataObject')]
+            'from eu.algites.lib.data.smartdataobject.impl.common.aic_smart_data_object import AIcSmartDataObject',
+            'from eu.algites.lib.data.smartdataobject.impl.common.aia_smart_data_object_implementation_binding import AIaSmartDataObjectImplementationBinding',
+            f'from {read_contract.__module__} import {read_contract.__name__}']
         def policy_for(field, owner):
             explicit = field.setter_inheritance_policy
             if explicit is not AInFieldSetterInheritancePolicy.DEFAULT:
@@ -334,7 +416,10 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             mutable_lines.append(f'from {subpackage(parent_pkg, mutable_subpackage)}.{stem_for(parent_mut, True, inherited if len(parents)>1 else parent)} import {parent_mut}')
             concrete_lines.append(f'from {subpackage(parent_pkg, concrete_subpackage)}.{stem_for(parent_impl, False, parent)} import {parent_impl}')
             mutable_bases = f'{read_contract.__name__}, {parent_mut}{parent_mutable_annotations[parent]}, {mutable_technology}'
-            concrete_base = concrete_technology if parent_parameter_names[parent] else parent_impl
+            # The parent SDO already extends the shared common runtime.
+            # Generic setter inheritance requires a direct shared runtime base.
+            concrete_base = (concrete_technology if parent_parameter_names[parent]
+                             else parent_impl)
             if parent_parameter_names[parent]:
                 fields = tuple(all_fields.values())
         else:
@@ -358,11 +443,13 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             mutable_lines.extend([''] + typevar_rows)
         import re as _re
         inherited_definition = getattr(read_contract, '__data_object__', None)
-        schema_id = getattr(inherited_definition, 'schema_id', '') if inherited_definition else ''
-        schema_version = getattr(inherited_definition, 'schema_version', -1) if inherited_definition else -1
+        inherited_format = (read_contract.__dict__.get('__json_schema__')
+                            or read_contract.__dict__.get('__json_data_object__')
+                            or read_contract.__dict__.get('__yaml_data_object__'))
+        schema_id = getattr(inherited_format, 'schema_id', '') if inherited_format else ''
+        schema_version = getattr(inherited_format, 'schema_version', -1) if inherited_format else -1
         input_catalog = catalog() or naming[0]
-        selected_source_profile = (getattr(inherited_definition, 'naming_convention', '')
-                                   or input_role)
+        selected_source_profile = input_role
         details = input_catalog.parse(selected_source_profile, 'type_name',
                                       read_contract.__name__)
         if not schema_id:
@@ -384,14 +471,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         # contract. Generated types still retain their independent canonical
         # identity for naming, even when a source member was disabled.
         annotation = ('AIcdDataObject('
-            + (f'schema_id={schema_id!r}, ' if inherited_definition is None or inherited.schema_id else '')
-            + (f'schema_version={schema_version}, ' if inherited_definition is None or inherited.schema_version >= 0 else '')
-            + (f'schema_url={inherited.schema_url!r}, ' if inherited.schema_url else '')
-            + (f'data_source_schema_url_field={inherited.data_source_schema_url_field!r}, ' if inherited.data_source_schema_url_field else '')
-            + (f'data_source_schema_identifier_field={inherited.data_source_schema_identifier_field!r}, ' if inherited.data_source_schema_identifier_field else '')
-            + (f'data_source_schema_version_field={inherited.data_source_schema_version_field!r}, ' if inherited.data_source_schema_version_field else '')
             + f'title={inherited.title!r}, description={inherited.description!r}, '
-            + f'fingerprint={inherited.fingerprint!r}, naming_convention={mutable_role or inherited.naming_convention!r}, '
             + f'setter_inheritance_policy=AInFieldSetterInheritancePolicy.{(inherited.setter_inheritance_policy if inherited.setter_inheritance_policy is not AInFieldSetterInheritancePolicy.DEFAULT else _default_setter_inheritance_policy()).name})')
         mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject')
         mutable_lines.insert(5, 'from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel')
@@ -420,7 +500,44 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         mutable_lines.extend(['', '', f'class {mutable_name}({mutable_bases}):',
                               f'    __data_object__ = {annotation}', 
                               '    """Presence-aware setters, raw getters and unsetters."""'])
-        xml_metadata = read_contract.__dict__.get('__xml_data_object__')
+        # JSON and YAML bindings are independent: a contract can originate from
+        # both schema representations. Preserve both format-specific descriptors,
+        # never flattening their identity into the neutral AIcdDataObject.
+        concrete_format_annotations = []
+        # The modern JSON Schema descriptor is authoritative for the common
+        # contract. It must be emitted once, never reconstructed from a YAML
+        # or JSON compatibility annotation (whose identities may differ).
+        modern_metadata = read_contract.__dict__.get('__json_schema__')
+        if modern_metadata is not None:
+            modern_import = ('from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema '
+                             'import AIaDataObjectJsonSchema')
+            mutable_lines.insert(4, modern_import)
+            concrete_lines.insert(2, modern_import)
+            modern_values = ', '.join(f'{key}={getattr(modern_metadata, key)!r}' for key in (
+                'schema_id', 'schema_version', 'schema_url', 'data_source_schema_url_field',
+                'data_source_schema_identifier_field', 'data_source_schema_version_field'))
+            schema = f'    __json_schema__ = AIaDataObjectJsonSchema({modern_values})'
+            mutable_lines.append(schema)
+            concrete_format_annotations.append(schema)
+        # Compatibility descriptors are kept format-local during migration.
+        # They are NOT used as authoritative metadata and are never compared
+        # to one another or to the modern descriptor.
+        for format_kind in ('json', 'yaml'):
+            format_metadata = read_contract.__dict__.get(f'__{format_kind}_data_object__')
+            if format_metadata is None:
+                continue
+            format_type = 'Json' if format_kind == 'json' else 'Yaml'
+            import_line = (f'from eu.algites.lib.data.dataobject.{format_kind}defs.'
+                           f'aia_{format_kind}_data_object import AIa{format_type}DataObject')
+            mutable_lines.insert(4, import_line)
+            concrete_lines.insert(2, import_line)
+            format_values = ', '.join(f'{key}={getattr(format_metadata, key)!r}' for key in (
+                'schema_id', 'schema_version', 'schema_url', 'data_source_schema_url_field',
+                'data_source_schema_identifier_field', 'data_source_schema_version_field'))
+            descriptor = f'    __{format_kind}_data_object__ = AIa{format_type}DataObject({format_values})'
+            mutable_lines.append(descriptor)
+            concrete_format_annotations.append(descriptor)
+        xml_metadata = (read_contract.__dict__.get('__xml_schema__') or read_contract.__dict__.get('__xml_data_object__'))
         if xml_metadata is not None:
             mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object import AIaXmlDataObject')
             mutable_lines.insert(5, 'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind')
@@ -428,7 +545,13 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 + f'definition_kind=AInXmlObjectDefinitionKind.{xml_metadata.definition_kind.name}, '
                 + f'namespace={xml_metadata.namespace!r}, '
                 + f'namespace_local_name={xml_metadata.namespace_local_name!r})')
-        xml_fields = read_contract.__dict__.get('__xml_data_object_fields__')
+            mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_xml_schema import AIaDataObjectXmlSchema')
+            mutable_lines.append("    __xml_schema__ = AIaDataObjectXmlSchema("
+                + f'definition_kind=AInXmlObjectDefinitionKind.{xml_metadata.definition_kind.name}, '
+                + f'namespace={xml_metadata.namespace!r}, '
+                + f'namespace_local_name={xml_metadata.namespace_local_name!r})')
+        xml_fields = (read_contract.__dict__.get('__xml_schema_fields__')
+                      or read_contract.__dict__.get('__xml_data_object_fields__'))
         if xml_fields:
             mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField')
             mutable_lines.insert(5, 'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValueKind')
@@ -436,10 +559,14 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             for name, metadata in xml_fields.items():
                 mutable_lines.append(f'        {name!r}: AIaXmlDataObjectField(namespace={metadata.namespace!r}, '
                     f'namespace_local_name={metadata.namespace_local_name!r}, '
-                    f'value_kind=AInXmlValueKind.{metadata.value_kind.name}, order={metadata.order}, '
-                    f'min_occurs={metadata.min_occurs}, max_occurs={metadata.max_occurs}, '
-                    f'wildcard_namespace={metadata.wildcard_namespace!r}, '
-                    f'wildcard_process_contents={metadata.wildcard_process_contents!r}),')
+                    f'value_kind=AInXmlValueKind.{metadata.value_kind.name}),')
+            mutable_lines.append('    }')
+            mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema')
+            mutable_lines.append('    __xml_schema_fields__ = {')
+            for name, metadata in xml_fields.items():
+                mutable_lines.append(f'        {name!r}: AIaDataObjectFieldXmlSchema(namespace={metadata.namespace!r}, '
+                    f'namespace_local_name={metadata.namespace_local_name!r}, '
+                    f'value_kind=AInXmlValueKind.{metadata.value_kind.name}),')
             mutable_lines.append('    }')
         if labels:
             # A new mapping would shadow the read contract's mapping.  Start with
@@ -451,9 +578,12 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             mutable_lines.append('    }')
         concrete_lines.insert(2, 'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject')
         concrete_lines.insert(3, 'from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy')
-        concrete_lines.extend(['', '', f'class {concrete_name}({concrete_base}, {mutable_name}' + ('' if not type_variables else '[' + ', '.join(repr(names_for(generic_fields[key][0])[0]) for key in type_variables) + ']') + '):',
-                               f'    __data_object__ = AIcdDataObject(schema_id={schema_id!r}, schema_version={schema_version}, naming_convention={concrete_role!r}, setter_inheritance_policy=AInFieldSetterInheritancePolicy.{(inherited.setter_inheritance_policy if inherited.setter_inheritance_policy is not AInFieldSetterInheritancePolicy.DEFAULT else _default_setter_inheritance_policy()).name})',
+        concrete_lines.extend(['', '',
+                               f'@AIaSmartDataObjectImplementationBinding(readContracts=({read_contract.__name__},))',
+                               f'class {concrete_name}({concrete_base}, {mutable_name}' + ('' if not type_variables else '[' + ', '.join(repr(names_for(generic_fields[key][0])[0]) for key in type_variables) + ']') + '):',
+                               f'    __data_object__ = AIcdDataObject(setter_inheritance_policy=AInFieldSetterInheritancePolicy.{(inherited.setter_inheritance_policy if inherited.setter_inheritance_policy is not AInFieldSetterInheritancePolicy.DEFAULT else _default_setter_inheritance_policy()).name})',
                                '    """Generated implementation; inherited fields use parent behavior."""'])
+        concrete_lines.extend(concrete_format_annotations)
         # A named schema type may be both a SmartDataObject and the owner of
         # an ordered indexed collection.  A SmartDataObject base has no list
         # storage: build a real AIcMultiMappedList and delegate every ABC method.
@@ -471,9 +601,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 if not candidate.isidentifier():
                     raise AIxCodegenValidationException('Invalid synthetic key getter identifier: ' + repr(candidate), 'Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.')
                 if callable(getattr(read_contract, candidate, None)):
-                    if not (issubclass(read_contract, AIiJsonDataObject)
-                            or issubclass(read_contract, AIiYamlDataObject)):
-                        raise AIxCodegenValidationException('Virtual object-property key getter is only valid for JSON/YAML', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
+                    if issubclass(read_contract, AIiXmlDataObject):
+                        raise AIxCodegenValidationException('Virtual object-property key getter is not an XML field', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
                     if candidate in all_fields:
                         raise AIxCodegenValidationException('Virtual parent property key cannot be a serialized field', 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
                     synthetic_key_method = candidate
@@ -484,9 +613,8 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     raise AIxCodegenValidationException('Invalid synthetic value getter identifier: ' + repr(value_getter), 'Update the Common method naming catalog and regenerate the contracts.')
                 method = getattr(read_contract, value_getter, None)
                 if callable(method):
-                    if not (issubclass(read_contract, AIiJsonDataObject)
-                            or issubclass(read_contract, AIiYamlDataObject)):
-                        raise AIxCodegenValidationException('Virtual JSON/YAML map value getter is not an XML field', 'Use the matching source contract and Common naming profile.')
+                    if issubclass(read_contract, AIiXmlDataObject):
+                        raise AIxCodegenValidationException('Virtual map value getter is not an XML field', 'Use the matching source contract and Common naming profile.')
                     if value_getter in all_fields or getattr(method, '__data_object_field__', None) is not None:
                         raise AIxCodegenValidationException('Virtual map value getter cannot be a serialized field', 'Remove the field annotation from the synthetic getter.')
                     if synthetic_key_method is None:
@@ -573,6 +701,13 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         concrete_imports = []
         xml_nested_imports = {}
         xml_repeated = set()
+        # An XML specialization can inherit schema-neutral DataObject fields.
+        # Only an explicitly XML-mapped field belongs in the XML parser's
+        # nested-type/repeated-field tables. Collect mappings along the MRO so
+        # genuine XML ancestors remain supported without inventing QNames for
+        # neutral fields. Match Java SDO's @AIaDataObjectFieldXmlSchema rule.
+        effective_xml = (_effective_xml_fields(read_contract, all_fields)
+                         if technology == 'xmldefs' else {})
         if not fields:
             mutable_lines.append('    pass')
             concrete_lines.append('    pass')
@@ -592,10 +727,17 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 raw_getter = method_name('raw_getter')
                 presence_checker = method_name('raw_presence_checker_method')
                 unsetter = method_name('raw_unsetter')
+                empty_setter = method_name('raw_empty_setter') if descriptor.is_empty_allowed else None
+                empty_checker = method_name('raw_empty_checker_method') if descriptor.is_empty_allowed else None
             else:
                 raw_getter, presence_checker, unsetter = ('get_' + suffix,
                     'isPresent_' + suffix, 'unset_' + suffix)
-            active_methods = [item for item in (getter, raw_getter, presence_checker, unsetter)
+                empty_setter = empty_checker = None
+            if descriptor.is_empty_allowed and (empty_setter is None or empty_checker is None):
+                raise AIxCodegenValidationException('Missing empty-state naming roles for ' + name,
+                    'Configure raw_empty_setter and raw_empty_checker_method in the selected SDO naming profile.')
+            active_methods = [item for item in (getter, raw_getter, presence_checker, unsetter,
+                                                empty_setter, empty_checker)
                               if item is not None]
             if (len(set(active_methods)) != len(active_methods)
                     or not all(item.isidentifier() for item in active_methods)):
@@ -608,19 +750,43 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             if not getter.isidentifier() or not suffix.isidentifier():
                 raise AIxCodegenValidationException('Invalid field getter: ' + getter, 'Inspect the indicated schema declaration, its source metadata and field types. Correct the invalid name, requiredness, type or version at that source rather than editing generated files.')
             nested_details = _nested_contract(read_contract, getter, name)
+            auxiliary_details = (_auxiliary_read_only_contract(read_contract, getter, name)
+                                 if nested_details is None else None)
             keyed_collection = get_origin(_unwrap_optional(_field_annotation(read_contract, getter, name))[0]) is AIiMultiMappedList
             nested_type = ((('AIiMultiMappedList[' if keyed_collection else 'list[') + names_for(nested_details[0])[0] + ']' 
                 if nested_details[2] else names_for(nested_details[0])[0])
                 + (' | None' if nested_details[1] else '')) if nested_details else None
-            if technology == 'xmldefs':
-                if nested_details and nested_details[2] or _repeated_contract_field(read_contract, getter, name, descriptor):
+            if technology == 'xmldefs' and (effective_xml[name].wire is not None or descriptor.embedded):
+                if (effective_xml[name].wire is not None and nested_details
+                        and not issubclass(nested_details[0], AIiXmlDataObject)):
+                    raise AIxCodegenValidationException(
+                        'XML field references a non-XML DataObject: '
+                        + read_contract.__module__ + '.' + read_contract.__name__ + '.' + getter
+                        + ' -> ' + nested_details[0].__module__ + '.' + nested_details[0].__name__,
+                        'The explicitly XML-mapped getter must reference an XML DataObject. '
+                        'Review its XML Schema declaration and XML field mapping.')
+                if (nested_details and nested_details[2]) or _repeated_contract_field(read_contract, getter, name, descriptor):
                     xml_repeated.add(name)
-                if nested_details:
+                if nested_details and issubclass(nested_details[0], AIiXmlDataObject):
                     nested_concrete = names_for(nested_details[0])[1]
                     nested_package = nested_details[0].__module__.rsplit('.', 1)[0]
                     nested_concrete_module = subpackage(nested_package, concrete_subpackage) + '.' + stem_for(nested_concrete, False, nested_details[0])
                     xml_nested_imports[name] = nested_concrete_module + ':' + nested_concrete
-            typed_value = nested_type or 'object'
+            auxiliary_type = None
+            if auxiliary_details is not None:
+                aux_class, aux_nullable, aux_repeated = auxiliary_details
+                auxiliary_type = ((('AIiMultiMappedList[' if keyed_collection else 'list[')
+                                   + aux_class.__name__ + ']') if aux_repeated else aux_class.__name__)
+                if aux_nullable:
+                    auxiliary_type += ' | None'
+                aux_import = f'from {aux_class.__module__} import {aux_class.__name__}'
+                mutable_imports.append(aux_import)
+                concrete_imports.append(aux_import)
+                if keyed_collection:
+                    collection_import = 'from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList'
+                    mutable_imports.append(collection_import)
+                    concrete_imports.append(collection_import)
+            typed_value = nested_type or auxiliary_type or 'object'
             variable = type_variables.get(name)
             interface_type = (((f'AIiMultiMappedList[{variable}]' if keyed_collection else f'list[{variable}]') if nested_details[2] else variable)
                               + (' | None' if nested_details[1] else '')) if variable else typed_value
@@ -634,19 +800,38 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     concrete_imports.append('from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList')
                 mutable_imports.append(f'from {subpackage(nested_package, mutable_subpackage)}.{nested_file} import {nested_name}')
                 concrete_imports.append(f'from {subpackage(nested_package, mutable_subpackage)}.{nested_file} import {nested_name}')
-            if nested_type is not None:
+            named_mapped_collection = bool(nested_details and not nested_details[2]
+                and issubclass(nested_details[0], AIiMultiMappedList))
+            is_collection = (named_mapped_collection or keyed_collection
+                or nested_details is not None and nested_details[2]
+                or get_origin(_unwrap_optional(_field_annotation(read_contract, getter, name))[0])
+                in (list, tuple, AIiMultiMappedList))
+            if nested_type is not None or auxiliary_type is not None:
                 mutable_lines.extend(['', '    @abstractmethod',
                     f'    def {getter}(self) -> {interface_type}: ...'])
-            mutable_lines.extend(['', '    @abstractmethod',
-                f'    def {setter}(self, {parameter_name}: {interface_type}) -> None: ...'])
-            concrete_lines.extend(['', f'    def {getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
-                f'        return self.get_EffectiveField({name!r})',
-                '', f'    def {setter}(self, {parameter_name}' + (f': {typed_value}' if nested_type else '') + '):',
-                f'        self.set_RawField({name!r}, {parameter_name})'])
+            if not is_collection:
+                mutable_lines.extend(['', '    @abstractmethod',
+                    f'    def {setter}(self, {parameter_name}: {interface_type}) -> None: ...'])
+            if named_mapped_collection:
+                nested_concrete = names_for(nested_details[0])[1]
+                nested_package = nested_details[0].__module__.rsplit('.', 1)[0]
+                nested_module = (subpackage(nested_package, concrete_subpackage) + '.'
+                    + stem_for(nested_concrete, False, nested_details[0]))
+                getter_body = ('        from ' + nested_module + ' import ' + nested_concrete + '\n'
+                    + f'        return self.get_OrCreateNamedMappedCollectionField({name!r}, {nested_concrete})')
+            elif is_collection:
+                getter_body = f'        return self.get_OrCreateCollectionField({name!r}, {keyed_collection})'
+            else:
+                getter_body = f'        return self.get_EffectiveField({name!r})'
+            concrete_lines.extend(['', f'    def {getter}(self)' + (f' -> {typed_value}' if typed_value != 'object' else '') + ':', getter_body])
+            if not is_collection:
+                concrete_lines.extend(['', f'    def {setter}(self, {parameter_name}'
+                    + (f': {typed_value}' if typed_value != 'object' else '') + '):',
+                    f'        self.set_RawField({name!r}, {parameter_name})'])
             if raw_getter is not None:
                 mutable_lines.extend(['', '    @abstractmethod',
                     f'    def {raw_getter}(self) -> {interface_type}: ...'])
-                concrete_lines.extend(['', f'    def {raw_getter}(self)' + (f' -> {typed_value}' if nested_type else '') + ':',
+                concrete_lines.extend(['', f'    def {raw_getter}(self)' + (f' -> {typed_value}' if typed_value != 'object' else '') + ':',
                     f'        return self.get_RawField({name!r})'])
             if presence_checker is not None:
                 mutable_lines.extend(['', '    @abstractmethod',
@@ -658,21 +843,16 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     f'    def {unsetter}(self) -> None: ...'])
                 concrete_lines.extend(['', f'    def {unsetter}(self):',
                     f'        self.unset_Field({name!r})'])
-        if technology == 'xmldefs':
-            mutable_lines.append('    __xml_repeated_fields__ = ' + repr(tuple(sorted(xml_repeated))))
-            concrete_lines.append('    __xml_field_type_imports__ = ' + repr(xml_nested_imports))
-            concrete_lines.extend(['', '    @classmethod',
-                '    def from_xml(cls, aXml: str, aNestedTypes=None):',
-                '        """Decode XML into this concrete generated SDO, resolving nested types lazily."""',
-                '        import importlib',
-                '        resolved = {}',
-                '        for base in reversed(cls.__mro__):',
-                "            for name, qualified in base.__dict__.get('__xml_field_type_imports__', {}).items():",
-                "                module, sep, type_name = qualified.partition(':')",
-                '                if not sep: raise ValueError("Invalid generated XML nested implementation mapping")',
-                '                resolved[name] = getattr(importlib.import_module(module), type_name)',
-                '        if aNestedTypes: resolved.update(aNestedTypes)',
-                '        return super().from_xml(aXml, aNestedTypes=resolved)'])
+            if empty_setter is not None:
+                mutable_lines.extend(['', '    @abstractmethod',
+                    f'    def {empty_setter}(self) -> None: ...'])
+                concrete_lines.extend(['', f'    def {empty_setter}(self):',
+                    f'        self.set_EmptyField({name!r})'])
+            if empty_checker is not None:
+                mutable_lines.extend(['', '    @abstractmethod',
+                    f'    def {empty_checker}(self) -> bool: ...'])
+                concrete_lines.extend(['', f'    def {empty_checker}(self):',
+                    f'        return self.isEmpty_Field({name!r})'])
         mutable_lines[4:4] = ['from typing import TYPE_CHECKING', '', 'if TYPE_CHECKING:',
             *['    ' + item for item in sorted(set(mutable_imports))]] if mutable_imports else []
         concrete_lines[2:2] = ['from typing import TYPE_CHECKING', '', 'if TYPE_CHECKING:',
@@ -696,12 +876,81 @@ def _camel_to_snake(value: str) -> str:
     return re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', value).lower()
 
 
+@lru_cache(maxsize=256)
+def _type_checking_imports(filename: str) -> tuple[tuple[str, str, int, str], ...]:
+    """Index TYPE_CHECKING imports without executing the source code as a module.
+
+    Defs Codegen deliberately emits many recursive read-only references only
+    under TYPE_CHECKING to prevent runtime import cycles. Runtime reflection
+    must resolve those declared types lazily rather than treating them as
+    untyped fields or synthesizing a writable class from the field name.
+    """
+    try:
+        document = ast.parse(Path(filename).read_text(encoding='utf-8'), filename)
+    except (OSError, SyntaxError):
+        return ()
+    bindings = []
+    for statement in document.body:
+        if not isinstance(statement, ast.If):
+            continue
+        condition = statement.test
+        is_type_checking = (isinstance(condition, ast.Name) and condition.id == 'TYPE_CHECKING'
+                            or isinstance(condition, ast.Attribute)
+                            and condition.attr == 'TYPE_CHECKING'
+                            and isinstance(condition.value, ast.Name)
+                            and condition.value.id == 'typing')
+        if not is_type_checking:
+            continue
+        for entry in statement.body:
+            if not isinstance(entry, ast.ImportFrom):
+                continue
+            for alias in entry.names:
+                bindings.append((alias.asname or alias.name, entry.module or '',
+                                 entry.level, alias.name))
+    return tuple(bindings)
+
+
+def _get_type_hints_with_type_checking_imports(method):
+    """Resolve explicit annotations using their source-declared lazy imports."""
+    try:
+        return get_type_hints(method)
+    except NameError:
+        pass
+    module_globals = getattr(method, '__globals__', {})
+    filename = module_globals.get('__file__')
+    if not filename:
+        return {}
+    annotations = getattr(method, '__annotations__', {})
+    expression = annotations.get('return', '')
+    referenced_names = set()
+    if isinstance(expression, str):
+        try:
+            referenced_names = {node.id for node in ast.walk(ast.parse(expression, mode='eval'))
+                                if isinstance(node, ast.Name)}
+        except SyntaxError:
+            return {}
+    namespace = dict(module_globals)
+    package = module_globals.get('__package__') or module_globals.get('__name__', '').rpartition('.')[0]
+    for local_name, from_module, level, symbol in _type_checking_imports(str(filename)):
+        if local_name not in referenced_names or local_name in namespace:
+            continue
+        try:
+            module = importlib.import_module('.' * level + from_module, package=package)
+            namespace[local_name] = getattr(module, symbol)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            continue
+    try:
+        return get_type_hints(method, globalns=namespace)
+    except (NameError, TypeError):
+        return {}
+
+
 def _field_annotation(read_contract: type, getter: str, field_name: str):
     """Obtain a source annotation without mistaking missing type hints for scalar values."""
     method = getattr(read_contract, getter, None)
     if method is not None:
         try:
-            annotation = get_type_hints(method).get('return')
+            annotation = _get_type_hints_with_type_checking_imports(method).get('return')
             if annotation is not None:
                 return annotation
         except (NameError, TypeError):
@@ -740,9 +989,36 @@ def _nested_contract(read_contract: type, getter: str, field_name: str = '') -> 
         if args:
             repeated = True
             annotation, _ = _unwrap_optional(args[0])
-    if isclass(annotation) and issubclass(annotation, AIiDataObject) and not annotation.__module__.startswith('eu.algites.lib.data.dataobject'):
+    # Converting an unannotated read-only helper into a writable type would
+    # invent a module/class that SDO never generates. Keep choice/union helpers
+    # as original read-only types rather than treating them as nested SDOs.
+    if isclass(annotation) and _is_sdo_input(annotation):
         return annotation, nullable, repeated
     return None
+
+
+def _auxiliary_read_only_contract(read_contract: type, getter: str,
+                                  field_name: str = '') -> tuple[type, bool, bool] | None:
+    """Preserve a typed read-only helper without inventing an SDO counterpart.
+
+    Covers XML choices (including concrete choice variants) and unannotated
+    DataObject-compatible helper interfaces. These types can appear in fields,
+    but have no writable AIigd equivalent because they are not SDO inputs.
+    """
+    annotation, nullable = _unwrap_optional(_field_annotation(read_contract, getter, field_name))
+    repeated = False
+    if get_origin(annotation) in (list, tuple, AIiMultiMappedList):
+        arguments = get_args(annotation)
+        if arguments:
+            repeated = True
+            annotation, _ = _unwrap_optional(arguments[0])
+    if not isclass(annotation) or _is_sdo_input(annotation):
+        return None
+    is_choice = any('__xml_choice_variant_imports__' in base.__dict__
+                    for base in annotation.__mro__)
+    is_unannotated_dataobject = (issubclass(annotation, AIiDataObject)
+                                 and not annotation.__module__.startswith('eu.algites.lib.data.dataobject'))
+    return (annotation, nullable, repeated) if is_choice or is_unannotated_dataobject else None
 
 
 def _repeated_contract_field(read_contract: type, getter: str, field_name: str, descriptor) -> bool:

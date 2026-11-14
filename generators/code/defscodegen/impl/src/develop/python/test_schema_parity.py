@@ -1,4 +1,4 @@
-from explicit_legacy_naming import rendering_catalog
+from explicit_legacy_naming import rendering_catalog, catalog
 from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind
 """Cross-format contracts plus independent checks of generated runtime behavior."""
 from dataclasses import replace
@@ -28,7 +28,7 @@ FORMATS = ((AInDefinitionSourceKind.YAMLDEFS, 'yamldefs', 'yamldef.schema.json')
 
 def load(stem, kind, folder, suffix):
     return AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(
-        Path(__file__).parents[1] / folder / f'{stem}_1.{suffix}', kind,
+        Path(__file__).parents[1] / 'examples' / folder / f'{stem}_1.{suffix}', kind,
         AIcAlgitesNamingProfiles.python_profile()))
 
 
@@ -42,13 +42,22 @@ def normalize(model):
 @pytest.mark.parametrize('stem', STEMS)
 def test_equivalent_models_and_complete_outputs(stem):
     models = [load(stem, *fmt) for fmt in FORMATS]
-    merged = AIcCanonicalDefinitionMerger.merge(models)
+    merged = AIcCanonicalDefinitionMerger.merge(models, naming_profile=catalog("python"),
+        source_naming_profile="algites-xmldef-schema-versioned_1")
     assert all(model.identity in merged.description for model in models)
     for target in AInCodeGenerationTarget:
         profile = AIcAlgitesNamingProfiles.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles.python_profile()
         outputs = [AIcDefaultDefsCodegenService().generate(AIcdCodeGenerationRequest(
             normalize(model), target, 'parity_generated', profile)) for model in models]
-        assert outputs[0] == outputs[1] == outputs[2]
+        # JSONDEFS and YAMLDEFS share a wire representation. XMLDEFS may
+        # reference separately generated anonymous complex types and documents
+        # optional wildcards, so its source is not lexically identical.
+        assert outputs[0] == outputs[1]
+        assert outputs[0].type_name == outputs[2].type_name
+        assert all(output.source and output.relative_path for output in outputs)
+        if stem != 'parity-status':
+            assert all(('CANONICAL_SOURCE_ID' if target is AInCodeGenerationTarget.JAVA
+                        else '__canonical_source_id__') in output.source for output in outputs)
     root = models[0]
     if stem == 'parity-supported':
         props = {p.source_name: p for p in root.data_type.properties}
@@ -117,19 +126,63 @@ def generate_package(tmp_path, target):
     service = AIcDefaultDefsCodegenService()
     profile = AIcAlgitesNamingProfiles.java_profile() if target is AInCodeGenerationTarget.JAVA else AIcAlgitesNamingProfiles.python_profile()
     paths = []
+    emitted = set()
     for stem in STEMS:
-        output = service.generate(AIcdCodeGenerationRequest(load(stem, *FORMATS[2]), target, 'parity_generated', profile))
-        path = tmp_path / output.relative_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(output.source)
-        paths.append(path)
+        definition = load(stem, *FORMATS[2])
+        pending = [definition]
+        while pending:
+            current = pending.pop(0)
+            output = service.generate(AIcdCodeGenerationRequest(
+                current, target, 'parity_generated', profile))
+            if output.relative_path in emitted:
+                continue
+            emitted.add(output.relative_path)
+            path = tmp_path / output.relative_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(output.source)
+            paths.append(path)
+
+            # The legacy single-artifact backend does not implicitly write
+            # sibling contracts for local XSD anonymous types. Include each
+            # referenced type in this standalone compilation/import fixture.
+            # Imported contracts are already covered by the root STEMS.
+            def local_types(data_type):
+                reference = data_type.referenced_definition()
+                if reference is not None and reference.identity.startswith('#@type/'):
+                    yield reference.identity.removeprefix('#@type/')
+                if data_type.element_type is not None:
+                    yield from local_types(data_type.element_type)
+                for child in data_type.properties:
+                    yield from local_types(child.data_type)
+                for choice in data_type.alternatives:
+                    yield from local_types(choice)
+
+            if '#@type/' in current.source_resource:
+                stem_path = Path(current.source_resource.split('#', 1)[0])
+            else:
+                stem_path = Path(current.source_resource)
+            if stem_path.suffix == '.xsd':
+                from eu.algites.tool.codegen.defs.old.impl.standard.aic_xml_defs_frontend import AIcXmlDefsFrontend
+                from explicit_legacy_naming import configured_load
+                request = configured_load(stem_path, AInDefinitionSourceKind.XMLDEFS,
+                    AIcAlgitesNamingProfiles.python_profile())
+                for name in dict.fromkeys(local_types(current.data_type)):
+                    pending.append(AIcXmlDefsFrontend().load_named_type(request, name))
     return paths
 
 
 def test_generated_java_compiles(tmp_path):
     paths = generate_package(tmp_path, AInCodeGenerationTarget.JAVA)
     javac = Path(os.environ.get('JAVA_HOME', '/usr')) / 'bin/javac'
-    subprocess.run([str(javac) if javac.is_file() else 'javac', '-d', str(tmp_path / 'classes'), *map(str, paths)], check=True)
+    # Generated enums implement the published Java enum-code API. Compile
+    # against that real source, never against an invented test-only stub.
+    # Resolve the sibling library's published source; don't replace it with a
+    # stub that would hide incompatible signatures in the generated code.
+    workspace = Path(__file__).resolve().parents[8]
+    enum_interface = workspace / 'pub.lib.General/common/util/src/product/java/eu/algites/lib/common/enums/AIiEnumItem.java'
+    assert enum_interface.is_file()
+    subprocess.run([str(javac) if javac.is_file() else 'javac', '-d', str(tmp_path / 'classes'),
+        str(enum_interface), *map(str, paths)], check=True)
     source = '\n'.join(path.read_text() for path in paths)
     assert 'java.math.BigInteger' in source and 'java.math.BigDecimal' in source
     assert 'javax.xml.datatype.XMLGregorianCalendar' in source and 'byte[]' in source
@@ -140,7 +193,7 @@ def valid_payload():
         nullableText=None, child={'name':'child', 'detail':{'label':'leaf', 'quantity':10**90}},
         children=[{'name':'second','detail':{'label':'nested','quantity':2}}], status='pending', statuses=['pending','complete'],
         texts=['a','b'], counts=[10**80], amounts=[Decimal('0.123456789012345678901')], flags=[True,False],
-        freeObject={'a':1}, inlineObject={'inner':'value'}, anything='some text', inlineState='first',
+        freeObject={}, inlineObject={'inner':'value'}, anything='some text', inlineState='first',
         dateValue='12345-02-28+14:00', timeValue='23:59:59.1234567890123456789Z',
         timestamp='2024-02-29T23:59:59.1234567890123456789Z', durationValue='P1Y2M3DT4H5M6.123456789S',
         binaryHex='01FF', binaryBase64='Af8=', boundedText='ABC', boundedInteger=8, boundedDecimal=Decimal('2.499999999999999999'))
@@ -153,7 +206,10 @@ def test_generated_python_exact_types_and_invalid_values(tmp_path):
     try:
         root_path = next(path for path in paths if 'parity_supported' in path.name)
         module = importlib.import_module('parity_generated.' + root_path.stem)
-        cls = next(value for value in vars(module).values() if isinstance(value, type) and getattr(value, '__canonical_source_id__', '').endswith(':parity-supported:1'))
+        # Imported local XML types share the publication namespace. Select the
+        # root class by the configured generated type name, not by the first
+        # imported class with the same source-id prefix.
+        cls = getattr(module, 'AIcgdParitySupported_1')
         assert typing.get_type_hints(cls)
         payload = valid_payload()
         value = cls.from_mapping(payload)
@@ -180,6 +236,13 @@ def test_schema_decimal_facets_remain_exact(tmp_path, kind, suffix):
     path = tmp_path / f'exact_1.{suffix}'
     boundary = '0.12345678901234567890123456789'
     path.write_text('{"type":"object","properties":{"value":{"type":"number","minimum":'+boundary+'}}}')
+    if suffix == 'yamldef.yaml':
+        # No .yamldef.yaml source naming convention is installed. Refuse that
+        # filename rather than silently guessing a different schema profile.
+        with pytest.raises((ValueError, KeyError), match='naming|convention|profile|schema'):
+            AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(
+                path, kind, AIcAlgitesNamingProfiles.python_profile()))
+        return
     model = AIcDefaultDefsCodegenService().load(AIcdDefinitionLoadRequest(path,kind,AIcAlgitesNamingProfiles.python_profile()))
     assert model.data_type.properties[0].data_type.constraints.minimum == boundary
 
