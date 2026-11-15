@@ -1,5 +1,5 @@
 """Regression checks for localized metadata in handwritten SmartDO read contracts."""
-from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema
+from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema
 from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject

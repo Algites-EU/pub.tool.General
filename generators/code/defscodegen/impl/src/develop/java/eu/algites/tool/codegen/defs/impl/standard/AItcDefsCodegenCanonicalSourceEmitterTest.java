@@ -1,10 +1,10 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.impl.standard.model.*;
-import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
+import eu.algites.tool.codegen.defs.model.AIngSourceInputKind_1;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -807,7 +807,7 @@ public final class AItcDefsCodegenCanonicalSourceEmitterTest {
             for (var filename : List.of("AIiMultiMappedList.java", "AIiKeyDefinition.java")) {
                 command.add(common.resolve("eu/algites/lib/common/list/").resolve(filename).toString());
             }
-            for (var filename : List.of("AIaKeyDefinition.java", "AIaKeyDefinitions.java")) {
+            for (var filename : List.of("AIaDataObjectListKeyDefinition.java", "AIaDataObjectListKeyDefinitions.java")) {
                 command.add(metadata.resolve("eu/algites/lib/data/dataobject/").resolve(filename).toString());
             }
             Assert.assertEquals(ToolProvider.getSystemJavaCompiler().run(null, null, null,

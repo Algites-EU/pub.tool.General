@@ -83,3 +83,76 @@ def test_seed_and_generated_python_never_merge(tmp_path, monkeypatch):
     assert sh.source_directories(artifact, 'test-module', 'python', tmp_path)[-1] == 'src/product/python.gen'
     monkeypatch.setenv('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED', '1')
     assert sh.source_directories(artifact, 'test-module', 'python', tmp_path)[-1] == 'src/product/python.extgen'
+
+
+def test_defs_selfhost_selects_exactly_one_generated_source_tree(tmp_path, monkeypatch):
+    """Do not compile/stage duplicate Defs FQCNs from .extgen and .gen."""
+    if REPO.name != 'pub.tool.General':
+        pytest.skip('Defs self-hosting is owned by pub.tool.General')
+    bootstrap = _load('defs_selfhosting_source_selection', 'selfhosting.py')
+    prepare = _load('defs_selfhosting_prepare', 'prepare.py')
+    artifact_id = 'pub.tool.General_generators.code.defscodegen.intf'
+    artifact = tmp_path / 'generators/code/defscodegen/intf'
+    product = artifact / 'src/product'
+    for lang, extension, read_file, sdo_intf, sdo_impl in (
+            ('java', '.java', 'model/AIigType_1.java',
+             'model/impl/intf/AIigdType_1.java', 'model/impl/AIcgdType_1.java'),
+            ('python', '.py', 'model/aiig_type_1.py',
+             'model/impl/intf/aiigd_type_1.py', 'model/impl/aicgd_type_1.py')):
+        extgen_read = product / (lang + '.extgen') / read_file
+        extgen_read.parent.mkdir(parents=True, exist_ok=True)
+        extgen_read.write_text('seed', encoding='utf-8')
+        gen_read = product / (lang + '.gen') / read_file
+        gen_read.parent.mkdir(parents=True, exist_ok=True)
+        gen_read.write_text('fresh', encoding='utf-8')
+        selected = bootstrap.source_directories(artifact, artifact_id, lang, REPO)
+        assert selected == ('src/product/' + lang, 'src/product/' + lang + '.extgen')
+        for relative in (sdo_intf, sdo_impl):
+            generated = product / (lang + '.gen') / relative
+            generated.parent.mkdir(parents=True, exist_ok=True)
+            generated.write_text('fresh', encoding='utf-8')
+        selected = bootstrap.source_directories(artifact, artifact_id, lang, REPO)
+        assert selected == ('src/product/' + lang, 'src/product/' + lang + '.gen')
+    monkeypatch.setenv('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED', '1')
+    for lang in ('java', 'python'):
+        assert bootstrap.source_directories(artifact, artifact_id, lang, REPO)[-1] == (
+            'src/product/' + lang + '.extgen')
+    monkeypatch.delenv('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED', raising=False)
+    records = prepare.module_records(REPO, '1.1-SNAPSHOT', '1.1.dev20261115000000')
+    defs_record = next(record for record in records if record['artifactId'] == artifact_id)
+    assert len(defs_record['javaGeneratedCompletionPatterns']) == 2
+
+
+def test_canonical_promotion_happens_after_java_sdo_before_publication(monkeypatch):
+    """New read contracts and mutable seeds must be replaced before javac sees both."""
+    if REPO.name != 'pub.tool.General':
+        pytest.skip('Canonical compiler seed belongs to pub.tool.General')
+    build = (BOOTSTRAP / 'build.sh').read_text(encoding='utf-8')
+    java_generated = build.index('"${locGradle[@]}" "${locGradleArgs[@]}" bootstrapSdoJava')
+    promotion = build.index('--phase after-sdo-java')
+    publication = build.index('"${locGradle[@]}" "${locGradleArgs[@]}" publishAllPublicationsToBootstrapRepository')
+    assert java_generated < promotion < publication
+
+    selfhosting = _load('modustro_post_sdo_source_refresh', 'selfhosting.py')
+    calls = []
+    monkeypatch.setattr(selfhosting.subprocess, 'run', lambda args, **kwargs: calls.append((args, kwargs)))
+    repo = REPO.resolve()
+    policy = selfhosting.policies(repo)
+    snapshot = next(entry for entry in policy['Snapshots'] if
+                    entry['ArtifactPath'] == 'generators/code/defscodegen/intf')
+    assert snapshot['AfterSdoJava'] == '--refresh'
+    assert snapshot.get('AfterBootstrap') is None
+
+    monkeypatch.delenv('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED', raising=False)
+    selfhosting.run_phase(repo, repo, 'after-sdo-java')
+    assert len(calls) == 1
+    assert Path(calls[0][0][1]).name == 'promote-canonical-extgen.py'
+    assert calls[0][0][2:] == ['--refresh']
+
+    calls.clear()
+    selfhosting.run_phase(repo, repo / 'generators/code/defscodegen/intf', 'after-sdo-java')
+    assert not calls, 'Partial root may not promote the whole compiler seed'
+
+    monkeypatch.setenv('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED', '1')
+    selfhosting.run_phase(repo, repo, 'after-sdo-java')
+    assert not calls, 'The first compiler pass may not overwrite the seed'

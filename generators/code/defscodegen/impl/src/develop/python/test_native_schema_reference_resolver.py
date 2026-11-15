@@ -181,13 +181,13 @@ def test_external_xsd_prefers_readonly_derived_contract_over_common_and_sdo(tmp_
         (java / (classname + '.java')).write_text(
             'package example.contracts;\n'
             '@AIaDataObject()\n'
-            f'@AIaXmlDataObject(definitionKind = AInXmlObjectDefinitionKind.TYPE, '
+            f'@AIaDataObjectXmlSchema(definitionKind = AInXmlObjectDefinitionKind.TYPE, '
             f'namespace = "{uri}", namespaceLocalName = "SharedType")\n'
             f'public interface {classname} extends {extends} {{}}\n', encoding='utf-8')
     (java / 'WritableJavaContract.java').write_text(
         'package example.contracts;\n'
         '@AIaDataObject()\n'
-        f'@AIaXmlDataObject(definitionKind = AInXmlObjectDefinitionKind.TYPE, '
+        f'@AIaDataObjectXmlSchema(definitionKind = AInXmlObjectDefinitionKind.TYPE, '
         f'namespace = "{uri}", namespaceLocalName = "SharedType")\n'
         'public interface WritableJavaContract extends example.contracts.XmlDerivedContract, '
         'example.contracts.AIiSmartDataObject {\n'
@@ -195,13 +195,13 @@ def test_external_xsd_prefers_readonly_derived_contract_over_common_and_sdo(tmp_
     (python / 'generic_contract.py').write_text(
         'class GenericContract(object):\n'
         '    __data_object__ = Metadata()\n'
-        f'    __xml_data_object__ = AIaXmlDataObject(definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace={uri!r}, namespace_local_name="SharedType")\n',
+        f'    __xml_schema__ = AIaDataObjectXmlSchema(definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace={uri!r}, namespace_local_name="SharedType")\n',
         encoding='utf-8')
     (python / 'xml_derived_contract.py').write_text(
         'from example.contracts.generic_contract import GenericContract\n'
         'class XmlDerivedContract(GenericContract):\n'
         '    __data_object__ = Metadata()\n'
-        f'    __xml_data_object__ = AIaXmlDataObject(definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace={uri!r}, namespace_local_name="SharedType")\n',
+        f'    __xml_schema__ = AIaDataObjectXmlSchema(definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace={uri!r}, namespace_local_name="SharedType")\n',
         encoding='utf-8')
     writable = python / 'impl/intf/mutable.py'
     writable.parent.mkdir(parents=True)
@@ -210,7 +210,7 @@ def test_external_xsd_prefers_readonly_derived_contract_over_common_and_sdo(tmp_
         'class WritableLayer(XmlDerivedContract):\n'
         '    """Generated mutable contract for XmlDerivedContract."""\n'
         f'    __data_object__ = Metadata(schema_id={uri!r}, schema_url="")\n'
-        '    __xml_data_object__ = AIaXmlDataObject(definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace_local_name="SharedType")\n'
+        '    __xml_schema__ = AIaDataObjectXmlSchema(definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace_local_name="SharedType")\n'
         '    def setField(self, value): ...\n', encoding='utf-8')
     assert _existing_contracts((tmp_path,))[key] == {
         'java': 'example.contracts.XmlDerivedContract',
@@ -231,7 +231,7 @@ def test_external_xsd_unrelated_same_identity_still_errors(tmp_path):
         (java / (classname + '.java')).write_text(
             'package example.contracts;\n'
             '@AIaDataObject()\n'
-            f'@AIaXmlDataObject(definitionKind = AInXmlObjectDefinitionKind.TYPE, '
+            f'@AIaDataObjectXmlSchema(definitionKind = AInXmlObjectDefinitionKind.TYPE, '
             f'namespace = "{uri}", namespaceLocalName = "SharedType")\n'
             f'public interface {classname} {{}}\n', encoding='utf-8')
     with pytest.raises(ValueError, match='unrelated candidates'):
@@ -256,13 +256,13 @@ def test_unreferenced_security_duplicate_does_not_block_xsd_contract_index(tmp_p
         (java / f'{name}.java').write_text(
             'package example.security;\n'
             '@AIaDataObject()\n'
-            f'@AIaXmlDataObject(definitionKind=K.TYPE, namespace="{security_url}", namespaceLocalName="ConfigurationNameType")\n'
+            f'@AIaDataObjectXmlSchema(definitionKind=K.TYPE, namespace="{security_url}", namespaceLocalName="ConfigurationNameType")\n'
             f'public interface {name} {{}}\n')
     parent_url = 'https://example.org/naming/common_1.xsd'
     (java / 'NamingParent.java').write_text(
         'package example.security;\n'
         '@AIaDataObject()\n'
-        f'@AIaXmlDataObject(definitionKind=K.TYPE, namespace="{parent_url}", namespaceLocalName="CommonNamingConventions")\n'
+        f'@AIaDataObjectXmlSchema(definitionKind=K.TYPE, namespace="{parent_url}", namespaceLocalName="CommonNamingConventions")\n'
         'public interface NamingParent {}\n')
     source = '''<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
         xmlns:common="https://example.org/naming/common_1.xsd"
@@ -318,10 +318,10 @@ def test_compiled_java_dependency_classes_indexed_without_sources(tmp_path):
             import java.lang.annotation.*;
             @Retention(RetentionPolicy.RUNTIME)
             public @interface AIaDataObject { }''',
-        'eu/algites/lib/data/dataobject/xmldefs/AIaXmlDataObject.java': '''package eu.algites.lib.data.dataobject.xmldefs;
+        'eu/algites/lib/data/dataobject/xmldefs/AIaDataObjectXmlSchema.java': '''package eu.algites.lib.data.dataobject.xmldefs;
             import java.lang.annotation.*;
             @Retention(RetentionPolicy.RUNTIME)
-            public @interface AIaXmlDataObject {
+            public @interface AIaDataObjectXmlSchema {
                 DefinitionKind definitionKind() default DefinitionKind.TYPE;
                 String namespace() default "";
                 String namespaceLocalName() default "";
@@ -333,13 +333,13 @@ def test_compiled_java_dependency_classes_indexed_without_sources(tmp_path):
             public interface Generic { }''',
         'example/contracts/XmlSpecific.java': '''package example.contracts;
             @eu.algites.lib.data.dataobject.AIaDataObject()
-            @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject(
+            @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(
                definitionKind=eu.algites.lib.data.dataobject.xmldefs.DefinitionKind.TYPE,
                namespace="urn:contracts", namespaceLocalName="SomeType")
             public interface XmlSpecific extends Generic { }''',
         'example/contracts/Writable.java': '''package example.contracts;
             @eu.algites.lib.data.dataobject.AIaDataObject()
-            @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject(
+            @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(
                namespace="urn:contracts", namespaceLocalName="SomeType")
             public interface Writable extends XmlSpecific {
                 void setField(Object value);
@@ -365,10 +365,10 @@ def test_wheel_module_index_without_python_gen_layout(tmp_path):
     module = root / 'eu/algites/lib/naming/convention/aiig_source_1.py'
     module.parent.mkdir(parents=True)
     module.write_text('''from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
-from eu.algites.lib.data.dataobject.jsondefs.aia_json_data_object import AIaJsonDataObject
+from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema
 class AIigSource_1(object):
     __data_object__ = AIcdDataObject()
-    __json_data_object__ = AIaJsonDataObject(schema_id="source", schema_url="https://example.org/source_1.jsondef.schema.json")
+    __json_schema__ = AIaDataObjectJsonSchema(schema_id="source", schema_url="https://example.org/source_1.jsondef.schema.json")
 ''')
     assert _existing_contracts((root,), frozenset({
         'https://example.org/source_1.jsondef.schema.json'})) == {
@@ -387,14 +387,14 @@ def test_duplicate_of_unreferenced_contract_does_not_block_index(tmp_path):
         directory.mkdir(parents=True)
         (directory / 'AIigFieldBindingType_1.java').write_text(
             'package example.contracts;\n@AIaDataObject()\n'
-            '@AIaXmlDataObject(definitionKind=K.TYPE, namespace="urn:unrelated", '
+            '@AIaDataObjectXmlSchema(definitionKind=K.TYPE, namespace="urn:unrelated", '
             'namespaceLocalName="FieldBindingType")\n'
             f'public interface AIigFieldBindingType_1 extends {parent} {{}}\n')
     needed_dir = tmp_path / 'needed/src/product/java.gen/example/contracts'
     needed_dir.mkdir(parents=True)
     (needed_dir / 'Parent.java').write_text(
         'package example.contracts;\n@AIaDataObject()\n'
-        '@AIaXmlDataObject(definitionKind=K.TYPE, namespace="urn:needed", '
+        '@AIaDataObjectXmlSchema(definitionKind=K.TYPE, namespace="urn:needed", '
         'namespaceLocalName="ParentType")\n'
         'public interface Parent {}\n')
     assert _existing_contracts((tmp_path,), frozenset()) == {}
@@ -420,9 +420,9 @@ def test_java_source_and_class_imports_resolve_to_same_contract(tmp_path):
         'annotations/AIaDataObject.java': '''package annotations;
           import java.lang.annotation.*;
           @Retention(RetentionPolicy.RUNTIME) public @interface AIaDataObject {}''',
-        'annotations/AIaXmlDataObject.java': '''package annotations;
+        'annotations/AIaDataObjectXmlSchema.java': '''package annotations;
           import java.lang.annotation.*;
-          @Retention(RetentionPolicy.RUNTIME) public @interface AIaXmlDataObject {
+          @Retention(RetentionPolicy.RUNTIME) public @interface AIaDataObjectXmlSchema {
             Kind definitionKind(); String namespace(); String namespaceLocalName(); }''',
         'annotations/Kind.java': 'package annotations; public enum Kind {TYPE, ELEMENT}',
         'example/base/AIiXmlDataObject.java': 'package example.base; public interface AIiXmlDataObject {}',
@@ -430,11 +430,11 @@ def test_java_source_and_class_imports_resolve_to_same_contract(tmp_path):
             'package example.contracts; public interface AIigFieldBindingType_1 {}',
         'example/contracts/AIigFieldBindingType_1.java': '''package example.contracts;
           import annotations.AIaDataObject;
-          import annotations.AIaXmlDataObject;
+          import annotations.AIaDataObjectXmlSchema;
           import annotations.Kind;
           import example.base.AIiXmlDataObject;
           @AIaDataObject()
-          @AIaXmlDataObject(definitionKind=Kind.TYPE, namespace="urn:fields",
+          @AIaDataObjectXmlSchema(definitionKind=Kind.TYPE, namespace="urn:fields",
             namespaceLocalName="FieldBindingType")
           public interface AIigFieldBindingType_1 extends
             AIigFieldBindingType_1, AIiXmlDataObject {}''',
@@ -469,12 +469,12 @@ def test_migrated_schema_metadata_indexed_without_generic_annotation(tmp_path):
         'public interface Common {}')
     (java / 'JsonSpecific.java').write_text(
         'package demo;\n'
-        '@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema('
+        '@eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema('
         'schemaId="common", schemaVersion=1, schemaUrl="' + url + '")\n'
         'public interface JsonSpecific extends Common {}')
     (java / 'XmlSpecific.java').write_text(
         'package demo;\n'
-        '@eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema('
+        '@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema('
         'definitionKind=Kind.TYPE, namespace="urn:algites:test", namespaceLocalName="Common")\n'
         'public interface XmlSpecific extends Common {}')
     (python / 'common.py').write_text(

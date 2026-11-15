@@ -143,14 +143,13 @@ def read_class_contracts(path: Path) -> tuple[tuple[str, str, frozenset[str]], .
     # One unified read-only interface can provide independent identities for
     # all three formats. Never select only XML because its annotation appears.
     identities: set[str] = set()
-    xml = attributes.get('AIaDataObjectXmlSchema') or attributes.get('AIaXmlDataObject')
+    xml = attributes.get('AIaDataObjectXmlSchema')
     if xml and xml.get('definitionKind', 'TYPE') == 'TYPE':
         local = xml.get('namespaceLocalName', '')
         if local:
             identities.add('{' + str(xml.get('namespace', '')) + '}' + str(local))
-    for names in (('AIaDataObjectJsonSchema', 'AIaJsonDataObject'),
-                  ('AIaYamlDataObject',)):
-        form = next((attributes[n] for n in names if n in attributes), None)
+    for name in ('AIaDataObjectJsonSchema', 'AIaDataObjectYamlSchema'):
+        form = attributes.get(name)
         if form and form.get('schemaId') and str(form.get('schemaUrl', '')).startswith('https://'):
             identities.add(str(form['schemaUrl']))
     return tuple((identity, this_class, parents) for identity in sorted(identities))

@@ -1,14 +1,14 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.impl.standard.model.*;
-import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalList;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalXmlWireName;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngXmlWireNameValueKind_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
+import eu.algites.tool.codegen.defs.model.AIngXmlWireNameValueKind_1;
+import eu.algites.tool.codegen.defs.model.AIngSourceInputKind_1;
 import java.util.List;
 import java.util.Map;
 import org.testng.Assert;
@@ -103,21 +103,21 @@ public final class AItcDefsCodegenCanonicalXmlWireNameTest {
     @Test
     public void AIcCanonicalXmlWireConflictsAreRejected() {
         var scalar = new eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalScalar(
-                eu.algites.tool.codegen.defs.bootstrap.model.AIngScalarKind_1.STRING, "");
+                eu.algites.tool.codegen.defs.model.AIngScalarKind_1.STRING, "");
         var left = new AIcDefsCanonicalElement("code", scalar, List.of(), Map.of(),
                 0, 1, "", new AIcDefsCanonicalXmlWireName("", "code", AIngXmlWireNameValueKind_1.ATTRIBUTE));
         var right = new AIcDefsCanonicalElement("code", scalar, List.of(), Map.of(),
                 0, 1, "", new AIcDefsCanonicalXmlWireName("urn:doc", "code", AIngXmlWireNameValueKind_1.ATTRIBUTE));
         var typeA = new eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType("urn:Doc", "Doc",
-                eu.algites.tool.codegen.defs.bootstrap.model.AIngTypeOrigin_1.DECLARED, List.of("Doc"), List.of(),
+                eu.algites.tool.codegen.defs.model.AIngTypeOrigin_1.DECLARED, List.of("Doc"), List.of(),
                 new AIcDefsCanonicalElementList(
-                        eu.algites.tool.codegen.defs.bootstrap.model.AIngComposition_1.SEQUENCE, List.of(left)),
-                eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1.RESOLVED, Map.of());
+                        eu.algites.tool.codegen.defs.model.AIngComposition_1.SEQUENCE, List.of(left)),
+                eu.algites.tool.codegen.defs.model.AIngResolutionState_1.RESOLVED, Map.of());
         var typeB = new eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType("urn:Doc", "Doc",
-                eu.algites.tool.codegen.defs.bootstrap.model.AIngTypeOrigin_1.DECLARED, List.of("Doc"), List.of(),
+                eu.algites.tool.codegen.defs.model.AIngTypeOrigin_1.DECLARED, List.of("Doc"), List.of(),
                 new AIcDefsCanonicalElementList(
-                        eu.algites.tool.codegen.defs.bootstrap.model.AIngComposition_1.SEQUENCE, List.of(right)),
-                eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1.RESOLVED, Map.of());
+                        eu.algites.tool.codegen.defs.model.AIngComposition_1.SEQUENCE, List.of(right)),
+                eu.algites.tool.codegen.defs.model.AIngResolutionState_1.RESOLVED, Map.of());
         boolean rejected = false;
         try {
             AIcDefsCodegenCanonicalModelMerger.merge(List.of(typeA, typeB));

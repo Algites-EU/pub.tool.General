@@ -74,7 +74,7 @@ def test_nested_local_indexes_survive_generation_and_deserialization(tmp_path):
     python_root = tmp_path / 'intf' / 'src' / 'product' / 'python.gen'
     java_root = tmp_path / 'intf' / 'src' / 'product' / 'java.gen' / package
     department_source = (java_root / 'AIigCompanyDepartment_1.java').read_text()
-    assert '@eu.algites.lib.data.dataobject.AIaKeyDefinition(name = "ById"' in department_source
+    assert '@eu.algites.lib.data.dataobject.AIaDataObjectListKeyDefinition(name = "ById"' in department_source
     assert 'fields = {"region", "Identity.Code"}' in department_source
     assert 'AIiMultiMappedList<AIigCompanyDepartmentEmployee_1>' in department_source
     sys.path.insert(0, str(python_root))

@@ -1,7 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.impl.standard.model.*;
-import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
@@ -11,10 +11,10 @@ import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalMap;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalScalar;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIiDefsCanonicalStructure;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngComposition_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngMapKind_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngScalarKind_1;
+import eu.algites.tool.codegen.defs.model.AIngComposition_1;
+import eu.algites.tool.codegen.defs.model.AIngMapKind_1;
+import eu.algites.tool.codegen.defs.model.AIngResolutionState_1;
+import eu.algites.tool.codegen.defs.model.AIngScalarKind_1;
 import java.util.Locale;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -1303,19 +1303,12 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
             if (commonProjection && representations.isEmpty()
                     || !type.sourceBindings().containsKey(kind)) continue;
             var sourceType = representation(kind, type);
-            String technology = kind == AIngSourceInputKind_1.JSONDEFS ? "jsondefs.AIaJsonDataObject"
-                    : "yamldefs.AIaYamlDataObject";
+            String technology = kind == AIngSourceInputKind_1.JSONDEFS
+                    ? "jsondefs.AIaDataObjectJsonSchema" : "yamldefs.AIaDataObjectYamlSchema";
             result.append("@eu.algites.lib.data.dataobject.").append(technology)
                     .append("(schemaId = ").append(javaString(sourceType.identity()))
                     .append(", schemaVersion = ").append(schemaVersion);
             String schemaUrl = publishedSchemaUrl(sourceType, kind);
-            if (!schemaUrl.isEmpty()) result.append(", schemaUrl = ").append(javaString(schemaUrl));
-            result.append(")\n");
-            if (kind == AIngSourceInputKind_1.YAMLDEFS
-                    && type.sourceBindings().containsKey(AIngSourceInputKind_1.JSONDEFS)) continue;
-            result.append("@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema(")
-                    .append("schemaId = ").append(javaString(sourceType.identity()))
-                    .append(", schemaVersion = ").append(schemaVersion);
             if (!schemaUrl.isEmpty()) result.append(", schemaUrl = ").append(javaString(schemaUrl));
             result.append(")\n");
         }
@@ -1324,12 +1317,7 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
             var match = Pattern.compile("^\\{([^}]*)\\}([^/]+)$")
                     .matcher(representation(AIngSourceInputKind_1.XMLDEFS, type).identity());
             if (match.matches()) {
-                result.append("@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject(")
-                        .append("definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE")
-                        .append(", namespace = ").append(javaString(match.group(1)))
-                        .append(", namespaceLocalName = ").append(javaString(match.group(2)))
-                        .append(")\n");
-                result.append("@eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema(")
+                result.append("@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(")
                         .append("definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE")
                         .append(", namespace = ").append(javaString(match.group(1)))
                         .append(", namespaceLocalName = ").append(javaString(match.group(2)))
@@ -1359,15 +1347,10 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                 result.append((outputNames.containsKey(parent) ? outputNames.get(parent)
                         : externalParents.get(parent)).javaType()).append(", ");
             }
-            if (type.sourceBindings().containsKey(AIngSourceInputKind_1.XMLDEFS)) {
-                result.append("eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject");
-            } else if (type.sourceBindings().containsKey(AIngSourceInputKind_1.JSONDEFS)) {
-                result.append("eu.algites.lib.data.dataobject.jsondefs.AIiJsonDataObject");
-            } else if (type.sourceBindings().containsKey(AIngSourceInputKind_1.YAMLDEFS)) {
-                result.append("eu.algites.lib.data.dataobject.yamldefs.AIiYamlDataObject");
-            } else {
+            if (commonOutputNames.isEmpty() && type.inheritedFromTypes().isEmpty())
                 result.append("eu.algites.lib.data.dataobject.AIiDataObject");
-            }
+            else if (result.toString().endsWith(", "))
+                result.setLength(result.length() - 2);
         }
         result.append(" {\n");
         Map<String, String> constValues = keyConstants(type, types);
@@ -1410,13 +1393,7 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                                     ? element.xmlWire() : ((AIcDefsCanonicalList) child).xmlWire()).orElse(null)
                     : null;
             if (xmlWire != null && (!commonProjection || !representations.isEmpty())) {
-                result.append("    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField(namespace = ")
-                        .append(javaString(xmlWire.namespaceUri()))
-                        .append(", namespaceLocalName = ").append(javaString(xmlWire.localName()))
-                        .append(", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.")
-                        .append(xmlWire.valueKind().name())
-                        .append(")\n");
-                result.append("    @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(namespace = ")
+                result.append("    @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema(namespace = ")
                         .append(javaString(xmlWire.namespaceUri()))
                         .append(", namespaceLocalName = ").append(javaString(xmlWire.localName()))
                         .append(", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.")
@@ -1455,7 +1432,7 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
             var list = directList(type, field.sourceName());
             if (list != null) {
                 for (var key : indexKeys(list, types)) {
-                    result.append("    @eu.algites.lib.data.dataobject.AIaKeyDefinition(name = ")
+                    result.append("    @eu.algites.lib.data.dataobject.AIaDataObjectListKeyDefinition(name = ")
                             .append(constContainer).append('.').append(keyConstant(list.name(), key.name()))
                             .append(", fields = {");
                     String separator = "";
@@ -1469,7 +1446,7 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
             if (metadata != null && !metadata.keyDefinitions().isEmpty()) {
                 for (var scoped : scopedIndexKeys(metadata, types)) {
                     var key = scoped.index();
-                    result.append("    @eu.algites.lib.data.dataobject.AIaKeyDefinition(name = ")
+                    result.append("    @eu.algites.lib.data.dataobject.AIaDataObjectListKeyDefinition(name = ")
                             .append(constContainer).append('.').append(keyConstant(metadata.name(), key.name()))
                             .append(", selector = ").append(javaString(scoped.selector())).append(", fields = {");
                     String separator = "";
@@ -1650,13 +1627,6 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
             result.append("from .").append(common.pythonModule()).append(" import ")
                     .append(common.pythonType()).append("\n");
         }
-        if (!commonProjection && type.sourceBindings().containsKey(AIngSourceInputKind_1.XMLDEFS)) {
-            result.append("from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject\n");
-        } else if (!commonProjection && type.sourceBindings().containsKey(AIngSourceInputKind_1.JSONDEFS)) {
-            result.append("from eu.algites.lib.data.dataobject.jsondefs.aii_json_data_object import AIiJsonDataObject\n");
-        } else if (!commonProjection && type.sourceBindings().containsKey(AIngSourceInputKind_1.YAMLDEFS)) {
-            result.append("from eu.algites.lib.data.dataobject.yamldefs.aii_yaml_data_object import AIiYamlDataObject\n");
-        }
         boolean hasIndexedList = fields.stream().anyMatch(field -> {
             var list = directList(type, field.sourceName());
             return list != null && !list.keyDefinitions().isEmpty();
@@ -1679,18 +1649,11 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
             String prefix = kind == AIngSourceInputKind_1.JSONDEFS ? "json" : "yaml";
             String typeName = kind == AIngSourceInputKind_1.JSONDEFS ? "Json" : "Yaml";
             result.append("from eu.algites.lib.data.dataobject.").append(prefix)
-                    .append("defs.aia_").append(prefix).append("_data_object import AIa")
-                    .append(typeName).append("DataObject\n");
-        }
-        if (!commonProjection && (type.sourceBindings().containsKey(AIngSourceInputKind_1.JSONDEFS)
-                || type.sourceBindings().containsKey(AIngSourceInputKind_1.YAMLDEFS))) {
-            result.append("from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema "
-                    + "import AIaDataObjectJsonSchema\n");
+                    .append("defs.aia_data_object_").append(prefix).append("_schema import AIaDataObject")
+                    .append(typeName).append("Schema\n");
         }
         if (hasXmlWires && !commonProjection) {
-            result.append("from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field "
-                    + "import AIaXmlDataObjectField\n")
-                    .append("from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema "
+            result.append("from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema "
                     + "import AIaDataObjectFieldXmlSchema\n")
                     .append("from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind "
                     + "import AInXmlValueKind\n");
@@ -1728,16 +1691,6 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                     : externalParents.get(parent)).pythonType());
             separator = ", ";
         }
-        if (!commonProjection && type.sourceBindings().containsKey(AIngSourceInputKind_1.XMLDEFS)) {
-            result.append(separator).append("AIiXmlDataObject");
-            separator = ", ";
-        } else if (!commonProjection && type.sourceBindings().containsKey(AIngSourceInputKind_1.JSONDEFS)) {
-            result.append(separator).append("AIiJsonDataObject");
-            separator = ", ";
-        } else if (!commonProjection && type.sourceBindings().containsKey(AIngSourceInputKind_1.YAMLDEFS)) {
-            result.append(separator).append("AIiYamlDataObject");
-            separator = ", ";
-        }
         if (separator.isEmpty()) result.append("AIiDataObject, ABC");
         result.append("):\n    \"\"\"").append(pyDoc(type.description().isEmpty() ? "Contract for " + type.name() : type.description()))
                 .append("\"\"\"\n\n");
@@ -1753,15 +1706,11 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                 AIngSourceInputKind_1.YAMLDEFS)) {
             if (commonProjection || !type.sourceBindings().containsKey(kind)) continue;
             String prefix = kind == AIngSourceInputKind_1.JSONDEFS ? "json" : "yaml";
-            result.append("    __").append(prefix).append("_data_object__ = AIa")
+            result.append("    __").append(prefix).append("_schema__ = AIaDataObject")
                     .append(kind == AIngSourceInputKind_1.JSONDEFS ? "Json" : "Yaml")
-                    .append("DataObject(schema_id=").append(pyString(type.identity()))
+                    .append("Schema(schema_id=").append(pyString(type.identity()))
                     .append(", schema_version=").append(schemaVersion);
             String schemaUrl = publishedSchemaUrl(type, kind);
-            if (!schemaUrl.isEmpty()) result.append(", schema_url=").append(pyString(schemaUrl));
-            result.append(")\n");
-            result.append("    __json_schema__ = AIaDataObjectJsonSchema(schema_id=")
-                    .append(pyString(type.identity())).append(", schema_version=").append(schemaVersion);
             if (!schemaUrl.isEmpty()) result.append(", schema_url=").append(pyString(schemaUrl));
             result.append(")\n");
         }
@@ -1772,16 +1721,10 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                     .matcher(representation(AIngSourceInputKind_1.XMLDEFS, type).identity());
             if (match.matches()) {
                 result.insert("from __future__ import annotations\n\n".length(),
-                        "from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object "
-                        + "import AIaXmlDataObject\n"
-                        + "from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_xml_schema "
+                        "from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema "
                         + "import AIaDataObjectXmlSchema\n"
                         + "from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind "
                         + "import AInXmlObjectDefinitionKind\n");
-                result.append("    __xml_data_object__ = AIaXmlDataObject(")
-                        .append("definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace=")
-                        .append(pyString(match.group(1))).append(", namespace_local_name=")
-                        .append(pyString(match.group(2))).append(")\n\n");
                 result.append("    __xml_schema__ = AIaDataObjectXmlSchema(")
                         .append("definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace=")
                         .append(pyString(match.group(1))).append(", namespace_local_name=")
@@ -1789,25 +1732,6 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
             }
         }
         if (hasXmlWires && !commonProjection && type.structure() instanceof AIcDefsCanonicalElementList group) {
-            result.append("    __xml_data_object_fields__ = {\n");
-            for (int position = 0; position < group.children().size(); position++) {
-                var child = group.children().get(position);
-                var wire = child instanceof AIcDefsCanonicalElement element ? element.xmlWire()
-                        : child instanceof AIcDefsCanonicalList collection ? collection.xmlWire() : null;
-                if (wire == null) continue;
-                var fieldName = child instanceof AIcDefsCanonicalElement element ? element.name()
-                        : ((AIcDefsCanonicalList) child).name();
-                int minimum = child instanceof AIcDefsCanonicalElement element ? element.minItemCount()
-                        : ((AIcDefsCanonicalList) child).minItemCount();
-                int maximum = child instanceof AIcDefsCanonicalElement element ? element.maxItemCount()
-                        : ((AIcDefsCanonicalList) child).maxItemCount();
-                result.append("        ").append(pyString(fieldName))
-                        .append(": AIaXmlDataObjectField(namespace=").append(pyString(wire.namespaceUri()))
-                        .append(", namespace_local_name=").append(pyString(wire.localName()))
-                        .append(", value_kind=AInXmlValueKind.").append(wire.valueKind().name())
-                        .append("),\n");
-            }
-            result.append("    }\n\n");
             result.append("    __xml_schema_fields__ = {\n");
             for (var child : group.children()) {
                 var wire = child instanceof AIcDefsCanonicalElement element ? element.xmlWire()

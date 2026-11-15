@@ -37,7 +37,7 @@ def test_candidates_require_an_interface_declaration_not_mentions_in_code_templa
     assert not pattern.search(renderer)
     assert pattern.search('public interface Foo extends AIiDataObject {}')
     assert pattern.search('interface Another extends eu.algites.lib.data.dataobject.AIiDataObject {}')
-    assert pattern.search('public interface AIigFoo extends AIiJsonDataObject {}')
+    assert pattern.search('public interface AIigFoo extends AIiDataObject {}')
 
 
 def test_real_defscodegen_implementation_is_not_a_false_sdo_candidate():

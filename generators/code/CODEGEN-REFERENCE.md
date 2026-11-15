@@ -363,7 +363,7 @@ contracts derived only from eligible annotated read-only DataObjects.
 
 The shared field annotation uses `dataFieldName`, `presence` (REQUIRED,
 ALLOWED, FORBIDDEN), and `allowsNull`. XML QName metadata belongs to
-`AIaXmlDataObject` and `AIaXmlDataObjectField`, not the shared field annotation.
+`AIaDataObjectXmlSchema` and `AIaDataObjectFieldXmlSchema`, not the shared field annotation.
 Java SDO contracts provide the direct inherited getter contract for reflection. For `allOf`,
 compatible field presence/nullability restrictions on derived contracts are
 kept; incompatible relaxations fail.

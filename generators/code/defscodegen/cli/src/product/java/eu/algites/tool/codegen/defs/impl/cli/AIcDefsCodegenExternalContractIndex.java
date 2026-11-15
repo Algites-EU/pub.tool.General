@@ -36,8 +36,8 @@ public final class AIcDefsCodegenExternalContractIndex {
     /** Recognize format-schema annotations, including deprecated equivalents.
      * Generic AIaDataObject is declared on the common interface instead. */
     private static final Pattern JAVA_ANNOTATION = Pattern.compile(
-            "@(?:[\\w.]+\\.)?(?:AIaDataObjectJsonSchema|AIaDataObjectXmlSchema|"
-            + "AIaJsonDataObject|AIaYamlDataObject|AIaXmlDataObject)\\s*\\(");
+            "@(?:[\\w.]+\\.)?(?:AIaDataObjectJsonSchema|AIaDataObjectYamlSchema|"
+            + "AIaDataObjectXmlSchema)\\s*\\(");
     /** Extract XML TYPE metadata from the Java interface annotation. */
     private static final Pattern JAVA_XML_TYPE = Pattern.compile("\\bdefinitionKind\\s*=\\s*[\\w.]+\\.TYPE\\b");
     /** Extract Python metadata-bearing classes, not module-level helper functions. */
@@ -234,9 +234,7 @@ public final class AIcDefsCodegenExternalContractIndex {
             Matcher declaration = PY_CLASS.matcher(block);
             if (!declaration.find() ||
                     !(block.contains("__json_schema__") || block.contains("__xml_schema__")
-                      || block.contains("__json_data_object__")
-                      || block.contains("__yaml_data_object__")
-                      || block.contains("__xml_data_object__")) ||
+                      || block.contains("__yaml_schema__")) ||
                     PY_MUTATION.matcher(block).find() || block.contains("AIiSmartDataObject")) continue;
             Set<String> identities = schemaIdentities(block, false);
             if (identities.isEmpty()) continue;
@@ -256,7 +254,7 @@ public final class AIcDefsCodegenExternalContractIndex {
     /**
      * Collect independent format-specific schema identities from one unified
      * read-only declaration. No equality is required between XML, JSON and YAML
-     * IDs or versions. Transitional annotations for one format are deduplicated.
+     * IDs or versions. Each source format retains independent metadata.
      *
      * @param source one Java compilation unit or Python class source block
      * @param java true for Java annotation syntax, false for Python metadata
@@ -265,19 +263,14 @@ public final class AIcDefsCodegenExternalContractIndex {
     private static Set<String> schemaIdentities(String source, boolean java) {
         Map<String, String> attributes = new LinkedHashMap<>();
         Pattern annotation = java
-                ? Pattern.compile("@(?:[\\w.]+\\.)?(AIaDataObjectJsonSchema|AIaDataObjectXmlSchema|"
-                        + "AIaJsonDataObject|AIaYamlDataObject|AIaXmlDataObject)\\s*\\(([^)]*)\\)")
-                : Pattern.compile("__(xml_schema|json_schema|xml_data_object|json_data_object|"
-                        + "yaml_data_object)__\\s*=\\s*AIa\\w+\\s*\\(([^)]*)\\)");
+                ? Pattern.compile("@(?:[\\w.]+\\.)?(AIaDataObjectJsonSchema|AIaDataObjectYamlSchema|"
+                        + "AIaDataObjectXmlSchema)\\s*\\(([^)]*)\\)")
+                : Pattern.compile("__(xml_schema|json_schema|yaml_schema)__\\s*=\\s*AIa\\w+\\s*\\(([^)]*)\\)");
         Matcher matches = annotation.matcher(source);
         while (matches.find()) attributes.put(matches.group(1), matches.group(2));
-        String xml = java ? attributes.getOrDefault("AIaDataObjectXmlSchema",
-                attributes.get("AIaXmlDataObject")) : attributes.getOrDefault("xml_schema",
-                attributes.get("xml_data_object"));
-        String json = java ? attributes.getOrDefault("AIaDataObjectJsonSchema",
-                attributes.get("AIaJsonDataObject")) : attributes.getOrDefault("json_schema",
-                attributes.get("json_data_object"));
-        String yaml = java ? attributes.get("AIaYamlDataObject") : attributes.get("yaml_data_object");
+        String xml = java ? attributes.get("AIaDataObjectXmlSchema") : attributes.get("xml_schema");
+        String json = java ? attributes.get("AIaDataObjectJsonSchema") : attributes.get("json_schema");
+        String yaml = java ? attributes.get("AIaDataObjectYamlSchema") : attributes.get("yaml_schema");
         Set<String> result = new HashSet<>();
         if (xml != null && (java ? JAVA_XML_TYPE : Pattern.compile(
                 "\\bdefinition_kind\\s*=\\s*[\\w.]+\\.TYPE\\b")).matcher(xml).find()) {

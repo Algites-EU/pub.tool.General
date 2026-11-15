@@ -35,7 +35,7 @@ def test_java_sdo_requires_neutral_annotation_before_source_dispatch():
     service = (ROOT / 'generators/code/sdocodegen/impl/src/product/java/'
                'eu/algites/tool/codegen/sdo/impl/standard/AIcSdoCodegenService.java')
     assert 'isSdoInput(locClass)' in service.read_text()
-    assert 'commonDataObjectMetadata(aClass) != null' in service.read_text()
+    assert 'commonDataObjectMetadata(aClass) == null' in service.read_text()
 
 
 def test_python_logger_reports_begin_end_and_duration(tmp_path, capsys):

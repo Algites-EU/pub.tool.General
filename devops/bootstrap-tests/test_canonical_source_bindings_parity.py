@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT.parent / 'pub.lib.General'
 READ = ROOT / 'generators/code/defscodegen/intf/src/product'
 SDO = ROOT / 'generators/code/defscodegen/impl/src/product'
-PKG = 'eu/algites/tool/codegen/defs/bootstrap/model'
+PKG = 'eu/algites/tool/codegen/defs/model'
 
 
 

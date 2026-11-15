@@ -59,7 +59,7 @@ def test_unified_schema_identities_resolve_without_format_children():
 def test_unrelated_live_contracts_remain_ambiguous(tmp_path):
     """Do not hide genuine conflicts between independent current source trees."""
     package = 'eu/algites/example'
-    contract = ('@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema('
+    contract = ('@eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema('
                 'schemaId = "urn:foo", schemaVersion = 7, '
                 'schemaUrl = "https://defs.dev.algites.eu/api/jsondefs/ambiguous_1.jsondef.schema.json")\n')
     for name in ('A', 'B'):
@@ -119,7 +119,7 @@ import java.lang.annotation.RetentionPolicy;
     String schemaId(); int schemaVersion(); String schemaUrl();
 }
 @Retention(RetentionPolicy.RUNTIME)
-@interface AIaYamlDataObject {
+@interface AIaDataObjectYamlSchema {
     String schemaId(); int schemaVersion(); String schemaUrl();
 }
 enum Kind { TYPE, ELEMENT }
@@ -129,7 +129,7 @@ enum Kind { TYPE, ELEMENT }
 }
 @AIaDataObjectJsonSchema(schemaId="urn:json:id", schemaVersion=2,
     schemaUrl="https://defs.dev.algites.eu/api/jsondefs/sample_2.jsondef.schema.json")
-@AIaYamlDataObject(schemaId="urn:yaml:id", schemaVersion=18,
+@AIaDataObjectYamlSchema(schemaId="urn:yaml:id", schemaVersion=18,
     schemaUrl="https://defs.dev.algites.eu/api/yamldefs/sample_18.yamldef.schema.json")
 @AIaDataObjectXmlSchema(definitionKind=Kind.TYPE, namespace="urn:xml:other", namespaceLocalName="Sample")
 interface Sample { String getName(); }

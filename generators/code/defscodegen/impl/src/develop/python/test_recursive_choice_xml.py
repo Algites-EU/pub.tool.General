@@ -88,7 +88,7 @@ def test_global_xml_elements_generate_nominal_substitution_types(tmp_path, monke
     child = (java / 'AIig_xeCryptoPayment_1.java').read_text()
     assert 'AIig_xePayment_1' in child
     assert 'AIaOpenChoiceTypeOf' not in child
-    assert 'AIaXmlDataObject' in child
+    assert 'AIaDataObjectXmlSchema' in child
     assert 'namespaceLocalName = "cryptoPayment"' in child
     assert (python / 'aiig__xe_crypto_payment_1.py').exists()
     scalar = (java / 'AIig_xePaymentReference_1.java').read_text()

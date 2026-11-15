@@ -27,90 +27,14 @@ def _script(name: str):
     return module
 
 
-def _fake_generated_model(tmp_path, monkeypatch):
-    """Build the four owned outputs without mutating the actual repository."""
+def test_canonical_promotion_only_verifies_preexisting_sources():
+    """The seed check never reads a manifest or modifies generated output."""
     module = _script('promote-canonical-extgen.py')
-    outputs = []
-    for language, owner in (('java', 'intf'), ('python', 'intf'),
-                            ('java', 'impl'), ('python', 'impl')):
-        branch = tmp_path / 'generators/code/defscodegen' / owner / 'src/product'
-        # Defs and SDO both write to the Defs input artifact's *.gen root.
-        generated = tmp_path / 'generators/code/defscodegen/intf/src/product' / (language + '.gen')
-        seed = branch / (language + '.extgen')
-        file = ('model.java' if language == 'java' else 'model.py')
-        relative = Path('impl') / file if owner == 'impl' else Path(file)
-        source = generated / module.OLD_PATH / relative
-        source.parent.mkdir(parents=True)
-        source.write_text(f'{owner}-{language} current\n', encoding='utf-8')
-        old = seed / module.NEW_PATH / ('impl' if owner == 'impl' else '')
-        old.mkdir(parents=True)
-        (old / file).write_text(f'{owner}-{language} previous\n', encoding='utf-8')
-        (old / ('obsolete.' + ('java' if language == 'java' else 'py'))).write_text('old\n')
-        outputs.append((language, generated, seed))
-    schema = tmp_path / 'canonical-model.json'
-    schema.write_text('{}', encoding='utf-8')
-    monkeypatch.setattr(module, 'ROOT', tmp_path)
-    monkeypatch.setattr(module, 'SCHEMA', schema)
-    monkeypatch.setattr(module, 'OUTPUTS', tuple(outputs))
-    monkeypatch.setattr(module, 'NORMALIZE', lambda source, lang: source)
-    monkeypatch.setattr(module, 'relocate', lambda source, lang: source)
-    monkeypatch.setattr(module, 'validate_read_roles', lambda files, content=None: None)
-    monkeypatch.setattr(module, 'validate_sdo_roles', lambda files, content=None: None)
-    monkeypatch.setattr(module, 'ensure_symmetry', lambda files, content=None: {
-        'java': (1, 1), 'python': (1, 1)
-    })
-    return module, outputs
-
-
-def test_prune_seed_checks_actual_seed_without_manifests(tmp_path, monkeypatch):
-    module, outputs = _fake_generated_model(tmp_path, monkeypatch)
-    module.prune_seed()
-    for language, _, seed in outputs:
-        target = seed / module.NEW_PATH / ('impl' if '/impl/' in seed.as_posix() else '')
-        assert (target / ('model.java' if language == 'java' else 'model.py')).is_file()
-        assert list(target.glob('obsolete.*')), 'Prune must not guess stale paths before fresh generation'
-    assert not list(tmp_path.rglob('*bootstrap-extgen.json'))
-
-
-def test_full_refresh_replaces_all_four_sides_from_fresh_gen(tmp_path, monkeypatch):
-    module, outputs = _fake_generated_model(tmp_path, monkeypatch)
-    module.refresh()
-    for language, _, seed in outputs:
-        destination = seed / module.NEW_PATH
-        current = destination / ('impl' if '/impl/' in seed.as_posix() else '') / ('model.java' if language == 'java' else 'model.py')
-        assert current.read_text() == ('intf' if '/intf/' in current.as_posix() else 'impl') + '-' + language + ' current\n'
-        assert not list(destination.glob('obsolete.*'))
-    module.refresh()
-    assert not list(tmp_path.rglob('*bootstrap-extgen.json'))
+    checksums = module.collect_existing()
+    assert checksums
     module.check()
-
-
-def test_refresh_rolls_back_all_four_trees_on_mid_commit_failure(tmp_path, monkeypatch):
-    module, outputs = _fake_generated_model(tmp_path, monkeypatch)
-    originals = {
-        seed: {(file.relative_to(seed).as_posix(), file.read_bytes())
-               for file in seed.rglob('*') if file.is_file()}
-        for _, _, seed in outputs
-    }
-    real_replace = module.os.replace
-    counter = {'stage': 0}
-
-    def fail_during_second_tree(source, destination):
-        if '.stage-' in Path(source).name and Path(destination) in originals:
-            counter['stage'] += 1
-            if counter['stage'] == 2:
-                raise OSError('simulated failure before second tree publication')
-        return real_replace(source, destination)
-
-    monkeypatch.setattr(module.os, 'replace', fail_during_second_tree)
-    with pytest.raises(OSError, match='simulated failure'):
-        module.refresh()
-    assert not list(tmp_path.rglob('*bootstrap-extgen.json'))
-    for _, _, seed in outputs:
-        assert {(file.relative_to(seed).as_posix(), file.read_bytes())
-                for file in seed.rglob('*') if file.is_file()} == originals[seed]
-        assert not list(seed.parent.glob('*.stage-*'))
-        assert not list(seed.parent.glob('*.backup-*'))
+    assert module.collect_existing() == checksums
+    assert not list(ROOT.rglob('canonical-bootstrap-extgen.json'))
 
 
 def test_run_ids_do_not_reuse_publisher_index(tmp_path, monkeypatch):

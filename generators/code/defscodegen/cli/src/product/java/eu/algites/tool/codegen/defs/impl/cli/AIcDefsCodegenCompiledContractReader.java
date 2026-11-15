@@ -155,21 +155,14 @@ public final class AIcDefsCodegenCompiledContractReader {
         }
         Set<String> identities = new LinkedHashSet<>();
         Map<String, Object> xml = annotations.get("AIaDataObjectXmlSchema");
-        if (xml == null) xml = annotations.get("AIaXmlDataObject");
         if (xml != null && "TYPE".equals(xml.getOrDefault("definitionKind", "TYPE"))) {
             String local = String.valueOf(xml.getOrDefault("namespaceLocalName", ""));
             if (!local.isBlank()) {
                 identities.add("{" + xml.getOrDefault("namespace", "") + "}" + local);
             }
         }
-        for (String[] names : new String[][] {
-                {"AIaDataObjectJsonSchema", "AIaJsonDataObject"},
-                {"AIaYamlDataObject"}}) {
-            Map<String, Object> format = null;
-            for (String name : names) if (annotations.containsKey(name)) {
-                format = annotations.get(name);
-                break;
-            }
+        for (String name : new String[] {"AIaDataObjectJsonSchema", "AIaDataObjectYamlSchema"}) {
+            Map<String, Object> format = annotations.get(name);
             if (format == null || String.valueOf(format.getOrDefault("schemaId", "")).isBlank()) {
                 continue;
             }

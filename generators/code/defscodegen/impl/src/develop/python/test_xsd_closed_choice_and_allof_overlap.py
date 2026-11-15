@@ -70,19 +70,19 @@ def test_xml_closed_choice_generates_namespace_contracts_per_language(tmp_path, 
     main = (java / 'AIigPayment_1.java').read_text()
     assert 'sealed interface AIigPayment_1 extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject, example.choice.AIig_xnXmlDataObjectUrnChoiceRegression permits' in main
     assert 'namespaceLocalName = "PaymentChoice"' in main
-    assert 'AIaXmlDataObjectField' in (java / 'AIigPaymentCash_1.java').read_text()
+    assert 'AIaDataObjectFieldXmlSchema' in (java / 'AIigPaymentCash_1.java').read_text()
     element_contract = (java / 'AIig_xePayment_1.java').read_text()
     assert 'AIigPayment_1 getPayment()' in element_contract
     assert 'extends eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObject' in element_contract
-    assert 'localName = ' not in element_contract.split('@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField')[0]
+    assert 'localName = ' not in element_contract.split('@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema')[0]
     monkeypatch.syspath_prepend(str(tmp_path / 'intf/src/product/python.gen'))
     contract = importlib.import_module('example.choice.aiig_payment_1')
-    assert contract.AIigPayment_1.__xml_data_object__.namespace_local_name == 'PaymentChoice'
+    assert contract.AIigPayment_1.__xml_schema__.namespace_local_name == 'PaymentChoice'
     branch = importlib.import_module('example.choice.aiig_payment_cash_1')
-    assert branch.AIigPaymentCash_1.__xml_data_object_fields__['cash'].namespace == 'urn:choice:regression'
+    assert branch.AIigPaymentCash_1.__xml_schema_fields__['cash'].namespace == 'urn:choice:regression'
     importlib.import_module('example.choice.aiig_payment_selected_wire_1')
     element = importlib.import_module('example.choice.aiig__xe_payment_1')
-    assert element.AIig_xePayment_1.__xml_data_object__.namespace_local_name == 'payment'
+    assert element.AIig_xePayment_1.__xml_schema__.namespace_local_name == 'payment'
 
 
 def test_common_xml_choice_is_importable_and_matches_java_contract(tmp_path):

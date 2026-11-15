@@ -10,7 +10,7 @@ MODEL = ROOT / 'generators/code/defscodegen'
 JAVA_IMPL = MODEL / 'impl/src/product/java/eu/algites/tool/codegen/defs/impl/standard/model'
 READ = MODEL / 'intf/src/product'
 MUTABLE = MODEL / 'impl/src/product'
-PKG = 'eu/algites/tool/codegen/defs/bootstrap/model'
+PKG = 'eu/algites/tool/codegen/defs/model'
 
 
 def test_handwritten_canonical_classes_belong_to_defs_not_sdo():
@@ -27,7 +27,7 @@ def test_one_writable_family_extends_one_read_only_family():
     java_write = MUTABLE / 'java.extgen' / PKG / 'impl/intf/AIigdElement_1.java'
     py_write = MUTABLE / 'python.extgen' / PKG / 'impl/intf/aiigd_element_1.py'
     assert all(p.is_file() for p in (java_read, py_read, java_write, py_write))
-    assert 'extends eu.algites.tool.codegen.defs.bootstrap.model.AIigElement_1' in java_write.read_text()
+    assert 'extends eu.algites.tool.codegen.defs.model.AIigElement_1' in java_write.read_text()
     assert 'AIigElement_1' in py_write.read_text()
     assert not any('AIiJsonSmartDataObject' in p.read_text()
                    for p in (java_read, java_write))

@@ -32,7 +32,7 @@ class AItcConfiguredSdoGenerator:
         else:
             catalog = configured[-1]
         if issubclass(read_contract, AIiXmlDataObject):
-            kind = getattr(getattr(read_contract, '__xml_data_object__', None), 'definition_kind', None)
+            kind = getattr(getattr(read_contract, '__xml_schema__', None), 'definition_kind', None)
             role = 'xmldefs_element' if kind is AInXmlObjectDefinitionKind.ELEMENT else 'xmldefs_type'
         elif issubclass(read_contract, AIiJsonDataObject):
             role = 'jsondefs'

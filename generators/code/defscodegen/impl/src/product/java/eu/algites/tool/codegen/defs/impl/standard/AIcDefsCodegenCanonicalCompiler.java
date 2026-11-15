@@ -1,7 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.impl.standard.model.*;
-import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalEnum;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
@@ -137,7 +137,7 @@ public final class AIcDefsCodegenCanonicalCompiler {
         // document and provide it only for root annotations.
         Map<String, String> publishedSchemaUrls = new LinkedHashMap<>();
         for (var source : documents) {
-            if (source.kind() == eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1.XMLDEFS
+            if (source.kind() == eu.algites.tool.codegen.defs.model.AIngSourceInputKind_1.XMLDEFS
                     || !(source.content() instanceof Map<?, ?> parsed)) continue;
             Object declared = parsed.get("$id");
             if (!(declared instanceof String url) || !url.startsWith("https://") || url.contains("#"))

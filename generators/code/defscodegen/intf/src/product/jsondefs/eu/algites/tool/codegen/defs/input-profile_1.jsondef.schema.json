@@ -1,10 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/input-profile_1.jsondef.schema.json",
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "SourceKind": {
+  "description": "Defines how defs-codegen interprets one supported source-definition family.",
+  "x-algites-schema-id": "eu.algites.tool.codegen.defs.input-profile",
+  "x-algites-schema-version": 1,
+  "title": "Input profile",
+  "x-jsondefs-id": "eu.algites.tool.codegen.defs.input-profile",
+  "x-jsondefs-version": 1,
+  "$defs": {
+    "SourceKindType": {
       "type": "string",
       "enum": [
         "yamldefs",
@@ -12,7 +16,7 @@
         "xmldefs"
       ],
       "description": "Selects the source-definition family handled by the frontend.",
-      "title": "Source kind",
+      "title": "SourceKindType",
       "oneOf": [
         {
           "const": "yamldefs",
@@ -30,6 +34,42 @@
           "description": "Selects the xmldefs option in the corresponding enumeration."
         }
       ]
+    },
+    "InputProfileType": {
+      "type": "object",
+      "title": "InputProfileType",
+      "description": "Defines how defs-codegen interprets one supported source-definition family.",
+      "additionalProperties": false,
+      "properties": {
+        "SourceKind": {
+          "$ref": "#/$defs/SourceKindType"
+        },
+        "NamingProfile": {
+          "type": "string",
+          "description": "Names the naming profile applied while interpreting and generating identifiers.",
+          "title": "Naming profile"
+        },
+        "RequireCanonicalIdentity": {
+          "type": "boolean",
+          "description": "Requires every loaded definition to expose a canonical identity.",
+          "title": "Require canonical identity"
+        },
+        "RequireDefinitionVersion": {
+          "type": "boolean",
+          "description": "Requires every loaded definition to expose a semantic version.",
+          "title": "Require definition version"
+        }
+      },
+      "required": [
+        "SourceKind"
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "SourceKind": {
+      "$ref": "#/$defs/SourceKindType"
     },
     "NamingProfile": {
       "type": "string",
@@ -49,11 +89,5 @@
   },
   "required": [
     "SourceKind"
-  ],
-  "description": "Defines how defs-codegen interprets one supported source-definition family.",
-  "x-algites-schema-id": "eu.algites.tool.codegen.defs.input-profile",
-  "x-algites-schema-version": 1,
-  "title": "Input profile",
-  "x-jsondefs-id": "eu.algites.tool.codegen.defs.input-profile",
-  "x-jsondefs-version": 1
+  ]
 }

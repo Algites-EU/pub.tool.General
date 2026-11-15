@@ -836,7 +836,7 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                 constraint_value = member.structure if isinstance(member, Element) else member
                 wire = member.xml_wire if isinstance(member, (Element, ListNode)) else None
                 if wire is not None:
-                    lines.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField('
+                    lines.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema('
                                  f'namespace = {_java_string(wire.namespace_uri)}, '
                                  f'namespaceLocalName = {_java_string(wire.local_name)}, '
                                  f'valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.{wire.value_kind}'
@@ -888,10 +888,6 @@ class AIcDefsCodegenCanonicalSourceEmitter:
         if isinstance(node.structure, ListNode):
             raise ValueError('Collection aliases are not DataObjects; resolve their list value at the referencing field')
         fields = self._fields(node, types, 'java')
-        technology = self._data_object_technology(node)
-        marker = ('eu.algites.lib.data.dataobject.' +
-                  (technology + 'defs.AIi' + technology.title() + 'DataObject'
-                   if technology else 'AIiDataObject'))
         parent_types = [self.output_names[x].java_type if x in self.output_names
                         else self.external_parents[x]['java']
                         for x in node.inherited_from_types]
@@ -899,36 +895,23 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             parent_types = parent_types or ['eu.algites.lib.data.dataobject.AIiDataObject']
         elif self.common_output_names:
             parent_types.insert(0, self.common_output_names[node.identity].java_type)
-        if marker not in parent_types and not self.common_projection:
-            parent_types.append(marker)
         if not parent_types:
-            parent_types.append(marker)
+            parent_types.append('eu.algites.lib.data.dataobject.AIiDataObject')
         parents = ' extends ' + ', '.join(parent_types)
         schema_version = self._schema_version_number(node)
         for source, format_name in ((SourceKind.JSONDEFS, 'json'), (SourceKind.YAMLDEFS, 'yaml')):
             if source in node.source_bindings and (not self.common_projection or self.source_representations):
                 source_node = self._representation(node, source)
-                header += (f'@eu.algites.lib.data.dataobject.{format_name}defs.AIa{format_name.title()}DataObject('
+                header += (f'@eu.algites.lib.data.dataobject.{format_name}defs.AIaDataObject{format_name.title()}Schema('
                            f'schemaId = {_java_string(source_node.identity)}, '
-                           f'schemaVersion = {schema_version}'
-                           + (f', schemaUrl = {_java_string(url)}' if (url := self._published_schema_url(source_node, source)) else '')
-                           + ')\n')
-                if source == SourceKind.YAMLDEFS and SourceKind.JSONDEFS in node.source_bindings:
-                    continue  # one modern schema annotation; both legacy dialect annotations remain
-                header += ('@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema('
-                           f'schemaId = {_java_string(source_node.identity)}, '
-                           f'schemaVersion = {schema_version}'
+                           f'schemaVersion = {self._schema_version_number(source_node)}'
                            + (f', schemaUrl = {_java_string(url)}' if (url := self._published_schema_url(source_node, source)) else '')
                            + ')\n')
         if SourceKind.XMLDEFS in node.source_bindings and (not self.common_projection or self.source_representations):
             match = re.fullmatch(r'\{([^}]*)\}([^/]+)',
                                  self._representation(node, SourceKind.XMLDEFS).identity)
             if match:
-                header += ('@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject(' +
-                           'definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE, ' +
-                           f'namespace = {_java_string(match.group(1))}, ' +
-                           f'namespaceLocalName = {_java_string(match.group(2))})\n')
-                header += ('@eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema(' +
+                header += ('@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(' +
                            'definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE, ' +
                            f'namespace = {_java_string(match.group(1))}, ' +
                            f'namespaceLocalName = {_java_string(match.group(2))})\n')
@@ -966,12 +949,7 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             wire = xml_member.xml_wire if xml_member is not None and (
                 not self.common_projection or self.source_representations) else None
             if wire is not None:
-                rows.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField('
-                            f'namespace = {_java_string(wire.namespace_uri)}, '
-                            f'namespaceLocalName = {_java_string(wire.local_name)}, '
-                            f'valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.{wire.value_kind}'
-                            ')\n')
-                rows.append('    @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema('
+                rows.append('    @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema('
                             f'namespace = {_java_string(wire.namespace_uri)}, '
                             f'namespaceLocalName = {_java_string(wire.local_name)}, '
                             f'valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.{wire.value_kind}'
@@ -980,7 +958,7 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                            if isinstance(child, ListNode) and child.name == original), None)
             for key_name, paths, required_key in _indexed_paths(member, types) if member else ():
                 path_literals = ', '.join(const_container + '.' + key_constants[('__field__', path)] for path in paths)
-                rows.append('    @eu.algites.lib.data.dataobject.AIaKeyDefinition('
+                rows.append('    @eu.algites.lib.data.dataobject.AIaDataObjectListKeyDefinition('
                             f'name = {const_container}.{key_constants[(original, key_name)]}, '
                             f'fields = {{{path_literals}}}, '
                             f'required = {str(required_key).lower()})\n')
@@ -988,7 +966,7 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             for selector, key_name, paths, required_key in scoped:
                 path_literals = ', '.join(const_container + '.' + key_constants[('__field__', path)]
                                           for path in paths)
-                rows.append('    @eu.algites.lib.data.dataobject.AIaKeyDefinition('
+                rows.append('    @eu.algites.lib.data.dataobject.AIaDataObjectListKeyDefinition('
                             f'name = {const_container}.{key_constants[(original, key_name)]}, '
                             f'selector = {_java_string(selector)}, fields = {{{path_literals}}}, '
                             f'required = {str(required_key).lower()})\n')
@@ -1182,14 +1160,14 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                            if isinstance(child, (Element, ListNode)) and child.xml_wire is not None
                        and (not self.common_projection or self.source_representations)]
             if xml_members:
-                lines.insert(1, 'from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field '
-                             'import AIaXmlDataObjectField\n'
+                lines.insert(1, 'from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema '
+                             'import AIaDataObjectFieldXmlSchema\n'
                              'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind '
                              'import AInXmlValueKind\n')
-                lines.append('    __xml_data_object_fields__ = {\n')
+                lines.append('    __xml_schema_fields__ = {\n')
                 for position, child in xml_members:
                     wire = child.xml_wire
-                    lines.append(f'        {child.name!r}: AIaXmlDataObjectField('
+                    lines.append(f'        {child.name!r}: AIaDataObjectFieldXmlSchema('
                                  f'namespace={wire.namespace_uri!r}, '
                                  f'namespace_local_name={wire.local_name!r}, '
                                  f'value_kind=AInXmlValueKind.{wire.value_kind}, '
@@ -1252,6 +1230,10 @@ class AIcDefsCodegenCanonicalSourceEmitter:
         if isinstance(node.structure, ListNode):
             raise ValueError('Collection aliases are not DataObjects; resolve their list value at the referencing field')
         fields = self._fields(node, types, 'python')
+        # XML wire names remain independent of the semantic getter name.
+        # Repeated List getters are e.g. getBindingList() for wire name Binding.
+        semantic_by_member = {original: getter.removeprefix('get')
+                              for original, getter, *_ in fields}
         parent_imports = []
         for parent in node.inherited_from_types:
             if parent in self.external_parents:
@@ -1260,10 +1242,6 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             else:
                 symbols = self.output_names[parent]
                 parent_imports.append(f'from .{symbols.python_module} import {symbols.python_type}\n')
-        technology = self._data_object_technology(node)
-        marker_name = 'AIi' + technology.title() + 'DataObject' if technology else 'AIiDataObject'
-        marker_module = (f'{technology}defs.aii_{technology}_data_object'
-                         if technology else 'aii_data_object')
         parent_names = [self.output_names[x].python_type if x in self.output_names
                         else self.external_parents[x]['python_type']
                         for x in node.inherited_from_types]
@@ -1274,8 +1252,8 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             parent_imports.append(
                 f'from .{self.common_output_names[node.identity].python_module} import ' +
                 self.common_output_names[node.identity].python_type + '\n')
-        if not self.common_projection and marker_name not in parent_names:
-            parent_names.append(marker_name)
+        if not parent_names:
+            parent_names.append('AIiDataObject')
         parent_list = ', '.join(parent_names)
         header += ('from abc import ABC, abstractmethod\nfrom typing import TYPE_CHECKING\n'
                    'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n'
@@ -1283,18 +1261,12 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                    'from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\n'
                    'from eu.algites.lib.data.dataobject.aia_data_object_field_default import AIaDataObjectFieldDefault\n'
                    'from eu.algites.lib.data.dataobject.ain_data_object_field_default_kind import AInDataObjectFieldDefaultKind\n')
-        if self.common_projection or not node.inherited_from_types or self.common_output_names:
-            header += ('from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\n'
-                       if self.common_projection else
-                       f'from eu.algites.lib.data.dataobject.{marker_module} import {marker_name}\n')
+        if 'AIiDataObject' in parent_names:
+            header += 'from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\n'
         for kind, fmt in ((SourceKind.JSONDEFS, 'json'), (SourceKind.YAMLDEFS, 'yaml')):
-            if kind in node.source_bindings:
+            if kind in node.source_bindings and (not self.common_projection or self.source_representations):
                 header += (f'from eu.algites.lib.data.dataobject.{fmt}defs.'
-                           f'aia_{fmt}_data_object import AIa{fmt.title()}DataObject\n')
-        if (not self.common_projection or self.source_representations) and any(
-                kind in node.source_bindings for kind in (SourceKind.JSONDEFS, SourceKind.YAMLDEFS)):
-            header += ('from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema '
-                       'import AIaDataObjectJsonSchema\n')
+                           f'aia_data_object_{fmt}_schema import AIaDataObject{fmt.title()}Schema\n')
         indexed_fields = [(child.name, _indexed_paths(child, types)) for child in node.structure.children
                           if isinstance(child, ListNode) and child.key_definitions]
         if (indexed_fields or any(identity == node.identity for identity, _ in self._scoped_index_targets)
@@ -1306,9 +1278,7 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                        if isinstance(child, (Element, ListNode)) and child.xml_wire is not None
                        and (not self.common_projection or self.source_representations)]
         if xml_members:
-            header += ('from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field '
-                       'import AIaXmlDataObjectField\n'
-                       'from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema '
+            header += ('from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema '
                        'import AIaDataObjectFieldXmlSchema\n'
                        'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind '
                        'import AInXmlValueKind\n')
@@ -1329,35 +1299,21 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                 (f'    __data_object__ = AIcdDataObject(description={node.description or node.name!r})\n'
                  if self.common_projection or not self.common_output_names else '')
                 + ''.join(
-                    f'    __{fmt}_data_object__ = AIa{fmt.title()}DataObject('
+                    f'    __{fmt}_schema__ = AIaDataObject{fmt.title()}Schema('
                     f'schema_id={self._representation(node, kind).identity!r}, schema_version={self._schema_version_number(node)}'
                     + (f', schema_url={url!r}' if (url := self._published_schema_url(self._representation(node, kind), kind)) else '')
                     + ')\n'
                     for kind, fmt in ((SourceKind.JSONDEFS, 'json'), (SourceKind.YAMLDEFS, 'yaml'))
-                    if kind in node.source_bindings and (not self.common_projection or self.source_representations))
-                + ''.join(
-                    f'    __json_schema__ = AIaDataObjectJsonSchema('
-                    f'schema_id={self._representation(node, kind).identity!r}, schema_version={self._schema_version_number(node)}'
-                    + (f', schema_url={url!r}' if (url := self._published_schema_url(self._representation(node, kind), kind)) else '')
-                    + ')\n'
-                    for kind in (SourceKind.JSONDEFS, SourceKind.YAMLDEFS)
                     if kind in node.source_bindings
-                    and (kind != SourceKind.YAMLDEFS or SourceKind.JSONDEFS not in node.source_bindings)
                     and (not self.common_projection or self.source_representations)) + '\n']
         if SourceKind.XMLDEFS in node.source_bindings and (not self.common_projection or self.source_representations):
             match = re.fullmatch(r'\{([^}]*)\}([^/]+)',
                                  self._representation(node, SourceKind.XMLDEFS).identity)
             if match:
-                rows.insert(1, 'from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object '
-                            'import AIaXmlDataObject\n'
-                            'from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_xml_schema '
+                rows.insert(1, 'from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema '
                             'import AIaDataObjectXmlSchema\n'
                             'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind '
                             'import AInXmlObjectDefinitionKind\n')
-                rows.append('    __xml_data_object__ = AIaXmlDataObject('
-                            'definition_kind=AInXmlObjectDefinitionKind.TYPE, '
-                            f'namespace={match.group(1)!r}, '
-                            f'namespace_local_name={match.group(2)!r})\n\n')
                 rows.append('    __xml_schema__ = AIaDataObjectXmlSchema('
                             'definition_kind=AInXmlObjectDefinitionKind.TYPE, '
                             f'namespace={match.group(1)!r}, '
@@ -1383,19 +1339,10 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             if embedded_read_types:
                 rows.append(f'    __xml_embedded_read_types__ = {embedded_read_types!r}\n\n')
         if xml_members:
-            rows.append('    __xml_data_object_fields__ = {\n')
-            for position, child in xml_members:
-                wire = child.xml_wire
-                rows.append(f'        {child.name!r}: AIaXmlDataObjectField('
-                            f'namespace={wire.namespace_uri!r}, '
-                            f'namespace_local_name={wire.local_name!r}, '
-                            f'value_kind=AInXmlValueKind.{wire.value_kind}, '
-                            '),\n')
-            rows.append('    }\n\n')
             rows.append('    __xml_schema_fields__ = {\n')
             for position, child in xml_members:
                 wire = child.xml_wire
-                rows.append(f'        {child.name!r}: AIaDataObjectFieldXmlSchema('
+                rows.append(f'        {semantic_by_member.get(child.name, child.name)!r}: AIaDataObjectFieldXmlSchema('
                             f'namespace={wire.namespace_uri!r}, '
                             f'namespace_local_name={wire.local_name!r}, '
                             f'value_kind=AInXmlValueKind.{wire.value_kind}),\n')
@@ -1407,7 +1354,8 @@ class AIcDefsCodegenCanonicalSourceEmitter:
         # JSONDEFS/YAMLDEFS contracts must not gain XML-specific metadata.
         if SourceKind.XMLDEFS in node.source_bindings and (
                 not self.common_projection or self.source_representations):
-            xml_repeated = tuple(child.name for child in node.structure.children
+            xml_repeated = tuple(semantic_by_member.get(child.name, child.name)
+                                 for child in node.structure.children
                                  if isinstance(child, ListNode))
             if xml_repeated:
                 rows.append(f'    __xml_repeated_fields__ = {xml_repeated!r}\n\n')

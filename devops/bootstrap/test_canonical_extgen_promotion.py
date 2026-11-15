@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+PACKAGE_PATH = Path('eu/algites/tool/codegen/defs/model')
 SCRIPT = Path(__file__).with_name('promote-canonical-extgen.py')
 spec = importlib.util.spec_from_file_location('canonical_promotion_under_test', SCRIPT)
 assert spec is not None and spec.loader is not None
@@ -42,7 +43,7 @@ class CanonicalPromotionTests(unittest.TestCase):
         self.impl = impl
 
     def write(self, language: str, relative: str, content: str):
-        file = self.source / (language + '.gen') / module.OLD_PATH / relative
+        file = self.source / (language + '.gen') / PACKAGE_PATH / relative
         file.parent.mkdir(parents=True, exist_ok=True)
         file.write_text(content, encoding='utf-8')
         return file
@@ -84,46 +85,90 @@ class CanonicalPromotionTests(unittest.TestCase):
             (output / 'obsolete.py').parent.mkdir(parents=True, exist_ok=True)
             (output / 'obsolete.py').write_text('old', encoding='utf-8')
         # A stale implementation-side generated directory must NOT be an input.
-        bad = self.impl / 'java.gen' / module.OLD_PATH / 'impl/AIcgdBad_1.java'
+        bad = self.impl / 'java.gen' / PACKAGE_PATH / 'impl/AIcgdBad_1.java'
         bad.parent.mkdir(parents=True, exist_ok=True)
         bad.write_text('public class AIcgdBad_1 {}', encoding='utf-8')
-        # Older checkouts may contain a retired sidecar; refresh removes it.
+        # Unrelated files outside selected snapshot directories must be untouched.
         legacy = self.repo / 'generators/code/defscodegen/intf/canonical-bootstrap-extgen.json'
         legacy.write_text('legacy', encoding='utf-8')
         module.refresh()
         module.check()
-        self.assertFalse(legacy.exists())
+        self.assertTrue(legacy.exists())
         files = module.collect_existing()
         self.assertEqual(len(files), 10)
         for _, _, output in module.OUTPUTS:
             self.assertFalse((output / 'obsolete.py').exists())
-        self.assertTrue((self.impl / 'java.extgen' / module.NEW_PATH / 'impl/AIcgdWidget_1.java').is_file())
+        self.assertTrue((self.impl / 'java.extgen' / PACKAGE_PATH / 'impl/AIcgdWidget_1.java').is_file())
         self.assertFalse(any('Bad' in path for path in files))
-        self.assertTrue((self.source / 'java.gen' / module.OLD_PATH / 'impl/AIcgdWidget_1.java').is_file())
-        self.assertIn('defs.bootstrap.model.aiig_widget_1',
-                      (self.impl / 'python.extgen' / module.NEW_PATH / 'impl/intf/aiigd_widget_1.py').read_text())
+        self.assertTrue((self.source / 'java.gen' / PACKAGE_PATH / 'impl/AIcgdWidget_1.java').is_file())
+        self.assertIn('defs.model.aiig_widget_1',
+                      (self.impl / 'python.extgen' / PACKAGE_PATH / 'impl/intf/aiigd_widget_1.py').read_text())
+
+    def test_all_generated_packages_are_promoted_without_rewriting(self):
+        """A selected artifact owns every generated package, not only model."""
+        self.populate()
+        for language, suffix, readname, writable, concrete in (
+                ('java', '.java', 'AIigProfile_1', 'AIigdProfile_1', 'AIcgdProfile_1'),
+                ('python', '.py', 'aiig_profile_1', 'aiigd_profile_1', 'aicgd_profile_1')):
+            src = self.source / (language + '.gen')
+            prefix = Path('eu/algites/tool/codegen/defs/naming')
+            for rel, body in ((prefix / (readname + suffix),
+                               'public interface AIigProfile_1 {}' if language == 'java'
+                               else 'class AIigProfile_1: pass'),
+                              (prefix / 'impl/intf' / (writable + suffix),
+                               'public interface AIigdProfile_1 {}' if language == 'java'
+                               else 'class AIigdProfile_1: pass'),
+                              (prefix / 'impl' / (concrete + suffix),
+                               'public class AIcgdProfile_1 {}' if language == 'java'
+                               else 'class AIcgdProfile_1: pass')):
+                f = src / rel
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text(body + '\n', encoding='utf-8')
+        module.refresh()
+        for _, src, out in module.OUTPUTS:
+            for filename in src.rglob('*'):
+                if not filename.is_file():
+                    continue
+                role = filename.stem.startswith(('AIigd', 'AIcgd', 'aiigd_', 'aicgd_'))
+                destination_is_sdo = 'defscodegen/impl/' in str(out)
+                if role == destination_is_sdo:
+                    self.assertEqual(filename.read_bytes(),
+                                     (out / filename.relative_to(src)).read_bytes())
 
     def test_incomplete_fresh_sdo_does_not_touch_existing_seeds(self):
         self.populate()
         for _, _, output in module.OUTPUTS:
             output.mkdir(parents=True, exist_ok=True)
             (output / 'seed.txt').write_text('unchanged', encoding='utf-8')
-        (self.source / 'python.gen' / module.OLD_PATH / 'impl/intf/aiigd_widget_1.py').unlink()
+        (self.source / 'python.gen' / PACKAGE_PATH / 'impl/intf/aiigd_widget_1.py').unlink()
         with self.assertRaisesRegex(RuntimeError, 'Incomplete python canonical SDO pairs|differs|Missing freshly'):
             module.refresh()
         for _, _, output in module.OUTPUTS:
             self.assertEqual((output / 'seed.txt').read_text(), 'unchanged')
         self.assertFalse(list(self.repo.rglob('*bootstrap-extgen.json')))
 
-    def test_refresh_defs_skips_mutable_files_in_same_generated_directory(self):
+    def test_refresh_preserves_source_bytes_and_paths(self):
         self.populate()
         module.refresh()
-        # The explicitly supported Defs-only refresh must not inadvertently
-        # absorb the already present SDO files into the read-only root.
-        module.refresh_defs()
-        module.check()
-        self.assertFalse(any('/impl/' in path for path in module.collect_existing()
-                             if '/intf/src/product/' in path))
+        for _, source_root, output in module.OUTPUTS:
+            for path in output.rglob('*'):
+                if not path.is_file():
+                    continue
+                relative = path.relative_to(output)
+                original = source_root / relative
+                self.assertEqual(original.read_bytes(), path.read_bytes())
+                self.assertNotIn(b'defs.bootstrap.model', path.read_bytes())
+
+    def test_incomplete_generated_source_does_not_delete_old_snapshot(self):
+        self.populate()
+        for _, _, output in module.OUTPUTS:
+            output.mkdir(parents=True, exist_ok=True)
+            (output / 'sentinel.txt').write_text('preserve')
+        (self.source / 'java.gen' / PACKAGE_PATH / 'impl/intf/AIigdWidget_1.java').unlink()
+        with self.assertRaisesRegex(RuntimeError, 'counterpart|pair'):
+            module.refresh()
+        for _, _, output in module.OUTPUTS:
+            self.assertEqual((output / 'sentinel.txt').read_text(), 'preserve')
 
 
 if __name__ == '__main__':

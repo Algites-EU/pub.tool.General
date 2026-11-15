@@ -39,7 +39,7 @@ def _literal_schema_id(declaration: ast.ClassDef) -> str | None:
         if not isinstance(statement, ast.Assign):
             continue
         if not any(isinstance(target, ast.Name) and target.id in
-                   ('__json_schema__', '__json_data_object__', '__yaml_data_object__')
+                   ('__json_schema__', '__yaml_schema__')
                    for target in statement.targets):
             continue
         if isinstance(statement.value, ast.Call):

@@ -1,5 +1,5 @@
 package eu.algites.tool.codegen.defs.impl.standard.model;
-import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.model.*;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -24,7 +24,8 @@ LIB = TOOL.parent / 'pub.lib.General'
 REPOS = (TOOL, LIB)
 SPECIAL = re.compile(r'^AIig_([xjy])')
 JAVA_METHOD = re.compile(r'(?m)^\s*(?:public\s+)?([\w.$?<>\[\],\s]+?)\s+(get\w+|is\w+)\s*\(\s*\)\s*;')
-JAVA_CLASS = re.compile(r'\bpublic\s+interface\s+(AIig\w+)\s+extends\s+([^\{]+)\{')
+JAVA_CLASS = re.compile(r'\bpublic\s+(?:(?:sealed|non-sealed)\s+)?interface\s+'
+                        r'(AIig(?!d)\w+)\s+(?:extends\s+([^\{]+))?\{')
 PACKAGE = re.compile(r'(?m)^package\s+([\w.]+);')
 
 
@@ -56,21 +57,26 @@ def _stage(path: Path) -> str:
 def _read_java(path: Path) -> Contract | None:
     """Parse generated Java read-interface signatures without compiling dependencies."""
     value = path.read_text(encoding='utf8')
-    found = JAVA_CLASS.search(value)
-    package = PACKAGE.search(value)
+    # Javadoc contains semicolons and braces that are not declaration boundaries.
+    # Mask it before locating methods and their preceding annotations.
+    uncommented = re.sub(r"/\*.*?\*/", lambda m: re.sub(r"[^\n]", " ", m.group()),
+                           value, flags=re.S)
+    found = JAVA_CLASS.search(uncommented)
+    package = PACKAGE.search(uncommented)
     if not found or not package:
         return None
     name, inherited = found.groups()
-    parents = tuple(s.strip() for s in inherited.split(','))
+    inherited = (inherited or "").split(" permits ", 1)[0]
+    parents = tuple(s.strip() for s in inherited.split(',') if s.strip())
     methods: dict[str, str] = {}
     semantic = set()
-    for match in JAVA_METHOD.finditer(value):
+    for match in JAVA_METHOD.finditer(uncommented):
         method = match.group(2)
         methods[method] = re.sub(r'\s+', ' ', match.group(1)).strip()
         # Annotation must be attached to THIS getter, not just present elsewhere.
-        prev = value.rfind(';', 0, match.start())
-        prev = max(prev, value.rfind('}', 0, match.start()))
-        vicinity = value[prev + 1:match.start()]
+        prev = uncommented.rfind(';', 0, match.start())
+        prev = max(prev, uncommented.rfind('}', 0, match.start()))
+        vicinity = uncommented[prev + 1:match.start()]
         if re.search(r'@(?:[\w.]+\.)?AIaDataObjectField\s*\(', vicinity):
             semantic.add(method)
     return Contract(name, package.group(1), 'java', _stage(path), path,
@@ -84,8 +90,13 @@ def _read_python(path: Path) -> Contract | None:
     value = path.read_text(encoding='utf8')
     tree = ast.parse(value, filename=str(path))
     cls = next((n for n in tree.body if isinstance(n, ast.ClassDef)
-                and n.name.startswith('AIig')), None)
+                and n.name.startswith('AIig') and not n.name.startswith('AIigd')), None)
     if cls is None:
+        return None
+    # Java emits choice alternatives as records, not interfaces. Python emits
+    # them as frozen dataclasses; neither belongs to read-interface parity.
+    if any(ast.unparse(decorator).startswith("dataclass(") or
+           ast.unparse(decorator) == "dataclass" for decorator in cls.decorator_list):
         return None
     import_path = path.as_posix().split('/src/product/', 1)[-1].split('/', 1)[-1]
     package = '.'.join(import_path.split('/')[:-1])
@@ -114,24 +125,38 @@ def _read_python(path: Path) -> Contract | None:
 
 
 def _contracts():
-    """Collect all generated read-only interfaces from both repositories."""
+    """Collect published read contracts and complete disposable generation pairs.
+
+    Bootstrap may regenerate Java and Python independently. An incomplete
+    transient *.gen pair is not authoritative yet and must not be treated
+    as a Java/Python parity regression; complete *.extgen seeds always are.
+    """
     rows = []
     for repo in REPOS:
         if not repo.is_dir():
             continue
-        for language, ext, reader in (('java', '*.java', _read_java),
-                                       ('python', '*.py', _read_python)):
-            for path in repo.rglob(ext):
-                if 'build' in path.parts or '.pytest_cache' in path.parts:
+        for product in repo.rglob('src/product'):
+            if (not product.is_dir() or any(part in {'build', 'legacy-archive',
+                                                     '.pytest_cache'} for part in product.parts)):
+                continue
+            for stage in ('gen', 'extgen'):
+                candidates = (
+                    (product / ('java.' + stage), '*.java', 'AIig', _read_java),
+                    (product / ('python.' + stage), '*.py', 'aiig_', _read_python),
+                )
+                if stage == 'gen' and not all(
+                        root.is_dir() and any(root.rglob(prefix + '*' + pattern[-5:]))
+                        for root, pattern, prefix, _ in candidates):
                     continue
-                if f'/src/product/{language}.gen/' not in path.as_posix() and \
-                        f'/src/product/{language}.extgen/' not in path.as_posix():
-                    continue
-                if not path.name.startswith(('AIig', 'aiig')):
-                    continue
-                obj = reader(path)
-                if obj:
-                    rows.append(obj)
+                for root, glob, prefix, reader in candidates:
+                    if not root.is_dir():
+                        continue
+                    for path in root.rglob(glob):
+                        if not path.name.startswith(prefix) or (root.name.startswith('java') and path.name.startswith('AIigd')):
+                            continue
+                        obj = reader(path)
+                        if obj:
+                            rows.append(obj)
     return rows
 
 
@@ -238,8 +263,8 @@ def _field_shape(source_type: str, language: str):
     """Compare typed field shapes while preserving technology-specific element names."""
     if 'AIiMultiMappedList' in source_type:
         container = 'multi_mapped_list'
-    elif (re.search(r'\bList\s*<', source_type) if language == 'java' else
-          re.search(r'\b(?:tuple|list)\s*\[', source_type)):
+    elif (re.search(r'\b(?:List|AIiBoundedList)\s*<', source_type) if language == 'java' else
+          re.search(r'\b(?:tuple|list|AIiBoundedList)\s*\[', source_type)):
         container = 'list'
     elif (re.search(r'\bMap\s*<', source_type) if language == 'java' else
           re.search(r'\b(?:Mapping|dict)\s*\[', source_type)):

@@ -21,10 +21,7 @@ from types import UnionType
 from eu.algites.lib.common.list.aii_multi_mapped_list import AIiMultiMappedList
 from eu.algites.lib.common.list.aii_bounded_list import AIiBoundedList
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
-from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject
 from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object_namespace import AIiXmlDataObjectNamespace
-from eu.algites.lib.data.dataobject.jsondefs.aii_json_data_object import AIiJsonDataObject
-from eu.algites.lib.data.dataobject.yamldefs.aii_yaml_data_object import AIiYamlDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from ._read_contract_fields import _data_object_fields, _declared_fields
 from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy
@@ -117,9 +114,12 @@ def _is_sdo_input(contract: type) -> bool:
             or not issubclass(contract, AIiDataObject)
             or contract.__module__.startswith('eu.algites.lib.data.dataobject')):
         return False
-    return (getattr(contract, '__data_object__', None) is not None
-            and not issubclass(contract, (AIiXmlDataObject,
-                                          AIiJsonDataObject, AIiYamlDataObject)))
+    if getattr(contract, '__data_object__', None) is None:
+        return False
+    if '__data_object__' in vars(contract):
+        return True
+    return not any(k in vars(contract) for k in
+                   ('__json_schema__', '__yaml_schema__', '__xml_schema__'))
 
 
 class AIcSdoCodegenService(AIiSdoCodegenService):
@@ -450,8 +450,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         import re as _re
         inherited_definition = getattr(read_contract, '__data_object__', None)
         inherited_format = (read_contract.__dict__.get('__json_schema__')
-                            or read_contract.__dict__.get('__json_data_object__')
-                            or read_contract.__dict__.get('__yaml_data_object__'))
+                            or read_contract.__dict__.get('__yaml_schema__'))
         schema_id = getattr(inherited_format, 'schema_id', '') if inherited_format else ''
         schema_version = getattr(inherited_format, 'schema_version', -1) if inherited_format else -1
         input_catalog = catalog() or naming[0]
@@ -510,64 +509,33 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
         # both schema representations. Preserve both format-specific descriptors,
         # never flattening their identity into the neutral AIcdDataObject.
         concrete_format_annotations = []
-        # The modern JSON Schema descriptor is authoritative for the common
-        # contract. It must be emitted once, never reconstructed from a YAML
-        # or JSON compatibility annotation (whose identities may differ).
-        modern_metadata = read_contract.__dict__.get('__json_schema__')
-        if modern_metadata is not None:
-            modern_import = ('from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema '
-                             'import AIaDataObjectJsonSchema')
-            mutable_lines.insert(4, modern_import)
-            concrete_lines.insert(2, modern_import)
-            modern_values = ', '.join(f'{key}={getattr(modern_metadata, key)!r}' for key in (
-                'schema_id', 'schema_version', 'schema_url', 'data_source_schema_url_field',
-                'data_source_schema_identifier_field', 'data_source_schema_version_field'))
-            schema = f'    __json_schema__ = AIaDataObjectJsonSchema({modern_values})'
-            mutable_lines.append(schema)
-            concrete_format_annotations.append(schema)
-        # Compatibility descriptors are kept format-local during migration.
-        # They are NOT used as authoritative metadata and are never compared
-        # to one another or to the modern descriptor.
         for format_kind in ('json', 'yaml'):
-            format_metadata = read_contract.__dict__.get(f'__{format_kind}_data_object__')
-            if format_metadata is None:
+            metadata = vars(read_contract).get(f'__{format_kind}_schema__')
+            if metadata is None:
                 continue
-            format_type = 'Json' if format_kind == 'json' else 'Yaml'
+            format_name = format_kind.title()
             import_line = (f'from eu.algites.lib.data.dataobject.{format_kind}defs.'
-                           f'aia_{format_kind}_data_object import AIa{format_type}DataObject')
+                           f'aia_data_object_{format_kind}_schema import AIaDataObject{format_name}Schema')
             mutable_lines.insert(4, import_line)
             concrete_lines.insert(2, import_line)
-            format_values = ', '.join(f'{key}={getattr(format_metadata, key)!r}' for key in (
+            values = ', '.join(f'{key}={getattr(metadata, key)!r}' for key in (
                 'schema_id', 'schema_version', 'schema_url', 'data_source_schema_url_field',
                 'data_source_schema_identifier_field', 'data_source_schema_version_field'))
-            descriptor = f'    __{format_kind}_data_object__ = AIa{format_type}DataObject({format_values})'
+            descriptor = f'    __{format_kind}_schema__ = AIaDataObject{format_name}Schema({values})'
             mutable_lines.append(descriptor)
             concrete_format_annotations.append(descriptor)
-        xml_metadata = (read_contract.__dict__.get('__xml_schema__') or read_contract.__dict__.get('__xml_data_object__'))
+        xml_metadata = vars(read_contract).get('__xml_schema__')
         if xml_metadata is not None:
-            mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object import AIaXmlDataObject')
+            mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema import AIaDataObjectXmlSchema')
             mutable_lines.insert(5, 'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind')
-            mutable_lines.append("    __xml_data_object__ = AIaXmlDataObject("
+            mutable_lines.append('    __xml_schema__ = AIaDataObjectXmlSchema('
                 + f'definition_kind=AInXmlObjectDefinitionKind.{xml_metadata.definition_kind.name}, '
                 + f'namespace={xml_metadata.namespace!r}, '
                 + f'namespace_local_name={xml_metadata.namespace_local_name!r})')
-            mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_xml_schema import AIaDataObjectXmlSchema')
-            mutable_lines.append("    __xml_schema__ = AIaDataObjectXmlSchema("
-                + f'definition_kind=AInXmlObjectDefinitionKind.{xml_metadata.definition_kind.name}, '
-                + f'namespace={xml_metadata.namespace!r}, '
-                + f'namespace_local_name={xml_metadata.namespace_local_name!r})')
-        xml_fields = (read_contract.__dict__.get('__xml_schema_fields__')
-                      or read_contract.__dict__.get('__xml_data_object_fields__'))
+        xml_fields = vars(read_contract).get('__xml_schema_fields__')
         if xml_fields:
-            mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField')
+            mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema')
             mutable_lines.insert(5, 'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValueKind')
-            mutable_lines.append('    __xml_data_object_fields__ = {')
-            for name, metadata in xml_fields.items():
-                mutable_lines.append(f'        {name!r}: AIaXmlDataObjectField(namespace={metadata.namespace!r}, '
-                    f'namespace_local_name={metadata.namespace_local_name!r}, '
-                    f'value_kind=AInXmlValueKind.{metadata.value_kind.name}),')
-            mutable_lines.append('    }')
-            mutable_lines.insert(4, 'from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema')
             mutable_lines.append('    __xml_schema_fields__ = {')
             for name, metadata in xml_fields.items():
                 mutable_lines.append(f'        {name!r}: AIaDataObjectFieldXmlSchema(namespace={metadata.namespace!r}, '
@@ -603,7 +571,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                 if not candidate.isidentifier():
                     raise AIxCodegenValidationException('Invalid synthetic key getter identifier: ' + repr(candidate), 'Rename the indicated type, method or field to match the selected naming convention and update every reference to the renamed declaration.')
                 if callable(getattr(read_contract, candidate, None)):
-                    if issubclass(read_contract, AIiXmlDataObject):
+                    if vars(read_contract).get('__xml_schema__') is not None:
                         raise AIxCodegenValidationException('Virtual object-property key getter is not an XML field', 'Check the collection shape, entry type, key definition and key field paths. Use a complete, resolvable key or declare the intended virtual map property key explicitly.')
                     if candidate in all_fields:
                         raise AIxCodegenValidationException('Virtual parent property key cannot be a serialized field', 'Check the inherited type and its parent contract. Preserve required setter parameter types, method signatures and valid inheritance relations.')
@@ -615,7 +583,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                     raise AIxCodegenValidationException('Invalid synthetic value getter identifier: ' + repr(value_getter), 'Update the Common method naming catalog and regenerate the contracts.')
                 method = getattr(read_contract, value_getter, None)
                 if callable(method):
-                    if issubclass(read_contract, AIiXmlDataObject):
+                    if vars(read_contract).get('__xml_schema__') is not None:
                         raise AIxCodegenValidationException('Virtual map value getter is not an XML field', 'Use the matching source contract and Common naming profile.')
                     if value_getter in all_fields or getattr(method, '__data_object_field__', None) is not None:
                         raise AIxCodegenValidationException('Virtual map value getter cannot be a serialized field', 'Remove the field annotation from the synthetic getter.')
@@ -716,9 +684,11 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
             nested_type = ((('AIiMultiMappedList[' if keyed_collection else 'AIiBoundedList[') + names_for(nested_details[0])[0] + ']' 
                 if nested_details[2] else names_for(nested_details[0])[0])
                 + (' | None' if nested_details[1] else '')) if nested_details else None
-            if technology == 'xmldefs' and (effective_xml[name].wire is not None or descriptor.embedded):
-                if (effective_xml[name].wire is not None and nested_details
-                        and not issubclass(nested_details[0], AIiXmlDataObject)):
+            xml_binding = effective_xml.get(name)
+            if ((xml_binding is not None and xml_binding.wire is not None)
+                    or (descriptor.embedded and getattr(read_contract, '__xml_schema__', None) is not None)):
+                if (xml_binding is not None and xml_binding.wire is not None and nested_details
+                        and getattr(nested_details[0], '__xml_schema__', None) is None):
                     raise AIxCodegenValidationException(
                         'XML field references a non-XML DataObject: '
                         + read_contract.__module__ + '.' + read_contract.__name__ + '.' + getter
@@ -727,7 +697,7 @@ class AIcSdoCodegenService(AIiSdoCodegenService):
                         'Review its XML Schema declaration and XML field mapping.')
                 if (nested_details and nested_details[2]) or _repeated_contract_field(read_contract, getter, name, descriptor):
                     xml_repeated.add(name)
-                if nested_details and issubclass(nested_details[0], AIiXmlDataObject):
+                if nested_details and getattr(nested_details[0], '__xml_schema__', None) is not None:
                     nested_concrete = names_for(nested_details[0])[1]
                     nested_package = nested_details[0].__module__.rsplit('.', 1)[0]
                     nested_concrete_module = subpackage(nested_package, concrete_subpackage) + '.' + stem_for(nested_concrete, False, nested_details[0])

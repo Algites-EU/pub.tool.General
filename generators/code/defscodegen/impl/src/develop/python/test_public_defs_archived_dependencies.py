@@ -36,10 +36,10 @@ def test_public_defs_cli_resolves_xsd_and_binary_interfaces_from_jar_and_wheel(t
     sources={
         'annotations/AIaDataObject.java': '''package annotations; import java.lang.annotation.*; @Retention(RetentionPolicy.RUNTIME) public @interface AIaDataObject {}''',
         'annotations/Kind.java': '''package annotations; public enum Kind { TYPE, ELEMENT }''',
-        'annotations/AIaXmlDataObject.java': '''package annotations; import java.lang.annotation.*; @Retention(RetentionPolicy.RUNTIME) public @interface AIaXmlDataObject { Kind definitionKind(); String namespace(); String namespaceLocalName(); }''',
+        'annotations/AIaDataObjectXmlSchema.java': '''package annotations; import java.lang.annotation.*; @Retention(RetentionPolicy.RUNTIME) public @interface AIaDataObjectXmlSchema { Kind definitionKind(); String namespace(); String namespaceLocalName(); }''',
         'example/contracts/Parent.java': f'''package example.contracts;
             @annotations.AIaDataObject()
-            @annotations.AIaXmlDataObject(definitionKind=annotations.Kind.TYPE, namespace="{uri}", namespaceLocalName="BaseType")
+            @annotations.AIaDataObjectXmlSchema(definitionKind=annotations.Kind.TYPE, namespace="{uri}", namespaceLocalName="BaseType")
             public interface Parent {{ String getInherited(); }}''',
     }
     for name, value in sources.items():
@@ -54,7 +54,7 @@ def test_public_defs_cli_resolves_xsd_and_binary_interfaces_from_jar_and_wheel(t
     with ZipFile(wheel,'w') as z:
         z.writestr('eu/algites/lib/naming/convention/base_type.py',f'''class BaseType(object):
     __data_object__ = Metadata()
-    __xml_data_object__ = AIaXmlDataObject(definition_kind=Kind.TYPE, namespace={uri!r}, namespace_local_name="BaseType")
+    __xml_schema__ = AIaDataObjectXmlSchema(definition_kind=Kind.TYPE, namespace={uri!r}, namespace_local_name="BaseType")
 ''')
     args=[f'--repository-root={root}',
           '--defs-input-paths:python=sample/intf/src/product/xmldefs/example/contracts/child_1.xsd',

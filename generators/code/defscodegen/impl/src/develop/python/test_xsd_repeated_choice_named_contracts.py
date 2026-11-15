@@ -77,7 +77,7 @@ def test_java_and_python_generate_named_sealed_choices(tmp_path, monkeypatch):
         java / 'AIigProfileTypeChoice2_1.java').read_text()
     assert (python / 'aiig_profile_type_choice1_1.py').exists()
     assert (python / 'aiig_profile_type_choice2_1.py').exists()
-    assert '__xml_data_object__' not in (python / 'aiig_profile_type_choice1_1.py').read_text()
+    assert '__xml_schema__' not in (python / 'aiig_profile_type_choice1_1.py').read_text()
     import importlib
     import sys
     monkeypatch.syspath_prepend(str(tmp_path / 'src/product/python.gen'))

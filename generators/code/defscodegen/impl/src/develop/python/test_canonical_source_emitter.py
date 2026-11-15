@@ -227,7 +227,8 @@ def test_emitter_preserves_named_inheritance_and_dependency_references(tmp_path)
     sources = {(entry.language, entry.type_identity): entry.content for entry in entries}
     child = result.types[1].identity
     assert 'extends AIigBase' in sources['java', child]
-    assert 'class AIigChild(AIigBase, AIiJsonDataObject)' in sources['python', child]
+    assert 'class AIigChild(AIigBase)' in sources['python', child]
+    assert 'AIiJsonDataObject' not in sources['python', child]
     assert 'getLabel' in sources['java', child]
     for entry in entries:
         if entry.language == 'java':
@@ -341,7 +342,7 @@ def test_repeated_xml_particle_emits_direct_typed_list_in_both_languages(tmp_pat
     compile_result = subprocess.run(['javac', '-sourcepath', JAVA_SOURCEPATH, '-d', str(tmp_path / 'classes'),
                                     *map(str, (tmp_path / 'java').rglob('*.java')),
                                     *(str(LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs' / name)
-                                      for name in ('AIaXmlDataObjectField.java', 'AInXmlValueKind.java'))],
+                                      for name in ('AIaDataObjectFieldXmlSchema.java', 'AInXmlValueKind.java'))],
                                    capture_output=True, text=True)
     assert compile_result.returncode == 0, compile_result.stderr
     for file in (tmp_path / 'python').rglob('*.py'):
@@ -516,7 +517,7 @@ def test_xsd_named_choice_branches_emit_typed_java_python_records(tmp_path):
             'permits AIigChoice1, AIigChoice2') in java
     assert 'getFirst()' in java and 'getSecond()' in java
     assert 'namespaceLocalName = "first"' in java and 'namespaceLocalName = "second"' in java
-    assert any('__xml_data_object_fields__' in item.content for item in produced if item.language == 'python')
+    assert any('__xml_schema_fields__' in item.content for item in produced if item.language == 'python')
     for item in produced:
         destination = tmp_path / item.language / item.relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)

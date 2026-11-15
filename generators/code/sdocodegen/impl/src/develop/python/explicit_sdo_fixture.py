@@ -17,9 +17,6 @@ class AItcConfiguredSdoGenerator:
     def _naming(read_contract, configured=None):
         from eu.algites.lib.naming.convention.impl.standard.aic_name_convention_catalog import (
             AIcNameConventionCatalog)
-        from eu.algites.lib.data.dataobject.jsondefs.aii_json_data_object import AIiJsonDataObject
-        from eu.algites.lib.data.dataobject.yamldefs.aii_yaml_data_object import AIiYamlDataObject
-        from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject
         from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
         if configured is None:
             common = Path(__file__).resolve().parents[8]

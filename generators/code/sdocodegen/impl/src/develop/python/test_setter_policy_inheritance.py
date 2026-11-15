@@ -1,6 +1,6 @@
 """Regression cases for cross-artifact writable generic inheritance."""
 from __future__ import annotations
-from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema
+from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema
 import importlib
 import sys
 from pathlib import Path
@@ -27,14 +27,14 @@ def test_nested_generic_setter_refinement_and_mutable_inheritance(tmp_path, monk
     (root / '__init__.py').touch()
     _write(root, 'aiig_a', '''from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
-from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema
+from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema
 class AIigA(AIiDataObject):
     __data_object__ = AIcdDataObject()
     __json_schema__ = AIaDataObjectJsonSchema(schema_id='sample.a', schema_version=1)
 ''')
     _write(root, 'aiig_b', '''from .aiig_a import AIigA
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
-from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema
+from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema
 class AIigB(AIigA):
     __data_object__ = AIcdDataObject()
     __json_schema__ = AIaDataObjectJsonSchema(schema_id='sample.b', schema_version=1)
@@ -43,7 +43,7 @@ class AIigB(AIigA):
 from .aiig_a import AIigA
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
-from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema
+from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema
 from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField
 class AIigC(AIiDataObject):
     __data_object__ = AIcdDataObject()
@@ -55,7 +55,7 @@ class AIigC(AIiDataObject):
 from .aiig_c import AIigC
 from .aiig_b import AIigB
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
-from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema import AIaDataObjectJsonSchema
+from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema
 from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField
 class AIigD(AIigC):
     __data_object__ = AIcdDataObject()

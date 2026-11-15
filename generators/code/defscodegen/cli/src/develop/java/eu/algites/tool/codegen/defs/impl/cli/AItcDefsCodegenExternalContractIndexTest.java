@@ -165,12 +165,12 @@ public final class AItcDefsCodegenExternalContractIndexTest {
         String url = "https://example.org/schema/demo.json";
         Files.writeString(java.resolve("CustomInterface.java"),
                 "package demo;\n@AIaDataObject()\n"
-                + "@AIaJsonDataObject(schemaId=\"demo\", schemaUrl=\"" + url + "\")\n"
+                + "@AIaDataObjectJsonSchema(schemaId=\"demo\", schemaUrl=\"" + url + "\")\n"
                 + "public interface CustomInterface {}\n");
         Files.writeString(python.resolve("custom_module.py"),
                 "class CompletelyDifferentName:\n"
                 + "    __data_object__ = M()\n"
-                + "    __json_data_object__ = J(schema_id='demo', schema_url='" + url + "')\n");
+                + "    __json_schema__ = J(schema_id='demo', schema_url='" + url + "')\n");
         var result = AIcDefsCodegenExternalContractIndex.resolve(List.of(root));
         Assert.assertEquals(result.get(url).javaType(), "demo.CustomInterface");
         Assert.assertEquals(result.get(url).pythonModule(), "demo.custom_module");
@@ -198,21 +198,21 @@ public final class AItcDefsCodegenExternalContractIndexTest {
                 + "@Retention(RetentionPolicy.RUNTIME) public @interface AIaDataObject {}",
             "annotations/Kind.java",
                 "package annotations; public enum Kind { TYPE, ELEMENT }",
-            "annotations/AIaXmlDataObject.java",
+            "annotations/AIaDataObjectXmlSchema.java",
                 "package annotations; import java.lang.annotation.*; "
-                + "@Retention(RetentionPolicy.RUNTIME) public @interface AIaXmlDataObject { "
+                + "@Retention(RetentionPolicy.RUNTIME) public @interface AIaDataObjectXmlSchema { "
                 + "Kind definitionKind(); String namespace(); String namespaceLocalName(); }",
             "example/contracts/ReadOnlyCommon.java",
                 "package example.contracts; @annotations.AIaDataObject() "
                 + "public interface ReadOnlyCommon {}",
             "example/contracts/XmlReadOnly.java",
                 "package example.contracts; @annotations.AIaDataObject() "
-                + "@annotations.AIaXmlDataObject(definitionKind=annotations.Kind.TYPE, "
+                + "@annotations.AIaDataObjectXmlSchema(definitionKind=annotations.Kind.TYPE, "
                 + "namespace=\"urn:published\", namespaceLocalName=\"SharedType\") "
                 + "public interface XmlReadOnly extends ReadOnlyCommon {}",
             "example/contracts/MutableSdo.java",
                 "package example.contracts; @annotations.AIaDataObject() "
-                + "@annotations.AIaXmlDataObject(definitionKind=annotations.Kind.TYPE, "
+                + "@annotations.AIaDataObjectXmlSchema(definitionKind=annotations.Kind.TYPE, "
                 + "namespace=\"urn:published\", namespaceLocalName=\"SharedType\") "
                 + "public interface MutableSdo extends XmlReadOnly { "
                 + "void setName(String value); }"
@@ -250,12 +250,12 @@ public final class AItcDefsCodegenExternalContractIndexTest {
         String url = "https://example.org/jsondefs/common_1.jsondef.schema.json";
         Files.writeString(java.resolve("JsonSpecific.java"),
                 "package demo;\n"
-                + "@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema("
+                + "@eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema("
                 + "schemaId=\"common\",schemaUrl=\"" + url + "\")\n"
                 + "public interface JsonSpecific {}\n");
         Files.writeString(java.resolve("XmlSpecific.java"),
                 "package demo;\n"
-                + "@eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema("
+                + "@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema("
                 + "definitionKind=K.TYPE, namespace=\"urn:modern\", "
                 + "namespaceLocalName=\"Common\")\n"
                 + "public interface XmlSpecific {}\n");
@@ -327,7 +327,7 @@ public final class AItcDefsCodegenExternalContractIndexTest {
             String parent, boolean writable) throws IOException {
         Files.writeString(directory.resolve(name + ".java"),
                 "package demo;\n@AIaDataObject()\n"
-                + "@AIaXmlDataObject(definitionKind=K.TYPE, namespace=\"" + uri
+                + "@AIaDataObjectXmlSchema(definitionKind=K.TYPE, namespace=\"" + uri
                 + "\", namespaceLocalName=\"SharedType\")\n"
                 + "public interface " + name + (parent.isEmpty() ? "" : " extends " + parent)
                 + " {" + (writable ? "void setName(String value);" : "") + "}\n");
@@ -360,7 +360,7 @@ public final class AItcDefsCodegenExternalContractIndexTest {
     private static String pythonDefinition(String name, String uri, String parent, boolean writable) {
         return "class " + name + "(" + parent + "):\n"
                 + "    __data_object__ = M()\n"
-                + "    __xml_data_object__ = X(definition_kind=K.TYPE, namespace='"
+                + "    __xml_schema__ = X(definition_kind=K.TYPE, namespace='"
                 + uri + "', namespace_local_name='SharedType')\n"
                 + (writable ? "    def setName(self, value): ...\n" : "");
     }

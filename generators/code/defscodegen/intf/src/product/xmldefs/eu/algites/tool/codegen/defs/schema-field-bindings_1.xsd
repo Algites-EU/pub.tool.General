@@ -41,13 +41,18 @@
       <xs:documentation>Maps a schema resource and JSON pointer to an optional generated field binding.</xs:documentation>
     </xs:annotation>
     <xs:sequence>
-      <xs:element name="schema" type="xs:string" minOccurs="1">
+      <xs:element name="schema" minOccurs="1">
         <xs:annotation>
           <xs:appinfo>
             <algdoc:title>Schema</algdoc:title>
           </xs:appinfo>
           <xs:documentation>Canonical URI or path identifying the source schema.</xs:documentation>
         </xs:annotation>
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:minLength value="1"/>
+        </xs:restriction>
+      </xs:simpleType>
       </xs:element>
       <xs:element name="pointer" type="xs:string" minOccurs="0">
         <xs:annotation>
@@ -57,13 +62,18 @@
           <xs:documentation>Optional JSON Pointer identifying a particular position within the schema.</xs:documentation>
         </xs:annotation>
       </xs:element>
-      <xs:element name="name" type="xs:string" minOccurs="0">
+      <xs:element name="name" minOccurs="0">
         <xs:annotation>
           <xs:appinfo>
             <algdoc:title>Name</algdoc:title>
           </xs:appinfo>
           <xs:documentation>Optional override of the generated binding name.</xs:documentation>
         </xs:annotation>
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:minLength value="1"/>
+        </xs:restriction>
+      </xs:simpleType>
       </xs:element>
       <xs:element name="common_one_of_fields" type="xs:boolean" minOccurs="0">
         <xs:annotation>

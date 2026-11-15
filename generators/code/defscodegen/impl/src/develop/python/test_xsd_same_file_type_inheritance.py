@@ -41,6 +41,6 @@ def test_same_file_complex_type_extension_emits_two_types_and_one_element(tmp_pa
     derived = importlib.import_module('example.types.aiig_derived_1').AIigDerived_1
     parent = importlib.import_module('example.types.aiig_base_type_1').AIigBaseType_1
     assert issubclass(derived, parent)
-    assert derived.__xml_data_object__.namespace_local_name == 'DerivedType'
-    assert parent.__xml_data_object__.namespace_local_name == 'BaseType'
+    assert derived.__xml_schema__.namespace_local_name == 'DerivedType'
+    assert parent.__xml_schema__.namespace_local_name == 'BaseType'
     assert len(list(python_dir.glob('aiig__xe*.py'))) == 1

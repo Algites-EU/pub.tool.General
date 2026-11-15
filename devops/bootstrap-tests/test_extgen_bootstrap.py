@@ -26,28 +26,29 @@ def test_persistent_canonical_sources_match_provenance_manifest():
     assert result.returncode == 0, result.stderr
     promote = _load('extgen_snapshot', script)
     files = promote.collect_existing()
-    assert files and f'{len(files)} files' in result.stdout
+    assert files and f'from {len(files)} sources' in result.stdout
     assert not (ROOT / 'generators/code/defscodegen/intf/canonical-bootstrap-extgen.json').exists()
 
 
 def test_persistent_read_contract_roles_are_checked_not_just_hashes():
     """A rehashed bad snapshot must still fail if common inherits JSON DO."""
     promote = _load('extgen_read_roles', BOOTSTRAP / 'promote-canonical-extgen.py')
-    files = promote.collect_existing()
-    for technology, filename, common, json_do in (
-            ('java', 'AIigType_1.java', 'AIiDataObject', 'AIiJsonDataObject'),
-            ('python', 'aiig_type_1.py', 'AIiDataObject', 'AIiJsonDataObject')):
-        matches = [p for p in files if '/'+technology+'.extgen/' in p and p.endswith('/'+filename)]
+    files = promote._existing()
+    promote._validate(files)
+    import pytest
+    for technology, filename in (
+            ('java', 'AIigType_1.java'), ('python', 'aiig_type_1.py')):
+        matches = [p for p in files if '/'+technology+'.extgen/' in p
+                   and p.endswith('/'+filename)]
         assert len(matches) == 1, matches
         name = matches[0]
-        actual = (ROOT / name).read_text(encoding='utf-8')
-        assert json_do not in actual
-        promote.validate_read_roles({name: files[name]}, {name: actual})
-        tampered = actual.replace(common, json_do)
-        assert tampered != actual
-        import pytest
-        with pytest.raises(RuntimeError, match='Invalid common'):
-            promote.validate_read_roles({name: files[name]}, {name: tampered})
+        actual = files[name]
+        assert b'AIiJsonDataObject' not in actual
+        tampered = dict(files)
+        tampered[name] = actual.replace(b'AIiDataObject', b'AIiJsonDataObject')
+        assert tampered[name] != actual
+        with pytest.raises(RuntimeError, match='Obsolete DataObject'):
+            promote._validate(tampered)
 
 
 def test_bootstrap_cleanup_never_removes_extgen(tmp_path):
@@ -72,7 +73,7 @@ def test_native_defs_cli_imports_with_only_non_gen_python_roots():
     script = ('import sys; sys.path[:0] = ' + repr(directories) + '\n'
               'from eu.algites.tool.codegen.defs.impl.cli.canonical_defs_codegen_cli import main\n'
               'from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import AIcgdType_1\n'
-              'assert ".bootstrap.model." in AIcgdType_1.__module__\n')
+              'assert ".model.impl." in AIcgdType_1.__module__\n')
     result = subprocess.run([sys.executable, '-c', script], cwd=ROOT,
                             env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'},
                             capture_output=True, text=True, check=False)
@@ -87,8 +88,8 @@ def test_canonical_first_stage_uses_native_cli_and_both_naming_roles():
     options = stage.canonical_arguments(ROOT, check=True)
     assert '--check' in options
     for language in ('java', 'python'):
-        assert (f'--defs-input-paths:{language}='
-                + stage.CANONICAL_SCHEMA.as_posix()) in options
+        selected = ';'.join(schema.as_posix() for schema in stage.CANONICAL_SCHEMAS.values())
+        assert (f'--defs-input-paths:{language}=' + selected) in options
         settings = defs_settings(ROOT, language)
         key = f'dointf-naming-convention:{language}'
         assert f'--{key}=' + setting(settings, key) in options
@@ -144,7 +145,7 @@ def test_python_artifact_stager_includes_extgen(tmp_path):
             'pythonName': 'test-bootstrap-impl', 'description': 'test',
             'pythonRequires': '>=3.12', 'pythonDependencies': []}
     staged = stage_one_python(ROOT, tmp_path, fake, '1.1.dev0')
-    assert (staged / 'src/eu/algites/tool/codegen/defs/bootstrap/model/impl'
+    assert (staged / 'src/eu/algites/tool/codegen/defs/model/impl'
             '/aicgd_type_1.py').is_file()
 
 
@@ -177,7 +178,7 @@ def test_python_read_contract_extgen_belongs_to_intf_artifact(tmp_path):
 
     The native source-generation stage currently writes fresh SDO sources to the
     selected artifact's ``python.gen`` tree.  That does not change ownership of
-    the persistent ``bootstrap/model`` snapshot: its read-only interfaces
+    the persistent ``defs/model`` snapshot: its read-only interfaces
     belong to ``intf`` and implementations remain in ``impl`` ``*.extgen``.
     """
     sys.path.insert(0, str(BOOTSTRAP))
@@ -187,32 +188,21 @@ def test_python_read_contract_extgen_belongs_to_intf_artifact(tmp_path):
                 'pythonName': 'test-bootstrap-intf', 'description': 'test',
                 'pythonRequires': '>=3.12', 'pythonDependencies': []}
     staged = stage_one_python(ROOT, tmp_path, contract, '1.1.dev0')
-    persistent = staged / 'src/eu/algites/tool/codegen/defs/bootstrap/model'
+    persistent = staged / 'src/eu/algites/tool/codegen/defs/model'
     assert (persistent / 'aiig_type_1.py').is_file()
     assert not list(persistent.rglob('aicgd*.py'))
     assert not list(persistent.rglob('aiigd*.py'))
 
 
-def test_promote_relocates_generated_java_sdo_packages_and_types():
-    """Keep the generated Java SDO package tree and schema IDs distinct."""
+def test_promotion_does_not_relocate_or_transform_generated_sources():
+    """Bootstrap promotion copies generated bytes without namespace rewriting."""
     promote = _load('symmetrical_promote', BOOTSTRAP / 'promote-canonical-extgen.py')
-    original = ('package eu.algites.tool.codegen.defs.model.impl.intf;\n'
-                'import eu.algites.tool.codegen.defs.model.AIigType_1;\n'
-                'class Example { String schemaId = "eu.algites.tool.codegen.defs.model.canonical-model#/$defs/Type"; }\n')
-    output = promote.relocate(original, 'java')
-    assert 'package eu.algites.tool.codegen.defs.bootstrap.model.impl.intf;' in output
-    assert 'import eu.algites.tool.codegen.defs.bootstrap.model.AIigType_1;' in output
-    assert 'schemaId = "eu.algites.tool.codegen.defs.model.canonical-model#/$defs/Type"' in output
-
-
-def test_promote_relocates_generated_python_sdo_packages_and_types():
-    """Python SDO packages use the exact same temporary logical root."""
-    promote = _load('symmetrical_py_promote', BOOTSTRAP / 'promote-canonical-extgen.py')
-    original = ('from eu.algites.tool.codegen.defs.model.aiig_type_1 import AIigType_1\n'
-                'from eu.algites.tool.codegen.defs.model.impl.intf.aiigd_type_1 import AIigdType_1\n')
-    output = promote.relocate(original, 'python')
-    assert output.count('eu.algites.tool.codegen.defs.bootstrap.model') == 2
-    assert 'from eu.algites.tool.codegen.defs.model.' not in output
+    assert not hasattr(promote, 'relocate')
+    source = (ROOT / 'generators/code/defscodegen/intf/src/product/java.gen/'
+              'eu/algites/tool/codegen/defs/model/AIigElement_1.java')
+    target = (ROOT / 'generators/code/defscodegen/intf/src/product/java.extgen/'
+              'eu/algites/tool/codegen/defs/model/AIigElement_1.java')
+    assert source.read_bytes() == target.read_bytes()
 
 
 def test_canonical_bootstrap_uses_format_local_identity_and_neutral_counts():
@@ -248,7 +238,7 @@ def test_canonical_bootstrap_normalizer_is_deterministic():
               "title='T', naming_convention='algites')\n")
     output = normalize(source, 'python')
     assert "AIcdDataObject(title='T')" in output
-    assert "AIaJsonDataObject(schema_id='canonical#/$defs/Type')" in output
+    assert "AIaDataObjectJsonSchema(schema_id='canonical#/$defs/Type')" in output
     assert normalize(output, 'python') == output
 
 

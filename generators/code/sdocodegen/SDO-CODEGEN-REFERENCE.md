@@ -465,8 +465,8 @@ The SDO generator consumes `AIaDataObjectField.fieldName`, `presence`
 (`REQUIRED`, `ALLOWED`, `FORBIDDEN`), `allowsNull`, and `namingConvention`
 metadata. Human-readable labels are resolved through `AIaFieldLabel`;
 default values are expressed separately through `AIaFieldDefault` and its
-factory-based resolver. XML-specific QNames belong to `AIaXmlDataObject` and
-`AIaXmlDataObjectField` and are copied to the mutable contract. Inherited
+factory-based resolver. XML-specific QNames belong to `AIaDataObjectXmlSchema` and
+`AIaDataObjectFieldXmlSchema` and are copied to the mutable contract. Inherited
 fields may be restricted, but the implementation rejects relaxation of
 required/forbidden presence or nullability. XML element contracts use the
 specialized `_xe` naming profiles for Java and Python (`__xe_` for Python
@@ -620,8 +620,8 @@ musí při uložení zůstat stabilní, stejně jako klíče v běžné hash map
 zákaz už platí v aktuálních Java/Python runtime kontraktech; žádné přepočítávání
 indexů po `rule.setKind(...)` se nemá zavádět.
 
-Dnes existuje Java `@AIaKeyDefinition(name, fields, required)`
-(opakovatelná přes `@AIaKeyDefinitions`) na getteru opakovaného XML pole;
+Dnes existuje Java `@AIaDataObjectListKeyDefinition(name, fields, required)`
+(opakovatelná přes `@AIaDataObjectListKeyDefinitions`) na getteru opakovaného XML pole;
 Python read-only kontrakty uchovávají obdobný popis v
 `__key_definitions__`. SDO Java metadata přenáší; SDO Python podporuje
 příslušné XML metadata. **Dosud nejde o univerzální deklaraci pro všechny
@@ -849,18 +849,18 @@ každý logický typ. `AIaDataObject` a `AIaDataObjectField` jsou přímo
 na tomto rozhraní a jeho getterech; samostatná technologická rozhraní
 se v novém Defs Codegenu negenerují. Formátové anotace na společném
 rozhraní určují serializační vazby a jejich ID, verze i URL jsou nezávislé. Přechodně jsou
-zachovány staré `AIaJsonDataObject` / `AIaYamlDataObject` /
-`AIaXmlDataObject` / `AIaXmlDataObjectField` jako deprecated a současně
+zachovány staré `AIaDataObjectJsonSchema` / `AIaDataObjectYamlSchema` /
+`AIaDataObjectXmlSchema` / `AIaDataObjectFieldXmlSchema` jako deprecated a současně
 existují `AIaDataObjectJsonSchema`, `AIaDataObjectXmlSchema`,
 `AIaDataObjectFieldXmlSchema`. Nová SDO implementace má používat autoritativní moderní metadata;
 YAMLDEFS dosud postrádá samostatnou novou schématovou anotaci a aktuální
-implementace proto přechodně používá `AIaYamlDataObject`. To je
+implementace proto přechodně používá `AIaDataObjectYamlSchema`. To je
 otevřený migrační bod, nikoli povolení porovnávat hodnoty s JSONDEFS.
 Neprovádí se porovnání ID, verzí ani URL napříč technologiemi.
 
 XML parser v Pythonu používá `__xml_schema__` a `__xml_schema_fields__`
-s fallbackem na staré `__xml_data_object__` a
-`__xml_data_object_fields__`. Java metadata scanner propojuje
+s fallbackem na staré `__xml_schema__` a
+`__xml_schema_fields__`. Java metadata scanner propojuje
 `AIaDataObjectField` na společném getteru s XML QName na
 odpovídajícím getteru společného rozhraní; test `AItcModernXmlSchemaOverlayTest` ověřuje
 přechod i bez starých anotací. Python `test_xml_qname_deserialization.py`
@@ -895,12 +895,12 @@ základě kompilace aktuální služby.
 
 | Anotace | Java package | Python modul |
 |---|---|---|
-| `AIaDataObjectJsonSchema` | `eu.algites.lib.data.dataobject.jsonschema` | `eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema` |
-| `AIaDataObjectXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmlschema.aia_data_object_xml_schema` |
-| `AIaDataObjectFieldXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema` |
+| `AIaDataObjectJsonSchema` | `eu.algites.lib.data.dataobject.jsonschema` | `eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema` |
+| `AIaDataObjectXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema` |
+| `AIaDataObjectFieldXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema` |
 
-Původní formátové anotace (`AIaJsonDataObject`, `AIaYamlDataObject`,
-`AIaXmlDataObject`, `AIaXmlDataObjectField`) zůstávají v dosavadních
+Původní formátové anotace (`AIaDataObjectJsonSchema`, `AIaDataObjectYamlSchema`,
+`AIaDataObjectXmlSchema`, `AIaDataObjectFieldXmlSchema`) zůstávají v dosavadních
 `jsondefs`, `yamldefs` a `xmldefs` packages jako deprecated; jejich veřejná
 signatura se nemění. Obecné `AIaDataObject` / `AIaDataObjectField` zůstávají
 v `eu.algites.lib.data.dataobject` a náleží výhradně společným `AIig…`
@@ -912,19 +912,19 @@ packages; pro kompatibilitu se nadále emitují i původní anotace.
 
 SDO Java CLI musí rozpoznat XML element/type přes `AIaDataObjectXmlSchema`
 (`eu.algites.lib.data.dataobject.xmlschema`) a pro historické kontrakty také
-přes deprecated `AIaXmlDataObject`. JSON/YAML technologie se rozlišují podle
+přes deprecated `AIaDataObjectXmlSchema`. JSON/YAML technologie se rozlišují podle
 základního DataObject rozhraní, nikoli podle společné anotace
 `AIaDataObjectJsonSchema`, kterou sdílejí. Python SDO používá importy
-`eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema`,
-`eu.algites.lib.data.dataobject.xmlschema.aia_data_object_xml_schema` a
-`eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema`.
+`eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema`,
+`eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema` a
+`eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema`.
 Tyto cesty mají odpovídající deklarace v `pub.lib.General`.
 
 
 Při Java SDO generování se XML metadata typu/getteru nyní čtou přednostně
 z `AIaDataObjectXmlSchema` / `AIaDataObjectFieldXmlSchema` ve správném
-`dataobject.xmlschema` package. Původní `AIaXmlDataObject` a
-`AIaXmlDataObjectField` jsou podporované jako vstupní fallback; při duální
+`dataobject.xmlschema` package. Původní `AIaDataObjectXmlSchema` a
+`AIaDataObjectFieldXmlSchema` jsou podporované jako vstupní fallback; při duální
 přítomnosti se musí shodovat XML QName a druh definice. Generovaný mutable
 kontrakt dočasně obsahuje obě schématové anotace. Toto pravidlo platí i při
 vstupu obsahujícím pouze nové anotace, bez nutnosti ručního doplnění
@@ -936,7 +936,7 @@ Po migrační kontrole se historické zdroje `sdo.old` uchovávají doslova v
 `generators/code/sdocodegen/legacy-archive/`; nejsou už součástí zdrojových sad
 `src/product` ani automaticky spuštěných historických testů. Důvodem jsou
 nekompatibilní odkazy na odstraněné vlastnosti obecného `AIaDataObject` a
-`AIaXmlDataObjectField`. Marker archivu: `ALGITES-LEGACY-SDO-INCOMPATIBLE`.
+`AIaDataObjectFieldXmlSchema`. Marker archivu: `ALGITES-LEGACY-SDO-INCOMPATIBLE`.
 Žádné odstraněné atributy se kvůli historickému generátoru nevracejí.
 
 `devops/bootstrap/sdo-java.gradle` používá veřejné Java CLI z aktuálního
@@ -992,7 +992,7 @@ metadata are **format-local**. Even when both describe the same DataObject,
 SDO Codegen must not compare their values, require them to match or copy one
 format's identity into the other. `AIaDataObjectJsonSchema` / `__json_schema__`
 is the new authoritative schema descriptor; it is emitted once. Deprecated
-`AIaJsonDataObject` / `AIaYamlDataObject` descriptors are retained only as
+`AIaDataObjectJsonSchema` / `AIaDataObjectYamlSchema` descriptors are retained only as
 independent transition-time compatibility descriptors, not as a source of
 validation constraints. The standalone Codegen CLI is responsible for
 validation and diagnostics; bootstrap only invokes it and must not label those

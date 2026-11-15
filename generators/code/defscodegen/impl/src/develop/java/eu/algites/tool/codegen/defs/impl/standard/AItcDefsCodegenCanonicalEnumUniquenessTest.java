@@ -1,10 +1,10 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.impl.standard.model.*;
-import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.model.*;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalEnum;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalEnumValue;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngScalarKind_1;
+import eu.algites.tool.codegen.defs.model.AIngScalarKind_1;
 import java.util.List;
 import org.testng.Assert;
 import org.testng.annotations.Test;

@@ -97,7 +97,7 @@ def test_real_naming_catalog_cli_runs_and_checks_all_outputs(tmp_path):
     assert (java_dir / 'AIigNode_1.java').is_file()
     assert not (java_dir / 'AIigNode_1.java').exists()
     node = (java_dir / 'AIigNode_1.java').read_text()
-    assert '@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema(' in node
+    assert '@eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema(' in node
     assert (python_dir / 'aiig_node_1.py').is_file()
     assert 'getValue()' in (java_dir / 'AIigNode_1.java').read_text()
     assert 'def setNext' not in (python_dir / 'aiig_node_1.py').read_text()
@@ -305,7 +305,7 @@ def test_native_cli_valid_xmldefs_and_yamldefs_round_trip(tmp_path):
     xml_meta = LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs'
     result = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
                              *map(str, java_files),
-                             str(xml_meta / 'AIaXmlDataObjectField.java'),
+                             str(xml_meta / 'AIaDataObjectFieldXmlSchema.java'),
                              str(xml_meta / 'AInXmlValueKind.java')], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
 
@@ -453,7 +453,7 @@ def test_native_cli_xsd_direct_repeated_particle_compiles_and_checks(tmp_path):
     meta = LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs'
     compiled = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
                                *map(str, generated),
-                               str(meta / 'AIaXmlDataObjectField.java'),
+                               str(meta / 'AIaDataObjectFieldXmlSchema.java'),
                                str(meta / 'AInXmlValueKind.java')], capture_output=True, text=True)
     assert compiled.returncode == 0, compiled.stderr
 
@@ -503,9 +503,9 @@ def test_native_cli_emits_and_checks_local_composite_xsd_indexes(tmp_path):
     dependencies = [
         LIB / 'common/util/src/product/java/eu/algites/lib/common/list/AIiMultiMappedList.java',
         LIB / 'common/util/src/product/java/eu/algites/lib/common/list/AIiKeyDefinition.java',
-        LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/AIaKeyDefinition.java',
-        LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/AIaKeyDefinitions.java',
-        LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs/AIaXmlDataObjectField.java',
+        LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/AIaDataObjectListKeyDefinition.java',
+        LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/AIaDataObjectListKeyDefinitions.java',
+        LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs/AIaDataObjectFieldXmlSchema.java',
         LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.java',
     ]
     outcome = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),

@@ -27,11 +27,11 @@ def test_bootstrap_choice_variants_are_generated_immutable_non_sdo():
     for name, getter in [('Type', 'getContent'), ('Element', 'getStructure'),
                          ('ElementList', 'getChildrenList')]:
         contract = _schema_choice_from_field(name, getter)
-        assert contract.__module__.startswith('eu.algites.tool.codegen.defs.bootstrap.model.')
+        assert contract.__module__.startswith('eu.algites.tool.codegen.defs.model.')
         assert contract.__xml_choice_variant_imports__
         for entry in contract.__xml_choice_variant_imports__:
             module, _ = entry.split(':', 1)
-            assert module.startswith('eu.algites.tool.codegen.defs.bootstrap.model.'), entry
+            assert module.startswith('eu.algites.tool.codegen.defs.model.'), entry
     for stem in ('TypeContent', 'Structure', 'ElementListChild'):
         for sub in ('java.extgen', 'python.extgen'):
             sdo_path = BOOTSTRAP_SDO / sub
@@ -41,10 +41,10 @@ def test_bootstrap_choice_variants_are_generated_immutable_non_sdo():
     variant = AIcgdType_1('urn:here', 'Here', AIngTypeOrigin_1.DECLARED,
                              target_identity='urn:there').getContent()
     assert is_dataclass(variant)
-    assert variant.__class__.__module__.startswith('eu.algites.tool.codegen.defs.bootstrap.model.')
+    assert variant.__class__.__module__.startswith('eu.algites.tool.codegen.defs.model.')
     with pytest.raises(FrozenInstanceError):
         variant.field1 = 'modified'
-    java = BOOTSTRAP_READ / 'java.extgen/eu/algites/tool/codegen/defs/bootstrap/model/AIigTypeContent_1.java'
+    java = BOOTSTRAP_READ / 'java.extgen/eu/algites/tool/codegen/defs/model/AIigTypeContent_1.java'
     assert 'interface AIigTypeContent_1' in java.read_text(encoding='utf-8')
     # First-stage seed may use a non-sealed ABI interface; the fresh output
     # must be sealed because the set of alternatives is closed.

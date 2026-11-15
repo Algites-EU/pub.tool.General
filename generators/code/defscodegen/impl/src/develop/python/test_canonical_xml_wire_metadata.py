@@ -89,9 +89,9 @@ def test_generated_java_and_python_xml_field_metadata_matches_real_runtime(tmp_p
     assert 'namespace = "urn:doc", namespaceLocalName = "Name"' in java
     assert 'namespaceLocalName = "code", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ATTRIBUTE' in java
     assert 'minItemCount = 0, maxItemCount = -1' in java
-    assert "'Unqualified': AIaXmlDataObjectField(namespace=''" in python
-    assert "'flag': AIaXmlDataObjectField(namespace='urn:doc'" in python
-    assert "__xml_repeated_fields__ = ('Line',)" in python
+    assert "'Unqualified': AIaDataObjectFieldXmlSchema(namespace=''" in python
+    assert "'Flag': AIaDataObjectFieldXmlSchema(namespace='urn:doc'" in python
+    assert "__xml_repeated_fields__ = ('LineList',)" in python
     modules = {}
     for item in output:
         path = tmp_path / item.language / item.relative_path
@@ -101,12 +101,12 @@ def test_generated_java_and_python_xml_field_metadata_matches_real_runtime(tmp_p
             compile(item.content, str(path), 'exec')
             exec(item.content, modules)
     cls = modules['AIigDoc']
-    assert cls.__xml_data_object_fields__['code'].value_kind.name == 'ATTRIBUTE'
-    assert cls.__xml_data_object_fields__['Name'].namespace == 'urn:doc'
+    assert cls.__xml_schema_fields__['Code'].value_kind.name == 'ATTRIBUTE'
+    assert cls.__xml_schema_fields__['Name'].namespace == 'urn:doc'
     meta = LIB / 'data/dataobject/intf/src/product/java/eu/algites/lib/data/dataobject/xmldefs'
-    build = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
+    build = subprocess.run(['javac', '-sourcepath', ':'.join(map(str, (LIB / 'data/dataobject/intf/src/product/java', LIB / 'common/util/src/product/java'))), '-d', str(tmp_path / 'classes'),
                             str(tmp_path / 'java/test/output/AIigDoc.java'),
-                            str(meta / 'AIaXmlDataObjectField.java'),
+                            str(meta / 'AIaDataObjectFieldXmlSchema.java'),
                             str(meta / 'AInXmlValueKind.java')], capture_output=True, text=True)
     assert build.returncode == 0, build.stderr
 
@@ -192,34 +192,50 @@ def test_attribute_only_xsd_type_is_emittable():
 def test_generated_python_xml_contract_drives_real_sdo_round_trip():
     """Inherited generated QName/attribute metadata is consumed by the XML SDO runtime."""
     from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
-    from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object import AIaXmlDataObject
-    from eu.algites.lib.data.smartdataobject.impl.xmldefs.aic_xml_smart_data_object import AIcXmlSmartDataObject
-    from eu.algites.lib.text.format.ais_text_format_profiles import AIsTextFormatProfiles
+    from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema import AIaDataObjectXmlSchema
+    from eu.algites.lib.data.smartdataobject.impl.common.aic_smart_data_object import AIcSmartDataObject
+    from eu.algites.lib.data.smartdataobject.impl.common.aic_smart_data_object_binding_registry import AIcSmartDataObjectBindingRegistry
+    from eu.algites.lib.data.smartdataobject.impl.common.aia_smart_data_object_implementation_binding import AIaSmartDataObjectImplementationBinding
+    from eu.algites.lib.data.smartdataobject.impl.common.ais_smart_data_object_format_binding_provider_registry import AIsSmartDataObjectFormatBindingProviderRegistry
+    from eu.algites.lib.data.smartdataobject.impl.format.xml.aic_xml_format_binding_provider import AIcXmlFormatBindingProvider
 
     _, output = _compiled()
     generated = next(item.content for item in output if item.language == 'python')
-    namespace = {'__name__': 'test.output.generated'}
-    exec(generated, namespace)
-    contract = namespace['AIigDoc']
+    import types
+    module = types.ModuleType('test.output.generated')
+    sys.modules[module.__name__] = module
+    exec(generated, module.__dict__)
+    contract = module.AIigDoc
     field_types = {'Name': str, 'Line': list, 'Unqualified': int, 'code': str, 'flag': bool}
     members = {
-        '__xml_data_object__': AIaXmlDataObject(namespace='urn:doc', namespace_local_name='Doc'),
+        '__xml_schema__': AIaDataObjectXmlSchema(namespace='urn:doc', namespace_local_name='Doc'),
     }
     # Supply only the concrete field storage. All QName, ordering, repetition and
     # occurrence metadata must come from the generated read-only Defs contract.
     for field in field_types:
         method = field[0].upper() + field[1:]
-        members['get' + method] = lambda self, name=field: self.get_RawField(name)
-        members['set' + method] = lambda self, value, name=field: self.set_RawField(name, value)
-    concrete = type('Doc', (AIcXmlSmartDataObject, contract), members)
+        if field == 'Line':
+            members['getLineList'] = lambda self: self.get_OrCreateCollectionField('Line', False)
+        else:
+            members['get' + method] = lambda self, name=field: self.get_RawField(name)
+            members['set' + method] = lambda self, value, name=field: self.set_RawField(name, value)
+    concrete = AIaSmartDataObjectImplementationBinding(readContracts=(contract,))(
+        type('Doc', (AIcSmartDataObject, contract), members))
+    AIsSmartDataObjectFormatBindingProviderRegistry.registerProvider(AIcXmlFormatBindingProvider())
+    registry = AIcSmartDataObjectBindingRegistry.builder().register(concrete).build()
+    provider = AIcXmlFormatBindingProvider()
     xml = ('<d:Doc xmlns:d="urn:doc" code="AB" d:flag="true">'
            '<d:Name>Mia</d:Name><d:Line>A</d:Line><d:Line>B</d:Line>'
            '<Unqualified>5</Unqualified></d:Doc>')
-    parsed = concrete.from_xml(xml)
-    assert parsed.to_mapping() == {'code': 'AB', 'flag': True, 'Name': 'Mia',
-                                   'Line': ['A', 'B'], 'Unqualified': 5}
-    encoded = parsed.toString_RawValues(AIsTextFormatProfiles.XML_XSD)
-    assert concrete.from_xml(encoded).to_mapping() == parsed.to_mapping()
+    parsed = provider.createUnmarshaller().unmarshal(xml, contract, registry)
+    assert {key: parsed.get_RawField(key) for key in ('Name', 'Unqualified', 'Code', 'Flag')} == {
+        'Name': 'Mia', 'Unqualified': 5, 'Code': 'AB', 'Flag': True}
+    assert list(parsed.get_RawField('LineList')) == ['A', 'B']
+    encoded = provider.createMarshaller().marshal(parsed, registry)
+    restored = provider.createUnmarshaller().unmarshal(encoded, contract, registry)
+    assert {key: restored.get_RawField(key) for key in ('Name', 'Unqualified', 'Code', 'Flag')} == {
+        key: parsed.get_RawField(key) for key in ('Name', 'Unqualified', 'Code', 'Flag')}
+    assert list(restored.get_RawField('LineList')) == ['A', 'B']
     assert 'code="AB"' in encoded
     assert 'Unqualified>5</Unqualified>' in encoded
     assert 'Line>A</' in encoded

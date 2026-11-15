@@ -2,7 +2,7 @@
 import pytest
 
 from eu.algites.lib.data.dataobject.aicd_data_object_field import AIcdDataObjectField
-from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object_field import AIaXmlDataObjectField
+from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema
 from eu.algites.tool.codegen.sdo.impl.standard.aic_sdo_codegen_service import _effective_xml_fields
 from eu.algites.tool.codegen.common.aix_codegen_validation_exception import AIxCodegenValidationException
 
@@ -18,7 +18,7 @@ class Common:
 class Xml(Common):
     """XML projection of only the explicitly mapped child."""
     __xml_schema_fields__ = {
-        'Child': AIaXmlDataObjectField(namespace_local_name='Child'),
+        'Child': AIaDataObjectFieldXmlSchema(namespace_local_name='Child'),
     }
 
 
@@ -33,6 +33,6 @@ def test_explicit_xml_child_is_joined_without_mapping_shared_fields():
 
 def test_orphan_xml_mapping_is_not_silently_ignored():
     class Invalid(Common):
-        __xml_schema_fields__ = {'Other': AIaXmlDataObjectField(namespace_local_name='Other')}
+        __xml_schema_fields__ = {'Other': AIaDataObjectFieldXmlSchema(namespace_local_name='Other')}
     with pytest.raises(AIxCodegenValidationException, match='no inherited DataObject field'):
         _effective_xml_fields(Invalid, {field.name: field for field in Common.__data_object_fields__})

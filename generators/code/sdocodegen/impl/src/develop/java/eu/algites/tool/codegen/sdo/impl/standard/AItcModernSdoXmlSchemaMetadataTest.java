@@ -1,7 +1,7 @@
 package eu.algites.tool.codegen.sdo.impl.standard;
 
-import eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema;
-import eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema;
+import eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema;
+import eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema;
 import eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind;
 import java.lang.reflect.Method;
 import org.testng.Assert;
@@ -24,15 +24,15 @@ public final class AItcModernSdoXmlSchemaMetadataTest {
         Method type = AIcSdoCodegenService.class.getDeclaredMethod("xmlTypeAnnotation", Class.class);
         type.setAccessible(true);
         String declaration = (String) type.invoke(null, ModernOnlyXmlContract.class);
-        Assert.assertTrue(declaration.contains("eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema("));
-        Assert.assertTrue(declaration.contains("eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject("));
+        Assert.assertTrue(declaration.contains("eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema("));
+        Assert.assertTrue(declaration.contains("eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema("));
         Assert.assertTrue(declaration.contains("namespaceLocalName = \"Modern\""));
 
         Method field = AIcSdoCodegenService.class.getDeclaredMethod("xmlFieldAnnotation", Method.class);
         field.setAccessible(true);
         String getter = (String) field.invoke(null, ModernOnlyXmlContract.class.getDeclaredMethod("getCode"));
-        Assert.assertTrue(getter.contains("eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema("));
-        Assert.assertTrue(getter.contains("eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField("));
+        Assert.assertTrue(getter.contains("eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema("));
+        Assert.assertTrue(getter.contains("eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema("));
         Assert.assertTrue(getter.contains("namespaceLocalName = \"Code\""));
     }
 

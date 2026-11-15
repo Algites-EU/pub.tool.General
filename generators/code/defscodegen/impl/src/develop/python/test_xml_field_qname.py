@@ -59,23 +59,23 @@ def test_xml_metadata_survives_all_contract_renderers_and_sdo(tmp_path, monkeypa
             target, 'example.ledger_qname', naming, frontend.root_type_qname(req))
         emitted = AIcSchemaContractInterfaceGenerator().generate(generation)
         if target == AInCodeGenerationTarget.JAVA:
-            assert '@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObjectField' in emitted.source
+            assert '@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema' in emitted.source
             assert 'namespace = "urn:ledger", namespaceLocalName = "amount", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT' in emitted.source
             assert 'namespace = "", namespaceLocalName = "currency", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ATTRIBUTE' in emitted.source
             assert 'order = 0, minOccurs = 1, maxOccurs = 1, wildcardNamespace = "", wildcardProcessContents = "strict")' in emitted.source
             assert 'order = 3, minOccurs = 0, maxOccurs = 1, wildcardNamespace = "", wildcardProcessContents = "strict")' in emitted.source
             continue
-        assert '__xml_data_object_fields__' in emitted.source
+        assert '__xml_schema_fields__' in emitted.source
         assert 'AInXmlValueKind.ATTRIBUTE' in emitted.source
         destination = root / emitted.relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(emitted.source)
         monkeypatch.syspath_prepend(str(root))
         contract = getattr(importlib.import_module('example.ledger_qname.' + destination.stem), emitted.type_name)
-        assert contract.__xml_data_object_fields__['currency'].value_kind is AInXmlValueKind.ATTRIBUTE
-        assert [entry.order for entry in contract.__xml_data_object_fields__.values()] == [0, 1, 2, 3]
+        assert contract.__xml_schema_fields__['currency'].value_kind is AInXmlValueKind.ATTRIBUTE
+        assert [entry.order for entry in contract.__xml_schema_fields__.values()] == [0, 1, 2, 3]
         result = configured_service().generate(contract, 'ledger')
-        assert '__xml_data_object_fields__' in result.mutable_interface.source
+        assert '__xml_schema_fields__' in result.mutable_interface.source
         assert "namespace='urn:ledger', namespace_local_name='amount'" in result.mutable_interface.source
         assert 'AInXmlValueKind.ATTRIBUTE' in result.mutable_interface.source
         assert 'order=0' in result.mutable_interface.source

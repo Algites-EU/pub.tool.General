@@ -2,7 +2,7 @@
 """Regenerate the canonical read-only contracts using the *current* Defs CLI.
 
 This optional self-hosting helper is NOT an alternative generator. It selects
-only ``canonical-model_1.jsondef.schema.json`` and forwards the published
+the XMLDEFS, JSONDEFS and YAMLDEFS canonical-model_1 schemas and forwards the published
 qualified Defs options and naming profiles to the same CLI used by
 ``generate_sources.py``. In particular it must never call ``defs.old``.
 
@@ -26,27 +26,29 @@ from generate_sources import (_load_codegen, _native_settings_owner,
                               _qualified_defs_arguments)
 
 
-CANONICAL_SCHEMA = Path(
-    'generators/code/defscodegen/intf/src/product/jsondefs/'
-    'eu/algites/tool/codegen/defs/model/canonical-model_1.jsondef.schema.json')
+CANONICAL_SCHEMAS = {
+    'jsondefs': Path('generators/code/defscodegen/intf/src/product/jsondefs/eu/algites/tool/codegen/defs/model/canonical-model_1.jsondef.schema.json'),
+    'yamldefs': Path('generators/code/defscodegen/intf/src/product/yamldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.yamldef.schema.json'),
+    'xmldefs': Path('generators/code/defscodegen/intf/src/product/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd'),
+}
 
 
 def canonical_arguments(root: Path, *, check: bool = False) -> list[str]:
-    """Build standard public CLI options for exactly the canonical schema.
+    """Build standard public CLI options for all canonical schema representations.
 
     :param root: Repository root containing the canonical schema and settings.
     :param check: Compare expected files without rewriting generated sources.
     :return: Fully qualified Defs CLI arguments in Java/Python symmetry.
     :raises FileNotFoundError: If the canonical schema is absent.
     """
-    schema = root / CANONICAL_SCHEMA
-    if not schema.is_file():
-        raise FileNotFoundError(f'Canonical model schema is missing: {schema}')
+    for schema in CANONICAL_SCHEMAS.values():
+        if not (root / schema).is_file():
+            raise FileNotFoundError(f'Canonical model schema is missing: {root / schema}')
     artifact = root / 'generators/code/defscodegen/intf'
     args = _qualified_defs_arguments(root, artifact, 'product',
-                                     ['java', 'python'], ['jsondefs'],
+                                     ['java', 'python'], list(CANONICAL_SCHEMAS),
                                      _native_settings_owner(root))
-    relative = CANONICAL_SCHEMA.as_posix()
+    relative = ';'.join(schema.as_posix() for schema in CANONICAL_SCHEMAS.values())
     input_count = 0
     for index, argument in enumerate(args):
         if argument.startswith(('--defs-input-paths:java=', '--defs-input-paths:python=')):

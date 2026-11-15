@@ -2,7 +2,7 @@ package eu.algites.tool.codegen.sdo.impl.standard;
 
 import eu.algites.lib.common.list.AIiMultiMappedList;
 import eu.algites.lib.data.dataobject.AIaDataObjectField;
-import eu.algites.lib.data.dataobject.AIaKeyDefinition;
+import eu.algites.lib.data.dataobject.AIaDataObjectListKeyDefinition;
 import eu.algites.lib.data.dataobject.AIiDataObject;
 import eu.algites.lib.data.dataobject.AIaDataObject;
 import eu.algites.lib.naming.convention.AIiNameConventionCatalog;
@@ -48,8 +48,47 @@ public final class AItcSdoMappedCovariantInheritanceTest {
     /** Neutral indexed collection refining the inherited list getter. */
     public interface AIigMappedChild_1 extends AIigMappedParent_1 {
         /** @return the same rules, with typed named indexes */
-        @AIaKeyDefinition(name = "ByRuleName", fields = {"name"}, required = true)
+        @AIaDataObjectListKeyDefinition(name = "ByRuleName", fields = {"name"}, required = true)
         AIiMultiMappedList<? extends AIigMappedRule_1> getRuleList();
+    }
+
+    /** Plain bounded collection; the collection itself is never a DataObject. */
+    @AIaDataObject
+    @eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema(
+            schemaId = "regression.bounded", schemaVersion = 1)
+    @eu.algites.lib.data.dataobject.yamldefs.AIaDataObjectYamlSchema(
+            schemaId = "regression.bounded.yaml", schemaVersion = 1)
+    @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(
+            namespace = "urn:regression", namespaceLocalName = "BoundedHolder")
+    public interface AIigBoundedHolder_1 extends AIiDataObject {
+        /** @return bounded values, initially empty and without a setter */
+        @AIaDataObjectField(dataFieldName = "Types", minItemCount = 1)
+        eu.algites.lib.common.list.AIiBoundedList<? extends String> getTypesList();
+    }
+
+    /**
+     * Preserve the bounded collection interface and all independent schema
+     * annotations in both emitted types, without synthesizing a list setter.
+     */
+    @Test
+    public void testBoundedGetterAndSchemaMetadataSurviveSdoGeneration() {
+        var result = new AIcSdoCodegenService().generate(
+                AIigBoundedHolder_1.class, "g", new Names("AIig"),
+                new Names("AIigd"), new Names("AIcgd"), "impl.intf", "impl");
+        String writable = result.mutableInterface().source();
+        String concrete = result.implementation().source();
+        Assert.assertTrue(writable.contains("AIiBoundedList<? extends TTypesList>"), writable);
+        Assert.assertTrue(concrete.contains("AIiBoundedList<? extends java.lang.String> getTypesList()"), concrete);
+        Assert.assertTrue(concrete.contains("AIiBoundedList<? extends java.lang.String> get_TypesList()"), concrete);
+        for (String code : List.of(writable, concrete)) {
+            Assert.assertTrue(code.contains("AIaDataObjectJsonSchema"), code);
+            Assert.assertTrue(code.contains("AIaDataObjectYamlSchema"), code);
+            Assert.assertTrue(code.contains("AIaDataObjectXmlSchema"), code);
+            Assert.assertFalse(code.contains("void setTypesList("), code);
+            Assert.assertFalse(code.contains("AIiMultiMappedListForwarding"), code);
+            Assert.assertFalse(code.contains("AIaJsonDataObject"), code);
+            Assert.assertFalse(code.contains("AIaYamlDataObject"), code);
+        }
     }
 
     /** A sealed-choice-like marker without DataObject semantics or SDO output. */
@@ -89,7 +128,13 @@ public final class AItcSdoMappedCovariantInheritanceTest {
         String locConcrete = locResult.implementation().source();
         String locReadChoice = AIigNameFragmentsSegmentChoice_1.class.getCanonicalName();
         String locReadContent = AIigNameFragmentsSegmentValueContent_1.class.getCanonicalName();
+        /* Even when a hand-authored read-only helper declares plain List,
+         * the writable contract must return AIiBoundedList and must never
+         * introduce a collection setter or phantom SDO choice type. */
+        Assert.assertTrue(locMutable.contains("AIiBoundedList<? extends TSegmentsList> getSegmentsList()"), locMutable);
+        Assert.assertTrue(locConcrete.contains("AIiBoundedList<? extends " + locReadChoice + "> getSegmentsList()"), locConcrete);
         for (String locSource : List.of(locMutable, locConcrete)) {
+            Assert.assertFalse(locSource.contains("void setSegmentsList("), locSource);
             Assert.assertTrue(locSource.contains(locReadChoice), locSource);
             Assert.assertTrue(locSource.contains(locReadContent), locSource);
             Assert.assertFalse(locSource.contains("AIigdNameFragmentsSegmentChoice_1"), locSource);
@@ -194,15 +239,15 @@ public final class AItcSdoMappedCovariantInheritanceTest {
 
     /** The same contract refined by XML and JSON metadata on a single type. */
     @eu.algites.lib.data.dataobject.AIaDataObject
-    @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema(
+    @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(
             namespace = "urn:unified", namespaceLocalName = "UnifiedDerived",
             definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE)
-    @eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema(
+    @eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema(
             schemaId = "urn:unified", schemaVersion = 1)
     public interface AIigUnifiedDerived_1 extends AIigUnifiedBase_1 {
         /** @return required identifier conventions */
         @Override
-        @eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(
+        @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema(
                 namespaceLocalName = "IdentifierConventions",
                 valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
         @AIaDataObjectField(dataFieldName = "IdentifierConventions",

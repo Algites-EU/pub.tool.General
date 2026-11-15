@@ -5,7 +5,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
 import eu.algites.tool.codegen.common.AIcCodegenWorkspace;
 import eu.algites.lib.naming.convention.impl.standard.AIcNameConventionCatalog;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
+import eu.algites.tool.codegen.defs.model.AIngSourceInputKind_1;
 import eu.algites.tool.codegen.defs.impl.standard.AIcDefsCodegenCanonicalCompiler;
 import eu.algites.tool.codegen.defs.impl.standard.AIcDefsCodegenCanonicalSourceEmitter;
 import eu.algites.tool.codegen.defs.impl.standard.AIcDefsCodegenCanonicalSchemaValidator;

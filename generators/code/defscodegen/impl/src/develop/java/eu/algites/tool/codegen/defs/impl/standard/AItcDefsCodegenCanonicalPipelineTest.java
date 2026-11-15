@@ -1,12 +1,12 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.impl.standard.model.*;
-import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.model.*;
 import eu.algites.tool.codegen.common.AIcCodegenNamingProfileResolver;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
+import eu.algites.tool.codegen.defs.model.AIngSourceInputKind_1;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -156,7 +156,7 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
             }
             var array = frontend.loadJsonOrYaml(Map.of("type", "array"), "array.schema.json", kind);
             Assert.assertEquals(array.structure().kind(),
-                    eu.algites.tool.codegen.defs.bootstrap.model.AIngStructureKind_1.LIST);
+                    eu.algites.tool.codegen.defs.model.AIngStructureKind_1.LIST);
         }
     }
 
@@ -187,7 +187,7 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
         var builtin = (AIcDefsCanonicalElement) members.children().get(0);
         var named = (AIcDefsCanonicalElement) members.children().get(1);
         Assert.assertEquals(builtin.structure().kind(),
-                eu.algites.tool.codegen.defs.bootstrap.model.AIngStructureKind_1.SCALAR);
+                eu.algites.tool.codegen.defs.model.AIngStructureKind_1.SCALAR);
         Assert.assertEquals(((AIcDefsCanonicalType) named.structure()).targetIdentity(),
                 "{urn:test}string");
     }
@@ -231,11 +231,11 @@ public final class AItcDefsCodegenCanonicalPipelineTest {
             var members = (AIcDefsCanonicalElementList) root.structure();
             Assert.assertEquals(members.children().size(), 2);
             Assert.assertEquals(members.children().get(1).kind(),
-                    eu.algites.tool.codegen.defs.bootstrap.model.AIngStructureKind_1.MAP);
+                    eu.algites.tool.codegen.defs.model.AIngStructureKind_1.MAP);
             var propertyMap = (eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalMap)
                     members.children().get(1);
             Assert.assertEquals(propertyMap.mapKind(),
-                    eu.algites.tool.codegen.defs.bootstrap.model.AIngMapKind_1.INTEGRATED_PROPERTY_MAP);
+                    eu.algites.tool.codegen.defs.model.AIngMapKind_1.INTEGRATED_PROPERTY_MAP);
         }
     }
 

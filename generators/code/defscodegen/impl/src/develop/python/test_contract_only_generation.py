@@ -65,12 +65,12 @@ def test_common_role_has_no_format_marker_and_json_role_has_one(tmp_path):
     json_py = (sources / 'python.gen' / package / 'aiig__j_example_1.py').read_text()
     assert 'extends eu.algites.lib.data.dataobject.AIiDataObject' in common_java
     assert 'extends eu.algites.tool.codegen.defs.model.AIigExample_1' not in common_java
-    assert '@eu.algites.lib.data.dataobject.jsondefs.AIaJsonDataObject' not in common_java
+    assert '@eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema' not in common_java
     assert 'schemaId = ' not in common_java.split('public interface', 1)[0]
     assert 'extends eu.algites.lib.data.dataobject.jsondefs.AIiJsonDataObject' in json_java or 'AIigExample_1' in json_java
     assert '@eu.algites.lib.data.dataobject.AIaDataObject(' in json_java
     assert 'schemaId = ' in json_java.split('public interface', 1)[0]
-    assert '__json_data_object__' not in common_py
+    assert '__json_schema__' not in common_py
     assert 'schema_id=' not in common_py
     assert '__data_object__' in common_py
     assert 'schema_id=' in json_py

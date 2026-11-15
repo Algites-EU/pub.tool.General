@@ -175,10 +175,6 @@ def refresh() -> None:
                 shutil.rmtree(stage)
             if succeeded and backup.exists():
                 shutil.rmtree(backup)
-    # One-time cleanup of the retired persistent sidecar from older builds.
-    legacy = PRODUCT.parents[1] / 'naming-bootstrap-extgen.json'
-    if legacy.is_file() or legacy.is_symlink():
-        legacy.unlink()
     print(f'Refreshed naming extgen: {counts}')
 
 
@@ -197,5 +193,5 @@ def main() -> None:
 if __name__ == '__main__':
     try:
         main()
-    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, KeyError) as exc:
         sys.exit(f'Naming extgen: {exc}')

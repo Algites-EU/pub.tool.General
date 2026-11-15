@@ -108,12 +108,12 @@ def test_composite_keys_from_real_xsd_compile_and_retain_sdo_metadata(tmp_path):
     dependencies = [
         lib_root / 'eu/algites/lib/common/list/AIiMultiMappedList.java',
         lib_root / 'eu/algites/lib/common/list/AIiKeyDefinition.java',
-        meta_root / 'eu/algites/lib/data/dataobject/AIaKeyDefinition.java',
-        meta_root / 'eu/algites/lib/data/dataobject/AIaKeyDefinitions.java',
-        meta_root / 'eu/algites/lib/data/dataobject/xmldefs/AIaXmlDataObjectField.java',
+        meta_root / 'eu/algites/lib/data/dataobject/AIaDataObjectListKeyDefinition.java',
+        meta_root / 'eu/algites/lib/data/dataobject/AIaDataObjectListKeyDefinitions.java',
+        meta_root / 'eu/algites/lib/data/dataobject/xmldefs/AIaDataObjectFieldXmlSchema.java',
         meta_root / 'eu/algites/lib/data/dataobject/xmldefs/AInXmlValueKind.java',
     ]
-    compiled = subprocess.run(['javac', '-sourcepath', str(LIB / 'data/dataobject/intf/src/product/java'), '-d', str(tmp_path / 'classes'),
+    compiled = subprocess.run(['javac', '-sourcepath', ':'.join(map(str, (LIB / 'data/dataobject/intf/src/product/java', LIB / 'common/util/src/product/java'))), '-d', str(tmp_path / 'classes'),
                                *java_sources, *map(str, dependencies)],
                               text=True, capture_output=True)
     assert compiled.returncode == 0, compiled.stderr

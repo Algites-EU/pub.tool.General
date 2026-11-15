@@ -26,7 +26,7 @@ from typing import Any
 # classes' own metadata.
 # During the first self-hosting build, these schema-generated classes are
 # held in a stable, separate source package (not in any *.gen tree).
-_ROOT = 'eu.algites.tool.codegen.defs.bootstrap.model'
+_ROOT = 'eu.algites.tool.codegen.defs.model'
 _SCHEMA = 'eu.algites.tool.codegen.defs.model.canonical-model#/$defs/'
 
 
@@ -194,7 +194,8 @@ def _schema_choice_from_field(schema_identity: str, getter_name: str):
         raise LookupError(f'No generated return annotation for {schema_identity}.{getter_name}')
     tree = ast.parse(source, mode='eval')
     names = [node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
-             and node.id not in ('list', 'List', 'Optional', 'Union')]
+             and node.id not in ('list', 'List', 'AIiBoundedList', 'AIiMultiMappedList',
+                                 'Optional', 'Union')]
     if len(names) != 1:
         raise LookupError(f'Expected one CHOICE type for {schema_identity}.{getter_name}: {source}')
     symbol = names[0]

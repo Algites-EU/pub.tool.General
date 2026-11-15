@@ -36,7 +36,7 @@ def test_named_xml_type_qname_and_derived_mutable_contract(tmp_path: Path, monke
         'example.xsd_named_type', profile, qname)
     generator = AIcSchemaContractInterfaceGenerator()
     python = generator.generate(request)
-    assert 'AIaXmlDataObject(' in python.source
+    assert 'AIaDataObjectXmlSchema(' in python.source
     assert 'AInXmlObjectDefinitionKind.TYPE' in python.source
     assert "namespace_local_name='WarehouseType'" in python.source
     root = tmp_path / 'generated'
@@ -45,8 +45,8 @@ def test_named_xml_type_qname_and_derived_mutable_contract(tmp_path: Path, monke
     target.write_text(python.source)
     monkeypatch.syspath_prepend(str(root))
     read_contract = getattr(importlib.import_module('example.xsd_named_type.' + target.stem), python.type_name)
-    assert read_contract.__xml_data_object__.definition_kind is AInXmlObjectDefinitionKind.TYPE
-    assert read_contract.__xml_data_object__.namespace_local_name == 'WarehouseType'
+    assert read_contract.__xml_schema__.definition_kind is AInXmlObjectDefinitionKind.TYPE
+    assert read_contract.__xml_schema__.namespace_local_name == 'WarehouseType'
     generated = configured_service().generate(read_contract, 'd')
     assert "namespace_local_name='WarehouseType'" in generated.mutable_interface.source
     java = generator.generate(AIcdCodeGenerationRequest(frontend.load(load),

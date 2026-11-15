@@ -20,8 +20,8 @@ import pytest
 TOOL = Path(__file__).resolve().parents[2]
 LIB = TOOL.parent / 'pub.lib.General'
 JAVA_HARNESS = '''\
-import eu.algites.tool.codegen.defs.bootstrap.model.impl.AIcgdSourceBindingGroup_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
+import eu.algites.tool.codegen.defs.model.impl.AIcgdSourceBindingGroup_1;
+import eu.algites.tool.codegen.defs.model.AIngSourceInputKind_1;
 public class CanonicalGroupLifecycleCheck {
  public static void main(String[] args) {
   var value = new AIcgdSourceBindingGroup_1();
@@ -37,8 +37,8 @@ public class CanonicalGroupLifecycleCheck {
 '''
 PYTHON_HARNESS = '''\
 import sys
-from eu.algites.tool.codegen.defs.bootstrap.model.impl.aicgd_source_binding_group_1 import AIcgdSourceBindingGroup_1
-from eu.algites.tool.codegen.defs.bootstrap.model.aing_source_input_kind_1 import AIngSourceInputKind_1
+from eu.algites.tool.codegen.defs.model.impl.aicgd_source_binding_group_1 import AIcgdSourceBindingGroup_1
+from eu.algites.tool.codegen.defs.model.aing_source_input_kind_1 import AIngSourceInputKind_1
 value = AIcgdSourceBindingGroup_1()
 assert not value._isPresent_InputKind()
 value.setInputKind(AIngSourceInputKind_1.JSONDEFS)

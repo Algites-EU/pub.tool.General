@@ -1,7 +1,7 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
 import eu.algites.tool.codegen.defs.impl.standard.model.*;
-import eu.algites.tool.codegen.defs.bootstrap.model.*;
+import eu.algites.tool.codegen.defs.model.*;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalStructureNormalizer;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
@@ -10,7 +10,7 @@ import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalMap;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalSourceBinding;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalType;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIiDefsCanonicalStructure;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1;
+import eu.algites.tool.codegen.defs.model.AIngResolutionState_1;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;

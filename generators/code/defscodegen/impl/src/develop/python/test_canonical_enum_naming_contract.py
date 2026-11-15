@@ -65,7 +65,7 @@ def test_external_contract_index_uses_annotations_not_generated_prefixes(tmp_pat
     java.mkdir(parents=True)
     python.mkdir(parents=True)
     (java / 'SomeCustomContract.java').write_text('''package demo;
-@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema(
+@eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema(
     schemaId = "demo.naming", schemaUrl = "https://example.org/demo.schema.json")
 public interface SomeCustomContract {}
 ''', encoding='utf-8')

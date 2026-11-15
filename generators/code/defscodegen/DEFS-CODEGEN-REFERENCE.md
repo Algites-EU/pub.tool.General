@@ -324,7 +324,7 @@ The canonical compiler now supplies the Python bootstrap entry point, but still 
 - String, boolean and arbitrary-precision integer enums, preserving their typed values and lexical source codes in the canonical model. Java integer enums expose `BigInteger code()`; Python uses integer-valued `Enum` members. Decimal-number enums are rejected until source parsing can preserve exact numeric precision.
 - Explicit scalar and supported structured `x-algites-defscodegen-choice` alternatives represented as Java `sealed interface` with same-package `record` variants and Python frozen dataclass variants marked `@final` (a static typing restriction, not a runtime-sealed hierarchy). Structured variants preserve member ordering and catalog-derived typed getters. Their private component names (`field1`, `field2`, etc.) are stable storage positions; required values are checked in variant constructors, while optional members can be `null` / `None`.
 - Java and Python outputs separately named through their own selected Common + Defs naming profiles and the external Algites source-code naming catalogs.
-- **Local XMLDEFS `xs:key` / `xs:unique` on a directly repeated child of a named or inline complex container**. The enclosing element retains its original referenced nominal TYPE; a key **never creates a new TYPE**. The repeated child getter returns `AIiMultiMappedList<? extends T>`. An index declared on a reference is stored on that reference getter using repeatable Java `@AIaKeyDefinition(selector = "ChildList", ...)` or Python `__scoped_key_definitions__`. The matching runtime index exists only on the particular parsed object instance reached through that reference, not on unrelated occurrences of the same TYPE. Direct-list declarations retain the original Java annotation without a selector and Python `__key_definitions__` metadata. Multiple/composite keys and typed nested scalar field paths (for example `identity/code` → `identity.code`), including terminal XML attributes (`@name`), are supported when every segment resolves without ambiguity. Keyed lists require structured named items. The independent SDO Codegen must preserve selectors and the `AIiMultiMappedList` return type in Java and Python; Python XMLDEFS interfaces emit `__xml_repeated_fields__` for all direct LIST members.
+- **Local XMLDEFS `xs:key` / `xs:unique` on a directly repeated child of a named or inline complex container**. The enclosing element retains its original referenced nominal TYPE; a key **never creates a new TYPE**. The repeated child getter returns `AIiMultiMappedList<? extends T>`. An index declared on a reference is stored on that reference getter using repeatable Java `@AIaDataObjectListKeyDefinition(selector = "ChildList", ...)` or Python `__scoped_key_definitions__`. The matching runtime index exists only on the particular parsed object instance reached through that reference, not on unrelated occurrences of the same TYPE. Direct-list declarations retain the original Java annotation without a selector and Python `__key_definitions__` metadata. Multiple/composite keys and typed nested scalar field paths (for example `identity/code` → `identity.code`), including terminal XML attributes (`@name`), are supported when every segment resolves without ambiguity. Keyed lists require structured named items. The independent SDO Codegen must preserve selectors and the `AIiMultiMappedList` return type in Java and Python; Python XMLDEFS interfaces emit `__xml_repeated_fields__` for all direct LIST members.
 
 **Unsupported structural inputs are rejected rather than approximated.** Unsupported validation-only JSON Schema conditions are reported with source-path warnings and deferred to marshalling validation; source schemas remain intact. In particular, nested/repeated choice groups, bounded arrays whose constraints cannot be preserved by these contracts, decimal-number enums, **XSD `xs:keyref`, global-element keys, namespace-qualified/descendant/predicate XPath selectors, keys selecting non-direct or multiple collections**, certain JSON Schema validations, and unrestricted SDO accessor/lifecycle generation are not yet implemented end to end. Generated output should not be treated as a drop-in replacement for the previous code generator.
 
@@ -562,7 +562,7 @@ wheel, a Python module tree or a checkout. An archive is expanded **only** into
 the current invocation's UUID `tmp/` directory, never into a shared source
 root. The dependency index looks for published XSDs and JSON/YAML schemas by
 public identity, not by the presence of a `src/product` layout; it also reads
-`@AIaXmlDataObject`, `@AIaJsonDataObject` and `@AIaYamlDataObject` directly
+`@AIaDataObjectXmlSchema`, `@AIaDataObjectJsonSchema` and `@AIaDataObjectYamlSchema` directly
 from compiled Java class-file annotations (without loading or initializing a
 Java class), and the corresponding Python contract metadata from wheel
 modules (without importing or executing them). An external schema reference
@@ -633,13 +633,14 @@ Each generated field carries a stable `fieldName` / `field_name`, `presence`
 Human-readable titles and descriptions belong to `AIaFieldLabel`, not the
 structural field annotation. Java emits `AIaDataObject` and
 `AIaDataObjectField`; Python emits `AIcdDataObject` and `AIcdDataObjectField`.
-A read contract extends the source-family marker `AIiXmlDataObject`,
-`AIiJsonDataObject`, or `AIiYamlDataObject` (all of which extend
-`AIiDataObject`). Explicit inherited schema contracts preserve their parent
-edge instead of redundantly naming the technology marker. This makes the
-source technology visible to second-stage SDO generation. Named XSD content
+All read contracts use the common `AIiDataObject` inheritance contract;
+no technology-specific DataObject marker is generated. The independent
+`AIaDataObjectXmlSchema`, `AIaDataObjectJsonSchema` and
+`AIaDataObjectYamlSchema` annotations identify schema representations;
+SDO Codegen uses their metadata, not technology-specific superinterfaces.
+Named XSD content
 types additionally carry the declaration's expanded QName as
-`AIaXmlDataObject(definitionKind=TYPE)` (Python: `__xml_data_object__`),
+`AIaDataObjectXmlSchema(definitionKind=TYPE)` (Python: `__xml_schema__`),
 which is independent from separately generated global XML element contracts.
 
 **The second stage** is `../sdocodegen/`. It consumes the annotated contracts,
@@ -772,11 +773,10 @@ interface. Direct `$defs` references and nested array references resolve to
 the same nominal target type.
 
 When XMLDEFS participates in a cross-format `oneOf`/`anyOf`, the shared
-Java and Python choice contract has **no XML-specific superclass**. Only
-the XML-specific derivative implements/inherits `AIiXmlDataObject` and
-imports the Python marker explicitly. This distinction must hold even when
-XMLDEFS is the canonical source selected for the shared contract: otherwise
-Python imports fail during independent SDO Codegen discovery.
+Java and Python choice contract remains schema-neutral. XML projections
+carry XML schema or field annotations rather than a separate XML DataObject
+superinterface. This holds regardless of which source schema is selected
+for the common canonical type.
 
 This support applies to the **repository batch** which writes all discovered
 compilation units. The single-unit `generate()` preview may contain references
@@ -788,8 +788,8 @@ runtime validation work.
 #### XML member representation
 
 XMLDefs properties preserve `AIcdXmlFieldRepresentation` through the canonical
-property model. Generated Java member getters carry `@AIaXmlDataObjectField`
-and generated Python read interfaces carry `__xml_data_object_fields__`, preserving
+property model. Generated Java member getters carry `@AIaDataObjectFieldXmlSchema`
+and generated Python read interfaces carry `__xml_schema_fields__`, preserving
 the XML namespace, local name and `ELEMENT`/`ATTRIBUTE` distinction independently
 of `AIaDataObjectField.fieldName` and the generated language identifier. XSD
 qualification uses the local declaration's `form` or the schema's corresponding
@@ -810,9 +810,9 @@ compares recursive types, not just legacy flat value kinds.
 The current XSD subset also models repeated element cardinality as array
 `minItems`/`maxItems` and permits safe narrowing of flat `xs:sequence` **or**
 `xs:all` in `complexContent restriction`. Both compositors project to the same
-ordered canonical property model: generated getters include `AIaXmlDataObjectField.order` to make Java XML
+ordered canonical property model: generated getters include `AIaDataObjectFieldXmlSchema.order` to make Java XML
 serialization independent of reflection method ordering (Python retains the
-same ordinal in `__xml_data_object_fields__`). Canonical XML writing
+same ordinal in `__xml_schema_fields__`). Canonical XML writing
 emits repeated elements as adjacent siblings sharing their declared QName,
 never as an artificial `Item` wrapper; an empty array emits no element.
 The XML reader in `pub.lib.General` binds by expanded QName
@@ -1644,7 +1644,7 @@ TYPE. Index `ByName` je definován jen pro instanci `Entries` uvnitř `Keyed`:
 - Kanonický model uchovává oba elementy jako `TYPE` reference na **stejnou**
   definici a deklaraci klíče na příslušném `ELEMENT.key_definitions`.
 - Read-only Java getter `getKeyed()` nese
-  `@AIaKeyDefinition(name = CONST.KEY_ID__BY_NAME, selector = "Entry",
+  `@AIaDataObjectListKeyDefinition(name = CONST.KEY_ID__BY_NAME, selector = "Entry",
   fields = {CONST.FIELD_NAME__NAME})`; Python ukládá tutéž vazbu do
   `__scoped_key_definitions__['Keyed']`.
 - Getter `getEntryList()` ve sdíleném `Entries` vrací `AIiMultiMappedList<? extends Entry>`;
@@ -1696,7 +1696,7 @@ Ostatní selectory mají vést k **WARNING s konkrétním zdrojem a cestou** a
 vygenerování obyčejného seznamu bez odpovídajícího indexu; nemají měnit
 syntaxi XSD ani znamenat, že byla splněna jeho úplná validační pravidla.
 
-Obecná Java anotace `@AIaKeyDefinition` a Python
+Obecná Java anotace `@AIaDataObjectListKeyDefinition` a Python
 `__key_definitions__` jsou společná metadata pro indexy XMLDEFS a výhledově JSONDEFS/YAMLDEFS. Před sjednocením s JSONDEFS a
 YAMLDEFS je nutné navrhnout univerzální **DataObject** anotaci a odpovídající
 Python metadata; SDO nemá analyzovat zdrojová schémata. Defs musí generovat
@@ -1976,7 +1976,7 @@ Výjimkou jsou pojmenované enumy: jedná se o samostatné hodnotové typy.
 @AIaDataObject(description = "Example")
 @AIaDataObjectJsonSchema(schemaId = "urn:example:json",
     schemaVersion = 3, schemaUrl = "https://defs.dev.algites.eu/api/jsondefs/example_3.jsondef.schema.json")
-@AIaYamlDataObject(schemaId = "urn:example:yaml",
+@AIaDataObjectYamlSchema(schemaId = "urn:example:yaml",
     schemaVersion = 7, schemaUrl = "https://defs.dev.algites.eu/api/yamldefs/example_7.yamldef.schema.json")
 @AIaDataObjectXmlSchema(definitionKind = AInXmlObjectDefinitionKind.TYPE,
     namespace = "urn:example:xml", namespaceLocalName = "Example")
@@ -2027,8 +2027,8 @@ výstupů se nevytváří duplicitní deklarace ani nevymýšlí chybějící
 provenience. Výstupní enum se publikuje právě jednou. Stejná pravidla platí pro Java i Python
 implementaci Defs Codegenu a pro oba cílové jazyky.
 
-Externí XML rodiče se vyhledávají podle `@AIaXmlDataObject` a
-`__xml_data_object__` (`definitionKind=TYPE`, `namespace`,
+Externí XML rodiče se vyhledávají podle `@AIaDataObjectXmlSchema` a
+`__xml_schema__` (`definitionKind=TYPE`, `namespace`,
 `namespaceLocalName`), **nikoliv** podle `schemaId` v obecné
 `AIaDataObject`; JSON/YAML mají vlastní formátové metadatové anotace.
 Tím je zaručena nezávislost Defs Codegenu na SDO Codegenu a přitom
@@ -2328,7 +2328,7 @@ synthetic getter remains the default. `propertyNames` must continue to reference
 the named enum schema: this establishes the key's **type** independently of
 its source-format representation as a JSON object-property name. XML identity
 constraints and JSON/YAML map metadata both use the generic Java annotations
-`AIaKeyDefinition` / `AIaKeyDefinitions` in `eu.algites.lib.data.dataobject`.
+`AIaDataObjectListKeyDefinition` / `AIaDataObjectListKeyDefinitions` in `eu.algites.lib.data.dataobject`.
 Their Java constant references are `CONST.KEY_ID__<NAME>` and
 `CONST.FIELD_NAME__<FIELD>` (with normalization through the naming catalog).
 The canonical emitter for indexed XML LISTs emits both constant families.
@@ -2342,7 +2342,7 @@ object maps the key remains synthesized from the JSON object property name. The 
 object with a typed key field (name from `field-name`, type from
 `propertyNames`, including a referenced *string* enum) and a synthetic value
 field (from `additionalProperties`). Both language emitters provide an
-`AIiMultiMappedList<? extends Item>` accessor and `AIaKeyDefinition` / Python
+`AIiMultiMappedList<? extends Item>` accessor and `AIaDataObjectListKeyDefinition` / Python
 `__key_definitions__` metadata. The item declares `FIELD_NAME__<FIELD>` and
 `FIELD_NAME__VALUE`; the list owner declares `KEY_ID__<ID>`,
 `FIELD_NAME__<FIELD>` for the index path, and constants for **all** its other
@@ -2521,23 +2521,26 @@ the full Gradle bootstrap still requires an environment with current Java
 library dependencies and Gradle available.
 
 
-The first-stage snapshot promotion normalizes legacy generated *seed* metadata
-with `devops/bootstrap/normalize-canonical-bootstrap.py`. This is a deterministic
-bootstrap-only compatibility step: schema identities and instance metadata are
-transferred from the schema-neutral `AIaDataObject` / `AIcdDataObject` to
-`AIaJsonDataObject` in Java / Python, and the canonical count fields use
-`minItemCount` / `maxItemCount` (source schema keys `min_item_count` /
-`max_item_count`). The `old` generator and disposable `.gen` trees are never
-modified by this adapter. It cannot replace an independent Defs → SDO
-regeneration; use the current generators for the final production contracts.
+Canonical compiler-ABI snapshots are maintained by the standard independent
+Defs and SDO CLIs. The selected Defs artifact is generated from all matching
+XMLDEFS, JSONDEFS, and YAMLDEFS inputs in one combined run, with the final
+`eu.algites.tool.codegen.defs.model` package and its associated generated
+`defs.impl` and `defs.naming` packages. The generated `*.gen` source is the
+authoritative output; no `bootstrap.model` package or post-processing rename
+is permitted.
 
-The temporary `…defs.bootstrap.model` package keeps first-stage types distinct
-from future generated types in `…defs.model`; it is not another source-of-truth
-canonical model. Its schema IDs continue to refer to the authoritative
-`canonical-model_1.jsondef.schema.json`. The bootstrap source cleanup never
-removes `*.extgen`, while the Java Gradle source set and Python wheel packaging
-include them. Once the self-hosted compiler is independently available as a
-published artifact, this interim snapshot can be retired.
+After both generators succeed and their outputs pass validation, the selected
+artifact's persistent Java/Python read-only and writable `*.extgen` snapshots
+are **completely replaced** from the corresponding `*.gen` files. The copy
+preserves relative paths and source bytes exactly, without modifying packages,
+annotations, method signatures, field metadata, or other content. Failed
+validation leaves previous snapshots intact. The normal bootstrap still
+compiles the current source and verifies the resulting artifacts.
+
+The generator must produce the correct bounded and indexed collection types,
+modern XML/JSON/YAML schema annotations, and getter-only list APIs. Generated
+source errors must be corrected in the generators and never patched in
+`*.extgen` after generation.
 
 The naming convention for generated enums is read from the existing
 `--output-enum-technology-naming-convention:java|python=…` lines in the selected
@@ -2642,12 +2645,12 @@ implementační detail, nikoli nové veřejné CLI či požadavek na SDO.
 
 **Dočasná veřejná kompatibilita:** nové `AIaDataObjectJsonSchema`,
 `AIaDataObjectXmlSchema`, `AIaDataObjectFieldXmlSchema` jsou zavedeny vedle
-existujících `AIaJsonDataObject`, `AIaYamlDataObject`, `AIaXmlDataObject`,
-`AIaXmlDataObjectField` (staré anotace jsou `@Deprecated(forRemoval=false)`;
+existujících `AIaDataObjectJsonSchema`, `AIaDataObjectYamlSchema`, `AIaDataObjectXmlSchema`,
+`AIaDataObjectFieldXmlSchema` (staré anotace jsou `@Deprecated(forRemoval=false)`;
 Python obdoby mají `__deprecated__`). Staré atributy se nemažou a nevracejí
 se ani odstraněné `schemaId`, `schemaVersion`, `fingerprint` do obecného
 `AIaDataObject`. JSONDEFS používá novou `AIaDataObjectJsonSchema`,
-YAMLDEFS má zatím samostatné metadata `AIaYamlDataObject` (přechodný
+YAMLDEFS má zatím samostatné metadata `AIaDataObjectYamlSchema` (přechodný
 nedokončený bod migrace na nové schématové anotace). Metadata se nesmějí
 přepisovat mezi technologiemi.
 Nový Defs emitor přechodně zapisuje vedle nových metadat také odpovídající
@@ -2707,12 +2710,12 @@ otevřená práce před označením parity za splněnou; nelze ji nahradit
 
 | Anotace | Java package | Python modul |
 |---|---|---|
-| `AIaDataObjectJsonSchema` | `eu.algites.lib.data.dataobject.jsonschema` | `eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema` |
-| `AIaDataObjectXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmlschema.aia_data_object_xml_schema` |
-| `AIaDataObjectFieldXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema` |
+| `AIaDataObjectJsonSchema` | `eu.algites.lib.data.dataobject.jsonschema` | `eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema` |
+| `AIaDataObjectXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema` |
+| `AIaDataObjectFieldXmlSchema` | `eu.algites.lib.data.dataobject.xmlschema` | `eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema` |
 
-Původní formátové anotace (`AIaJsonDataObject`, `AIaYamlDataObject`,
-`AIaXmlDataObject`, `AIaXmlDataObjectField`) zůstávají v dosavadních
+Původní formátové anotace (`AIaDataObjectJsonSchema`, `AIaDataObjectYamlSchema`,
+`AIaDataObjectXmlSchema`, `AIaDataObjectFieldXmlSchema`) zůstávají v dosavadních
 `jsondefs`, `yamldefs` a `xmldefs` packages jako deprecated; jejich veřejná
 signatura se nemění. Obecné `AIaDataObject` / `AIaDataObjectField` zůstávají
 v `eu.algites.lib.data.dataobject` a náleží výhradně společným `AIig…`
@@ -2727,11 +2730,11 @@ schématovou anotací na témže společném read-only `AIig...` rozhraní.
 Obecná `AIaDataObject` neidentifikuje žádné konkrétní schéma.
 Indexery čtou jednotlivé anotace ze zdrojových `.java`,
 Python modulů a binárních `.class` v závislostních artefaktech. Při dočasné
-kompatibilitě přijímají rovněž původní `AIaJsonDataObject`,
-`AIaYamlDataObject` a `AIaXmlDataObject`; původní anotace však není podmínkou
+kompatibilitě přijímají rovněž původní `AIaDataObjectJsonSchema`,
+`AIaDataObjectYamlSchema` a `AIaDataObjectXmlSchema`; původní anotace však není podmínkou
 pro indexování. Python pole `__json_schema__` / `__xml_schema__` se čtou
-vedle historických `__json_data_object__`, `__yaml_data_object__` a
-`__xml_data_object__`.
+vedle historických `__json_schema__`, `__yaml_schema__` a
+`__xml_schema__`.
 
 Index používá jednotlivé, navzájem nezávislé URL pro JSONDEFS a
 YAMLDEFS a XML QName `{namespace}localName` pro XMLDEFS TYPE. Jejich
@@ -2750,7 +2753,7 @@ parametru zachovává dosavadní samostatné HTTPS/cache vyhodnocování.
 
  Pole XML se nadále anotují
 `AIaDataObjectFieldXmlSchema` z package `dataobject.xmlschema` (s fallbackem
-na deprecated `AIaXmlDataObjectField`). Není přípustné přidávat
+na deprecated `AIaDataObjectFieldXmlSchema`). Není přípustné přidávat
 `AIaDataObject` na technologické rozhraní pouze kvůli indexování.
 
 Trvalé párové testy `test_migrated_schema_metadata_indexed_without_generic_annotation`

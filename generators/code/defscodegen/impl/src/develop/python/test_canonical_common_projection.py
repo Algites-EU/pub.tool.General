@@ -84,9 +84,9 @@ def test_three_representations_share_one_common_contract_and_compile(tmp_path):
     assert 'getAdditionalProperties(' not in common  # Unconstrained map omitted.
     assert '@eu.algites.lib.data.dataobject.AIaDataObject(' in common
     assert '@eu.algites.lib.data.dataobject.AIaDataObjectField(' in common
-    assert '@eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectXmlSchema(' in common
-    assert '@eu.algites.lib.data.dataobject.jsonschema.AIaDataObjectJsonSchema(' in common
-    assert '@eu.algites.lib.data.dataobject.xmlschema.AIaDataObjectFieldXmlSchema(' in common
+    assert '@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(' in common
+    assert '@eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema(' in common
+    assert '@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema(' in common
     assert 'dataFieldName = "IdentifierConventions"' in common
     assert 'KEY_ID__UNIQUE_IDENTIFIER_CONVENTION_NAMES' in common
     assert 'https://defs.dev.algites.eu/api/jsondefs/' in common
@@ -97,7 +97,7 @@ def test_three_representations_share_one_common_contract_and_compile(tmp_path):
     py_root = 'intf/src/product/python.gen/eu/algites/lib/naming/convention/'
     shared = python[py_root + 'aiig_common_naming_conventions_1.py']
     assert '__json_schema__' in shared and '__xml_schema__' in shared
-    assert '__yaml_data_object__' in shared
+    assert '__yaml_schema__' in shared
     assert '__xml_schema_fields__' in shared
     assert '__scoped_key_definitions__' in shared
     for prefix in ('x', 'j', 'y'):
@@ -106,13 +106,13 @@ def test_three_representations_share_one_common_contract_and_compile(tmp_path):
     # checks emitted Python sources, not just handwritten runtime imports.
     for path, source in python.items():
         if '__json_schema__ = AIaDataObjectJsonSchema(' in source:
-            assert ('from eu.algites.lib.data.dataobject.jsonschema.aia_data_object_json_schema '
+            assert ('from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema '
                     'import AIaDataObjectJsonSchema') in source, path
         if '__xml_schema__ = AIaDataObjectXmlSchema(' in source:
-            assert ('from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_xml_schema '
+            assert ('from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema '
                     'import AIaDataObjectXmlSchema') in source, path
         if '__xml_schema_fields__' in source and 'AIaDataObjectFieldXmlSchema(' in source:
-            assert ('from eu.algites.lib.data.dataobject.xmlschema.aia_data_object_field_xml_schema '
+            assert ('from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema '
                     'import AIaDataObjectFieldXmlSchema') in source, path
     for path, source in outputs.items():
         if path.endswith('.py'):
@@ -142,7 +142,7 @@ def _xml_reference_files(tmp_path):
     py.mkdir(parents=True)
     (java / 'AIigCommonNamingConventions_1.java').write_text(
         'package eu.algites.lib.naming.convention;\n'
-        '@eu.algites.lib.data.dataobject.xmldefs.AIaXmlDataObject('
+        '@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema('
         'definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE, '
         f'namespace = "{ns}", namespaceLocalName = "CommonNamingConventions")\n'
         '@eu.algites.lib.data.dataobject.AIaDataObject(description = "CommonNamingConventions")\n'
@@ -153,12 +153,12 @@ def _xml_reference_files(tmp_path):
         'from .aiig_common_naming_conventions_1 import AIigCommonNamingConventions_1\n'
         'from eu.algites.lib.data.dataobject.xmldefs.aii_xml_data_object import AIiXmlDataObject\n'
         'from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject\n'
-        'from eu.algites.lib.data.dataobject.xmldefs.aia_xml_data_object import AIaXmlDataObject\n'
+        'from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema import AIaDataObjectXmlSchema\n'
         'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind\n'
         'class AIigCommonNamingConventions_1(AIigCommonNamingConventions_1, AIiXmlDataObject):\n'
         '    """Generated read-only XML contract."""\n'
         '    __data_object__ = AIcdDataObject(description="CommonNamingConventions")\n'
-        '    __xml_data_object__ = AIaXmlDataObject('
+        '    __xml_schema__ = AIaDataObjectXmlSchema('
         'definition_kind=AInXmlObjectDefinitionKind.TYPE, '
         f'namespace={ns!r}, namespace_local_name="CommonNamingConventions")\n')
     return '{' + ns + '}CommonNamingConventions'

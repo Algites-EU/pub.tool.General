@@ -81,8 +81,7 @@ def _data_object_fields(cls: type, identity_provider: Callable | None = None) ->
     owners: dict[str, type] = {}
     for owner in reversed(cls.__mro__):
         schema = (owner.__dict__.get('__json_schema__') or
-                  owner.__dict__.get('__json_data_object__') or
-                  owner.__dict__.get('__yaml_data_object__'))
+                  owner.__dict__.get('__yaml_schema__'))
         reserved = {n for n in (
             getattr(schema, 'data_source_schema_url_field', ''),
             getattr(schema, 'data_source_schema_identifier_field', ''),

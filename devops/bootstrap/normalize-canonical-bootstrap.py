@@ -47,11 +47,11 @@ def _python(text: str) -> str:
         indent = match.group('indent')
         result.append(indent + '__data_object__ = AIcdDataObject(' + ', '.join(neutral) + ')' + newline)
         if format_local:
-            result.append(indent + '__json_data_object__ = AIaJsonDataObject(' + ', '.join(format_local) + ')' + newline)
+            result.append(indent + '__json_schema__ = AIaDataObjectJsonSchema(' + ', '.join(format_local) + ')' + newline)
     text = ''.join(result)
-    if '__json_data_object__' in text and 'from eu.algites.lib.data.dataobject.jsondefs.aia_json_data_object import AIaJsonDataObject' not in text:
+    if '__json_data_object__' in text and 'from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema' not in text:
         pos = text.index('from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject')
-        text = (text[:pos] + 'from eu.algites.lib.data.dataobject.jsondefs.aia_json_data_object import AIaJsonDataObject\n' + text[pos:])
+        text = (text[:pos] + 'from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema\n' + text[pos:])
     return text
 
 
@@ -81,7 +81,7 @@ def _java(text: str) -> str:
                 raise ValueError('Unexpected generated Java metadata: ' + key)
         result = '@eu.algites.lib.data.dataobject.AIaDataObject(' + ', '.join(neutral) + ')'
         if specific:
-            result += '\n@eu.algites.lib.data.dataobject.jsondefs.AIaJsonDataObject(' + ', '.join(specific) + ')'
+            result += '\n@eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema(' + ', '.join(specific) + ')'
         return result
 
     return pattern.sub(replace, text)

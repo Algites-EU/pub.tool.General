@@ -15,7 +15,13 @@ def test_tool_bootstrap_help_advertises_default_enabled_cleanup():
                             cwd=repository, capture_output=True, text=True,
                             env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'}, check=True)
     assert '--cleanup-output-folder-before-generation=true|false' in result.stdout
-    assert 'defaults to true in pub.tool.General' in result.stdout
+    assert 'defaults to repository bootstrap policy' in result.stdout
+    from importlib.util import module_from_spec, spec_from_file_location
+    source = repository / 'devops/bootstrap/selfhosting.py'
+    spec = spec_from_file_location('bootstrap_cleanup_policy', source)
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.policies(repository)['CleanGeneratedDefault'] is True
 
 
 def test_selected_cleanup_rejects_invalid_boolean():

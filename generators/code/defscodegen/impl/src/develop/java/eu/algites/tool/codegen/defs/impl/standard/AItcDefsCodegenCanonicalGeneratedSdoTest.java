@@ -1,16 +1,16 @@
 package eu.algites.tool.codegen.defs.impl.standard;
 
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngComposition_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngResolutionState_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngScalarKind_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngSourceInputKind_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIngTypeOrigin_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIigStructureVariantElementList2_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.AIigTypeContentVariantStructure1_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.impl.AIcgdElement_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.impl.AIcgdScalar_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.impl.AIcgdSourceBindings_1;
-import eu.algites.tool.codegen.defs.bootstrap.model.impl.AIcgdType_1;
+import eu.algites.tool.codegen.defs.model.AIngComposition_1;
+import eu.algites.tool.codegen.defs.model.AIngResolutionState_1;
+import eu.algites.tool.codegen.defs.model.AIngScalarKind_1;
+import eu.algites.tool.codegen.defs.model.AIngSourceInputKind_1;
+import eu.algites.tool.codegen.defs.model.AIngTypeOrigin_1;
+import eu.algites.tool.codegen.defs.model.AIigStructureVariantElementList2_1;
+import eu.algites.tool.codegen.defs.model.AIigTypeContentVariantStructure1_1;
+import eu.algites.tool.codegen.defs.model.impl.AIcgdElement_1;
+import eu.algites.tool.codegen.defs.model.impl.AIcgdScalar_1;
+import eu.algites.tool.codegen.defs.model.impl.AIcgdSourceBindings_1;
+import eu.algites.tool.codegen.defs.model.impl.AIcgdType_1;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElement;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalElementList;
 import eu.algites.tool.codegen.defs.impl.standard.model.AIcDefsCanonicalScalar;

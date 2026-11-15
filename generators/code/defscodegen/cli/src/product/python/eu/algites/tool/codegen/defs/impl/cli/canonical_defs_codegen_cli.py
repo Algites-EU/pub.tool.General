@@ -219,14 +219,12 @@ def _existing_contracts(roots: tuple[Path, ...],
             annotations = {
                 match.group(1): match.group(2)
                 for match in re.finditer(
-                    r'@(?:[\w.]+\.)?(AIaDataObjectJsonSchema|AIaDataObjectXmlSchema|'
-                    r'AIaJsonDataObject|AIaYamlDataObject|AIaXmlDataObject)\s*\(([^)]*)\)',
+                    r'@(?:[\w.]+\.)?(AIaDataObjectJsonSchema|AIaDataObjectYamlSchema|'
+                    r'AIaDataObjectXmlSchema)\s*\(([^)]*)\)',
                     content)}
-            xml = (annotations.get('AIaDataObjectXmlSchema') or
-                   annotations.get('AIaXmlDataObject'))
-            json_meta = (annotations.get('AIaDataObjectJsonSchema') or
-                         annotations.get('AIaJsonDataObject'))
-            yaml_meta = annotations.get('AIaYamlDataObject')
+            xml = annotations.get('AIaDataObjectXmlSchema')
+            json_meta = annotations.get('AIaDataObjectJsonSchema')
+            yaml_meta = annotations.get('AIaDataObjectYamlSchema')
             url_pattern = r'\bschemaUrl\s*=\s*"(https://[^"\s]+)"'
             id_pattern = r'\bschemaId\s*=\s*"([^"\s]+)"'
             xml_name = r'\bnamespaceLocalName\s*=\s*"([^"]+)"'
@@ -236,12 +234,11 @@ def _existing_contracts(roots: tuple[Path, ...],
             annotations = {
                 match.group(1): match.group(2)
                 for match in re.finditer(
-                    r'__(xml_schema|json_schema|xml_data_object|json_data_object|'
-                    r'yaml_data_object)__\s*=\s*AIa\w+\s*\(([^)]*)\)',
+                    r'__(xml_schema|json_schema|yaml_schema)__\s*=\s*AIa\w+\s*\(([^)]*)\)',
                     content)}
-            xml = annotations.get('xml_schema') or annotations.get('xml_data_object')
-            json_meta = annotations.get('json_schema') or annotations.get('json_data_object')
-            yaml_meta = annotations.get('yaml_data_object')
+            xml = annotations.get('xml_schema')
+            json_meta = annotations.get('json_schema')
+            yaml_meta = annotations.get('yaml_schema')
             url_pattern = r"\bschema_url\s*=\s*['\"](https://[^'\"\s]+)['\"]"
             id_pattern = r"\bschema_id\s*=\s*['\"]([^'\"\s]+)['\"]"
             xml_name = r"\bnamespace_local_name\s*=\s*['\"]([^'\"]+)['\"]"
@@ -272,9 +269,7 @@ def _existing_contracts(roots: tuple[Path, ...],
                 continue
             # Format schema annotations belong to the same unified read-only
             # contract as AIaDataObject; all identities are indexed there.
-            metadata_slots = {'__xml_schema__', '__json_schema__',
-                              '__xml_data_object__', '__json_data_object__',
-                              '__yaml_data_object__'}
+            metadata_slots = {'__xml_schema__', '__json_schema__', '__yaml_schema__'}
             if not any(isinstance(item, ast.Assign) and any(
                     isinstance(target, ast.Name) and target.id in metadata_slots
                     for target in item.targets) for item in declaration.body):
@@ -385,9 +380,8 @@ def _existing_contracts(roots: tuple[Path, ...],
                 content = file.read_text(encoding='utf-8')
                 if branch == 'java.gen':
                     pack, typ = java_package.search(content), java_type.search(content)
-                    format_annotations = ('AIaDataObjectJsonSchema', 'AIaDataObjectXmlSchema',
-                                          'AIaJsonDataObject', 'AIaYamlDataObject',
-                                          'AIaXmlDataObject')
+                    format_annotations = ('AIaDataObjectJsonSchema', 'AIaDataObjectYamlSchema',
+                                          'AIaDataObjectXmlSchema')
                     if (not (pack and typ) or not any(
                             re.search(r'@(?:[\w.]+\.)?' + name + r'\s*\(', content)
                             for name in format_annotations)):

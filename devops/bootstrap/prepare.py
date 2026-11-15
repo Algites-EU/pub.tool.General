@@ -337,7 +337,7 @@ def stage_gradle(repository: Path, work: Path, records: list[dict], version: str
                 java.srcDirs = ['src/product/java', 'src/product/java.extgen', 'src/product/java.gen']
             }
             // Explicitly ignore stale historical SDO files after overlay extraction.
-            java.exclude '**/eu/algites/tool/codegen/sdo/old/**'\n            resources.srcDirs = __MODUSTRO_RESOURCE_SOURCE_DIRS__\n        }\n    }\n    dependencies {\n        config.dependencies.each { d ->\n            if (d.kind == 'project') {\n                add(d.configuration, rootProject.project(':' + d.target))\n            } else {\n                add(d.configuration, d.target)\n            }\n        }\n    }\n    publishing {\n        publications {\n            mavenJava(MavenPublication) {\n                from components.java\n                artifactId = config.artifactId\n            }\n        }\n        repositories {\n            maven { name = 'Bootstrap'; url = uri(new File(outputRoot, 'maven-repository')) }\n        }\n    }\n}\n'''
+            java.exclude '**/eu/algites/tool/codegen/sdo/old/**'\n            if (config.artifactId == 'pub.tool.General_generators.code.defscodegen.intf') {\n                java.exclude '**/impl/intf/AIigd*.java', '**/impl/AIcgd*.java'\n            }\n            resources.srcDirs = __MODUSTRO_RESOURCE_SOURCE_DIRS__\n        }\n    }\n    dependencies {\n        config.dependencies.each { d ->\n            if (d.kind == 'project') {\n                add(d.configuration, rootProject.project(':' + d.target))\n            } else {\n                add(d.configuration, d.target)\n            }\n        }\n    }\n    publishing {\n        publications {\n            mavenJava(MavenPublication) {\n                from components.java\n                artifactId = config.artifactId\n            }\n        }\n        repositories {\n            maven { name = 'Bootstrap'; url = uri(new File(outputRoot, 'maven-repository')) }\n        }\n    }\n}\n'''
     build = build.replace('__MODUSTRO_RESOURCE_SOURCE_DIRS__', 'config.resourceDirs')
     build = build.replace('__MODUSTRO_REMOTE_GROUP_IDS__', json.dumps(remote_groups))
     # The same universal SDO phase is applied to every staged Gradle build.
@@ -368,6 +368,12 @@ def stage_one_python(repository: Path, work: Path, record: dict, release: str) -
             continue
         for file in sorted(source.rglob('*')):
             if not file.is_file() or file.suffix in ('.pyc', '.pyo') or any(p in IGNORED for p in file.parts):
+                continue
+            # Defs intf temporary *.gen holds both Defs and SDO contracts.
+            # Publish only Defs declarations from this interface artifact.
+            if (record['path'] == 'generators/code/defscodegen/intf'
+                    and file.suffix == '.py'
+                    and file.stem.startswith(('aiigd_', 'aicgd_'))):
                 continue
             relative_parts = file.relative_to(source).parts
             if relative_parts[:6] == ('eu', 'algites', 'tool', 'codegen', 'sdo', 'old'):
