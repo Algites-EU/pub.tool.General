@@ -1,12 +1,23 @@
 # The only repository-specific bootstrap policy; ordinary repos may omit it.
 CleanGeneratedDefault: true
 RequireFreshGenerated: true
+# The self-hosted Defs contract artifact has identical FQCNs in the persistent
+# bootstrap ABI and newly generated source trees. Select exactly one source
+# tree for each compilation/staging phase, as in pub.lib.General naming.
+GeneratedSourceSelection:
+  - ArtifactId: pub.tool.General_generators.code.defscodegen.intf
+    JavaCompletionPatterns:
+      - '**/impl/intf/AIigd*.java'
+      - '**/impl/AIcgd*.java'
+    PythonCompletionPatterns:
+      - '**/impl/intf/aiigd*.py'
+      - '**/impl/aicgd*.py'
 Snapshots:
   - ArtifactPath: generators/code/defscodegen/intf
     Program: promote-canonical-extgen.py
     BeforeGeneration: --prune-seed
     BeforeGenerationAnyRoot: true
-    AfterBootstrap: --refresh
+    AfterSdoJava: --refresh
     RequireWholeRepository: true
 
 # Source compiler cycle described by artifact IDs rather than hard-coded engine logic.

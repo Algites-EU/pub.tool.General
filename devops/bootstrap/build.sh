@@ -154,6 +154,15 @@ fi
 MODUSTRO_BOOTSTRAP_NATIVE_OUTPUT="$locBuildRoot" MODUSTRO_BOOTSTRAP_NATIVE_VERSION="$locVersion" \
     "${locGradle[@]}" "${locGradleArgs[@]}" bootstrapSdoJava
 
+# Java and Python SDO generation is now complete, but final artifact compilation
+# has not yet started. Refresh only explicitly configured self-hosted snapshots
+# here, so generated read-only contracts and their mutable implementations
+# belong to the same generation. A validation failure leaves every prior
+# *.extgen snapshot intact; publishing must not start in that case.
+"$locPython" "$locBootstrap/selfhosting.py" phase \
+    --repository "$locRepo" --root "${MODUSTRO_BOOTSTRAP_ROOT:-$locRepo}" \
+    --phase after-sdo-java
+
 # Java SDO uses the compiled DataObject interfaces from the first pass above.
 # Run publication only after the generated mutable/implementation sources exist;
 # Gradle compiles and publishes them as part of the SAME owning artifact.

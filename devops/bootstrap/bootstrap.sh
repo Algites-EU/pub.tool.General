@@ -229,7 +229,7 @@ if [[ -f "$locBootstrapDirectory/generate.sh" ]]; then
     bash "$locBootstrapDirectory/generate.sh"
 fi
 bash "$locBuild" "$locAction"
-# Only explicitly configured self-hosting artifacts may promote gen ->
-# extgen, and only after all selected compilation/packaging checks passed.
+# Optional post-bootstrap checks; self-hosted ABI source promotion runs
+# immediately after successful SDO generation, before final compilation.
 "$locPython" "$locSelfhosting" phase --repository "$locRepository" \
     --root "$locRoot" --phase after-bootstrap

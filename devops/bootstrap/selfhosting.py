@@ -82,18 +82,19 @@ def run_phase(repository: Path, root: Path, phase: str) -> None:
         if not applies_to_selected and not (phase == 'before-generation' and
                                            entry.get('BeforeGenerationAnyRoot', False)):
             continue
-        if (phase in ('after-build', 'after-bootstrap') and
+        if (phase in ('after-sdo-java', 'after-build', 'after-bootstrap') and
                 entry.get('RequireWholeRepository', False) and root != repository):
             continue
         if phase == 'before-generation' and entry.get('BeforeGenerationSeedOnly', False):
             if os.environ.get('MODUSTRO_BOOTSTRAP_SDO_ABI_SEED') != '1':
                 continue
-        if phase in ('after-build', 'after-bootstrap') and os.environ.get(
+        if phase in ('after-sdo-java', 'after-build', 'after-bootstrap') and os.environ.get(
                 'MODUSTRO_BOOTSTRAP_SDO_ABI_SEED') == '1':
             continue
         option = entry.get({
             'check-seed': 'CheckSeed',
             'before-generation': 'BeforeGeneration',
+            'after-sdo-java': 'AfterSdoJava',
             'after-build': 'AfterBuild',
             'after-bootstrap': 'AfterBootstrap',
         }[phase])
@@ -113,7 +114,7 @@ def main() -> None:
     parser.add_argument('command', choices=('clean-default', 'require-fresh', 'phase'))
     parser.add_argument('--repository', type=Path, required=True)
     parser.add_argument('--root', type=Path)
-    parser.add_argument('--phase', choices=('check-seed', 'before-generation', 'after-build', 'after-bootstrap'))
+    parser.add_argument('--phase', choices=('check-seed', 'before-generation', 'after-sdo-java', 'after-build', 'after-bootstrap'))
     args = parser.parse_args()
     repo = args.repository.resolve(strict=True)
     if args.command == 'clean-default':

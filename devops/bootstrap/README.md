@@ -155,10 +155,18 @@ universal `source-dependencies.py`.
 
 `pub.tool.General` declares the Defs canonical-model seed at
 `generators/code/defscodegen/intf`. The optional configured
-`promote-canonical-extgen.py --prune-seed` keeps the minimal compiler ABI before
-generation; after a successful complete bootstrap, `--refresh` atomically
-replaces its committed Java/Python `*.extgen` trees with verified fresh `*.gen`
-outputs. Partial-root bootstrap does not refresh this complete seed.
+`promote-canonical-extgen.py --prune-seed` validates the compiler ABI before
+generation. Once both independent Defs/SDO generators have completed, and the
+Java SDO Gradle task has succeeded, `--refresh` validates and atomically
+replaces the four canonical Java/Python `*.extgen` source trees directly from
+complete `*.gen` output. This must happen **before** the final Gradle compile:
+the Defs `intf` product selects fresh read-only `.gen`, while the Defs `impl`
+product compiles the corresponding SDO `*.extgen` snapshot. Delaying the copy
+until after compilation would mix different schema generations and lead to
+missing types and incompatible generic get/set methods. Every generated source
+is copied byte-for-byte with its original relative path, and incomplete
+output leaves all four previous snapshots intact. Seed-mode and partial-root
+bootstrap do not refresh this complete seed.
 
 A bootstrap invocation pre-resolves schema identities from the selected
 `--root` artifacts and their transitive Modustro product and schema-only
