@@ -173,9 +173,11 @@ def test_numeric_xsd_fixed_is_emitted_as_typed_constraint_in_both_languages():
     java = next(item.content for item in emitted if item.language == 'java')
     python = next(item.content for item in emitted if item.language == 'python')
     assert 'AInDataObjectFieldDefaultKind.CONSTRAINT_DEFAULT' in java
-    assert 'value = "1"' in java
+    assert 'defaultArguments = {"1"}' in java
+    assert 'AIiFieldDefaultScalarValueFactory.class' in java
     assert 'AInDataObjectFieldDefaultKind.CONSTRAINT_DEFAULT' in python
-    assert "value='1'" in python
+    assert "default_arguments=('1',)" in python
+    assert "AIiFieldDefaultScalarValueFactory" in python
     assert 'expected_type=int' in python
 
 

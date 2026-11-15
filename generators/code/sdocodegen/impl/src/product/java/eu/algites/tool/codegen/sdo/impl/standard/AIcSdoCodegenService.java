@@ -8,7 +8,7 @@ import eu.algites.tool.codegen.sdo.AIcdSdoGenerationResult;
 import eu.algites.tool.codegen.sdo.AIiSdoCodegenService;
 import eu.algites.lib.data.dataobject.AIaDataObjectField;
 import eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy;
-import eu.algites.lib.data.dataobject.AIaFieldDefault;
+import eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault;
 import eu.algites.lib.data.dataobject.xmldefs.AIiXmlDataObjectNamespace;
 import eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition;
 import eu.algites.lib.common.object.props.labels.AIaFieldLabel;
@@ -510,11 +510,6 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
                     .append(", minItemCount = ").append(locField.field().minItemCount())
                     .append(", maxItemCount = ").append(locField.field().maxItemCount())
                     .append(", isEmptyAllowed = ").append(locField.field().isEmptyAllowed())
-                    .append(", defaultValue = @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(kind = ")
-                    .append("eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.")
-                    .append(locField.field().defaultValue().kind().name())
-                    .append(", value = \"").append(escape(locField.field().defaultValue().value()))
-                    .append("\", defined = ").append(locField.field().defaultValue().defined()).append(")")
                     .append(", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.")
                     .append(locFieldPolicies.get(locName)).append(")\n");
             locInterface.append("    ").append(fieldConstraintsAnnotations(locField.dataMethod()));
@@ -688,13 +683,13 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
 
     /**
      * Preserve explicit discovery selections without instantiating providers by reflection.
-     * The factoryClass names the specialized factory SPI, not a concrete resolver.
+     * The factoryInterface names the specialized factory SPI, not a concrete resolver.
      */
     private static void appendResolver(StringBuilder aTarget, String aName,
             AIaCategoryProviderFactoryDefinition aResolver) {
         aTarget.append(", ").append(aName)
-                .append(" = @eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition(factoryClass = ")
-                .append(aResolver.factoryClass().getCanonicalName()).append(".class")
+                .append(" = @eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition(factoryInterface = ")
+                .append(aResolver.factoryInterface().getCanonicalName()).append(".class")
                 .append(", factoryCategory = \"").append(escape(aResolver.factoryCategory())).append("\"")
                 .append(", factoryProviderId = \"").append(escape(aResolver.factoryProviderId())).append("\")");
     }
@@ -889,16 +884,19 @@ public final class AIcSdoCodegenService implements AIiSdoCodegenService {
 
     /** Retain a field default factory selection on the mutable getter. */
     private static String defaultValueAnnotation(Method aGetter) {
-        AIaFieldDefault locField = aGetter.getDeclaredAnnotation(AIaFieldDefault.class);
-        if (locField == null) return "";
-        StringBuilder locResult = new StringBuilder(
-                "@eu.algites.lib.data.dataobject.AIaFieldDefault(");
-        AIaCategoryProviderFactoryDefinition locResolver = locField.defaultValueResolver();
-        locResult.append("defaultValueResolver = @eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition(factoryClass = ")
-                .append(locResolver.factoryClass().getCanonicalName()).append(".class")
-                .append(", factoryCategory = \"").append(escape(locResolver.factoryCategory())).append("\"")
-                .append(", factoryProviderId = \"").append(escape(locResolver.factoryProviderId())).append("\"))\n");
-        return locResult.toString();
+        AIaDataObjectFieldDefault declared = aGetter.getDeclaredAnnotation(AIaDataObjectFieldDefault.class);
+        if (declared == null) return "";
+        AIaCategoryProviderFactoryDefinition selection = declared.defaultValueFactory();
+        String arguments = java.util.Arrays.stream(declared.defaultArguments())
+                .map(value -> "\"" + escape(value) + "\"")
+                .collect(java.util.stream.Collectors.joining(", "));
+        return "@eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(" 
+                + "kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind." + declared.kind().name()
+                + ", defaultValueFactory = @eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition("
+                + "factoryInterface = " + selection.factoryInterface().getCanonicalName() + ".class"
+                + ", factoryCategory = \"" + escape(selection.factoryCategory()) + "\""
+                + ", factoryProviderId = \"" + escape(selection.factoryProviderId()) + "\")"
+                + ", defaultArguments = {" + arguments + "})\n";
     }
 
 

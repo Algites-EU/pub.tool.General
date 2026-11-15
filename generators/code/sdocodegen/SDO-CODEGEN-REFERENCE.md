@@ -464,8 +464,11 @@ documented in [Code Generators Reference Guide](../CODEGEN-REFERENCE.md).
 The SDO generator consumes `AIaDataObjectField.fieldName`, `presence`
 (`REQUIRED`, `ALLOWED`, `FORBIDDEN`), `allowsNull`, and `namingConvention`
 metadata. Human-readable labels are resolved through `AIaFieldLabel`;
-default values are expressed separately through `AIaFieldDefault` and its
-factory-based resolver. XML-specific QNames belong to `AIaDataObjectXmlSchema` and
+default values are expressed by the separate getter annotation
+`AIaDataObjectFieldDefault` with `kind`, `defaultValueFactory` and
+`defaultArguments`. The factory is selected by the CPDiscovery specialized
+`factoryInterface`, optional `factoryCategory` and provider ID; no legacy
+`AIaFieldDefault` resolver is generated. XML-specific QNames belong to `AIaDataObjectXmlSchema` and
 `AIaDataObjectFieldXmlSchema` and are copied to the mutable contract. Inherited
 fields may be restricted, but the implementation rejects relaxation of
 required/forbidden presence or nullability. XML element contracts use the
@@ -662,7 +665,7 @@ unicitu a přítomnost polí. Obecná XML projekce na `MAP` zůstává odložen�
 ### Defaulty a explicitní empty při generování
 
 SDO generátor přebírá metadata `AIaDataObjectField` z anotovaného read-only
-kontraktu; `defaultValue` obsahuje `DECLARATION_ONLY`,
+kontraktu; samostatná anotace `AIaDataObjectFieldDefault.kind` obsahuje `DECLARATION_ONLY`,
 `IF_FIELD_VALUE_NOT_PRESENT`, `IF_FIELD_VALUE_EMPTY`, případně
 `CONSTRAINT_DEFAULT` (přepis XSD `fixed`). Pro explicitně povolené empty
 SDO generuje technické `_setEmpty_Xxxx()` a `_isEmpty_Xxxx()` podle
@@ -673,7 +676,12 @@ Při fixed nepřijímá SDO jinou hodnotu ani explicitní empty. Pro číselné
 např. `fixed="1"` dovolí integer 1, ale nikoli Boolean `true`. V Javě proto
 runtime při volání generovaného setteru boxuje primitivní typ getteru pro
 reflektivní typovou kontrolu. Raw serializace nepřepisuje nepřítomná nebo
-prázdná pole efektivními defaulty.
+prázdná pole efektivními defaulty. Metadata fieldu ukládají samotnou
+anotaci (včetně factoryInterface/kategorie a argumentů). Runtime při potřebě
+vyhodnocení zavolá CPDiscovery znovu; její registr již drží objevené
+factory instance, takže nedochází k novému ServiceLoader scanování.
+Výsledek factory se necacheuje: `Optional.empty()` znamená explicitní
+`null`, který není totéž co chybějící anotace ani raw nepřítomnost.
 
 SDO nevytváří nový kanonický model a nečte Defs schémata. Kanonický bootstrap
 zůstává generovaný ve vlastní vrstvě, ne ručně přepisovaný. Až po ověření

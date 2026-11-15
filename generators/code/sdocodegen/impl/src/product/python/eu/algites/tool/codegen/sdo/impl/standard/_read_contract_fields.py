@@ -52,7 +52,6 @@ def _declared_fields(owner: type, identity_provider: Callable | None = None):
             min_item_count=definition.min_item_count,
             max_item_count=definition.max_item_count,
             is_empty_allowed=definition.is_empty_allowed,
-            default_value=definition.default_value,
             string_constraints=getattr(getter, '__data_object_field_string_constraints__', None),
             numeric_constraints=getattr(getter, '__data_object_field_numeric_constraints__', None),
             list_constraints=getattr(getter, '__data_object_field_list_constraints__', None),

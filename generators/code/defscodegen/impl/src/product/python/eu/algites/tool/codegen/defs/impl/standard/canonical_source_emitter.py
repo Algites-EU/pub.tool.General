@@ -987,15 +987,18 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             ]
             if isinstance(xml_member, Element):
                 annotation_fields.append('isEmptyAllowed = ' + str(xml_member.is_empty_allowed).lower())
-                if xml_member.default_kind:
-                    annotation_fields.append('defaultValue = @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault('
-                        'kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.'
-                        + xml_member.default_kind + ', defined = true, value = '
-                        + _java_string(xml_member.default_value) + ')')
+
             if self.common_projection or not self.common_output_names:
                 rows.extend(self._constraint_decorators(field_value, types, 'java'))
                 rows.append('    @eu.algites.lib.data.dataobject.AIaDataObjectField('
                             + ', '.join(annotation_fields) + ')\n')
+                if isinstance(xml_member, Element) and xml_member.default_kind:
+                    rows.append('    @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault('
+                        'kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.'
+                        + xml_member.default_kind
+                        + ', defaultValueFactory = @eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition('
+                        'factoryInterface = eu.algites.lib.data.dataobject.AIiFieldDefaultScalarValueFactory.class), '
+                        'defaultArguments = {' + _java_string(xml_member.default_value) + '})\n')
             documented = _java_doc(description or f'Value of schema field {original}.')
             required = 'required' if minimum else 'optional'
             rows.extend((
@@ -1260,7 +1263,9 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                    'from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField\n'
                    'from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\n'
                    'from eu.algites.lib.data.dataobject.aia_data_object_field_default import AIaDataObjectFieldDefault\n'
-                   'from eu.algites.lib.data.dataobject.ain_data_object_field_default_kind import AInDataObjectFieldDefaultKind\n')
+                   'from eu.algites.lib.data.dataobject.ain_data_object_field_default_kind import AInDataObjectFieldDefaultKind\n'
+                   'from eu.algites.lib.data.dataobject.aii_field_default_scalar_value_factory import AIiFieldDefaultScalarValueFactory\n'
+                   'from eu.algites.lib.factory.cpdiscovery.aia_category_provider_factory_definition import AIaCategoryProviderFactoryDefinition\n')
         if 'AIiDataObject' in parent_names:
             header += 'from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject\n'
         for kind, fmt in ((SourceKind.JSONDEFS, 'json'), (SourceKind.YAMLDEFS, 'yaml')):
@@ -1428,10 +1433,6 @@ class AIcDefsCodegenCanonicalSourceEmitter:
             metadata = next((child for child in node.structure.children
                              if isinstance(child, Element) and child.name == original), None)
             default_expression = ''
-            if metadata is not None and metadata.default_kind:
-                default_expression = (', default_value=AIaDataObjectFieldDefault('
-                    'kind=AInDataObjectFieldDefaultKind.' + metadata.default_kind
-                    + ', defined=True, value=' + repr(metadata.default_value) + ')')
             field_order = next((i for i, child in enumerate(node.structure.children)
                                 if getattr(child, 'name', None) == original), -1)
             field_member = next((child for child in node.structure.children
@@ -1451,6 +1452,12 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                          + f', order={field_order}, min_item_count={count_min}, max_item_count={count_max}'
                          + f', is_empty_allowed={bool(metadata and metadata.is_empty_allowed)!r}'
                          + default_expression + ')\n')
+                if metadata is not None and metadata.default_kind:
+                    rows.append('    @AIaDataObjectFieldDefault(kind=AInDataObjectFieldDefaultKind.'
+                                + metadata.default_kind
+                                + ', default_value_factory=AIaCategoryProviderFactoryDefinition('
+                                + 'AIiFieldDefaultScalarValueFactory), default_arguments=('
+                                + repr(metadata.default_value) + ',))\n')
             rows.extend(('    @abstractmethod\n', f'    def {getter}(self) -> {typ}:\n',
                          f'        """Return {doc} ({required}, cardinality {minimum}..{maximum})."""\n',
                          '        raise NotImplementedError\n\n'))

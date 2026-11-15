@@ -7,7 +7,7 @@ package eu.algites.tool.codegen.defs.model.impl.intf;
 @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE, namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "KeyDefinition")
 public interface AIigdKeyDefinition_1<TFieldsList extends java.lang.String> extends eu.algites.tool.codegen.defs.model.AIigKeyDefinition_1, eu.algites.lib.data.smartdataobject.AIiSmartDataObject {
     /** Typed writable access to field FieldsList under the published setter policy. */
-    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "fields", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED, allowsNull = false, order = 3, minItemCount = 0, maxItemCount = -1, isEmptyAllowed = false, defaultValue = @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.DECLARATION_ONLY, value = "", defined = false), setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
+    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "fields", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED, allowsNull = false, order = 3, minItemCount = 0, maxItemCount = -1, isEmptyAllowed = false, setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Fields list")
     @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "fields", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
             @Override eu.algites.lib.common.list.AIiBoundedList<? extends TFieldsList> getFieldsList();
@@ -15,7 +15,7 @@ public interface AIigdKeyDefinition_1<TFieldsList extends java.lang.String> exte
     boolean _isPresent_FieldsList();
     void _unset_FieldsList();
     /** Typed writable access to field Identifier under the published setter policy. */
-    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "identifier", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED, allowsNull = false, order = 0, minItemCount = 1, maxItemCount = 1, isEmptyAllowed = true, defaultValue = @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.DECLARATION_ONLY, value = "", defined = false), setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
+    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "identifier", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED, allowsNull = false, order = 0, minItemCount = 1, maxItemCount = 1, isEmptyAllowed = true, setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Identifier")
     @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "identifier", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
             @Override java.lang.String getIdentifier();
@@ -26,7 +26,7 @@ public interface AIigdKeyDefinition_1<TFieldsList extends java.lang.String> exte
     void _setEmpty_Identifier();
     boolean _isEmpty_Identifier();
     /** Typed writable access to field Required under the published setter policy. */
-    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "required", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED, allowsNull = false, order = 4, minItemCount = 0, maxItemCount = 1, isEmptyAllowed = false, defaultValue = @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.DECLARATION_ONLY, value = "", defined = false), setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
+    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "required", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.ALLOWED, allowsNull = false, order = 4, minItemCount = 0, maxItemCount = 1, isEmptyAllowed = false, setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Required")
     @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "required", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
             @Override java.lang.Boolean getRequired();
@@ -35,7 +35,7 @@ public interface AIigdKeyDefinition_1<TFieldsList extends java.lang.String> exte
     boolean _isPresent_Required();
     void _unset_Required();
     /** Typed writable access to field Selector under the published setter policy. */
-    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "selector", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED, allowsNull = false, order = 1, minItemCount = 1, maxItemCount = 1, isEmptyAllowed = true, defaultValue = @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.DECLARATION_ONLY, value = "", defined = false), setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
+    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "selector", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED, allowsNull = false, order = 1, minItemCount = 1, maxItemCount = 1, isEmptyAllowed = true, setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Selector")
     @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "selector", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
             @Override java.lang.String getSelector();
@@ -46,7 +46,7 @@ public interface AIigdKeyDefinition_1<TFieldsList extends java.lang.String> exte
     void _setEmpty_Selector();
     boolean _isEmpty_Selector();
     /** Typed writable access to field SourcePointer under the published setter policy. */
-    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "source_pointer", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED, allowsNull = false, order = 2, minItemCount = 1, maxItemCount = 1, isEmptyAllowed = true, defaultValue = @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.DECLARATION_ONLY, value = "", defined = false), setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
+    @eu.algites.lib.data.dataobject.AIaDataObjectField(dataFieldName = "source_pointer", presence = eu.algites.lib.data.dataobject.AInFieldPresenceKind.REQUIRED, allowsNull = false, order = 2, minItemCount = 1, maxItemCount = 1, isEmptyAllowed = true, setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
         @eu.algites.lib.common.object.props.labels.AIaFieldLabel(label = "Source pointer")
     @eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectFieldXmlSchema(namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/model/canonical-model_1.xsd", namespaceLocalName = "source_pointer", valueKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlValueKind.ELEMENT)
             @Override java.lang.String getSourcePointer();

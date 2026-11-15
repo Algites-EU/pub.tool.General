@@ -2429,8 +2429,13 @@ without generating duplicate parent contracts.
 Kanonický `Element` má `default_kind`, `default_value` a `is_empty_allowed`.
 `default_kind` je prázdný pro nepřítomný default, jinak jedna ze čtyř
 konstant `AInDataObjectFieldDefaultKind`. Přítomná hodnota může být sama `""`.
-Emitery Java/Python zapisují `order`, `isEmptyAllowed` a vnořený
-`AIaDataObjectFieldDefault`/Python ekvivalent na read-only getter. Díky tomu
+Emitery Java/Python zapisují `order` a `isEmptyAllowed` do `AIaDataObjectField` a
+samostatnou `AIaDataObjectFieldDefault` pouze tam, kde je skutečně deklarovaný
+default. Nová anotace ukládá `kind`, `defaultValueFactory` (standardně
+`AIiFieldDefaultScalarValueFactory.class` bez explicitní kategorie) a
+`defaultArguments` (jednoprvkové pole lexikální hodnoty; i `""` je platná).
+Staré vnořené `defaultValue`/`defined` a `AIaFieldDefault` se již negenerují.
+Díky tomu
 SDO generátor přečte všechna metadata **z rozhraní** a nepotřebuje XSD ani
 kanonický model.
 

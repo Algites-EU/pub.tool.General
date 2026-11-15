@@ -1420,13 +1420,16 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                     .append(", minItemCount = ").append(countMinimum)
                     .append(", maxItemCount = ").append(countMaximum)
                     .append(", isEmptyAllowed = ").append(metadata != null && metadata.isEmptyAllowed());
-            if (metadata != null && !metadata.defaultKind().isEmpty()) {
-                result.append(", defaultValue = @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(")
-                        .append("kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.")
-                        .append(metadata.defaultKind()).append(", defined = true, value = ")
-                        .append(javaString(metadata.defaultValue())).append(")");
-            }
             result.append(")\n");
+            if (metadata != null && !metadata.defaultKind().isEmpty()) {
+                result.append("    @eu.algites.lib.data.dataobject.AIaDataObjectFieldDefault(")
+                        .append("kind = eu.algites.lib.data.dataobject.AInDataObjectFieldDefaultKind.")
+                        .append(metadata.defaultKind())
+                        .append(", defaultValueFactory = @eu.algites.lib.factory.cpdiscovery.AIaCategoryProviderFactoryDefinition(")
+                        .append("factoryInterface = eu.algites.lib.data.dataobject.AIiFieldDefaultScalarValueFactory.class)")
+                        .append(", defaultArguments = {").append(javaString(metadata.defaultValue()))
+                        .append("})\n");
+            }
             result.append(constraintAnnotations(constrained, true));
             }
             var list = directList(type, field.sourceName());
@@ -1607,6 +1610,8 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                 .append("from eu.algites.lib.data.dataobject.aia_data_object_field import AIaDataObjectField\n")
                 .append("from eu.algites.lib.data.dataobject.aia_data_object_field_default import AIaDataObjectFieldDefault\n")
                 .append("from eu.algites.lib.data.dataobject.ain_data_object_field_default_kind import AInDataObjectFieldDefaultKind\n")
+                .append("from eu.algites.lib.data.dataobject.aii_field_default_scalar_value_factory import AIiFieldDefaultScalarValueFactory\n")
+                .append("from eu.algites.lib.factory.cpdiscovery.aia_category_provider_factory_definition import AIaCategoryProviderFactoryDefinition\n")
                 .append("from eu.algites.lib.data.dataobject.ain_field_presence_kind import AInFieldPresenceKind\n");
         for (String category : List.of("string", "numeric", "list", "object")) {
             String symbol = switch (category) {
@@ -1846,11 +1851,16 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
                     .append(", max_item_count=").append(countMaximum)
                     .append(", is_empty_allowed=").append(metadata != null && metadata.isEmptyAllowed() ? "True" : "False");
             if (metadata != null && !metadata.defaultKind().isEmpty()) {
-                result.append(", default_value=AIaDataObjectFieldDefault(kind=AInDataObjectFieldDefaultKind.")
-                        .append(metadata.defaultKind()).append(", defined=True, value=")
-                        .append(pyString(metadata.defaultValue())).append(")");
+
             }
             result.append(")\n");
+            if (metadata != null && !metadata.defaultKind().isEmpty()) {
+                result.append("    @AIaDataObjectFieldDefault(kind=AInDataObjectFieldDefaultKind.")
+                        .append(metadata.defaultKind())
+                        .append(", default_value_factory=AIaCategoryProviderFactoryDefinition(")
+                        .append("AIiFieldDefaultScalarValueFactory), default_arguments=(")
+                        .append(pyString(metadata.defaultValue())).append(",))\n");
+            }
             result.append(constraintAnnotations(constrained, false));
             }
             result.append("    @abstractmethod\n    def ").append(field.getter()).append("(self) -> ")
