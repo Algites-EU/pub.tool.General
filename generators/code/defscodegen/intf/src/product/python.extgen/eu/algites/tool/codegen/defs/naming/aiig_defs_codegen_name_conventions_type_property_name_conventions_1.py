@@ -23,10 +23,14 @@ from eu.algites.lib.data.dataobject.aia_data_object_field_object_constraints imp
 from eu.algites.lib.data.dataobject.aia_data_object_field_list_constraints import AIaDataObjectFieldListConstraints
 from eu.algites.lib.data.dataobject.aia_data_object_field_numeric_constraints import AIaDataObjectFieldNumericConstraints
 from eu.algites.lib.data.dataobject.aia_data_object_field_string_constraints import AIaDataObjectFieldStringConstraints
+from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema import AIaDataObjectXmlSchema
+from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
 class AIigDefsCodegenNameConventionsTypePropertyNameConventions_1(AIiDataObject):
     """Contract for DefsCodegenNameConventionsTypePropertyNameConventions."""
 
     __data_object__ = AIcdDataObject(description='DefsCodegenNameConventionsTypePropertyNameConventions')
+
+    __xml_schema__ = AIaDataObjectXmlSchema(definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace='', namespace_local_name='generators/code/defscodegen/intf/src/product/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.xsd/schema/DefsCodegenNameConventionsType/complexContent/extension/sequence/sequence/0/sequence/sequence/0#synthetic:synthetic_property_type')
 
     __xml_schema_fields__ = {
         'NameConventionList': AIaDataObjectFieldXmlSchema(namespace='', namespace_local_name='NameConvention', value_kind=AInXmlValueKind.ELEMENT),

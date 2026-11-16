@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from eu.algites.tool.codegen.defs.naming.impl.intf.aiigd_defs_codegen_name_convention_1 import AIigdDefsCodegenNameConvention_1
 from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema
 from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValueKind
+from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema import AIaDataObjectXmlSchema
+from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
 from eu.algites.lib.data.dataobject.aicd_data_object import AIcdDataObject
 from eu.algites.lib.common.object.props.labels.aia_field_label import AIaFieldLabel
 from eu.algites.lib.data.dataobject.ain_field_setter_inheritance_policy import AInFieldSetterInheritancePolicy
@@ -21,6 +23,7 @@ TNameConventionList = TypeVar('TNameConventionList', bound='AIigdDefsCodegenName
 class AIigdDefsCodegenNameConventionsTypePropertyNameConventions_1(AIigDefsCodegenNameConventionsTypePropertyNameConventions_1, AIiSmartDataObject, Generic[TNameConventionList]):
     __data_object__ = AIcdDataObject(title='', description='DefsCodegenNameConventionsTypePropertyNameConventions', setter_inheritance_policy=AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
     """Presence-aware setters, raw getters and unsetters."""
+    __xml_schema__ = AIaDataObjectXmlSchema(definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace='', namespace_local_name='generators/code/defscodegen/intf/src/product/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.xsd/schema/DefsCodegenNameConventionsType/complexContent/extension/sequence/sequence/0/sequence/sequence/0#synthetic:synthetic_property_type')
     __xml_schema_fields__ = {
         'NameConventionList': AIaDataObjectFieldXmlSchema(namespace='', namespace_local_name='NameConvention', value_kind=AInXmlValueKind.ELEMENT),
     }

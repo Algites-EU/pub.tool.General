@@ -59,6 +59,41 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
     private final Map<String, Names> outputNames;
     /** Shared schema-neutral type names, generated independently of source families. */
     private final Map<String, Names> commonOutputNames;
+    /** XML declaration QName and symbol-space kind as recorded by the source frontend. */
+    private record XmlDeclaration(String kind, String namespace, String localName) { }
+
+    /**
+     * Obtain a global ELEMENT's wire QName from its source pointer rather than
+     * treating it as a same-named nominal TYPE. Java and Python emitters must
+     * agree even when a global element and a complexType share their QName.
+     */
+    private static XmlDeclaration xmlDeclaration(AIcDefsCanonicalType node) {
+        var sources = node.sourceBindings().getOrDefault(AIngSourceInputKind_1.XMLDEFS, List.of());
+        if (sources.isEmpty()) return null;
+        var elementNames = new java.util.LinkedHashSet<String>();
+        for (var binding : sources) {
+            if ("xs:element".equals(binding.representationKind())) {
+                String pointer = binding.sourcePointer();
+                elementNames.add(pointer.substring(pointer.lastIndexOf('/') + 1));
+            }
+        }
+        String kind = elementNames.isEmpty() ? "TYPE" : "ELEMENT";
+        if (elementNames.size() > 1) {
+            throw new IllegalArgumentException("Ambiguous global XML element identity: "
+                    + node.identity());
+        }
+        String identity = node.identity();
+        String namespace = "";
+        String localName = identity;
+        if (identity.startsWith("{") && identity.contains("}")) {
+            int end = identity.indexOf('}');
+            namespace = identity.substring(1, end);
+            localName = identity.substring(end + 1);
+        }
+        if (!elementNames.isEmpty()) localName = elementNames.iterator().next();
+        return new XmlDeclaration(kind, namespace, localName);
+    }
+
     /** True when rendering the schema-neutral base contract. */
     private final boolean commonProjection;
     /** Source dialects contributing metadata to the single read-only contract. */
@@ -1314,13 +1349,13 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
         }
         if ((!commonProjection || !representations.isEmpty())
                 && type.sourceBindings().containsKey(AIngSourceInputKind_1.XMLDEFS)) {
-            var match = Pattern.compile("^\\{([^}]*)\\}([^/]+)$")
-                    .matcher(representation(AIngSourceInputKind_1.XMLDEFS, type).identity());
-            if (match.matches()) {
+            var declaration = xmlDeclaration(representation(AIngSourceInputKind_1.XMLDEFS, type));
+            if (declaration != null) {
                 result.append("@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(")
-                        .append("definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE")
-                        .append(", namespace = ").append(javaString(match.group(1)))
-                        .append(", namespaceLocalName = ").append(javaString(match.group(2)))
+                        .append("definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.")
+                        .append(declaration.kind())
+                        .append(", namespace = ").append(javaString(declaration.namespace()))
+                        .append(", namespaceLocalName = ").append(javaString(declaration.localName()))
                         .append(")\n");
             }
         }
@@ -1722,18 +1757,18 @@ public final class AIcDefsCodegenCanonicalSourceEmitter {
         result.append("\n");
         if ((!commonProjection || !representations.isEmpty())
                 && type.sourceBindings().containsKey(AIngSourceInputKind_1.XMLDEFS)) {
-            var match = Pattern.compile("^\\{([^}]*)\\}([^/]+)$")
-                    .matcher(representation(AIngSourceInputKind_1.XMLDEFS, type).identity());
-            if (match.matches()) {
+            var declaration = xmlDeclaration(representation(AIngSourceInputKind_1.XMLDEFS, type));
+            if (declaration != null) {
                 result.insert("from __future__ import annotations\n\n".length(),
                         "from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema "
                         + "import AIaDataObjectXmlSchema\n"
                         + "from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind "
                         + "import AInXmlObjectDefinitionKind\n");
                 result.append("    __xml_schema__ = AIaDataObjectXmlSchema(")
-                        .append("definition_kind=AInXmlObjectDefinitionKind.TYPE, namespace=")
-                        .append(pyString(match.group(1))).append(", namespace_local_name=")
-                        .append(pyString(match.group(2))).append(")\n\n");
+                        .append("definition_kind=AInXmlObjectDefinitionKind.")
+                        .append(declaration.kind()).append(", namespace=")
+                        .append(pyString(declaration.namespace())).append(", namespace_local_name=")
+                        .append(pyString(declaration.localName())).append(")\n\n");
             }
         }
         if (hasXmlWires && !commonProjection && type.structure() instanceof AIcDefsCanonicalElementList group) {

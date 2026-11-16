@@ -13,6 +13,8 @@ from eu.algites.lib.factory.cpdiscovery.aia_category_provider_factory_definition
 from eu.algites.lib.data.dataobject.aii_data_object import AIiDataObject
 from eu.algites.lib.data.dataobject.jsondefs.aia_data_object_json_schema import AIaDataObjectJsonSchema
 from eu.algites.lib.data.dataobject.yamldefs.aia_data_object_yaml_schema import AIaDataObjectYamlSchema
+from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_field_xml_schema import AIaDataObjectFieldXmlSchema
+from eu.algites.lib.data.dataobject.xmldefs.ain_xml_value_kind import AInXmlValueKind
 
 if TYPE_CHECKING:
     from .aing_source_kind_type_1 import AIngSourceKindType_1
@@ -22,12 +24,25 @@ from eu.algites.lib.data.dataobject.aia_data_object_field_object_constraints imp
 from eu.algites.lib.data.dataobject.aia_data_object_field_list_constraints import AIaDataObjectFieldListConstraints
 from eu.algites.lib.data.dataobject.aia_data_object_field_numeric_constraints import AIaDataObjectFieldNumericConstraints
 from eu.algites.lib.data.dataobject.aia_data_object_field_string_constraints import AIaDataObjectFieldStringConstraints
+from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema import AIaDataObjectXmlSchema
+from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind import AInXmlObjectDefinitionKind
 class AIigInputProfile_1(AIiDataObject):
-    """Defines how defs-codegen interprets one supported source-definition family."""
+    """Root document configuring one input-definition family."""
 
-    __data_object__ = AIcdDataObject(description='Defines how defs-codegen interprets one supported source-definition family.')
+    __data_object__ = AIcdDataObject(description='Root document configuring one input-definition family.')
     __json_schema__ = AIaDataObjectJsonSchema(schema_id='eu.algites.tool.codegen.defs.input-profile', schema_version=1, schema_url='https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/input-profile_1.jsondef.schema.json')
     __yaml_schema__ = AIaDataObjectYamlSchema(schema_id='eu.algites.tool.codegen.defs.input-profile', schema_version=1, schema_url='https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/input-profile_1.yamldef.schema.json')
+
+    __xml_schema__ = AIaDataObjectXmlSchema(definition_kind=AInXmlObjectDefinitionKind.ELEMENT, namespace='https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd', namespace_local_name='InputProfile')
+
+    __xml_scalar_type_imports__ = {'SourceKind': 'eu.algites.tool.codegen.defs.aing_source_kind_type_1:AIngSourceKindType_1'}
+
+    __xml_schema_fields__ = {
+        'SourceKind': AIaDataObjectFieldXmlSchema(namespace='https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd', namespace_local_name='SourceKind', value_kind=AInXmlValueKind.ELEMENT),
+        'NamingProfile': AIaDataObjectFieldXmlSchema(namespace='https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd', namespace_local_name='NamingProfile', value_kind=AInXmlValueKind.ELEMENT),
+        'RequireCanonicalIdentity': AIaDataObjectFieldXmlSchema(namespace='https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd', namespace_local_name='RequireCanonicalIdentity', value_kind=AInXmlValueKind.ELEMENT),
+        'RequireDefinitionVersion': AIaDataObjectFieldXmlSchema(namespace='https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd', namespace_local_name='RequireDefinitionVersion', value_kind=AInXmlValueKind.ELEMENT),
+    }
 
     class CONSTInputProfile:
         """Stable key IDs and field names for this DataObject."""
@@ -39,10 +54,10 @@ class AIigInputProfile_1(AIiDataObject):
     @AIaDataObjectField(dataFieldName='SourceKind', presence=AInFieldPresenceKind.REQUIRED, allows_null=False, order=0, min_item_count=1, max_item_count=1, is_empty_allowed=False)
     @abstractmethod
     def getSourceKind(self) -> AIngSourceKindType_1:
-        """Return Canonical field SourceKind. (required, cardinality 1..1)."""
+        """Return Selects the source-definition family handled by the frontend. (required, cardinality 1..1)."""
         raise NotImplementedError
 
-    @AIaDataObjectField(dataFieldName='NamingProfile', presence=AInFieldPresenceKind.ALLOWED, allows_null=False, expected_type=str, order=1, min_item_count=0, max_item_count=1, is_empty_allowed=False)
+    @AIaDataObjectField(dataFieldName='NamingProfile', presence=AInFieldPresenceKind.ALLOWED, allows_null=False, expected_type=str, order=1, min_item_count=0, max_item_count=1, is_empty_allowed=True)
     @abstractmethod
     def getNamingProfile(self) -> str:
         """Return Names the naming profile applied while interpreting and generating identifiers. (optional, cardinality 0..1)."""

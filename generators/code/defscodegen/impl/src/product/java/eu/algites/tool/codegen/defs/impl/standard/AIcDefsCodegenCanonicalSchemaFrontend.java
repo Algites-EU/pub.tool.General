@@ -28,8 +28,8 @@ import org.xml.sax.InputSource;
  * ordinary maps by their respective adapters; XML is parsed as namespace-aware XSD.
  * References are retained as unresolved {@code TYPE} records for the later resolver.
  * This class does not implement schema validation, reference resolution, XML-to-MAP,
- * patternProperties, global XML keys or XML key references. Local xs:key
- * and xs:unique remain occurrence-scoped on the referring element; they do
+ * patternProperties or XML key references. Local and global xs:key
+ * and xs:unique remain occurrence-scoped on the declaring element; they do
  * not synthesize, clone, or mutate its referenced nominal TYPE.
  */
 public final class AIcDefsCodegenCanonicalSchemaFrontend {
@@ -174,6 +174,17 @@ public final class AIcDefsCodegenCanonicalSchemaFrontend {
         sourceVersions.put(resource, string(source.get("x-algites-schema-version"), sourceVersion));
         String name = rootName.isEmpty() ? string(source.get("title"),
                 resource.substring(resource.lastIndexOf('/') + 1).split("\\.")[0]) : rootName;
+        // Match the opt-in JSON/YAML root identity supported by the Python frontend.
+        // This names the shared DO contract, not the physical JSON/XML root.
+        if (source.containsKey("x-algites-defscodegen-root-type-name")) {
+            Object override = source.get("x-algites-defscodegen-root-type-name");
+            if (!(override instanceof String configured)
+                    || !configured.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+                throw new IllegalArgumentException(
+                        "Invalid x-algites-defscodegen-root-type-name at #");
+            }
+            name = configured;
+        }
         String identity = string(source.get("x-algites-schema-id"), string(source.get("$id"), resource));
         List<String> inherited = new ArrayList<>();
         for (Object item : list(source.get("allOf"))) {
@@ -289,7 +300,7 @@ public final class AIcDefsCodegenCanonicalSchemaFrontend {
     }
 
     /**
-     * Read named XSD types, taking the schema version from the selected input
+     * Read named XSD types and global elements, taking the schema version from the selected input
      * filename convention when no XML declaration supplies it.
      * @param xml complete source XSD
      * @param resource original source path
@@ -328,22 +339,12 @@ public final class AIcDefsCodegenCanonicalSchemaFrontend {
                             + formAttribute + "=" + schema.getAttribute(formAttribute));
                 }
             }
-            /* Global element declarations are not traversed by this named-type
-             * frontend. Their identity constraints cannot silently disappear. */
+            /* Named TYPEs and global ELEMENTs inhabit distinct XSD symbol spaces.
+             * Load both; reuse xmlNode() for element-scoped key extraction. */
             for (var constraint : List.of("keyref", "identityConstraint")) {
                 if (schema.getElementsByTagNameNS(XS, constraint).getLength() > 0) {
                     throw new UnsupportedOperationException(
                             "XSD keyref/identityConstraint requires a dedicated resolver: " + constraint);
-                }
-            }
-            for (var child : elements(schema)) {
-                if (is(child, "element")) {
-                    for (var constraint : List.of("key", "unique")) {
-                        if (child.getElementsByTagNameNS(XS, constraint).getLength() > 0) {
-                            throw new UnsupportedOperationException("Global element identity constraints "
-                                    + "require global-element loading");
-                        }
-                    }
                 }
             }
             for (var child : elements(schema)) {
@@ -443,6 +444,116 @@ public final class AIcDefsCodegenCanonicalSchemaFrontend {
                                 ? child.getAttribute("x-algites-schema-version")
                                 : (schema.hasAttribute("x-algites-schema-version")
                                         ? schema.getAttribute("x-algites-schema-version") : sourceVersion),
+                        String.join("\n", java.util.stream.Stream.concat(
+                                java.util.stream.Stream.of(xmlDescription(child)),
+                                ignoredWildcards.stream()).filter(note -> !note.isBlank()).toList())));
+            }
+            // Global XML element declarations are first-class DataObject contracts.
+            // Their identity constraints have the same occurrence scope as local xs:key.
+            var globalNames = new java.util.HashSet<String>();
+            for (var child : elements(schema)) {
+                if (!is(child, "element")) continue;
+                String name = child.getAttribute("name");
+                if (name.isBlank() || !globalNames.add(name)) {
+                    throw new IllegalArgumentException("Missing/duplicate global xs:element name at "
+                            + resource + ": " + name);
+                }
+                String pointer = "/schema/element/" + name;
+                List<String> ignoredWildcards = new ArrayList<>();
+                var occurrence = xmlNode(child, name, pointer, resource, declared,
+                        false, ignoredWildcards);
+                if (!(occurrence instanceof AIcDefsCanonicalElement element)) {
+                    throw new IllegalArgumentException("Global xs:element is not an object occurrence at "
+                            + resource + pointer);
+                }
+                AIiDefsCanonicalStructure structure = element.structure();
+                if (structure instanceof AIcDefsCanonicalType reference) {
+                    if (reference.resolutionState() == AIngResolutionState_1.REFERENCE
+                            || !reference.targetIdentity().isEmpty()) {
+                        String referenced = reference.targetIdentity().isEmpty()
+                                ? reference.identity() : reference.targetIdentity();
+                        Element declaration = localXsdComplexTypes.get(referenced);
+                        java.util.Set<String> definitionNames = declared;
+                        if (declaration == null) {
+                            declaration = importedComplexTypes.get(referenced);
+                            if (declaration != null) {
+                                definitionNames = new java.util.HashSet<>();
+                                for (var candidate : elements(
+                                        declaration.getOwnerDocument().getDocumentElement())) {
+                                    if ((is(candidate, "complexType") || is(candidate, "simpleType"))
+                                            && candidate.hasAttribute("name")) {
+                                        definitionNames.add(candidate.getAttribute("name"));
+                                    }
+                                }
+                            }
+                        }
+                        if (declaration != null) {
+                            structure = xmlNode(declaration, name, pointer + "/@type", resource,
+                                    definitionNames, false, ignoredWildcards);
+                        }
+                    } else {
+                        structure = reference.structure();
+                    }
+                }
+                if (structure instanceof AIcDefsCanonicalScalar
+                        || structure instanceof AIcDefsCanonicalEnum) {
+                    if (!element.keyDefinitions().isEmpty()) {
+                        throw new IllegalArgumentException(
+                                "Scalar global element cannot own xs:key at " + pointer);
+                    }
+                    continue;
+                }
+                if (!(structure instanceof AIcDefsCanonicalElementList group)) {
+                    throw new UnsupportedOperationException(
+                            "Global XML ELEMENT requires a resolvable complex type: "
+                                    + resource + pointer);
+                }
+                if (!element.keyDefinitions().isEmpty()) {
+                    Map<String, AIcDefsCanonicalKeyDefinition> keyed =
+                            new java.util.LinkedHashMap<>();
+                    for (var key : element.keyDefinitions()) {
+                        if (keyed.putIfAbsent(key.selector(), key) != null) {
+                            throw new IllegalArgumentException("Multiple global keys for the same "
+                                    + "selected LIST require indexed collection multi-key support: "
+                                    + key.selector());
+                        }
+                    }
+                    List<AIiDefsCanonicalStructure> children = new ArrayList<>();
+                    for (var member : group.children()) {
+                        if (member instanceof AIcDefsCanonicalList list
+                                && keyed.containsKey(list.name())) {
+                            if (!list.keyDefinitions().isEmpty()) {
+                                throw new IllegalArgumentException(
+                                        "Conflicting key definitions for " + list.name());
+                            }
+                            var key = keyed.remove(list.name());
+                            member = new AIcDefsCanonicalList(list.name(), list.item(),
+                                    list.minItemCount(), list.maxItemCount(), List.of(key),
+                                    list.xmlWire(), list.uniqueItems());
+                        }
+                        children.add(member);
+                    }
+                    if (!keyed.isEmpty()) {
+                        throw new IllegalArgumentException("Unbound global XML key selectors at "
+                                + pointer + ": " + keyed.keySet());
+                    }
+                    structure = new AIcDefsCanonicalElementList(group.composition(),
+                            children, group.minItemCount(), group.maxItemCount());
+                }
+                // Preserve XML element QName independent of generated contract name.
+                // Explicitly disambiguate a same-named global xs:complexType.
+                boolean collides = declared.contains(name);
+                String typeName = collides ? name + "Element" : name;
+                String identity = targetNamespace.isEmpty() ? name
+                        : "{" + targetNamespace + "}" + name;
+                if (collides) identity += "#element";
+                result.add(new AIcDefsCanonicalType(identity, typeName,
+                        AIngTypeOrigin_1.DECLARED, List.of(typeName), List.of(),
+                        structure, AIngResolutionState_1.RESOLVED,
+                        binding(AIngSourceInputKind_1.XMLDEFS, resource, pointer, "xs:element"),
+                        "", child.hasAttribute("x-algites-schema-version")
+                                ? child.getAttribute("x-algites-schema-version")
+                                : sourceVersions.getOrDefault(resource, sourceVersion),
                         String.join("\n", java.util.stream.Stream.concat(
                                 java.util.stream.Stream.of(xmlDescription(child)),
                                 ignoredWildcards.stream()).filter(note -> !note.isBlank()).toList())));
@@ -1900,13 +2011,36 @@ public final class AIcDefsCodegenCanonicalSchemaFrontend {
                     }
                     String selector = selectorNode.getAttribute("xpath");
                     String selected = selector.startsWith("./") ? selector.substring(2) : selector;
-                    long hits = group.children().stream().filter(child -> child instanceof AIcDefsCanonicalList list
-                            && list.name().equals(selected)).count();
+                    if (selected.contains("/") || selected.contains("[") || selected.contains("*")
+                            || selected.contains("(") || selected.contains("::")) {
+                        throw new UnsupportedOperationException("Unsupported XSD key XPath selector "
+                                + selector + " at " + resource + path);
+                    }
+                    String localName = selected;
+                    String namespace = "";
+                    if (selected.contains(":")) {
+                        int colon = selected.indexOf(':');
+                        String prefix = selected.substring(0, colon);
+                        localName = selected.substring(colon + 1);
+                        namespace = selectorNode.lookupNamespaceURI(prefix);
+                        if (namespace == null || namespace.isBlank() || localName.isBlank()) {
+                            throw new IllegalArgumentException("Unbound XSD key selector prefix: "
+                                    + selector + " at " + resource + path);
+                        }
+                    }
+                    final String targetLocal = localName;
+                    final String targetNamespace = namespace;
+                    long hits = group.children().stream().filter(member -> {
+                        if (!(member instanceof AIcDefsCanonicalList list)
+                                || !list.name().equals(targetLocal)) return false;
+                        var wire = list.xmlWire();
+                        return (wire == null ? "" : wire.namespaceUri()).equals(targetNamespace);
+                    }).count();
                     if (hits != 1) {
                         throw new UnsupportedOperationException("XSD key selector must target exactly one directly "
                                 + "repeated element: " + selector + " at " + resource + path);
                     }
-                    scopedKeys.add(new AIcDefsCanonicalKeyDefinition(keyName, selector,
+                    scopedKeys.add(new AIcDefsCanonicalKeyDefinition(keyName, targetLocal,
                             path + "/" + constraint.getLocalName() + "/" + keyIndex++, paths,
                             is(constraint, "key")));
                 }

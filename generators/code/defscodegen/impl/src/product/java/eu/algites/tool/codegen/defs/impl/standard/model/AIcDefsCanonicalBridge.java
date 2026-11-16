@@ -75,62 +75,37 @@ public final class AIcDefsCanonicalBridge {
         return view;
     }
     /**
-     * A single virtual field node passed to the generated SDO graph constructor.
-     * This lets a required, nonempty collection be installed atomically rather
-     * than attempting to attach an invalid empty list through its generated getter.
-     *
-     * @param representation the serialized in-memory value (not wire JSON)
-     * @param valueClass concrete generated class to reconstruct
-     */
-    private record VirtualField(Object representation, Class<?> valueClass)
-            implements eu.algites.lib.data.smartdataobject.AIidVirtualFieldValue {
-        @Override public Object getValueRepresentation() { return representation; }
-        @Override public Class<?> getValueClass() { return valueClass; }
-    }
-
-    /**
-     * Create an in-memory virtual list containing fully populated virtual items.
-     * @param entries field values in schema order
-     * @return virtual field with a mutable list representation
-     */
-    private static VirtualField listField(List<VirtualField> entries) {
-        return new VirtualField(new ArrayList<>(entries), ArrayList.class);
-    }
-
-    /**
-     * Convert grouped provenance to the schema-defined generated SourceBindings SDO.
-     * Mandatory BindingList/SourceBindingGroupList values are installed as complete
-     * lists through generated mapping constructors, never through invalid empty
-     * intermediary states.
+     * Build provenance with the generated SDO getters and the actual bounded
+     * collection implementation. Virtual-graph ArrayList placeholders are not
+     * assignable to AIiBoundedList and failed at runtime before Java could
+     * process any canonical schema source binding.
      *
      * @param value provenance grouped by schema input technology
-     * @return typed canonical SDO container
+     * @return schema-backed provenance container
      */
+    @SuppressWarnings("unchecked")
     public static AIcgdSourceBindings_1 bindings(
             Map<AIngSourceInputKind_1, List<AIcDefsCanonicalSourceBinding>> value) {
-        if (value == null || value.isEmpty()) return new AIcgdSourceBindings_1();
-        var groups = new ArrayList<VirtualField>();
+        var result = new AIcgdSourceBindings_1();
+        if (value == null || value.isEmpty()) return result;
+        var groups = (eu.algites.lib.common.list.AIiBoundedList<
+                eu.algites.tool.codegen.defs.model.impl.intf.AIigdSourceBindingGroup_1<?>>)
+                (eu.algites.lib.common.list.AIiBoundedList<?>) result.getSourceBindingGroupList();
         for (var entry : value.entrySet()) {
             var kind = Objects.requireNonNull(entry.getKey(), "source kind");
             var sourceEntries = List.copyOf(Objects.requireNonNull(entry.getValue(), "source entries"));
-            if (sourceEntries.isEmpty())
+            if (sourceEntries.isEmpty()) {
                 throw new IllegalArgumentException("Source binding group " + kind + " must not be empty");
-            var bindings = new ArrayList<VirtualField>();
-            for (var source : sourceEntries) {
-                Objects.requireNonNull(source, "source binding");
-                bindings.add(new VirtualField(source._toMapping(
-                        eu.algites.lib.data.smartdataobject.AInSdoFieldValueLoadingMode.RAW_VALUES),
-                        AIcgdSourceBinding_1.class));
             }
-            var group = new AIcgdSourceBindingGroup_1(Map.of(
-                    "InputKind", new VirtualField(kind, kind.getClass()),
-                    "BindingList", listField(bindings)));
-            groups.add(new VirtualField(group._toMapping(
-                    eu.algites.lib.data.smartdataobject.AInSdoFieldValueLoadingMode.RAW_VALUES),
-                    AIcgdSourceBindingGroup_1.class));
+            var group = new AIcgdSourceBindingGroup_1();
+            group.setInputKind(kind);
+            var bindingList = (eu.algites.lib.common.list.AIiBoundedList<
+                    eu.algites.tool.codegen.defs.model.impl.intf.AIigdSourceBinding_1>)
+                    (eu.algites.lib.common.list.AIiBoundedList<?>) group.getBindingList();
+            bindingList.addAll(sourceEntries);
+            groups.add(group);
         }
-        if (groups.isEmpty()) return new AIcgdSourceBindings_1();
-        return new AIcgdSourceBindings_1(Map.of("SourceBindingGroupList", listField(groups)));
+        return result;
     }
 
     /**

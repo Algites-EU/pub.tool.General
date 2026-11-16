@@ -7,6 +7,7 @@ package eu.algites.tool.codegen.defs.naming;
  */
 @eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema(schemaId = "generators/code/defscodegen/intf/src/product/jsondefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.jsondef.schema.json#/$defs/DefsCodegenNameConvention/properties/StructureNaming#synthetic:synthetic_property_type", schemaVersion = 1)
 @eu.algites.lib.data.dataobject.yamldefs.AIaDataObjectYamlSchema(schemaId = "generators/code/defscodegen/intf/src/product/yamldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.yamldef.schema.json#/$defs/DefsCodegenNameConvention/properties/StructureNaming#synthetic:synthetic_property_type", schemaVersion = 1)
+@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE, namespace = "", namespaceLocalName = "generators/code/defscodegen/intf/src/product/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.xsd/schema/DefsCodegenNameConvention/sequence/sequence/1#synthetic:synthetic_property_type")
 @eu.algites.lib.data.dataobject.AIaDataObject(description = "DefsCodegenNameConventionPropertyStructureNaming")
 public interface AIigDefsCodegenNameConventionPropertyStructureNaming_1 extends eu.algites.lib.data.dataobject.AIiDataObject {
     /** Canonical key IDs and field names for this DataObject. */

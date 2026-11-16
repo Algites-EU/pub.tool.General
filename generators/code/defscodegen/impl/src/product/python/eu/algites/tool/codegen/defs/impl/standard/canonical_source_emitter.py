@@ -326,6 +326,35 @@ class AIcDefsCodegenCanonicalSourceEmitter:
         """Select the original source TYPE for its independent schema identity."""
         return self.source_representations.get(kind, node)
 
+    @staticmethod
+    def _xml_object_declaration(node: TypeNode) -> tuple[str, str, str] | None:
+        """Read ELEMENT/TYPE identity from XSD provenance, not field metadata.
+
+        XML Schema has distinct global element/type symbol spaces. The
+        canonical TypeNode source binding retains the declaration kind; its
+        source pointer retains the physical element name when a type with the
+        same QName also exists. This needs no new handwritten DTO field.
+        """
+        bindings = node.source_bindings.get(SourceKind.XMLDEFS, ())
+        if not bindings:
+            return None
+        kinds = {binding.representation_kind for binding in bindings}
+        if 'xs:element' in kinds:
+            kind = 'ELEMENT'
+            elements = {binding.source_pointer.rsplit('/', 1)[-1]
+                        for binding in bindings if binding.representation_kind == 'xs:element'}
+            if len(elements) != 1:
+                raise ValueError('Ambiguous global XML element identity: ' + node.identity)
+            local = next(iter(elements))
+        else:
+            kind = 'TYPE'
+            local = node.identity.rsplit('}', 1)[-1] if node.identity.startswith('{') else node.identity
+        if node.identity.startswith('{'):
+            namespace = node.identity[1:].split('}', 1)[0]
+        else:
+            namespace = ''
+        return kind, namespace, local
+
     def _published_schema_url(self, node: TypeNode, kind: SourceKind) -> str:
         """Find a declaration's own published document URL, not its logical ID.
 
@@ -908,13 +937,13 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                            + (f', schemaUrl = {_java_string(url)}' if (url := self._published_schema_url(source_node, source)) else '')
                            + ')\n')
         if SourceKind.XMLDEFS in node.source_bindings and (not self.common_projection or self.source_representations):
-            match = re.fullmatch(r'\{([^}]*)\}([^/]+)',
-                                 self._representation(node, SourceKind.XMLDEFS).identity)
-            if match:
+            xml_declaration = self._xml_object_declaration(self._representation(node, SourceKind.XMLDEFS))
+            if xml_declaration:
+                xml_kind, xml_namespace, xml_local = xml_declaration
                 header += ('@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(' +
-                           'definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE, ' +
-                           f'namespace = {_java_string(match.group(1))}, ' +
-                           f'namespaceLocalName = {_java_string(match.group(2))})\n')
+                           'definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.' + xml_kind + ', ' +
+                           f'namespace = {_java_string(xml_namespace)}, ' +
+                           f'namespaceLocalName = {_java_string(xml_local)})\n')
         if self.common_projection or not self.common_output_names:
             header += ('@eu.algites.lib.data.dataobject.AIaDataObject('
                        f'description = {_java_string(node.description or node.name)})\n')
@@ -1312,17 +1341,17 @@ class AIcDefsCodegenCanonicalSourceEmitter:
                     if kind in node.source_bindings
                     and (not self.common_projection or self.source_representations)) + '\n']
         if SourceKind.XMLDEFS in node.source_bindings and (not self.common_projection or self.source_representations):
-            match = re.fullmatch(r'\{([^}]*)\}([^/]+)',
-                                 self._representation(node, SourceKind.XMLDEFS).identity)
-            if match:
+            xml_declaration = self._xml_object_declaration(self._representation(node, SourceKind.XMLDEFS))
+            if xml_declaration:
+                xml_kind, xml_namespace, xml_local = xml_declaration
                 rows.insert(1, 'from eu.algites.lib.data.dataobject.xmldefs.aia_data_object_xml_schema '
                             'import AIaDataObjectXmlSchema\n'
                             'from eu.algites.lib.data.dataobject.xmldefs.ain_xml_object_definition_kind '
                             'import AInXmlObjectDefinitionKind\n')
                 rows.append('    __xml_schema__ = AIaDataObjectXmlSchema('
-                            'definition_kind=AInXmlObjectDefinitionKind.TYPE, '
-                            f'namespace={match.group(1)!r}, '
-                            f'namespace_local_name={match.group(2)!r})\n\n')
+                            'definition_kind=AInXmlObjectDefinitionKind.' + xml_kind + ', '
+                            f'namespace={xml_namespace!r}, '
+                            f'namespace_local_name={xml_local!r})\n\n')
         enum_imports = self._xml_enum_imports(node, types) if (
             not self.common_projection or self.source_representations) else {}
         if enum_imports:

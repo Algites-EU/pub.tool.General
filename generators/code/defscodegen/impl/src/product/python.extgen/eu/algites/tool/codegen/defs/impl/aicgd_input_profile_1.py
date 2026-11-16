@@ -47,6 +47,12 @@ class AIcgdInputProfile_1(AIcSmartDataObject, AIigdInputProfile_1):
     def _unset_NamingProfile(self):
         self.unset_Field('NamingProfile')
 
+    def _setEmpty_NamingProfile(self):
+        self.set_EmptyField('NamingProfile')
+
+    def _isEmpty_NamingProfile(self):
+        return self.isEmpty_Field('NamingProfile')
+
     def getRequireCanonicalIdentity(self):
         return self.get_EffectiveField('RequireCanonicalIdentity')
 

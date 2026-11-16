@@ -94,6 +94,29 @@ def group_for(repo: Path, directory: Path, fallback: str) -> str:
     return fallback
 
 
+def technology_kinds(artifact: dict) -> frozenset[str]:
+    """Read native kinds from both compact and governed structured declarations.
+
+    ``TechnologyKinds: [java, python]`` and the richer
+    ``TechnologyKinds: {Items: [{TechnologyKind: java, BuildOutputTypes: ...}]}``
+    are equivalent for the limited purpose of discovering native build roots.
+    The full BuildOutputTypes declaration remains untouched in the descriptor.
+    """
+    declaration = artifact.get('TechnologyKinds') or []
+    if isinstance(declaration, dict):
+        declaration = declaration.get('Items') or []
+    if not isinstance(declaration, list):
+        raise ValueError('Artifact.TechnologyKinds must be a list or mapping with Items list')
+    kinds = set()
+    for item in declaration:
+        if isinstance(item, dict):
+            item = item.get('TechnologyKind')
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError(f'Invalid Artifact.TechnologyKinds item: {item!r}')
+        kinds.add(item)
+    return frozenset(kinds)
+
+
 def catalog(repositories: list[Path]) -> dict[str, Artifact]:
     found: dict[str, Artifact] = {}
     for repo in repositories:
@@ -104,7 +127,7 @@ def catalog(repositories: list[Path]) -> dict[str, Artifact]:
         for filename in descriptors(repo):
             relative = filename.parent.relative_to(repo)
             definition = read(filename)
-            technologies = frozenset(definition.get('Artifact', {}).get('TechnologyKinds') or [])
+            technologies = technology_kinds(definition.get('Artifact', {}))
             if not technologies.intersection(('java', 'python')):
                 continue
             identifier = owner + '_' + '.'.join(relative.parts)

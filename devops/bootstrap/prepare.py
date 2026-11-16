@@ -156,6 +156,29 @@ def java_version(name: str, requirement: dict | None, preferred: dict[str, str] 
     return f'{lower}{minimum},{maximum}{upper}'
 
 
+def technology_kinds(artifact: dict) -> frozenset[str]:
+    """Read native kinds from both compact and governed structured declarations.
+
+    ``TechnologyKinds: [java, python]`` and the richer
+    ``TechnologyKinds: {Items: [{TechnologyKind: java, BuildOutputTypes: ...}]}``
+    are equivalent for the limited purpose of discovering native build roots.
+    The full BuildOutputTypes declaration remains untouched in the descriptor.
+    """
+    declaration = artifact.get('TechnologyKinds') or []
+    if isinstance(declaration, dict):
+        declaration = declaration.get('Items') or []
+    if not isinstance(declaration, list):
+        raise ValueError('Artifact.TechnologyKinds must be a list or mapping with Items list')
+    kinds = set()
+    for item in declaration:
+        if isinstance(item, dict):
+            item = item.get('TechnologyKind')
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError(f'Invalid Artifact.TechnologyKinds item: {item!r}')
+        kinds.add(item)
+    return frozenset(kinds)
+
+
 def module_records(repository: Path, release: str, py_release: str) -> list[dict]:
     owner = str(read_yaml(repository / 'modustro-source-repository.yml')['SourceRepository']['Id'])
     prefix = python_prefix(repository)
@@ -168,7 +191,7 @@ def module_records(repository: Path, release: str, py_release: str) -> list[dict
         if any(part in IGNORED or part.startswith('.') for part in relative.parts):
             continue
         doc = read_yaml(path)
-        kinds = doc.get('Artifact', {}).get('TechnologyKinds', [])
+        kinds = technology_kinds(doc.get('Artifact', {}))
         if 'java' not in kinds and 'python' not in kinds:
             continue
         identifier = artifact_id(repository, relative)

@@ -5,6 +5,7 @@ package eu.algites.tool.codegen.defs.naming;
  *
  * <p>Canonical identity: generators/code/defscodegen/intf/src/product/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.xsd/schema/DefsCodegenNameConventionsType/complexContent/extension/sequence/sequence/0/sequence/sequence/0#synthetic:synthetic_property_type; version: 1.</p>
  */
+@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.TYPE, namespace = "", namespaceLocalName = "generators/code/defscodegen/intf/src/product/xmldefs/eu/algites/tool/codegen/defs/naming/defscodegen-naming-conventions_1.xsd/schema/DefsCodegenNameConventionsType/complexContent/extension/sequence/sequence/0/sequence/sequence/0#synthetic:synthetic_property_type")
 @eu.algites.lib.data.dataobject.AIaDataObject(description = "DefsCodegenNameConventionsTypePropertyNameConventions")
 public interface AIigDefsCodegenNameConventionsTypePropertyNameConventions_1 extends eu.algites.lib.data.dataobject.AIiDataObject {
     /** Canonical key IDs and field names for this DataObject. */

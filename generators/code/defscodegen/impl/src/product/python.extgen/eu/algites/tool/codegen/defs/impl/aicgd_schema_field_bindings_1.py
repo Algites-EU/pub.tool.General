@@ -37,6 +37,12 @@ class AIcgdSchemaFieldBindings_1(AIcSmartDataObject, AIigdSchemaFieldBindings_1[
     def _unset_Artifact(self):
         self.unset_Field('Artifact')
 
+    def _setEmpty_Artifact(self):
+        self.set_EmptyField('Artifact')
+
+    def _isEmpty_Artifact(self):
+        return self.isEmpty_Field('Artifact')
+
     def getImplementationArtifact(self):
         return self.get_EffectiveField('ImplementationArtifact')
 
@@ -51,6 +57,12 @@ class AIcgdSchemaFieldBindings_1(AIcSmartDataObject, AIigdSchemaFieldBindings_1[
 
     def _unset_ImplementationArtifact(self):
         self.unset_Field('ImplementationArtifact')
+
+    def _setEmpty_ImplementationArtifact(self):
+        self.set_EmptyField('ImplementationArtifact')
+
+    def _isEmpty_ImplementationArtifact(self):
+        return self.isEmpty_Field('ImplementationArtifact')
 
     def getLanguagesList(self):
         return self.get_OrCreateCollectionField('LanguagesList', False)

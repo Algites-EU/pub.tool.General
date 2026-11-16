@@ -2,9 +2,9 @@
 
 Input syntax becomes seven canonical node kinds; temporary references use a
 resolution state, never another kind. The legacy ``.old`` implementation is
-not imported. No XML->MAP mapping or patternProperties support. Local
-xs:key/xs:unique is supported only for direct typed child lists; xs:keyref and
-global identity constraints remain unsupported.
+not imported. No XML->MAP mapping or patternProperties support. Local and global
+xs:key/xs:unique are supported for direct typed child lists; xs:keyref
+remains unsupported.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from pathlib import PurePosixPath
 from typing import Any
 from xml.etree import ElementTree as ET
 import warnings
+import re
 
 from eu.algites.tool.codegen.common.naming_profiles import AIcdCodegenNamingProfile
 from eu.algites.tool.codegen.defs.impl.standard.canonical_generated_model import (
@@ -120,6 +121,15 @@ class AIcDefsCodegenCanonicalSchemaFrontend:
         self._validate_choice_placements(source)
         self._source_versions[resource] = str(source.get("x-algites-schema-version") or source_version)
         name = root_name or str(source.get('title') or PurePosixPath(resource).name.split('.')[0])
+        # The physical JSON/YAML document has no XML element QName. For a
+        # deliberately shared cross-format DO, its contract may explicitly
+        # match an XML root ELEMENT whose wire name differs from the filename.
+        # Without the opt-in, the selected naming profile remains authoritative.
+        override = source.get('x-algites-defscodegen-root-type-name')
+        if override is not None:
+            if not isinstance(override, str) or not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', override):
+                raise ValueError('Invalid x-algites-defscodegen-root-type-name at #')
+            name = override
         identity = str(source.get('x-algites-schema-id') or source.get('$id') or resource)
         inherited = tuple(dict.fromkeys(
             [x['$ref'] for x in source.get('allOf', ())
@@ -972,20 +982,17 @@ class AIcDefsCodegenCanonicalSchemaFrontend:
         XML→MAP and keyref interpretation are intentionally not performed.
         Local xs:key/xs:unique rules bind to the containing element occurrence
         and select a direct repeated member of its referenced or inline TYPE.
-        Global constraints and unsupported XPath expressions fail closed.
+        Global and local element keys use the same indexed-list projection;
+        unsupported XPath expressions fail closed.
         """
         # Use the same scoped namespace parser for local and imported XSDs.
         schema, scopes = self._parse_xsd_scopes(text)
         if schema.tag != XS + 'schema':
             raise ValueError('Expected an xs:schema')
-        # Global elements are not part of the named-type frontend. Never
-        # silently discard their identity constraints. Local key/unique rules
-        # are bound to an inline typed container below in _xml_node().
+        # Global ELEMENT declarations and reusable named TYPE declarations
+        # belong to distinct XML Schema symbol spaces. Both are loaded.
         if any(node.tag in (XS + 'keyref', XS + 'identityConstraint') for node in schema.iter()):
             raise NotImplementedError('XSD keyref/identityConstraint needs a dedicated resolver')
-        if any(node.tag in (XS + 'key', XS + 'unique') for child in schema
-               if child.tag == XS + 'element' for node in child.iter()):
-            raise NotImplementedError('Global XML element identity constraints require global-element loading')
         for child in schema:
             if child.tag in (XS + 'include', XS + 'redefine', XS + 'override'):
                 raise NotImplementedError('XSD include/redefine/override requires explicit composition support')
@@ -1063,6 +1070,90 @@ class AIcDefsCodegenCanonicalSchemaFrontend:
                     schema.get('x-algites-schema-version') or source_version),
                 description='\n'.join(filter(None, (
                     self._xsd_description(child), *self._xml_wildcard_comments)))))
+        # A global XML ELEMENT is a first-class DataObject declaration, not
+        # merely a QName assigned to the named TYPE it happens to reference.
+        # Reuse the same _xml_node() and xs:key logic as for local elements.
+        # Scalar-only global elements have no object contract to expose.
+        global_elements = [child for child in schema if child.tag == XS + 'element']
+        global_names = set()
+        for global_element in global_elements:
+            name = global_element.get('name')
+            if not name:
+                raise ValueError('Global xs:element requires a name at ' + resource)
+            if name in global_names:
+                raise ValueError('Duplicate global xs:element ' + name + ' at ' + resource)
+            global_names.add(name)
+            pointer = '/schema/element/' + name
+            self._xml_wildcard_comments = []
+            occurrence = self._xml_node(global_element, name, pointer,
+                                         resource, declared, namespace, scopes)
+            if not isinstance(occurrence, Element):
+                raise ValueError('Global xs:element is not an object occurrence at ' + resource + pointer)
+            structure = occurrence.structure
+            if isinstance(structure, TypeNode):
+                if structure.resolution_state is Resolution.REFERENCE or structure.target_identity:
+                    reference_identity = structure.target_identity or structure.identity
+                    declaration = self._xml_complex_types.get(reference_identity)
+                    if declaration is not None:
+                        structure = self._xml_node(declaration, name, pointer + '/@type',
+                                                   resource, declared, namespace, scopes)
+                    else:
+                        # Imported named types may already be linked through an
+                        # external interface. Resolve those separately; never
+                        # invent an empty structure for an unknown schema.
+                        imported = self._external_xsd_complex_types.get(reference_identity)
+                        if imported is not None:
+                            decl, remote_scopes, remote_ns, remote_resource = imported
+                            remote_names = {identity.rsplit('}', 1)[-1]
+                                            for identity in self._external_xsd_complex_types
+                                            if identity.startswith('{' + remote_ns + '}')}
+                            structure = self._xml_node(decl, name, pointer + '/@type',
+                                                      remote_resource, remote_names,
+                                                      remote_ns, remote_scopes)
+                else:
+                    structure = structure.structure
+            if isinstance(structure, (Scalar, EnumNode)):
+                # Simple XML element declarations are not DataObjects.
+                # Their scalar type can still be used by typed complex content.
+                if occurrence.key_definitions:
+                    raise ValueError('Scalar global element cannot own xs:key at ' + pointer)
+                continue
+            if not isinstance(structure, ElementList):
+                raise NotImplementedError('Global XML ELEMENT requires a resolvable complex type: '
+                                          + resource + pointer)
+            if occurrence.key_definitions:
+                keyed = {}
+                for definition in occurrence.key_definitions:
+                    if definition.selector in keyed:
+                        raise ValueError('Multiple global keys for the same selected LIST require indexed collection multi-key support: '
+                                         + definition.selector)
+                    keyed[definition.selector] = definition
+                children = []
+                for child in structure.children:
+                    if isinstance(child, ListNode) and child.name in keyed:
+                        if child.key_definitions:
+                            raise ValueError('Conflicting key definitions for ' + child.name)
+                        child = replace(child, key_definitions=(keyed.pop(child.name),))
+                    children.append(child)
+                if keyed:
+                    raise ValueError('Unbound global XML key selectors at ' + pointer + ': '
+                                     + ', '.join(sorted(keyed)))
+                structure = replace(structure, children=tuple(children))
+            # XSD permits a global element and a named type with the same QName.
+            # Keep both declarations, but disambiguate their generated Java/Python
+            # interface names while retaining the actual element wire QName.
+            collides = name in declared
+            type_name = name + 'Element' if collides else name
+            identity = ('{' + namespace + '}' + name if namespace else name)
+            if collides:
+                identity += '#element'
+            result.append(TypeNode(identity, type_name, Origin.DECLARED, (type_name,),
+                (), structure, Resolution.RESOLVED,
+                self._binding(SourceKind.XMLDEFS, resource, pointer, 'xs:element'),
+                schema_version=str(global_element.get('x-algites-schema-version') or
+                    schema.get('x-algites-schema-version') or source_version),
+                description='\n'.join(filter(None, (
+                    self._xsd_description(global_element), *self._xml_wildcard_comments)))))
         return tuple(result)
 
     @staticmethod
@@ -1377,6 +1468,20 @@ class AIcDefsCodegenCanonicalSchemaFrontend:
             # semantics, rather than incorrectly flattening such a structure.
             particles = [group for group in groups if isinstance(group, ElementList)]
             if particles:
+                # A choice together with attributes is legal XSD 1.0: the
+                # attribute belongs to the containing complexType while one
+                # of its child element branches is selected. Preserve the
+                # choice as a transparent embedded semantic field, so we do
+                # not flatten it into nonexclusive optional properties.
+                if (len(particles) == 1 and
+                        particles[0].composition is Composition.CHOICE and
+                        (particles[0].min_item_count, particles[0].max_item_count) == (1, 1)):
+                    choice = self._synthetic(owner, 'Choice', pointer + '/choice',
+                                             'synthetic_group_type', particles[0], kind, resource)
+                    embedded = Element('Choice', choice, element_kind=ElementKind.EMBEDDED,
+                        source_bindings=self._binding(kind, resource, pointer + '/choice', 'embedded_group'))
+                    return ElementList(Composition.SEQUENCE, (embedded,) + tuple(
+                        group for group in groups if not isinstance(group, ElementList)))
                 if (len(particles) != 1 or particles[0].composition not in
                         (Composition.SEQUENCE, Composition.ALL) or
                         (particles[0].min_item_count, particles[0].max_item_count) != (1, 1)):
@@ -1500,14 +1605,29 @@ class AIcDefsCodegenCanonicalSchemaFrontend:
                     if not selector or any(not field.get('xpath') for field in fields):
                         raise ValueError('Missing XSD key XPath at ' + resource + pointer)
                     selected = selector.removeprefix('./')
+                    # XPath prefixes are expanded using the namespace scope
+                    # of the selector declaration, not by silently stripping
+                    # lexical prefixes. Reject axes/predicates and mismatches.
+                    if '/' in selected or '[' in selected or '*' in selected or '(' in selected:
+                        raise NotImplementedError('Unsupported XSD key XPath selector ' + selector
+                                                  + ' at ' + resource + pointer)
+                    if ':' in selected:
+                        prefix, local = selected.split(':', 1)
+                        uri = scopes.get(id(selector_nodes[0]), scopes.get(id(constraint), {})).get(prefix)
+                        if not uri or not local:
+                            raise ValueError('Unbound XSD key selector prefix: ' + selector
+                                             + ' at ' + resource + pointer)
+                    else:
+                        local, uri = selected, ''
                     matches = [child for child in validation_group.children
-                               if isinstance(child, ListNode) and child.name == selected]
+                               if isinstance(child, ListNode) and child.name == local
+                               and (child.xml_wire.namespace_uri if child.xml_wire else '') == uri]
                     if len(matches) != 1:
                         raise NotImplementedError('XSD key selector must target exactly one directly '
                                                   'repeated element: ' + selector + ' at '
                                                   + resource + pointer)
                     scoped_keys.append(KeyDefinition(
-                        identifier, selector,
+                        identifier, local,
                         pointer + '/' + constraint.tag[len(XS):] + '/' + str(key_index),
                         tuple(field.get('xpath') for field in fields),
                         constraint.tag == XS + 'key'))

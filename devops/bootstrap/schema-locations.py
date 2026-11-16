@@ -105,8 +105,17 @@ def identity(path: Path, kind: str) -> str:
     if kind != 'xmldefs':
         content = json.loads(path.read_text(encoding='utf-8'))
         declared = content.get('$id')
-        if declared and declared != uri:
-            raise ValueError(f'Schema $id differs from GlobalPublicationPathId: {path}: {declared} != {uri}')
+        # A schema may have a historical semantic $id (for example a Builder
+        # URN) while GlobalPublicationPathId determines its public location.
+        # Both are valid identities for source resolution; collect() registers
+        # the declared URI as an additional alias. Do not rewrite the schema.
+        if declared is not None:
+            if not isinstance(declared, str) or not declared.strip():
+                raise ValueError(f'Invalid schema $id in {path}: {declared!r}')
+            parsed_id = urlsplit(declared)
+            if (parsed_id.scheme not in ('https', 'http', 'urn') or parsed_id.fragment
+                    or any(char in declared for char in ('=', '\n', '\r', '\t'))):
+                raise ValueError(f'Unsupported schema $id for local mapping in {path}: {declared!r}')
     else:
         # XML namespaces can differ from publication URLs.  An XSD without
         # a target namespace still has an identity supplied by its metadata.
@@ -132,12 +141,18 @@ def collect(repository: Path, root: Path) -> dict[str, Path]:
                 if file.is_symlink():
                     raise ValueError(f'Symlinked schema: {file}')
                 uri = identity(file, kind)
-                existing = mapping.get(uri)
-                if existing is not None:
-                    if existing.read_bytes() != file.read_bytes():
-                        raise ValueError(f'Conflicting source schema URL {uri}: {existing} and {file}')
-                    continue
-                mapping[uri] = file.resolve(strict=True)
+                aliases = [uri]
+                if kind != 'xmldefs':
+                    declared = json.loads(file.read_text(encoding='utf-8')).get('$id')
+                    if declared and declared != uri:
+                        aliases.append(declared)
+                for alias in aliases:
+                    existing = mapping.get(alias)
+                    if existing is not None:
+                        if existing.read_bytes() != file.read_bytes():
+                            raise ValueError(f'Conflicting schema identity {alias}: {existing} and {file}')
+                        continue
+                    mapping[alias] = file.resolve(strict=True)
     return mapping
 
 

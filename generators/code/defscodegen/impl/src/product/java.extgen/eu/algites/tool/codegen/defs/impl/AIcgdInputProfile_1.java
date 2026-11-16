@@ -1,9 +1,10 @@
 package eu.algites.tool.codegen.defs.impl;
 
 /** Generated mutable implementation of AIigInputProfile_1. */
-@eu.algites.lib.data.dataobject.AIaDataObject(title = "", description = "Defines how defs-codegen interprets one supported source-definition family.", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
+@eu.algites.lib.data.dataobject.AIaDataObject(title = "", description = "Root document configuring one input-definition family.", setterInheritancePolicy = eu.algites.lib.data.dataobject.AInFieldSetterInheritancePolicy.INHERIT_AS_GENERIC_PARAMETER)
 @eu.algites.lib.data.dataobject.jsondefs.AIaDataObjectJsonSchema(schemaId = "eu.algites.tool.codegen.defs.input-profile", schemaVersion = 1, schemaUrl = "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/input-profile_1.jsondef.schema.json", dataSourceSchemaUrlField = "", dataSourceSchemaIdentifierField = "", dataSourceSchemaVersionField = "")
 @eu.algites.lib.data.dataobject.yamldefs.AIaDataObjectYamlSchema(schemaId = "eu.algites.tool.codegen.defs.input-profile", schemaVersion = 1, schemaUrl = "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/defs/input-profile_1.yamldef.schema.json", dataSourceSchemaUrlField = "", dataSourceSchemaIdentifierField = "", dataSourceSchemaVersionField = "")
+@eu.algites.lib.data.dataobject.xmldefs.AIaDataObjectXmlSchema(definitionKind = eu.algites.lib.data.dataobject.xmldefs.AInXmlObjectDefinitionKind.ELEMENT, namespace = "https://defs.dev.algites.eu/api/xmldefs/eu/algites/tool/codegen/defs/input-profile_1.xsd", namespaceLocalName = "InputProfile")
 @eu.algites.lib.data.smartdataobject.impl.common.AIaSmartDataObjectImplementationBinding(readContracts = {eu.algites.tool.codegen.defs.AIigInputProfile_1.class})
 public class AIcgdInputProfile_1 extends eu.algites.lib.data.smartdataobject.impl.common.AIcSmartDataObject implements eu.algites.tool.codegen.defs.impl.intf.AIigdInputProfile_1 {
     /** Create an object whose raw fields are initially absent. */
@@ -15,6 +16,8 @@ public class AIcgdInputProfile_1 extends eu.algites.lib.data.smartdataobject.imp
     @Override public java.lang.String _getRaw_NamingProfile() { return (java.lang.String) get_RawField("NamingProfile"); }
     @Override public boolean _isPresent_NamingProfile() { return isPresent_Field("NamingProfile"); }
     @Override public void _unset_NamingProfile() { unset_Field("NamingProfile"); }
+    @Override public void _setEmpty_NamingProfile() { set_EmptyField("NamingProfile"); }
+    @Override public boolean _isEmpty_NamingProfile() { return isEmpty_Field("NamingProfile"); }
     @Override public java.lang.Boolean getRequireCanonicalIdentity() { return (java.lang.Boolean) get_EffectiveField("RequireCanonicalIdentity"); }
     @Override public void setRequireCanonicalIdentity(java.lang.Boolean aRequireCanonicalIdentity) { set_RawField("RequireCanonicalIdentity", aRequireCanonicalIdentity); }
     @Override public java.lang.Boolean _getRaw_RequireCanonicalIdentity() { return (java.lang.Boolean) get_RawField("RequireCanonicalIdentity"); }
