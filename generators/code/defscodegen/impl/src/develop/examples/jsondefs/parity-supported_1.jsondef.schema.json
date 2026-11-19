@@ -1,8 +1,9 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "urn:parity:jsondefs:parity-supported:1",
   "title": "parity-supported",
   "description": "Equivalent cross-format contract covering scalar values and nested structures.",
+  "x-algites-schema-version": 1,
   "type": "object",
   "properties": {
     "text": {
@@ -248,6 +249,5 @@
     "boundedInteger",
     "boundedDecimal"
   ],
-  "additionalProperties": false,
-  "x-algites-schema-version": 1
+  "additionalProperties": false
 }

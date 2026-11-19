@@ -19,10 +19,10 @@ public class AItcCodegenValidationExceptionTest {
         String original = "Incompatible KEYED_VALUES declarations: credentials";
         String hint = "Align the XML collection and JSON/YAML map in their source schemas.";
         AIxCodegenValidationException error = new AIxCodegenValidationException(
-                original, hint, "credentials_1.xsd", "/Credentials/Profile");
+                original, hint, "credential-document_1.xsd", "/Credentials/Profile");
         Assert.assertEquals(error.getMessage(), original);
         Assert.assertEquals(error.getHint(), hint);
-        Assert.assertEquals(error.getSource(), "credentials_1.xsd");
+        Assert.assertEquals(error.getSource(), "credential-document_1.xsd");
         Assert.assertEquals(error.getLocation(), "/Credentials/Profile");
         Assert.assertTrue(error instanceof IllegalArgumentException);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();

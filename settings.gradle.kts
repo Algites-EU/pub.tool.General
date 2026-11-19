@@ -1,4 +1,5 @@
-/* The single build-domain bootstrap; all initialization is compiled in gradleinit. */
+/* Consumer bootstrap for the published Modustro Builder Gradle 1.1 plugin.
+ * The isolated devops/bootstrap does not evaluate this file. */
 buildscript {
     repositories {
         val locMode = providers.gradleProperty("modustro.dependencyMode")
@@ -26,6 +27,7 @@ buildscript {
     }
     dependencies {
         classpath("eu.algites.pltf.modustro.builder:pub.gov.Algites_devops.build.modustro.builder.gradleinit:1.0-SNAPSHOT")
+//        classpath("eu.algites.pltf.modustro.builder:pub.pltf.Modustro_platform.builder.gradle:1.1-SNAPSHOT")
     }
 }
 apply(plugin = "eu.algites.pltf.modustro.builder.settings")

@@ -40,6 +40,11 @@
         "id",
         "field-name"
       ]
+    },
+    "x-algites-defscodegen-root-type-name": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "description": "Optional explicit canonical name of the JSONDEFS/YAMLDEFS document-root generated type. Overrides the filename-derived name after naming-profile processing; it does not rename any $defs/definitions declarations or modify serialized fields. Only applies to a structural document root, never to a named nested subschema."
     }
   }
 }

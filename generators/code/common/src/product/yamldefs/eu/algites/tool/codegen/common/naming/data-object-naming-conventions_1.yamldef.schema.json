@@ -2,12 +2,17 @@
   "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/data-object-naming-conventions_1.yamldef.schema.json",
   "title": "DataObject method naming conventions",
+  "description": "Method naming profiles using the common naming composition toolkit.",
+  "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.data-object-naming-conventions",
+  "x-algites-schema-version": 1,
+  "x-algites-defscodegen-extends": [
+    "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
+  ],
   "allOf": [
     {
       "$ref": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
     }
   ],
-  "description": "Method naming profiles using the common naming composition toolkit.",
   "properties": {
     "GeneratedDataObjectMethodNameConventions": {
       "type": "object",
@@ -42,11 +47,6 @@
   "required": [
     "GeneratedDataObjectMethodNameConventions"
   ],
-  "x-algites-defscodegen-extends": [
-    "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
-  ],
-  "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.data-object-naming-conventions",
-  "x-algites-schema-version": 1,
   "$defs": {
     "GeneratedDataObjectMethodNameConvention": {
       "type": "object",

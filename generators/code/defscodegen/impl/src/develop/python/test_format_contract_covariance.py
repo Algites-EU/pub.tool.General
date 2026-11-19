@@ -19,7 +19,7 @@ def test_root_alias_choice_and_anchored_content_are_nominal(tmp_path):
                 'properties': {'Text': {'type': 'string'}, 'Number': {'type': 'integer'}}}},
             '$ref': '#/$defs/VersionRequirement',
         },
-        'credentials_1.yamldef.schema.json': {
+        'credential-document_1.yamldef.schema.json': {
             '$defs': {
                 'DocumentContent': {'type': 'object', 'properties': {
                     'Name': {'type': 'string'}}},
@@ -32,7 +32,7 @@ def test_root_alias_choice_and_anchored_content_are_nominal(tmp_path):
         'artifact_1.yamldef.schema.json': {
             'type': 'object', 'properties': {
                 'VersionRequirement': {'$ref': 'version_1.yamldef.schema.json'},
-                'CredentialProfiles': {'$ref': 'credentials_1.yamldef.schema.json#EmbeddedContent'},
+                'CredentialProfiles': {'$ref': 'credential-document_1.yamldef.schema.json#EmbeddedContent'},
                 'OptionalChoice': {'oneOf': [
                     {'type': 'null'}, {'$ref': 'version_1.yamldef.schema.json'}]},
             },

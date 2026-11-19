@@ -1,8 +1,11 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/common/naming/generated-dataobject-structure-kind_1.jsondef.schema.json",
-  "type": "string",
   "title": "Generated DataObject method naming role",
+  "description": "Roles for field-specific methods shared between Defs and SDO generators. The synthetic key and value getters are configurable literal method names, not composition references; neither becomes a serialized field of a JSON/YAML value.",
+  "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.generated-dataobject-structure-kind",
+  "x-algites-schema-version": 1,
+  "type": "string",
   "enum": [
     "standard_getter",
     "list_getter",
@@ -14,8 +17,5 @@
     "multi_mapped_list_value_synthetic_getter",
     "raw_empty_setter",
     "raw_empty_checker_method"
-  ],
-  "description": "Roles for field-specific methods shared between Defs and SDO generators. The synthetic key and value getters are configurable literal method names, not composition references; neither becomes a serialized field of a JSON/YAML value.",
-  "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.generated-dataobject-structure-kind",
-  "x-algites-schema-version": 1
+  ]
 }

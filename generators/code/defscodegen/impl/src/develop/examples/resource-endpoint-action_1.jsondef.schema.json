@@ -1,5 +1,10 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
+  "$id": "urn:algites:development:resource-endpoint-action_1.jsondef",
+  "title": "Resource endpoint action",
+  "description": "Example canonical enum definition for a resource-endpoint action.",
+  "x-algites-schema-id": "example.resource-endpoint-action",
+  "x-algites-schema-version": 1,
   "x-jsondefs-id": "example.resource-endpoint-action",
   "x-jsondefs-version": 1,
   "x-jsondefs-name": "resource-endpoint-action",
@@ -25,10 +30,5 @@
       "description": "Performs management operations on the example endpoint.",
       "title": "Manage"
     }
-  ],
-  "description": "Example canonical enum definition for a resource-endpoint action.",
-  "$id": "urn:algites:development:resource-endpoint-action_1.jsondef",
-  "x-algites-schema-id": "example.resource-endpoint-action",
-  "x-algites-schema-version": 1,
-  "title": "Resource endpoint action"
+  ]
 }

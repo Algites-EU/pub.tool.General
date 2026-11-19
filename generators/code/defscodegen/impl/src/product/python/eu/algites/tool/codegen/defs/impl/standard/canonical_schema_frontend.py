@@ -120,7 +120,13 @@ class AIcDefsCodegenCanonicalSchemaFrontend:
             raise TypeError('Schema must be a mapping')
         self._validate_choice_placements(source)
         self._source_versions[resource] = str(source.get("x-algites-schema-version") or source_version)
-        name = root_name or str(source.get('title') or PurePosixPath(resource).name.split('.')[0])
+        # Direct frontend callers fall back to the source filename, never to `title`.
+        # The production CLI supplies root_name from the configured naming profile.
+        stem = re.sub(r'_\d+$', '', PurePosixPath(resource).name.split('.')[0])
+        inferred = ''.join(token[0].upper() + token[1:] for token in re.split(r'[-_ ]+', stem) if token)
+        name = root_name or inferred
+        if not name:
+            raise ValueError('Cannot derive root name from source filename: ' + resource)
         # The physical JSON/YAML document has no XML element QName. For a
         # deliberately shared cross-format DO, its contract may explicitly
         # match an XML root ELEMENT whose wire name differs from the filename.
@@ -157,10 +163,26 @@ class AIcDefsCodegenCanonicalSchemaFrontend:
         self._validate_choice_placements(source)
         self._source_versions[resource] = str(source.get("x-algites-schema-version") or source_version)
         roots = []
-        if any(field in source for field in ('type', 'properties', 'additionalProperties',
-                                             'items', 'prefixItems', '$ref', 'oneOf', 'anyOf', 'enum',
-                                             'required', 'minItems', 'maxItems', 'allOf', 'const')) \
-                or not ('$defs' in source or 'definitions' in source):
+        root_ref = source.get('$ref')
+        local_defs = source.get('$defs')
+        direct_local_alias = (isinstance(root_ref, str)
+                              and root_ref.startswith('#/$defs/')
+                              and '/' not in root_ref[len('#/$defs/'):]
+                              and isinstance(local_defs, Mapping)
+                              and root_ref[len('#/$defs/'):] in local_defs
+                              and not any(field in source for field in (
+                                  'type', 'properties', 'additionalProperties', 'items',
+                                  'prefixItems', 'oneOf', 'anyOf', 'enum', 'const',
+                                  'required', 'minItems', 'maxItems', 'allOf', 'not',
+                                  'if', 'then', 'else', 'patternProperties', 'contains',
+                                  'propertyNames', 'minProperties', 'maxProperties',
+                                  'unevaluatedProperties')))
+        if not direct_local_alias and (
+                any(field in source for field in (
+                    'type', 'properties', 'additionalProperties', 'items', 'prefixItems',
+                    '$ref', 'oneOf', 'anyOf', 'enum', 'required', 'minItems',
+                    'maxItems', 'allOf', 'const'))
+                or not ('$defs' in source or 'definitions' in source)):
             roots.append(self.load_json_or_yaml(source, resource, kind,
                 root_name=root_name, source_version=source_version))
         for container in ('$defs', 'definitions'):

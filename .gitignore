@@ -12,21 +12,56 @@ docs-site/
 run/*
 **/run/*
 build/*
+# Generated/runtime/build output
+**/run/product/**
+**/run/develop/**
+**/run/bld/**
+!**/run/product/.gitkeep
+!**/run/develop/.gitkeep
+!**/run/bld/.gitkeep
 
-# Build-integrated generated sources
-**/src/product/*.gen/
-**/src/develop/*.gen/
+# Build-system spillover (authoritative generated output belongs under run/)
+/build/
+**/*.egg-info/
 
-# Canonical generated source roots are reproducible build state.
-**/src/product/*.gen/
-**/src/develop/*.gen/
-
+# temporary python generated projects:
 **/pyproject.toml
-**/.pytest_cache/*
-# Python bytecode cache
+
+# Python caches
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
 
-# JetBrains IDE project files
+# Environments / IDE
+.venv/
+venv/
 .idea/
+.vscode/
+
+
+
+
+# Only build-integrated .gen sources are reproducible build state.
+# Externally generated .extgen sources MUST be tracked in Git.
+**/src/product/*.gen/
+**/src/develop/*.gen/
+
+# IntelliJ IDEA - local configuration
+/.idea/*
+!/.idea/gradle.xml
+!/.idea/codeStyles/
+!/.idea/codeStyles/**
+!/.idea/inspectionProfiles/
+!/.idea/inspectionProfiles/**
+!/.idea/copyright/
+!/.idea/copyright/**
+!/.idea/encodings.xml
+!/.idea/vcs.xml
+
+# Local editor scratch files
+/.idea/#*#
+
+/devops.orig/*

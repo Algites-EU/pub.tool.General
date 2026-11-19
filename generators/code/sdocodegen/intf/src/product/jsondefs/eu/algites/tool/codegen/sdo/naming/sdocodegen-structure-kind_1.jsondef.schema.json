@@ -1,7 +1,10 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/sdo/naming/sdocodegen-structure-kind_1.jsondef.schema.json",
   "title": "Sdo codegen naming roles",
+  "description": "Strictly typed naming role vocabulary for the sdo domain. Roles in other domains are forbidden.",
+  "x-algites-schema-id": "eu.algites.tool.codegen.sdo.naming.sdocodegen-structure-kind",
+  "x-algites-schema-version": 1,
   "type": "string",
   "enum": [
     "raw_getter",
@@ -9,8 +12,5 @@
     "raw_unsetter",
     "raw_empty_setter",
     "raw_empty_checker_method"
-  ],
-  "description": "Strictly typed naming role vocabulary for the sdo domain. Roles in other domains are forbidden.",
-  "x-algites-schema-id": "eu.algites.tool.codegen.sdo.naming.sdocodegen-structure-kind",
-  "x-algites-schema-version": 1
+  ]
 }

@@ -1,8 +1,9 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "urn:parity:yamldefs:parity-supported-builtins:1",
   "title": "parity-supported-builtins",
   "description": "All XSD 1.0 built-in scalar families and list datatypes projected to the canonical model.",
+  "x-algites-schema-version": 1,
   "type": "object",
   "properties": {
     "string": {
@@ -361,6 +362,5 @@
     "anySimpleType",
     "anyType"
   ],
-  "additionalProperties": false,
-  "x-algites-schema-version": 1
+  "additionalProperties": false
 }

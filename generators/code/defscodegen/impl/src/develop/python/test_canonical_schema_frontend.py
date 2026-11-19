@@ -60,7 +60,7 @@ class TestSchemaFrontendSemantics:
                                                   defs, 'algites-java-defscodegen-standard_1')
         root = AIcDefsCodegenCanonicalSchemaFrontend(naming).load_json_or_yaml(
             {'type':'array', 'prefixItems':[{'type':'string'}, {'type':'boolean'}],
-             'items':{'type':'integer'}}, 'tuple.json', SourceKind.JSONDEFS)
+             'items':{'type':'integer'}}, 'tuple.json', SourceKind.JSONDEFS, root_name='tuple')
         first, second, rest = root.structure.children
         assert [first.name, second.name] == [f'getItem{start}', f'getItem{start+1}']
         assert first.structure.name == f'tuplePositionItem{start}'
@@ -263,7 +263,7 @@ def test_inline_property_enum_uses_dialect_neutral_naming_role(kind):
         'Fixed': {'type': 'string', 'const': 'yes'},
         'Details': {'type': 'object', 'properties': {'name': {'type': 'string'}}},
     }}
-    root = frontend().load_json_or_yaml(source, 'inline-enum.schema.json', kind)
+    root = frontend().load_json_or_yaml(source, 'inline-enum.schema.json', kind, root_name='Person')
     status, level, fixed, details = root.structure.children
     assert [x.structure.name for x in (status, level, fixed)] == [
         'PersonStatus', 'PersonLevel', 'PersonFixed']
@@ -322,7 +322,7 @@ def test_inline_object_key_enum_uses_inline_enum_role(kind):
                     'x-algites-defscodegen-key': {'id': 'ByCode', 'field-name': 'Code'},
                     'propertyNames': {'type': 'string', 'enum': ['A', 'B']},
                     'additionalProperties': {'type': 'string'}}}}
-    root = frontend().load_json_or_yaml(source, 'keyed.schema.json', kind)
+    root = frontend().load_json_or_yaml(source, 'keyed.schema.json', kind, root_name='Person')
     indexed = root.structure.children[0]
     assert indexed.kind == Kind.LIST
     key = indexed.item.structure.children[0].structure
@@ -378,3 +378,27 @@ def test_xsd_inline_types_inherit_own_document_filename_version():
         for field in root.structure.children:
             assert field.structure.origin == Origin.SYNTHETIC
             assert field.structure.schema_version == version
+
+
+def test_direct_named_root_alias_emits_exactly_one_contract_for_both_formats():
+    """A validating root alias must not duplicate its named canonical type."""
+    source = {
+        '$id': 'https://example.org/credential-document_1.jsondef.schema.json',
+        'x-algites-schema-id': 'eu.algites.lib.security.credentials.core.credential-document',
+        'x-algites-schema-version': 1,
+        '$ref': '#/$defs/CredentialDocument',
+        '$defs': {
+            'CredentialDocument': {
+                'type': 'object',
+                'properties': {'Profile': {'type': 'array', 'items': {'type': 'string'}}}
+            },
+            'ProfileType': {'type': 'object', 'properties': {'Id': {'type': 'string'}}},
+        }
+    }
+    for kind in (SourceKind.JSONDEFS, SourceKind.YAMLDEFS):
+        roots = frontend().load_json_or_yaml_types(
+            source, 'credential-document_1.schema.json', kind,
+            root_name='CredentialDocument', source_version='1')
+        assert [item.name for item in roots] == ['CredentialDocument', 'ProfileType']
+        assert [item.source_bindings[kind][0].representation_kind for item in roots] == [
+            '$defs', '$defs']

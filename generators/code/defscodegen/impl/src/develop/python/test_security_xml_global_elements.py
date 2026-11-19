@@ -19,7 +19,7 @@ ROOT = SECURITY / 'credentials/core/intf/src/product/xmldefs/eu/algites/lib/secu
 @pytest.mark.skipif(not ROOT.is_dir(), reason='pub.lib.Security checkout not present alongside pub.tool.General')
 def test_credentials_xsd_roots_and_keys():
     for filename, root_name in (( 'credential-profiles_1.xsd', 'CredentialProfiles'),
-                                ('credentials_1.xsd', 'CredentialDocument')):
+                                ('credential-document_1.xsd', 'CredentialDocument')):
         doc = Document(Kind.XMLDEFS, filename, (ROOT / filename).read_bytes())
         linked = _pipeline().process((doc,))
         root = next(node for node in linked.types if node.name == root_name)

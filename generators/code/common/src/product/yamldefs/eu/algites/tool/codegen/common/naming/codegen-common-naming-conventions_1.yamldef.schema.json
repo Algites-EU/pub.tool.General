@@ -3,6 +3,11 @@
   "$id": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/codegen-common-naming-conventions_1.yamldef.schema.json",
   "title": "CommonCodegenNameConventions",
   "description": "New common naming profiles; other-domain roles forbidden.",
+  "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.codegen-common-naming-conventions",
+  "x-algites-schema-version": 1,
+  "x-algites-defscodegen-extends": [
+    "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
+  ],
   "allOf": [
     {
       "$ref": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
@@ -42,11 +47,6 @@
   "required": [
     "CommonCodegenNameConventions"
   ],
-  "x-algites-defscodegen-extends": [
-    "https://defs.dev.algites.eu/api/yamldefs/eu/algites/lib/naming/convention/common-naming-conventions_1.yamldef.schema.json"
-  ],
-  "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.codegen-common-naming-conventions",
-  "x-algites-schema-version": 1,
   "$defs": {
     "CommonCodegenNameConvention": {
       "type": "object",

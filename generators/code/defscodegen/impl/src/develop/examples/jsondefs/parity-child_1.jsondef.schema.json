@@ -1,8 +1,9 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "urn:parity:jsondefs:parity-child:1",
   "title": "parity-child",
   "description": "Nested child with a reference to a further subschema.",
+  "x-algites-schema-version": 1,
   "type": "object",
   "properties": {
     "name": {
@@ -20,6 +21,5 @@
     "name",
     "detail"
   ],
-  "additionalProperties": false,
-  "x-algites-schema-version": 1
+  "additionalProperties": false
 }

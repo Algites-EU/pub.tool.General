@@ -12,8 +12,8 @@ https://defs.dev.algites.eu/api/xmldefs/{GlobalPublicationPathId}
 ```
 
 For example, `GlobalPublicationPathId:
-eu/algites/lib/security/credentials/core/credentials_1.xsd` corresponds to
-`https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/security/credentials/core/credentials_1.xsd`.
+eu/algites/lib/security/credentials/core/credential-document_1.xsd` corresponds to
+`https://defs.dev.algites.eu/api/xmldefs/eu/algites/lib/security/credentials/core/credential-document_1.xsd`.
 
 The identity is sourced from the metadata, not the checkout path. Moving an XSD
 between repositories does not change its XML namespace provided that the metadata

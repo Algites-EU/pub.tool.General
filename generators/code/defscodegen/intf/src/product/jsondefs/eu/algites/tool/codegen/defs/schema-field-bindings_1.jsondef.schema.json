@@ -1,10 +1,10 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/schema-field-bindings_1.jsondef.schema.json",
-  "x-algites-schema-id": "eu.algites.tool.codegen.defs.schema-field-bindings",
-  "x-algites-schema-version": 1,
   "title": "Algites Schema Field Bindings",
   "description": "Generator instructions identifying canonical JSON Schema resources and optional field-binding projections.",
+  "x-algites-schema-id": "eu.algites.tool.codegen.defs.schema-field-bindings",
+  "x-algites-schema-version": 1,
   "$defs": {
     "LanguageType": {
       "enum": [

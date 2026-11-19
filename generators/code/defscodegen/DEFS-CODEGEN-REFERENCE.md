@@ -1715,6 +1715,36 @@ klíčů se **nezavádí**.
 
 ## Dialekty a vlastní slovník
 
+### Explicit JSON/YAML document-root name (`x-algites-defscodegen-root-type-name`)
+
+Defs Codegen normally obtains the root type name from the versioned source
+filename through the selected naming profile; `title` and `description` are
+not naming sources. The optional top-level annotation
+`x-algites-defscodegen-root-type-name` is available when the generated
+root contract intentionally needs a different name. Its value must match
+`^[A-Za-z_][A-Za-z0-9_]*$` and applies **only** to the document root, not to
+standalone `$defs` or `definitions` types or to serialized property names.
+
+```json
+{
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/2020-12/dialect_1.jsonmetadef.schema.json",
+  "$id": "https://example.org/credential-config_1.jsondef.schema.json",
+  "x-algites-defscodegen-root-type-name": "CredentialDocument",
+  "type": "object",
+  "properties": {"Profile": {"type": "array", "items": {"type": "object"}}}
+}
+```
+
+Prefer the ordinary naming profile or an explicit named definition in `$defs`
+when possible. For example, `credential-document_1.jsondef.schema.json`
+can declare `$defs.CredentialDocument` and use a root
+`"$ref": "#/$defs/CredentialDocument"`, requiring no override. The canonical
+frontend must treat this direct root alias as one named type rather than
+emitting a duplicate root declaration. The keyword is defined by every
+version-specific Defs Codegen vocabulary; it does not belong to Algites
+Common Defs Identity Vocabulary.
+
+
 
 ## Dialekty JSON Schema a jejich rozsah
 

@@ -115,6 +115,29 @@ public final class AItcDefsCodegenCanonicalGlobalElementParityTest {
         }
     }
 
+    /**
+     * A root reference to an explicitly named local definition is a JSON Schema
+     * validation alias, not an additional generated contract.
+     */
+    @Test
+    public void AIcDirectNamedRootAliasProducesOnlyItsNamedDefinition() {
+        var schema = Map.<String, Object>of(
+                "$ref", "#/$defs/CredentialDocument",
+                "x-algites-schema-id", "eu.algites.lib.security.credentials.core.credential-document",
+                "$defs", Map.of("CredentialDocument", Map.of("type", "object",
+                        "properties", Map.of("Profile", Map.of("type", "array",
+                                "items", Map.of("type", "string"))))));
+        var frontend = new AIcDefsCodegenCanonicalSchemaFrontend(profile());
+        for (var kind : List.of(AIngSourceInputKind_1.JSONDEFS, AIngSourceInputKind_1.YAMLDEFS)) {
+            var types = frontend.loadJsonOrYamlTypes(schema,
+                    "credential-document_1.schema.json", kind, "CredentialDocument", "1");
+            Assert.assertEquals(types.size(), 1);
+            Assert.assertEquals(types.get(0).name(), "CredentialDocument");
+            Assert.assertEquals(types.get(0).sourceBindings().get(kind).get(0).representationKind(),
+                    "$defs");
+        }
+    }
+
     /** Naming rules used only for a complete root/list emission parity test. */
     private static AIcCodegenNamingProfileResolver.Profile emissionProfile() {
         var identifier = Map.<String, Object>of("NameFragmentsSegmentValue",

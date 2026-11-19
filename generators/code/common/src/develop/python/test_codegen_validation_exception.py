@@ -15,7 +15,7 @@ def test_unchanged_message_and_separate_hint():
     message = "'credentialProfile' does not match algites-jsondef-schema-versioned_1/type_name"
     hint = 'Rename $defs/credentialProfile to $defs/CredentialProfile and update $ref.'
     err = AIxCodegenValidationException(message, hint,
-                                       source='credentials_1.jsondef.schema.json',
+                                       source='credential-document_1.jsondef.schema.json',
                                        location='#/$defs/credentialProfile')
     assert isinstance(err, ValueError)
     assert str(err) == message
@@ -25,7 +25,7 @@ def test_unchanged_message_and_separate_hint():
     report = format_diagnostic(err, generator='Defs Codegen')
     assert f'  Message: {message}' in report
     assert f'  Hint: {hint}' in report
-    assert '  Source: credentials_1.jsondef.schema.json' in report
+    assert '  Source: credential-document_1.jsondef.schema.json' in report
     assert '  Location: #/$defs/credentialProfile' in report
 
 

@@ -1,5 +1,10 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
+  "$id": "urn:algites:development:resource-endpoint_1.yamldef",
+  "title": "Resource endpoint",
+  "description": "Example canonical object definition for a resource endpoint.",
+  "x-algites-schema-id": "example.resource-endpoint",
+  "x-algites-schema-version": 1,
   "x-yamldefs-id": "example.resource-endpoint",
   "x-yamldefs-version": 1,
   "x-yamldefs-name": "resource-endpoint",
@@ -24,10 +29,5 @@
   "required": [
     "Id",
     "Action"
-  ],
-  "description": "Example canonical object definition for a resource endpoint.",
-  "$id": "urn:algites:development:resource-endpoint_1.yamldef",
-  "x-algites-schema-id": "example.resource-endpoint",
-  "x-algites-schema-version": 1,
-  "title": "Resource endpoint"
+  ]
 }

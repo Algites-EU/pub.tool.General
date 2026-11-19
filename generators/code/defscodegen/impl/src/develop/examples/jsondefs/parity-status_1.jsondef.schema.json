@@ -1,8 +1,9 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "urn:parity:jsondefs:parity-status:1",
   "title": "parity-status",
   "description": "Documented workflow states shared by all representations.",
+  "x-algites-schema-version": 1,
   "type": "string",
   "enum": [
     "pending",
@@ -19,6 +20,5 @@
       "description": "Work is complete.",
       "title": "Complete"
     }
-  ],
-  "x-algites-schema-version": 1
+  ]
 }

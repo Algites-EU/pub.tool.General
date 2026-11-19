@@ -223,6 +223,9 @@
     },
     "x-algites-defscodegen-key": {
       "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/draft-04/vocabulary_1.jsonmetadef.schema.json#/properties/x-algites-defscodegen-key"
+    },
+    "x-algites-defscodegen-root-type-name": {
+      "$ref": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/draft-04/vocabulary_1.jsonmetadef.schema.json#/properties/x-algites-defscodegen-root-type-name"
     }
   },
   "dependencies": {

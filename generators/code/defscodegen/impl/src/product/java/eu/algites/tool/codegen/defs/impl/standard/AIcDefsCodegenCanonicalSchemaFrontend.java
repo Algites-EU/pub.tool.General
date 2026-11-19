@@ -139,6 +139,33 @@ public final class AIcDefsCodegenCanonicalSchemaFrontend {
     }
 
     /**
+     * Provides a deterministic filename-only fallback for direct frontend callers.
+     * Production callers pass the type name resolved by the selected naming profile.
+     * Titles and descriptions are never naming inputs.
+     * @param resource original source resource path
+     * @return a PascalCase-compatible root name derived from the filename
+     */
+    private static String sourceFilenameRootName(String resource) {
+        String filename = resource.substring(resource.lastIndexOf('/') + 1);
+        String stem = filename.split("\\.", 2)[0].replaceFirst("_\\d+$", "");
+        StringBuilder result = new StringBuilder();
+        boolean capitalize = true;
+        for (int index = 0; index < stem.length(); index++) {
+            char character = stem.charAt(index);
+            if (character == '-' || character == '_' || character == ' ') {
+                capitalize = true;
+            } else {
+                result.append(capitalize ? Character.toUpperCase(character) : character);
+                capitalize = false;
+            }
+        }
+        if (result.isEmpty()) {
+            throw new IllegalArgumentException("Cannot derive root name from source filename: " + resource);
+        }
+        return result.toString();
+    }
+
+    /**
      * Loads a parsed JSONDEFS or YAMLDEFS schema into one declared canonical type.
      *
      * @param source schema root map, preserving its ordered fields
@@ -172,8 +199,9 @@ public final class AIcDefsCodegenCanonicalSchemaFrontend {
         }
         validateChoicePlacements(source, "#", false);
         sourceVersions.put(resource, string(source.get("x-algites-schema-version"), sourceVersion));
-        String name = rootName.isEmpty() ? string(source.get("title"),
-                resource.substring(resource.lastIndexOf('/') + 1).split("\\.")[0]) : rootName;
+        String name = rootName.isEmpty()
+                ? sourceFilenameRootName(resource)
+                : rootName;
         // Match the opt-in JSON/YAML root identity supported by the Python frontend.
         // This names the shared DO contract, not the physical JSON/XML root.
         if (source.containsKey("x-algites-defscodegen-root-type-name")) {
@@ -239,10 +267,20 @@ public final class AIcDefsCodegenCanonicalSchemaFrontend {
         validateChoicePlacements(source, "#", false);
         sourceVersions.put(resource, string(source.get("x-algites-schema-version"), sourceVersion));
         List<AIcDefsCanonicalType> result = new ArrayList<>();
-        if (List.of("type", "properties", "additionalProperties", "items", "prefixItems", "$ref",
+        boolean directLocalAlias = source.get("$ref") instanceof String reference
+                && reference.startsWith("#/$defs/")
+                && reference.indexOf('/', "#/$defs/".length()) < 0
+                && source.get("$defs") instanceof Map<?, ?> definitions
+                && definitions.containsKey(reference.substring("#/$defs/".length()))
+                && List.of("type", "properties", "additionalProperties", "items", "prefixItems",
+                        "oneOf", "anyOf", "enum", "const", "required", "minItems", "maxItems",
+                        "allOf", "not", "if", "then", "else", "patternProperties", "contains",
+                        "propertyNames", "minProperties", "maxProperties", "unevaluatedProperties")
+                        .stream().noneMatch(source::containsKey);
+        if (!directLocalAlias && (List.of("type", "properties", "additionalProperties", "items", "prefixItems", "$ref",
                 "oneOf", "anyOf", "enum", "const", "required", "minItems", "maxItems", "allOf")
                 .stream().anyMatch(source::containsKey)
-                || (!source.containsKey("$defs") && !source.containsKey("definitions"))) {
+                || (!source.containsKey("$defs") && !source.containsKey("definitions")))) {
             result.add(loadJsonOrYaml(source, resource, kind, rootName, sourceVersion));
         }
         for (String section : List.of("$defs", "definitions")) {

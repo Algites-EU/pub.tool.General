@@ -1,9 +1,11 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/tool/codegen/common/naming/generated-dataobject-schema-metadata-kind_1.yamldef.schema.json",
   "title": "Generated DataObject schema metadata naming role",
-  "type": "string",
   "description": "Six schema-header and instance-document metadata field-name roles for Defs and SDO code generation. Method names are modeled separately.",
+  "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.generated-dataobject-schema-metadata-kind",
+  "x-algites-schema-version": 1,
+  "type": "string",
   "enum": [
     "schema_source_schema_url",
     "schema_source_schema_identifier",
@@ -11,7 +13,5 @@
     "data_source_schema_url",
     "data_source_schema_identifier",
     "data_source_schema_version"
-  ],
-  "x-algites-schema-id": "eu.algites.tool.codegen.common.naming.generated-dataobject-schema-metadata-kind",
-  "x-algites-schema-version": 1
+  ]
 }

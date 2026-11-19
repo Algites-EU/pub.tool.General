@@ -1,10 +1,10 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "https://defs.dev.algites.eu/api/yamldefs/eu/algites/pltf/modustro/builder/common/document-common-metadata_1.yamldef.schema.json",
-  "x-algites-definition-version": 1,
-  "x-algites-schema-id": "urn:algites:example:yamldefs:document-common-metadata:1",
   "title": "Modustro Builder YAML Document Common Metadata v1",
   "description": "Common technical metadata accepted by Algites/Modustro YAML root documents.",
+  "x-algites-schema-id": "eu.algites.example.yamldefs.document-common-metadata",
+  "x-algites-schema-version": 1,
   "type": "object",
   "properties": {
     "$schema": {
@@ -13,6 +13,5 @@
       "title": "Document schema URI",
       "description": "Optional absolute URI of the schema describing this root document."
     }
-  },
-  "x-algites-schema-version": 1
+  }
 }

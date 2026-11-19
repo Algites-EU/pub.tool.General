@@ -157,6 +157,42 @@ loss of typed enum identity, ambiguous external references and incompatible
 field/value projections MUST be rejected rather than silently emitted as an
 untyped map. The keyword does not itself describe a composite XML key.
 
+## `x-algites-defscodegen-root-type-name`
+
+The value MUST be a string matching `^[A-Za-z_][A-Za-z0-9_]*$`.
+This is an optional **explicit name override for the document-root generated
+contract** of a JSONDEFS or YAMLDEFS source schema. Normally the root name is
+obtained from the source filename using the selected naming profile. This
+keyword overrides that name only when a different shared canonical root name
+is needed; it MUST NOT derive the name from `title` or `description`.
+
+The keyword is permitted only at the top level of a source schema that
+actually defines a document root. It MUST NOT rename any definitions in
+`$defs` / `definitions`, change the logical `x-algites-schema-id`, change the
+on-wire JSON/YAML properties, or rename XSD global elements. Named definitions
+use their own declaration keys. A schema containing a single named
+`$defs` declaration referenced by a root `$ref` has no need for this override:
+its named declaration supplies the type name. Implementations MUST avoid
+emitting a duplicate synthetic root type for a root that merely aliases its
+own named `$defs` declaration.
+
+Example of a deliberate override (when a different source filename is
+required by the publishing convention):
+
+```json
+{
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/tool/codegen/defs/jsonmetadef/2020-12/dialect_1.jsonmetadef.schema.json",
+  "$id": "https://example.org/credentials-envelope_1.jsondef.schema.json",
+  "x-algites-defscodegen-root-type-name": "CredentialDocument",
+  "type": "object",
+  "properties": {"Profile": {"type": "array", "items": {"type": "object"}}}
+}
+```
+
+The keyword affects **code-generation naming only**, not JSON Schema
+instance validation. JSON Schema validators that do not implement the Defs
+Codegen vocabulary can ignore it without changing the accepted document set.
+
 ## Compatibility and publication
 
 One semantic vocabulary URI is shared across dialect-specific vocabulary keyword meta-schemas for JSON Schema 2019-09 and 2020-12. For Draft-03, Draft-04, Draft-06, and Draft-07, the same semantics are expressed as proprietary annotations in extended, version-specific meta-schemas. These historical dialects lack `$vocabulary`; the corresponding `vocabulary_1.jsonmetadef.schema.json` resources validate keyword syntax, while `dialect_1.jsonmetadef.schema.json` preserves the published standard metaschema’s recursive validation rules and references the keyword definitions. Draft-05 shares the Draft-04 metaschema (no distinct dialect resource). The keyword meta-schemas describe JSON syntax only; the semantic requirements above must be implemented and tested by consuming tools. Older drafts without `$vocabulary` may use these `x-` keywords as proprietary annotations with separately documented support, but they MUST NOT be described as implementing the 2019-09/2020-12 `$vocabulary` mechanism.

@@ -1,7 +1,10 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://defs.dev.algites.eu/api/jsonmetadefs/eu/algites/lib/common/defs/2020-12/dialect_1.jsonmetadef.schema.json",
   "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/defs/naming/defscodegen-structure-kind_1.jsondef.schema.json",
   "title": "Defs codegen naming roles",
+  "description": "Strictly typed naming role vocabulary for the defs domain. Roles in other domains are forbidden.",
+  "x-algites-schema-id": "eu.algites.tool.codegen.defs.naming.defscodegen-structure-kind",
+  "x-algites-schema-version": 1,
   "type": "string",
   "enum": [
     "synthetic_property_type",
@@ -13,8 +16,5 @@
     "synthetic_group_type",
     "string_enum_item",
     "non_string_enum_item"
-  ],
-  "description": "Strictly typed naming role vocabulary for the defs domain. Roles in other domains are forbidden.",
-  "x-algites-schema-id": "eu.algites.tool.codegen.defs.naming.defscodegen-structure-kind",
-  "x-algites-schema-version": 1
+  ]
 }

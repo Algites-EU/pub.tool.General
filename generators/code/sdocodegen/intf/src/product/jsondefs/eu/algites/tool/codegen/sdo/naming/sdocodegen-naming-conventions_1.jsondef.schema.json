@@ -3,6 +3,11 @@
   "$id": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/tool/codegen/sdo/naming/sdocodegen-naming-conventions_1.jsondef.schema.json",
   "title": "SdoCodegenNameConventions",
   "description": "New sdo naming profiles; other-domain roles forbidden.",
+  "x-algites-schema-id": "eu.algites.tool.codegen.sdo.naming.sdocodegen-naming-conventions",
+  "x-algites-schema-version": 1,
+  "x-algites-defscodegen-extends": [
+    "https://defs.dev.algites.eu/api/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json"
+  ],
   "allOf": [
     {
       "$ref": "https://defs.dev.algites.eu/api/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json"
@@ -42,11 +47,6 @@
   "required": [
     "SdoCodegenNameConventions"
   ],
-  "x-algites-defscodegen-extends": [
-    "https://defs.dev.algites.eu/api/jsondefs/eu/algites/lib/naming/convention/common-naming-conventions_1.jsondef.schema.json"
-  ],
-  "x-algites-schema-id": "eu.algites.tool.codegen.sdo.naming.sdocodegen-naming-conventions",
-  "x-algites-schema-version": 1,
   "$defs": {
     "SdoCodegenNameConvention": {
       "type": "object",
